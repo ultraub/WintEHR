@@ -1255,9 +1255,10 @@ generate.demographics.default_state = Massachusetts
         self.log("🖼️  Generating DICOM files")
         self.log("=" * 60)
         
-        dicom_script = self.script_dir / ".." / "archive" / "generate_dicom_for_synthea.py"
+        # Use the active DICOM generation script
+        dicom_script = self.scripts_dir / "generate_dicom_for_studies.py"
         if not dicom_script.exists():
-            self.log("DICOM generation script not found", "ERROR")
+            self.log(f"DICOM generation script not found at {dicom_script}", "ERROR")
             return False
         
         try:
@@ -1371,6 +1372,23 @@ generate.demographics.default_state = Massachusetts
         # Step 5: Validate
         if not await self.validate_data():
             success = False  # Continue anyway
+        
+        # Step 5b: Re-index search parameters to ensure completeness
+        self.log("🔍 Re-indexing search parameters for completeness...")
+        try:
+            # Run consolidated search indexing to ensure all parameters are indexed
+            result = subprocess.run(
+                ["python", str(self.scripts_dir / "consolidated_search_indexing.py"), "--mode", "fix"],
+                capture_output=True,
+                text=True,
+                cwd=str(self.scripts_dir)
+            )
+            if result.returncode == 0:
+                self.log("  ✅ Search parameter re-indexing completed", "SUCCESS")
+            else:
+                self.log(f"  ⚠️ Search indexing had warnings: {result.stderr[:500]}", "WARN")
+        except Exception as e:
+            self.log(f"  ⚠️ Could not run search re-indexing: {e}", "WARN")
         
         # Step 6: Enhance lab results (basic inline)
         if not await self.enhance_lab_results():

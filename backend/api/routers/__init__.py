@@ -89,8 +89,8 @@ def register_all_routers(app: FastAPI) -> None:
         from api.fhir_schema_router import router as fhir_schema_router
         from api.fhir_capability_schema_router import router as fhir_capability_schema_router
         
-        app.include_router(cds_hooks_router, tags=["CDS Hooks"])
-        app.include_router(cds_executor_router, tags=["CDS Service Executor"])
+        app.include_router(cds_hooks_router, prefix="/api", tags=["CDS Hooks"])
+        app.include_router(cds_executor_router, prefix="/api", tags=["CDS Service Executor"])
         app.include_router(ui_composer_router, tags=["UI Composer"])
         app.include_router(websocket_router, prefix="/api", tags=["WebSocket"])
         app.include_router(websocket_monitoring_router, tags=["WebSocket Monitoring"])
@@ -100,7 +100,7 @@ def register_all_routers(app: FastAPI) -> None:
         # CDS Hooks v2.0 Complete Implementation
         try:
             from api.cds_hooks.cds_hooks_v2_complete import router as cds_hooks_v2_router
-            app.include_router(cds_hooks_v2_router, tags=["CDS Hooks v2.0"])
+            app.include_router(cds_hooks_v2_router, prefix="/api", tags=["CDS Hooks v2.0"])
             logger.info("✓ CDS Hooks v2.0 router registered")
         except Exception as v2_error:
             logger.warning(f"CDS Hooks v2.0 router not available: {v2_error}")

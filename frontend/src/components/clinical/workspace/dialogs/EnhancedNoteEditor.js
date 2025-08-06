@@ -475,6 +475,7 @@ const EnhancedNoteEditor = ({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [isNonTemplateNote, setIsNonTemplateNote] = useState(false);
 
   // Reset form when dialog opens/closes
   useEffect(() => {
@@ -485,6 +486,8 @@ const EnhancedNoteEditor = ({
         content: '',
         sections: {}
       };
+      
+      setIsNonTemplateNote(false); // New notes can use templates
       
       // Apply template wizard data if available
       if (templateData) {
@@ -533,7 +536,14 @@ const EnhancedNoteEditor = ({
       // Editing existing note
       const extractedData = extractNoteData(note);
       setNoteData(extractedData);
-      setSelectedTemplate(extractedData.templateId || 'progress');
+      setIsNonTemplateNote(extractedData.skipTemplate || false);
+      
+      // Only set template if it's a template-based note
+      if (!extractedData.skipTemplate && extractedData.templateId) {
+        setSelectedTemplate(extractedData.templateId);
+      } else {
+        setSelectedTemplate(null); // No template for plain text notes
+      }
     }
   }, [open, note, defaultTemplate, templateData]);
 
@@ -541,7 +551,13 @@ const EnhancedNoteEditor = ({
   const extractNoteData = (note) => {
     let content = '';
     let sections = {};
-    let templateId = 'progress';
+    let templateId = null; // Default to null for non-template notes
+    let useTemplate = true;
+
+    // Check if this is a non-template note (like from Synthea)
+    if (note.skipTemplate) {
+      useTemplate = false;
+    }
 
     try {
       // Use standardized content extraction
@@ -550,17 +566,25 @@ const EnhancedNoteEditor = ({
       if (extractedContent.error) {
         // Error is handled by setting content to error message
         content = `Failed to load note content: ${extractedContent.error}`;
-      } else if (extractedContent.type === 'soap' && extractedContent.sections) {
+      } else if (extractedContent.type === 'soap' && extractedContent.sections && useTemplate) {
         sections = extractedContent.sections;
+        templateId = 'soap';
       } else {
         content = extractedContent.content || '';
+        // For non-template notes, just use the plain content
+        if (!useTemplate) {
+          templateId = null;
+        }
       }
 
-      // Determine template type from LOINC code
-      const loincCode = note.type?.coding?.find(c => c.system === 'http://loinc.org')?.code;
-      templateId = Object.keys(NOTE_TEMPLATES).find(key => 
-        NOTE_TEMPLATES[key].code === loincCode
-      ) || 'progress';
+      // Only try to detect template if we should use templates
+      if (useTemplate && !templateId) {
+        // Determine template type from LOINC code
+        const loincCode = note.type?.coding?.find(c => c.system === 'http://loinc.org')?.code;
+        templateId = Object.keys(NOTE_TEMPLATES).find(key => 
+          NOTE_TEMPLATES[key].code === loincCode
+        ) || null; // Don't default to 'progress' for non-template notes
+      }
 
     } catch (error) {
       // Note data extraction failed silently
@@ -570,7 +594,8 @@ const EnhancedNoteEditor = ({
       title: note.description || note.title || '',
       content,
       sections,
-      templateId
+      templateId,
+      skipTemplate: note.skipTemplate || false
     };
   };
 
@@ -681,17 +706,27 @@ const EnhancedNoteEditor = ({
 
   // Save note
   const handleSave = async (status = 'preliminary') => {
-    if (!selectedTemplate || !patientId) return;
+    if (!patientId) return;
 
     setSaving(true);
     try {
-      const template = NOTE_TEMPLATES[selectedTemplate];
       let content = '';
+      let contentType = 'text/plain';
+      let template = null;
 
-      // Prepare content based on template structure
-      if (template.structure === 'sections') {
-        content = JSON.stringify(noteData.sections);
+      // Check if we have a template or it's a plain text note
+      if (selectedTemplate) {
+        template = NOTE_TEMPLATES[selectedTemplate];
+        
+        // Prepare content based on template structure
+        if (template && template.structure === 'sections') {
+          content = JSON.stringify(noteData.sections);
+          contentType = 'application/json';
+        } else {
+          content = noteData.content;
+        }
       } else {
+        // Non-template note - save as plain text
         content = noteData.content;
       }
 
@@ -702,9 +737,9 @@ const EnhancedNoteEditor = ({
         docStatus: status, // 'draft', 'preliminary', or 'final'
         type: {
           coding: [{
-            system: template.system,
-            code: template.code,
-            display: template.display
+            system: template?.system || 'http://loinc.org',
+            code: template?.code || '11506-3',
+            display: template?.display || 'Progress note'
           }]
         },
         category: [{
@@ -722,12 +757,12 @@ const EnhancedNoteEditor = ({
           reference: currentUser?.id ? `Practitioner/${currentUser.id}` : undefined,
           display: currentUser?.name || 'Current User'
         }].filter(author => author), // Remove undefined references
-        description: noteData.title || template.label,
+        description: noteData.title || template?.label || 'Clinical Note',
         content: [{
           attachment: {
-            contentType: template.structure === 'sections' ? 'application/json' : 'text/plain',
+            contentType: contentType,
             data: btoa(content),
-            title: noteData.title || template.label,
+            title: noteData.title || template?.label || 'Clinical Note',
             creation: new Date().toISOString()
           }
         }]
@@ -778,7 +813,7 @@ const EnhancedNoteEditor = ({
       // Publish events
       await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
         ...savedNote,
-        noteType: template.label,
+        noteType: template?.label || 'Clinical Note',
         isUpdate: !!(note?.id),
         isSigned: status === 'final',
         docStatus: status,
@@ -914,14 +949,23 @@ const EnhancedNoteEditor = ({
 
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
-            {/* Template Selection */}
-            <TemplateSelector
-              selectedTemplate={selectedTemplate}
-              onTemplateChange={handleTemplateChange}
-              onLoadTemplate={handleLoadTemplate}
-              autoPopulateEnabled={autoPopulateEnabled}
-              onAutoPopulateToggle={setAutoPopulateEnabled}
-            />
+            {/* Template Selection - Only show for new notes or template-based notes */}
+            {!isNonTemplateNote && (
+              <TemplateSelector
+                selectedTemplate={selectedTemplate}
+                onTemplateChange={handleTemplateChange}
+                onLoadTemplate={handleLoadTemplate}
+                autoPopulateEnabled={autoPopulateEnabled}
+                onAutoPopulateToggle={setAutoPopulateEnabled}
+              />
+            )}
+
+            {/* Show info for non-template notes */}
+            {isNonTemplateNote && (
+              <Alert severity="info">
+                This note was imported from external data and is displayed as plain text.
+              </Alert>
+            )}
 
             {/* Quality Measure Documentation Prompts */}
             {patientId && !amendmentMode && (
@@ -1016,7 +1060,7 @@ const EnhancedNoteEditor = ({
           </Button>
           <Button 
             onClick={() => handleSave('draft')} 
-            disabled={saving || !selectedTemplate}
+            disabled={saving}
             startIcon={saving ? <CircularProgress size={16} /> : <SaveIcon />}
             color="warning"
           >
@@ -1024,7 +1068,7 @@ const EnhancedNoteEditor = ({
           </Button>
           <Button 
             onClick={() => handleSave('preliminary')} 
-            disabled={saving || !selectedTemplate}
+            disabled={saving}
             startIcon={saving ? <CircularProgress size={16} /> : <SaveIcon />}
             color="info"
           >
@@ -1033,7 +1077,7 @@ const EnhancedNoteEditor = ({
           <Button 
             variant="contained" 
             onClick={() => handleSave('final')}
-            disabled={saving || !selectedTemplate}
+            disabled={saving}
             startIcon={saving ? <CircularProgress size={16} /> : <SignIcon />}
           >
             {saving ? 'Saving...' : 'Sign & Complete'}

@@ -4,9 +4,22 @@
  * Uses capability statement to discover supported resources
  */
 
-// Use relative URL in production, localhost in development
-const API_BASE = process.env.REACT_APP_API_URL || 
-                 (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : '');
+// Determine API base URL based on environment
+// Use empty string for relative URLs in production (same origin)
+const getApiBase = () => {
+  // If explicit API URL is set, use it
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  // In development, use localhost
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:8000';
+  }
+  // In production, use relative URLs (empty string means same origin)
+  return '';
+};
+
+const API_BASE = getApiBase();
 
 class FHIRSchemaService {
   constructor() {
@@ -118,11 +131,18 @@ class FHIRSchemaService {
           });
           return data;
         }
+        // Check for 404 specifically
+        if (response.status === 404) {
+          throw new Error(`404: No data found for resource type ${resourceType}`);
+        }
       }
       
       // Fall back to original endpoint
       const response = await fetch(`${API_BASE}/api/fhir-schemas/resource/${resourceType}`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        // Include status code in error message for better handling
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       
       const data = await response.json();
       this.schemaCache.set(cacheKey, {

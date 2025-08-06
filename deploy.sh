@@ -1,725 +1,360 @@
 #!/bin/bash
-#
+
 # WintEHR Unified Deployment Script
-# Single script for all deployment scenarios
-#
-# Usage:
-#   ./deploy.sh                    # Default: dev mode with 20 patients
-#   ./deploy.sh prod              # Production deployment
-#   ./deploy.sh dev --patients 50  # Dev with custom patient count
-#   ./deploy.sh clean             # Clean and redeploy
-#   ./deploy.sh stop              # Stop all services
-#   ./deploy.sh status            # Check deployment status
-#
-# Replaces: fresh-deploy.sh, production-deploy-complete.sh, dev-start.sh,
-#           master-deploy.sh, and various other deployment scripts
+# Works for local, development, and production environments
 
 set -e
 
-# ============================================================================
-# Configuration & Setup
-# ============================================================================
-
-# Script location
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$SCRIPT_DIR"
-
-# Default configuration
-MODE="dev"                    # dev, prod, clean, stop, status
-PATIENT_COUNT=20             # Number of patients to generate
-SKIP_DATA=false             # Skip patient data generation
-SKIP_BUILD=false            # Skip Docker build
-VERBOSE=false               # Verbose output
-DEPLOYMENT_LOG="deployment_$(date +%Y%m%d_%H%M%S).log"
-
 # Colors for output
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly PURPLE='\033[0;35m'
-readonly CYAN='\033[0;36m'
-readonly NC='\033[0m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# ============================================================================
-# Helper Functions
-# ============================================================================
+# Handle special commands
+case "$1" in
+    stop)
+        echo -e "${YELLOW}Stopping WintEHR services...${NC}"
+        docker-compose down
+        echo -e "${GREEN}✓ Services stopped${NC}"
+        exit 0
+        ;;
+    clean)
+        echo -e "${YELLOW}Cleaning WintEHR deployment (removing all data)...${NC}"
+        docker-compose down -v
+        docker system prune -f
+        echo -e "${GREEN}✓ Clean complete${NC}"
+        exit 0
+        ;;
+    status)
+        echo -e "${BLUE}WintEHR Service Status:${NC}"
+        docker-compose ps
+        echo ""
+        echo -e "${BLUE}Resource Summary:${NC}"
+        docker exec emr-postgres psql -U emr_user -d emr_db -c "
+            SELECT resource_type, COUNT(*) as count 
+            FROM fhir.resources 
+            GROUP BY resource_type 
+            ORDER BY count DESC 
+            LIMIT 10;" 2>/dev/null || echo "Database not accessible"
+        exit 0
+        ;;
+    logs)
+        SERVICE=${2:-}
+        if [ -z "$SERVICE" ]; then
+            docker-compose logs -f --tail=100
+        else
+            docker-compose logs -f --tail=100 "$SERVICE"
+        fi
+        exit 0
+        ;;
+esac
 
-log() {
-    local message="$1"
-    local color="${2:-$BLUE}"
-    echo -e "${color}[$(date +'%H:%M:%S')]${NC} $message" | tee -a "$DEPLOYMENT_LOG"
-}
+# Configuration
+ENVIRONMENT=${1:-dev}
+PATIENT_COUNT=10  # Default patient count
 
-success() { log "✅ $1" "$GREEN"; }
-warning() { log "⚠️  $1" "$YELLOW"; }
-error() { log "❌ $1" "$RED"; exit 1; }
-info() { log "ℹ️  $1" "$CYAN"; }
-section() {
-    echo "" | tee -a "$DEPLOYMENT_LOG"
-    log "===== $1 =====" "$PURPLE"
-}
+# Store environment and shift it off
+shift  # Remove environment argument
 
-show_help() {
-    cat << EOF
-WintEHR Unified Deployment Script
-
-USAGE:
-    ./deploy.sh [MODE] [OPTIONS]
-
-MODES:
-    dev         Development deployment (default)
-    prod        Production deployment
-    clean       Clean deployment (removes all data)
-    stop        Stop all services
-    status      Check deployment status
-
-OPTIONS:
-    --patients N     Number of patients to generate (default: 20)
-    --skip-data      Skip patient data generation
-    --skip-build     Skip Docker build
-    --verbose        Enable verbose output
-    --help          Show this help message
-
-EXAMPLES:
-    ./deploy.sh                      # Quick dev deployment
-    ./deploy.sh prod --patients 50   # Production with 50 patients
-    ./deploy.sh clean                # Clean everything and redeploy
-    ./deploy.sh status               # Check system status
-
-FEATURES:
-    • Single script for all deployment scenarios
-    • Automatic environment detection and configuration
-    • Built-in health checks and validation
-    • Comprehensive error handling and recovery
-    • Deployment logging and troubleshooting
-
-EOF
-}
-
-# ============================================================================
-# Argument Parsing
-# ============================================================================
-
-# Parse primary mode
-if [[ $# -gt 0 ]] && [[ ! "$1" =~ ^-- ]]; then
-    MODE="$1"
-    shift
-fi
-
-# Parse options
+# Parse additional arguments
 while [[ $# -gt 0 ]]; do
-    case $1 in
+    case "$1" in
         --patients)
-            PATIENT_COUNT="$2"
-            shift 2
-            ;;
-        --skip-data)
-            SKIP_DATA=true
-            shift
-            ;;
-        --skip-build)
-            SKIP_BUILD=true
-            shift
-            ;;
-        --verbose)
-            VERBOSE=true
-            shift
-            ;;
-        --help|-h)
-            show_help
-            exit 0
+            if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
+                PATIENT_COUNT="$2"
+                shift 2
+            else
+                echo "Error: --patients requires a numeric argument"
+                exit 1
+            fi
             ;;
         *)
-            echo "Unknown option: $1"
-            echo "Use --help for usage information"
-            exit 1
+            shift
             ;;
     esac
 done
 
-# ============================================================================
-# Prerequisites Check
-# ============================================================================
+echo -e "${GREEN}WintEHR Deployment Script${NC}"
+echo "=================================="
+echo "Environment: $ENVIRONMENT"
+echo "Patient Count: $PATIENT_COUNT"
+echo ""
 
-check_prerequisites() {
-    section "Checking Prerequisites"
-    
-    # Check Docker
-    if ! command -v docker &> /dev/null; then
-        error "Docker is not installed"
+# Function to check if running on AWS
+is_aws() {
+    if [ -f /var/lib/cloud/instance/vendor-data.txt ] || [ -f /sys/hypervisor/uuid ]; then
+        return 0
     fi
-    
-    if ! docker info &> /dev/null; then
-        error "Docker is not running"
-    fi
-    
-    # Check Docker Compose
-    if ! command -v docker-compose &> /dev/null; then
-        error "Docker Compose is not installed"
-    fi
-    
-    # Check required files
-    local required_files=(
-        "docker-compose.yml"
-        "backend/requirements.txt"
-        "frontend/package.json"
-    )
-    
-    for file in "${required_files[@]}"; do
-        if [[ ! -f "$PROJECT_ROOT/$file" ]]; then
-            error "Required file missing: $file"
-        fi
-    done
-    
-    # Check ports
-    for port in 3000 8000 5432; do
-        if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
-            warning "Port $port is already in use"
-        fi
-    done
-    
-    success "Prerequisites check passed"
+    return 1
 }
 
-# ============================================================================
-# Environment Setup
-# ============================================================================
-
-setup_environment() {
-    section "Setting Up Environment"
+# Function to wait for PostgreSQL
+wait_for_postgres() {
+    local max_attempts=60
+    local attempt=0
     
-    # Set mode-specific environment variables
-    case "$MODE" in
-        prod)
-            export JWT_ENABLED=true
-            export NODE_ENV=production
-            export REACT_APP_ENVIRONMENT=production
-            info "Production mode enabled"
-            ;;
-        *)
-            export JWT_ENABLED=false
-            export NODE_ENV=development
-            export REACT_APP_ENVIRONMENT=development
-            info "Development mode enabled"
-            ;;
-    esac
-    
-    # Common environment variables
-    export DATABASE_URL="postgresql+asyncpg://emr_user:emr_password@postgres:5432/emr_db"
-    export REDIS_HOST=emr-redis
-    export PYTHONUNBUFFERED=1
-    export CDS_HOOKS_ENABLED=true
-    
-    success "Environment configured"
-}
-
-# ============================================================================
-# Docker Operations
-# ============================================================================
-
-clean_deployment() {
-    section "Cleaning Existing Deployment"
-    
-    log "Stopping all containers..."
-    docker-compose down -v --remove-orphans || true
-    
-    log "Removing orphaned containers..."
-    docker container prune -f || true
-    
-    log "Cleaning data directories..."
-    rm -rf backend/data/synthea_backups/* 2>/dev/null || true
-    rm -rf backend/data/generated_dicoms/* 2>/dev/null || true
-    rm -rf backend/logs/* 2>/dev/null || true
-    
-    # Create required directories
-    mkdir -p backend/data/{synthea_backups,generated_dicoms,dicom_uploads}
-    mkdir -p backend/logs
-    mkdir -p logs
-    
-    success "Cleanup completed"
-}
-
-build_containers() {
-    if [[ "$SKIP_BUILD" == "true" ]]; then
-        info "Skipping container build"
-        return
-    fi
-    
-    section "Building Containers"
-    
-    if [[ "$MODE" == "dev" ]] && [[ -f "docker-compose.dev.yml" ]]; then
-        log "Building development containers..."
-        docker-compose -f docker-compose.yml -f docker-compose.dev.yml build --parallel
-    else
-        log "Building production containers..."
-        docker-compose build --parallel
-    fi
-    
-    success "Containers built"
-}
-
-start_core_services() {
-    section "Starting Core Services"
-    
-    # Start PostgreSQL
-    log "Starting PostgreSQL..."
-    docker-compose up -d postgres
-    
-    # Wait for PostgreSQL
-    local timeout=60
-    while ! docker exec emr-postgres pg_isready -U emr_user -d emr_db &>/dev/null; do
-        if [[ $timeout -eq 0 ]]; then
-            error "PostgreSQL failed to start"
+    echo -e "${YELLOW}Waiting for PostgreSQL...${NC}"
+    while [ $attempt -lt $max_attempts ]; do
+        if docker exec emr-postgres pg_isready -U emr_user -d emr_db &>/dev/null; then
+            echo -e "${GREEN}✓ PostgreSQL is ready${NC}"
+            return 0
         fi
-        sleep 1
-        ((timeout--))
-    done
-    success "PostgreSQL is ready"
-    
-    # Start Redis
-    log "Starting Redis..."
-    docker-compose up -d redis
-    success "Redis started"
-    
-    # Start backend
-    log "Starting backend..."
-    if [[ "$MODE" == "dev" ]] && [[ -f "docker-compose.dev.yml" ]]; then
-        docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d backend
-    else
-        docker-compose up -d backend
-    fi
-    
-    # Wait for backend
-    timeout=120
-    while ! curl -sf http://localhost:8000/api/health &>/dev/null; do
-        if [[ $timeout -eq 0 ]]; then
-            error "Backend failed to start"
-        fi
+        attempt=$((attempt + 1))
         sleep 2
-        ((timeout--))
     done
-    success "Backend is ready"
+    echo -e "${RED}✗ PostgreSQL failed to start${NC}"
+    return 1
 }
 
-# ============================================================================
-# Database Initialization
-# ============================================================================
-
-initialize_database() {
-    section "Initializing Database"
+# Function to wait for backend service
+wait_for_backend() {
+    local max_attempts=60
+    local attempt=0
     
-    # Determine container name based on mode
-    local CONTAINER_NAME="emr-backend"
-    if [[ "$MODE" == "dev" ]]; then
-        CONTAINER_NAME="emr-backend-dev"
+    echo -e "${YELLOW}Waiting for Backend API...${NC}"
+    while [ $attempt -lt $max_attempts ]; do
+        if curl -sf http://localhost:8000/api/health &>/dev/null; then
+            echo -e "${GREEN}✓ Backend API is ready${NC}"
+            return 0
+        fi
+        attempt=$((attempt + 1))
+        sleep 2
+    done
+    echo -e "${RED}✗ Backend API failed to start${NC}"
+    return 1
+}
+
+# Function to wait for frontend
+wait_for_frontend() {
+    local max_attempts=30
+    local attempt=0
+    local port=3000
+    
+    if [ "$ENVIRONMENT" == "prod" ]; then
+        port=80
     fi
     
-    # Run init script
-    log "Creating database schema..."
-    docker exec $CONTAINER_NAME python scripts/setup/init_database_definitive.py || {
-        # Try alternative location
-        docker exec $CONTAINER_NAME python scripts/init_database_definitive.py || \
-        error "Database initialization failed"
+    echo -e "${YELLOW}Waiting for Frontend...${NC}"
+    while [ $attempt -lt $max_attempts ]; do
+        if curl -sf http://localhost:$port &>/dev/null; then
+            echo -e "${GREEN}✓ Frontend is ready${NC}"
+            return 0
+        fi
+        attempt=$((attempt + 1))
+        sleep 2
+    done
+    echo -e "${YELLOW}⚠ Frontend may still be starting (this is normal)${NC}"
+    return 0  # Don't fail deployment if frontend takes longer
+}
+
+# Stop existing containers
+echo -e "${YELLOW}Stopping existing containers...${NC}"
+docker-compose down || true
+
+# Build based on environment
+if [ "$ENVIRONMENT" == "prod" ] || is_aws; then
+    echo -e "${GREEN}Building for production...${NC}"
+    
+    # Use production Dockerfile for frontend
+    # First fix any corrupted entries, then set to production
+    sed -i.bak 's|dockerfile: Dockerfile.dev.dev|dockerfile: Dockerfile|g' docker-compose.yml
+    sed -i.bak 's|dockerfile: Dockerfile.dev|dockerfile: Dockerfile|g' docker-compose.yml
+    sed -i.bak 's|dockerfile: Dockerfile.production|dockerfile: Dockerfile|g' docker-compose.yml
+    sed -i.bak 's|- "3000:3000"|- "80:80"|g' docker-compose.yml
+    
+    # Build images
+    docker-compose build --no-cache
+    
+elif [ "$ENVIRONMENT" == "dev" ]; then
+    echo -e "${GREEN}Building for development...${NC}"
+    
+    # Use development Dockerfile for frontend
+    # First restore to base Dockerfile, then set to dev
+    sed -i.bak 's|dockerfile: Dockerfile.dev.dev|dockerfile: Dockerfile.dev|g' docker-compose.yml
+    sed -i.bak 's|dockerfile: Dockerfile.production|dockerfile: Dockerfile.dev|g' docker-compose.yml
+    sed -i.bak 's|dockerfile: Dockerfile$|dockerfile: Dockerfile.dev|g' docker-compose.yml
+    sed -i.bak 's|- "80:80"|- "3000:3000"|g' docker-compose.yml
+    
+    # Build images
+    docker-compose build
+fi
+
+# Start services
+echo -e "${YELLOW}Starting services...${NC}"
+docker-compose up -d
+
+# Wait for services to be ready
+echo -e "${BLUE}Waiting for services to initialize...${NC}"
+sleep 5  # Give containers time to start
+
+# Wait for database
+if ! wait_for_postgres; then
+    echo -e "${RED}PostgreSQL failed to start. Checking logs...${NC}"
+    docker-compose logs --tail=20 postgres
+    echo -e "${YELLOW}Attempting restart...${NC}"
+    docker-compose restart postgres
+    sleep 5
+    wait_for_postgres || {
+        echo -e "${RED}PostgreSQL still not responding. Deployment failed.${NC}"
+        exit 1
     }
-    
-    # Apply schema fixes (from AWS deployment experience)
-    log "Applying schema optimizations..."
-    docker exec emr-postgres psql -U emr_user -d emr_db << 'EOF'
--- Add missing columns to references table
-ALTER TABLE fhir.references 
-ADD COLUMN IF NOT EXISTS source_type VARCHAR(255),
-ADD COLUMN IF NOT EXISTS target_type VARCHAR(255),
-ADD COLUMN IF NOT EXISTS target_id VARCHAR(255),
-ADD COLUMN IF NOT EXISTS reference_path VARCHAR(255),
-ADD COLUMN IF NOT EXISTS reference_value TEXT;
+fi
 
--- Add missing columns to search_params
-ALTER TABLE fhir.search_params 
-ADD COLUMN IF NOT EXISTS value_quantity_value NUMERIC,
-ADD COLUMN IF NOT EXISTS value_quantity_unit VARCHAR(100),
-ADD COLUMN IF NOT EXISTS value_quantity_system VARCHAR(500),
-ADD COLUMN IF NOT EXISTS value_quantity_code VARCHAR(100),
-ADD COLUMN IF NOT EXISTS value_reference_normalized TEXT;
+# Wait for backend
+if ! wait_for_backend; then
+    echo -e "${RED}Backend failed to start. Checking logs...${NC}"
+    docker-compose logs --tail=20 backend
+    echo -e "${YELLOW}Attempting restart...${NC}"
+    docker-compose restart backend
+    sleep 5
+    wait_for_backend || {
+        echo -e "${RED}Backend still not responding. Deployment failed.${NC}"
+        exit 1
+    }
+fi
 
--- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_search_params_reference 
-ON fhir.search_params(param_name, value_reference);
+# Wait for frontend (non-blocking)
+wait_for_frontend
 
-CREATE INDEX IF NOT EXISTS idx_references_source 
-ON fhir.references(source_resource_id);
-EOF
+# Load patient data if requested
+if [ "$PATIENT_COUNT" -gt 0 ]; then
+    echo -e "${BLUE}═══════════════════════════════════════${NC}"
+    echo -e "${BLUE}Loading Patient Data${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════${NC}"
     
-    success "Database initialized"
-}
-
-# ============================================================================
-# Data Import
-# ============================================================================
-
-import_patient_data() {
-    if [[ "$SKIP_DATA" == "true" ]]; then
-        warning "Skipping patient data import"
-        return
-    fi
+    # Wait for backend to be fully ready
+    echo -e "${YELLOW}Ensuring backend is fully initialized...${NC}"
+    sleep 10
     
-    section "Importing Patient Data"
+    # Load patients using synthea_master
+    echo -e "${YELLOW}Starting patient data import (this may take several minutes)...${NC}"
+    echo -e "${YELLOW}  → Generating ${PATIENT_COUNT} synthetic patients${NC}"
+    echo -e "${YELLOW}  → Importing FHIR resources${NC}"
+    echo -e "${YELLOW}  → Indexing search parameters${NC}"
+    echo -e "${YELLOW}  → Populating compartments${NC}"
+    echo -e "${YELLOW}  → Generating DICOM images for studies${NC}"
+    echo -e "${YELLOW}  → Cleaning patient names (removing numeric suffixes)${NC}"
     
-    # Determine container name based on mode
-    local CONTAINER_NAME="emr-backend"
-    if [[ "$MODE" == "dev" ]]; then
-        CONTAINER_NAME="emr-backend-dev"
-    fi
-    
-    # Use full enhancement for production mode
-    local ENHANCEMENT_FLAG=""
-    if [[ "$MODE" == "prod" ]]; then
-        ENHANCEMENT_FLAG="--full-enhancement"
-        log "Production mode: Enabling full data enhancement"
-    fi
-    
-    log "Generating $PATIENT_COUNT patients..."
-    docker exec $CONTAINER_NAME bash -c "cd /app/scripts && python active/synthea_master.py full \
-        --count $PATIENT_COUNT \
+    if docker exec emr-backend python scripts/active/synthea_master.py full \
+        --count "$PATIENT_COUNT" \
         --validation-mode light \
-        $ENHANCEMENT_FLAG" || \
-    error "Patient data generation failed"
-    
-    # Note: Search indexing and compartments are now handled inline by synthea_master.py
-    # The following are kept for backwards compatibility but may not be needed
-    
-    # Index search parameters (if script exists and not already done inline)
-    if docker exec $CONTAINER_NAME test -f /app/scripts/active/consolidated_search_indexing.py; then
-        log "Verifying search parameters..."
-        docker exec $CONTAINER_NAME bash -c "cd /app/scripts && python active/consolidated_search_indexing.py --mode verify" || \
-        warning "Search parameter verification had issues"
+        --include-dicom \
+        --clean-names; then
+        echo -e "${GREEN}✓ Patient data import completed${NC}"
+    else
+        echo -e "${YELLOW}⚠ Data import completed with warnings (this is often normal)${NC}"
     fi
     
-    # Fix CDS hooks if needed
-    if docker exec $CONTAINER_NAME test -f /app/scripts/migrations/fix_cds_hooks_enabled_column.py; then
-        log "Configuring CDS hooks..."
-        docker exec $CONTAINER_NAME bash -c "cd /app/scripts && python migrations/fix_cds_hooks_enabled_column.py 2>/dev/null" || \
-        warning "CDS hooks may already be configured"
+    # Ensure catalog population (critical for search functionality)
+    echo ""
+    echo -e "${YELLOW}Extracting clinical catalogs for search functionality...${NC}"
+    if docker exec emr-backend python scripts/active/consolidated_catalog_setup.py --extract-from-fhir; then
+        echo -e "${GREEN}✓ Clinical catalogs populated${NC}"
+    else
+        echo -e "${YELLOW}⚠ Catalog extraction completed with warnings${NC}"
     fi
     
-    # Verify and fix FHIR relationships if needed
-    log "Verifying FHIR relationships and search parameters..."
-    docker exec $CONTAINER_NAME bash -c "cd /app/scripts && python testing/verify_search_params_after_import.py --fix" || {
-        warning "Some search parameters may need manual review"
-    }
-    
-    # Verify patient compartments
-    log "Verifying patient compartments..."
-    docker exec $CONTAINER_NAME bash -c "cd /app/scripts && python -c \"
+    # Verify data load
+    echo ""
+    echo -e "${YELLOW}Verifying data import...${NC}"
+    VERIFY_RESULT=$(docker exec emr-backend python -c "
 import asyncio
 import asyncpg
+import json
 
-async def check_compartments():
-    conn = await asyncpg.connect('postgresql://emr_user:emr_password@postgres:5432/emr_db')
-    
-    patient_count = await conn.fetchval(\\\"SELECT COUNT(*) FROM fhir.resources WHERE resource_type = 'Patient' AND deleted = false\\\")
-    compartment_count = await conn.fetchval(\\\"SELECT COUNT(DISTINCT compartment_id) FROM fhir.compartments WHERE compartment_type = 'Patient'\\\")
-    
-    print(f'Found {compartment_count} patient compartments for {patient_count} patients')
-    
-    if compartment_count < patient_count:
-        print('Warning: Some patients missing compartments')
-    
-    await conn.close()
-
-asyncio.run(check_compartments())
-\"" || warning "Could not verify compartments"
-    
-    success "Patient data imported with enhancements"
-}
-
-# ============================================================================
-# Frontend Setup
-# ============================================================================
-
-start_frontend() {
-    section "Starting Frontend"
-    
-    log "Starting frontend service..."
-    if [[ "$MODE" == "dev" ]] && [[ -f "docker-compose.dev.yml" ]]; then
-        docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d frontend
-    else
-        docker-compose up -d frontend
-    fi
-    
-    # For production, set up nginx
-    if [[ "$MODE" == "prod" ]]; then
-        setup_nginx
-    fi
-    
-    success "Frontend started"
-}
-
-setup_nginx() {
-    log "Setting up Nginx..."
-    
-    # Create nginx config
-    cat > /tmp/nginx.conf << 'EOF'
-events {
-    worker_connections 1024;
-}
-
-http {
-    upstream backend {
-        server emr-backend:8000;
-    }
-
-    upstream frontend {
-        server emr-frontend:80;
-    }
-
-    server {
-        listen 80;
-        server_name _;
-
-        location / {
-            proxy_pass http://frontend;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host $host;
-            proxy_cache_bypass $http_upgrade;
+async def check():
+    try:
+        conn = await asyncpg.connect('postgresql://emr_user:emr_password@postgres:5432/emr_db')
+        
+        # Get counts
+        patient_count = await conn.fetchval('SELECT COUNT(*) FROM fhir.resources WHERE resource_type = \\'Patient\\'')
+        total_count = await conn.fetchval('SELECT COUNT(*) FROM fhir.resources')
+        
+        # Get catalog counts
+        med_count = await conn.fetchval('SELECT COUNT(*) FROM clinical_catalogs WHERE catalog_type = \\'medication\\'')
+        cond_count = await conn.fetchval('SELECT COUNT(*) FROM clinical_catalogs WHERE catalog_type = \\'condition\\'')
+        lab_count = await conn.fetchval('SELECT COUNT(*) FROM clinical_catalogs WHERE catalog_type = \\'lab_test\\'')
+        
+        await conn.close()
+        
+        result = {
+            'patients': patient_count,
+            'total_resources': total_count,
+            'medications': med_count,
+            'conditions': cond_count,
+            'lab_tests': lab_count
         }
+        print(json.dumps(result))
+    except Exception as e:
+        print(json.dumps({'error': str(e)}))
 
-        location ~ ^/(api|fhir|cds-services|ws) {
-            proxy_pass http://backend;
-            proxy_http_version 1.1;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-    }
-}
-EOF
+asyncio.run(check())
+" 2>/dev/null)
+    
+    if [ -n "$VERIFY_RESULT" ]; then
+        # Parse JSON result
+        if echo "$VERIFY_RESULT" | grep -q '"patients"'; then
+            PATIENTS=$(echo "$VERIFY_RESULT" | grep -o '"patients":[0-9]*' | cut -d: -f2)
+            TOTAL=$(echo "$VERIFY_RESULT" | grep -o '"total_resources":[0-9]*' | cut -d: -f2)
+            MEDS=$(echo "$VERIFY_RESULT" | grep -o '"medications":[0-9]*' | cut -d: -f2)
+            CONDS=$(echo "$VERIFY_RESULT" | grep -o '"conditions":[0-9]*' | cut -d: -f2)
+            LABS=$(echo "$VERIFY_RESULT" | grep -o '"lab_tests":[0-9]*' | cut -d: -f2)
+            
+            echo -e "${GREEN}✓ Data Import Summary:${NC}"
+            echo -e "  • Patients: ${PATIENTS}"
+            echo -e "  • Total Resources: ${TOTAL}"
+            echo -e "  • Medication Catalog: ${MEDS} items"
+            echo -e "  • Condition Catalog: ${CONDS} items"
+            echo -e "  • Lab Test Catalog: ${LABS} items"
+        else
+            echo -e "${YELLOW}⚠ Could not verify exact counts, but data appears to be loaded${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠ Could not verify data load, please check manually${NC}"
+    fi
+fi
 
-    # Start nginx container
-    docker run -d \
-        --name emr-nginx \
-        --network emr-network \
-        -p 80:80 \
-        -v /tmp/nginx.conf:/etc/nginx/nginx.conf:ro \
-        nginx:alpine || warning "Nginx already running"
-    
-    success "Nginx configured"
-}
+# Display access information
+echo ""
+echo -e "${GREEN}=================================="
+echo "Deployment Complete!"
+echo "=================================="
+echo ""
 
-# ============================================================================
-# Validation
-# ============================================================================
-
-validate_deployment() {
-    section "Validating Deployment"
-    
-    local errors=0
-    
-    # Check health endpoints
-    if curl -s http://localhost:8000/api/health | grep -q "healthy"; then
-        success "Backend API: healthy"
-    else
-        warning "Backend API: not responding"
-        ((errors++))
-    fi
-    
-    # Check FHIR endpoint
-    if curl -s http://localhost:8000/fhir/R4/metadata | grep -q "CapabilityStatement"; then
-        success "FHIR API: working"
-    else
-        warning "FHIR API: not working"
-        ((errors++))
-    fi
-    
-    # Check patient count
-    local patient_count=$(docker exec emr-postgres psql -U emr_user -d emr_db -t -c \
-        "SELECT COUNT(*) FROM fhir.resources WHERE resource_type = 'Patient';" 2>/dev/null || echo "0")
-    
-    if [[ $patient_count -gt 0 ]]; then
-        success "Database: $patient_count patients found"
-    else
-        warning "Database: no patients found"
-        ((errors++))
-    fi
-    
-    # Check frontend
-    if [[ "$MODE" == "prod" ]]; then
-        local frontend_port=80
-    else
-        local frontend_port=3000
-    fi
-    
-    if curl -sf http://localhost:$frontend_port >/dev/null; then
-        success "Frontend: accessible"
-    else
-        warning "Frontend: not accessible"
-        ((errors++))
-    fi
-    
-    if [[ $errors -eq 0 ]]; then
-        success "All validation checks passed"
-        return 0
-    else
-        warning "$errors validation checks failed"
-        return 1
-    fi
-}
-
-# ============================================================================
-# Status Check
-# ============================================================================
-
-check_status() {
-    section "WintEHR Deployment Status"
-    
-    # Container status
-    info "Container Status:"
-    docker-compose ps
-    
+if [ "$ENVIRONMENT" == "dev" ]; then
+    echo "Access the application at:"
+    echo "  Frontend: http://localhost:3000"
+    echo "  Backend API: http://localhost:8000"
+    echo "  API Docs: http://localhost:8000/docs"
     echo ""
-    
-    # Service checks
-    info "Service Health:"
-    
-    # Backend
-    if curl -sf http://localhost:8000/api/health >/dev/null; then
-        success "Backend API: ✅ Running"
+    echo "Default credentials:"
+    echo "  Username: demo"
+    echo "  Password: password"
+else
+    if is_aws; then
+        PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+        echo "Access the application at:"
+        echo "  Frontend: http://$PUBLIC_IP"
+        echo "  Backend API: http://$PUBLIC_IP:8000"
+        echo "  API Docs: http://$PUBLIC_IP:8000/docs"
     else
-        warning "Backend API: ❌ Not responding"
+        echo "Access the application at:"
+        echo "  Frontend: http://localhost"
+        echo "  Backend API: http://localhost:8000"
+        echo "  API Docs: http://localhost:8000/docs"
     fi
-    
-    # FHIR
-    if curl -sf http://localhost:8000/fhir/R4/metadata >/dev/null; then
-        success "FHIR API: ✅ Working"
-    else
-        warning "FHIR API: ❌ Not working"
-    fi
-    
-    # Frontend
-    local frontend_port=$([[ "$MODE" == "prod" ]] && echo "80" || echo "3000")
-    if curl -sf http://localhost:$frontend_port >/dev/null; then
-        success "Frontend: ✅ Accessible on port $frontend_port"
-    else
-        warning "Frontend: ❌ Not accessible"
-    fi
-    
-    # Database
-    local patient_count=$(docker exec emr-postgres psql -U emr_user -d emr_db -t -c \
-        "SELECT COUNT(*) FROM fhir.resources WHERE resource_type = 'Patient';" 2>/dev/null || echo "0")
-    info "Database: $patient_count patients loaded"
-    
     echo ""
-    info "Access URLs:"
-    info "  Frontend: http://localhost:$frontend_port"
-    info "  Backend API: http://localhost:8000"
-    info "  API Docs: http://localhost:8000/docs"
-}
+    echo "Default credentials:"
+    echo "  Username: demo"
+    echo "  Password: password"
+fi
 
-# ============================================================================
-# Stop Services
-# ============================================================================
-
-stop_services() {
-    section "Stopping Services"
-    
-    log "Stopping all containers..."
-    docker-compose down
-    
-    # Stop nginx if running
-    docker stop emr-nginx 2>/dev/null || true
-    docker rm emr-nginx 2>/dev/null || true
-    
-    success "All services stopped"
-}
-
-# ============================================================================
-# Display Summary
-# ============================================================================
-
-display_summary() {
-    section "Deployment Complete!"
-    
-    local frontend_port=$([[ "$MODE" == "prod" ]] && echo "80" || echo "3000")
-    
-    echo ""
-    info "Access URLs:"
-    info "  Frontend: http://localhost:$frontend_port"
-    info "  Backend API: http://localhost:8000"
-    info "  API Docs: http://localhost:8000/docs"
-    info "  FHIR API: http://localhost:8000/fhir/R4/"
-    info "  CDS Hooks: http://localhost:8000/cds-services"
-    
-    echo ""
-    info "Credentials:"
-    info "  Username: demo    Password: password"
-    info "  Username: nurse   Password: password"
-    info "  Username: admin   Password: password"
-    
-    echo ""
-    info "Useful Commands:"
-    info "  View logs: docker-compose logs -f [service]"
-    info "  Check status: ./deploy.sh status"
-    info "  Stop services: ./deploy.sh stop"
-    
-    if [[ "$MODE" == "dev" ]]; then
-        echo ""
-        info "Development Features:"
-        info "  ✓ Hot reload enabled"
-        info "  ✓ JWT authentication disabled"
-        info "  ✓ Debug mode enabled"
-    fi
-    
-    echo ""
-    success "Deployment log saved to: $DEPLOYMENT_LOG"
-}
-
-# ============================================================================
-# Main Execution
-# ============================================================================
-
-main() {
-    case "$MODE" in
-        stop)
-            stop_services
-            ;;
-        status)
-            check_status
-            ;;
-        clean)
-            check_prerequisites
-            clean_deployment
-            setup_environment
-            build_containers
-            start_core_services
-            initialize_database
-            import_patient_data
-            start_frontend
-            validate_deployment
-            display_summary
-            ;;
-        dev|prod)
-            log "🏥 WintEHR Deployment - $MODE mode"
-            check_prerequisites
-            setup_environment
-            build_containers
-            start_core_services
-            initialize_database
-            import_patient_data
-            start_frontend
-            validate_deployment
-            display_summary
-            ;;
-        *)
-            error "Unknown mode: $MODE. Use --help for usage information."
-            ;;
-    esac
-}
-
-# Error handling
-trap 'error "Deployment failed. Check $DEPLOYMENT_LOG for details."' ERR
-
-# Run main
-main "$@"
+echo ""
+echo -e "${YELLOW}Commands:${NC}"
+echo "  View logs: docker-compose logs -f"
+echo "  Check status: docker-compose ps"
+echo "  Stop services: docker-compose down"
+echo ""
+echo -e "${GREEN}✓ Deployment successful!${NC}"

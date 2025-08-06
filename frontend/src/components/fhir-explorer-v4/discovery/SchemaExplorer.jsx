@@ -171,13 +171,31 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
       
     } catch (error) {
       console.error(`Failed to load schema for ${resourceType}:`, error);
-      setError(`Failed to load schema for ${resourceType}: ${error.message}`);
-      // Clear any cached bad data
-      setSchemas(prev => {
-        const updated = { ...prev };
-        delete updated[resourceType];
-        return updated;
-      });
+      
+      // Handle 404 errors gracefully for resource types with no data
+      if (error.message && error.message.includes('404')) {
+        // Don't show error for missing resources - they might not have data yet
+        console.info(`No data available for ${resourceType} - this resource type may not be in use`);
+        // Create a placeholder schema for display
+        setSchemas(prev => ({ 
+          ...prev, 
+          [resourceType]: {
+            name: resourceType,
+            description: `No ${resourceType} resources found in the system. This resource type may not be in use or has no data imported yet.`,
+            elements: {},
+            noData: true // Flag to indicate no data
+          }
+        }));
+      } else {
+        // Show error for other issues
+        setError(`Failed to load schema for ${resourceType}: ${error.message}`);
+        // Clear any cached bad data
+        setSchemas(prev => {
+          const updated = { ...prev };
+          delete updated[resourceType];
+          return updated;
+        });
+      }
     } finally {
       setLoadingSchema(false);
     }
@@ -521,7 +539,22 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                   {currentSchema.description}
                 </Typography>
 
-                {currentSchema.elements && Object.keys(currentSchema.elements).length > 0 ? (
+                {/* Show helpful message for resources with no data */}
+                {currentSchema.noData ? (
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+                      No {selectedResource} data available
+                    </Typography>
+                    <Typography variant="body2">
+                      This resource type is defined in FHIR R4 but has no data in the current system. 
+                      This is normal for resource types that are not actively used in your implementation.
+                    </Typography>
+                    <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                      Common unused resource types include: Flag (alerts), AdverseEvent (adverse reactions), 
+                      RiskAssessment, Coverage, Claim, and others depending on your use case.
+                    </Typography>
+                  </Alert>
+                ) : currentSchema.elements && Object.keys(currentSchema.elements).length > 0 ? (
                   <Box sx={{ flex: 1, overflow: 'auto' }}>
                     {/* Schema Elements List */}
                     <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>

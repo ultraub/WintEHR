@@ -198,20 +198,18 @@ const useMedicationSearch = (searchTerm) => {
   const [cache] = useState(new Map());
 
   const searchMedications = useCallback(async (term) => {
-    if (!term || term.length < 2) {
-      setOptions([]);
-      return;
-    }
-
     // Check cache first
-    if (cache.has(term)) {
-      setOptions(cache.get(term));
+    const cacheKey = term || '__all__';
+    if (cache.has(cacheKey)) {
+      setOptions(cache.get(cacheKey));
       return;
     }
 
     setLoading(true);
     try {
-      const results = await cdsClinicalDataService.getDynamicMedicationCatalog(term, 20);
+      // If no term or very short, load all/popular medications
+      const searchTerm = (!term || term.length < 2) ? null : term;
+      const results = await cdsClinicalDataService.getDynamicMedicationCatalog(searchTerm, 20);
       const formattedResults = results.map(med => ({
         ...med,
         code: med.rxnorm_code || med.id,
@@ -220,7 +218,7 @@ const useMedicationSearch = (searchTerm) => {
         subLabel: `RxNorm: ${med.rxnorm_code || med.id} • ${med.usage_count ? `Used ${med.usage_count} times` : 'New'} ${med.strength ? `• ${med.strength}` : ''}`
       }));
       
-      cache.set(term, formattedResults);
+      cache.set(cacheKey, formattedResults);
       setOptions(formattedResults);
     } catch (error) {
       console.error('Error searching medications:', error);
@@ -231,11 +229,15 @@ const useMedicationSearch = (searchTerm) => {
   }, [cache]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    // Load immediately if empty or after debounce for search
+    if (!searchTerm) {
       searchMedications(searchTerm);
-    }, 300);
-
-    return () => clearTimeout(timer);
+    } else {
+      const timer = setTimeout(() => {
+        searchMedications(searchTerm);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
   }, [searchTerm, searchMedications]);
 
   return { loading, options };

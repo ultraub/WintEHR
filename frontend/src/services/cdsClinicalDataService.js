@@ -7,11 +7,21 @@ import axios from 'axios';
 
 class CDSClinicalDataService {
   constructor() {
-    // Use direct backend URL for development to bypass proxy issues
-    // Check if running in Docker container
-    const isInDocker = !!process.env.HOSTNAME;
-    const backendHost = isInDocker ? 'http://backend:8000' : 
-                       (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : '');
+    // Determine backend URL based on environment
+    const getBackendHost = () => {
+      // Check if running in Docker container
+      if (!!process.env.HOSTNAME) {
+        return 'http://backend:8000';
+      }
+      // In development, use localhost
+      if (process.env.NODE_ENV === 'development') {
+        return 'http://localhost:8000';
+      }
+      // In production, use relative URLs (empty string means same origin)
+      return '';
+    };
+    
+    const backendHost = getBackendHost();
     
     this.baseUrl = process.env.REACT_APP_BACKEND_URL 
       ? `${process.env.REACT_APP_BACKEND_URL}/api/catalogs`

@@ -73,21 +73,27 @@ class DataManager:
         logger.info(f"Loading {count} patients...")
         
         try:
-            # Import and run synthea_master
-            from active.synthea_master import main as synthea_main
+            # Build command
+            cmd = [
+                'python', 
+                '/app/scripts/active/synthea_master.py',
+                'full',
+                '--count', str(count),
+                '--validation-mode', 'light'
+            ]
             
-            # Configure arguments
-            args = type('Args', (), {
-                'command': 'full',
-                'count': count,
-                'validation_mode': 'light',
-                'include_dicom': include_dicom,
-                'workers': 4,
-                'docker': True
-            })()
+            if include_dicom:
+                cmd.append('--include-dicom')
             
-            # Run synthea master
-            await synthea_main(args)
+            # Run synthea master using subprocess
+            import subprocess
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                logger.error(f"Synthea master failed: {result.stderr}")
+                raise Exception(f"Synthea master failed with code {result.returncode}")
+            
+            logger.info(result.stdout)
             
             logger.info("✅ Patient data loaded successfully")
             
@@ -332,15 +338,12 @@ class DataManager:
             compartments = result.scalar()
             logger.info(f"  Patient Compartments: {compartments}")
             
-            # Recent activity
+            # Recent activity - check if columns exist first
             result = await session.execute(text("""
-                SELECT MAX(created_at) as last_created,
-                       MAX(updated_at) as last_updated
+                SELECT MAX(last_updated) as last_updated
                 FROM fhir.resources
             """))
             row = result.one()
-            if row.last_created:
-                logger.info(f"  Last Created: {row.last_created}")
             if row.last_updated:
                 logger.info(f"  Last Updated: {row.last_updated}")
 
