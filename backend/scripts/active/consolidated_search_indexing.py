@@ -171,8 +171,34 @@ class SearchParameterIndexer:
         """Insert a search parameter into the database."""
         # For token types, populate value_token with the code value
         value_token = None
-        if param['param_type'] == 'token' and param.get('value_token_code'):
-            value_token = param.get('value_token_code')
+        value_token_code = param.get('value_token_code')
+        
+        # Handle cases where value_token_code might be a dict (data extraction error)
+        if value_token_code:
+            if isinstance(value_token_code, dict):
+                # Try to extract the actual code value
+                if 'code' in value_token_code:
+                    value_token_code = value_token_code['code']
+                elif 'coding' in value_token_code and isinstance(value_token_code['coding'], list):
+                    # Extract first coding's code
+                    for coding in value_token_code['coding']:
+                        if isinstance(coding, dict) and 'code' in coding:
+                            value_token_code = coding['code']
+                            break
+                else:
+                    # If we can't extract a code, convert to string representation
+                    value_token_code = str(value_token_code)
+            
+            # Ensure it's a string
+            value_token_code = str(value_token_code) if value_token_code else None
+            
+        if param['param_type'] == 'token' and value_token_code:
+            value_token = value_token_code
+        
+        # Ensure value_token_system is also a string
+        value_token_system = param.get('value_token_system')
+        if value_token_system and not isinstance(value_token_system, str):
+            value_token_system = str(value_token_system)
         
         await self.conn.execute("""
             INSERT INTO fhir.search_params (
@@ -192,8 +218,8 @@ class SearchParameterIndexer:
             param.get('value_quantity_value'),
             param.get('value_quantity_unit'),
             value_token,
-            param.get('value_token_system'),
-            param.get('value_token_code'),
+            value_token_system,
+            value_token_code,
             param.get('value_reference')
         )
     
