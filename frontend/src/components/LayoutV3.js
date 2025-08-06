@@ -78,8 +78,9 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { MedicalThemeContext } from '../App';
 import NotificationBell from './NotificationBell';
-import ThemeSwitcher from './theme/ThemeSwitcher';
+import QuickThemeToggle from './theme/QuickThemeToggle';
 import SearchBar from './SearchBar';
+import TransitionWrapper from './transitions/TransitionWrapper';
 
 const drawerWidth = 280;
 
@@ -91,9 +92,6 @@ const navigationConfig = {
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions' },
       { text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management' },
-      { text: 'Encounters', icon: <EventNoteIcon />, path: '/encounters', description: 'Visit management' },
-      { text: 'Orders & Results', icon: <ScienceIcon />, path: '/lab-results', description: 'Lab & imaging' },
-      { text: 'Medications', icon: <PharmacyIcon />, path: '/medications', description: 'Medication management' },
       { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing', badge: 'New' }
     ]
   },
@@ -110,11 +108,8 @@ const navigationConfig = {
     title: 'Developer Tools',
     icon: <ApiIcon />,
     items: [
-      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'Browse FHIR resources', badge: 'Enhanced' },
-      { text: 'FHIR Explorer v4', icon: <ApiIcon />, path: '/fhir-explorer-v4', description: 'Next-gen FHIR exploration with AI', badge: 'New' },
-      { text: 'UI Composer', icon: <DashboardCustomizeIcon />, path: '/ui-composer', description: 'Dynamic UI generation', badge: 'Experimental' },
-      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', badge: 'Enhanced' },
-      { text: 'Training Center', icon: <LightbulbIcon />, path: '/training', description: 'Learning & demos' }
+      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'Next-gen FHIR exploration with AI', badge: 'Enhanced' },
+      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', badge: 'Enhanced' }
     ]
   },
   admin: {
@@ -394,11 +389,10 @@ function LayoutV3({ children }) {
           
           {/* Toolbar Actions */}
           <Stack direction="row" spacing={1} alignItems="center">
-            <ThemeSwitcher 
-              currentTheme={medicalThemeContext?.currentTheme}
-              currentMode={medicalThemeContext?.currentMode}
-              onThemeChange={medicalThemeContext?.onThemeChange}
-              onModeChange={medicalThemeContext?.onModeChange}
+            <QuickThemeToggle 
+              showLabel={false}
+              size="medium"
+              position="header"
             />
             
             <NotificationBell />
@@ -492,7 +486,9 @@ function LayoutV3({ children }) {
         <Toolbar />
         <Box sx={{ flexGrow: 1, overflow: 'auto', p: 3 }}>
           <BreadcrumbNavigation location={location} />
-          {children}
+          <TransitionWrapper transition="fade" duration={300}>
+            {children}
+          </TransitionWrapper>
         </Box>
       </Box>
 

@@ -6,27 +6,28 @@ import axios from 'axios';
 
 class CDSHooksService {
   constructor() {
-    // Use the backend URL directly since the CDS Hooks API doesn't go through the frontend proxy
-    this.baseUrl = process.env.NODE_ENV === 'development' 
-      ? 'http://localhost:8000/cds-hooks'
-      : '/api/cds-hooks';
+    // Use the proxied path for all environments
+    // The proxy will handle forwarding to the correct backend URL
+    this.baseUrl = '/api/cds-services';
+    // Service management endpoints are under /api/services (without 'cds-')
+    this.serviceManagementUrl = '/api';
   }
 
   /**
-   * Transform frontend hook data to backend HookConfiguration format
+   * Transform frontend service data to backend ServiceConfiguration format
    */
-  transformToBackendFormat(hookData) {
+  transformToBackendFormat(serviceData) {
     try {
       // Validate input
-      if (!hookData || typeof hookData !== 'object') {
-        throw new Error('Hook data must be a valid object');
+      if (!serviceData || typeof serviceData !== 'object') {
+        throw new Error('Service data must be a valid object');
       }
 
       // Transform frontend cards to backend actions with error handling
       const actions = [];
-      if (hookData.cards && Array.isArray(hookData.cards)) {
-        for (let i = 0; i < hookData.cards.length; i++) {
-          const card = hookData.cards[i];
+      if (serviceData.cards && Array.isArray(serviceData.cards)) {
+        for (let i = 0; i < serviceData.cards.length; i++) {
+          const card = serviceData.cards[i];
           try {
             if (!card || typeof card !== 'object') {
               throw new Error(`Card ${i + 1} is not a valid object`);
@@ -38,7 +39,7 @@ class CDSHooksService {
                 summary: card.summary || '',
                 detail: card.detail || '',
                 indicator: card.indicator || 'info',
-                source: card.source || { label: hookData.title || 'EMR System' },
+                source: card.source || { label: serviceData.title || 'EMR System' },
                 suggestions: Array.isArray(card.suggestions) ? card.suggestions : [],
                 links: Array.isArray(card.links) ? card.links : []
               }
@@ -52,9 +53,9 @@ class CDSHooksService {
 
       // Transform frontend conditions to backend conditions with error handling
       const conditions = [];
-      if (hookData.conditions && Array.isArray(hookData.conditions)) {
-        for (let i = 0; i < hookData.conditions.length; i++) {
-          const condition = hookData.conditions[i];
+      if (serviceData.conditions && Array.isArray(serviceData.conditions)) {
+        for (let i = 0; i < serviceData.conditions.length; i++) {
+          const condition = serviceData.conditions[i];
           try {
             if (!condition || typeof condition !== 'object') {
               throw new Error(`Condition ${i + 1} is not a valid object`);
@@ -82,25 +83,25 @@ class CDSHooksService {
 
       // Build the backend configuration with safe defaults
       const backendConfig = {
-        id: hookData.id || '',
-        hook: hookData.hook || 'patient-view',
-        title: hookData.title || '',
-        description: hookData.description || '',
-        enabled: hookData.enabled !== false, // Default to true
+        id: serviceData.id || '',
+        hook: serviceData.hook || 'patient-view',
+        title: serviceData.title || '',
+        description: serviceData.description || '',
+        enabled: serviceData.enabled !== false, // Default to true
         conditions: conditions,
         actions: actions,
-        prefetch: (hookData.prefetch && typeof hookData.prefetch === 'object') ? hookData.prefetch : {},
-        usageRequirements: hookData.usageRequirements || null,
-        displayBehavior: (hookData.displayBehavior && typeof hookData.displayBehavior === 'object') ? hookData.displayBehavior : null
+        prefetch: (serviceData.prefetch && typeof serviceData.prefetch === 'object') ? serviceData.prefetch : {},
+        usageRequirements: serviceData.usageRequirements || null,
+        displayBehavior: (serviceData.displayBehavior && typeof serviceData.displayBehavior === 'object') ? serviceData.displayBehavior : null
       };
 
       // Validate the final structure
       if (!backendConfig.id) {
-        throw new Error('Hook ID is required in backend configuration');
+        throw new Error('Service ID is required in backend configuration');
       }
 
       if (!backendConfig.title) {
-        throw new Error('Hook title is required in backend configuration');
+        throw new Error('Service title is required in backend configuration');
       }
 
       if (!Array.isArray(backendConfig.actions) || backendConfig.actions.length === 0) {
@@ -115,12 +116,12 @@ class CDSHooksService {
   }
 
   /**
-   * Transform backend HookConfiguration to frontend format
+   * Transform backend ServiceConfiguration to frontend format
    */
   transformToFrontendFormat(backendConfig) {
     // Transform backend actions to frontend cards
     const cards = backendConfig.actions.map((action, index) => ({
-      id: `card-${Date.now()}-${index}`,
+      id: action.id || `card-${Date.now()}-${index}`,
       summary: action.parameters.summary || '',
       detail: action.parameters.detail || '',
       indicator: action.parameters.indicator || 'info',
@@ -152,11 +153,11 @@ class CDSHooksService {
       }
       
       const frontendCondition = {
-        id: `condition-${Date.now()}-${index}`,
+        id: condition.id || `condition-${Date.now()}-${index}`,
         type: conditionType,
         operator: operator,
         value: condition.parameters.value || '',
-        enabled: true
+        enabled: condition.enabled !== undefined ? condition.enabled : true
       };
       
       // Add type-specific fields
@@ -308,60 +309,60 @@ class CDSHooksService {
   }
 
   /**
-   * Validate hook data before sending to backend
+   * Validate service data before sending to backend
    */
-  validateHookData(hookData) {
+  validateServiceData(serviceData) {
     const errors = [];
     const warnings = [];
 
     // Basic required field validation
-    if (!hookData) {
-      errors.push('Hook data is required');
+    if (!serviceData) {
+      errors.push('Service data is required');
       return { errors, warnings };
     }
 
-    // Hook ID validation
-    if (!hookData.id || !hookData.id.trim()) {
-      errors.push('Hook ID is required and cannot be empty');
+    // Service ID validation
+    if (!serviceData.id || !serviceData.id.trim()) {
+      errors.push('Service ID is required and cannot be empty');
     } else {
       // Check ID format (alphanumeric, hyphens, underscores only)
-      if (!/^[a-zA-Z0-9_-]+$/.test(hookData.id)) {
-        errors.push('Hook ID can only contain letters, numbers, hyphens, and underscores');
+      if (!/^[a-zA-Z0-9_-]+$/.test(serviceData.id)) {
+        errors.push('Service ID can only contain letters, numbers, hyphens, and underscores');
       }
-      if (hookData.id.length > 50) {
-        errors.push('Hook ID must be 50 characters or less');
+      if (serviceData.id.length > 50) {
+        errors.push('Service ID must be 50 characters or less');
       }
     }
 
     // Title validation
-    if (!hookData.title || !hookData.title.trim()) {
-      errors.push('Hook title is required and cannot be empty');
-    } else if (hookData.title.length > 200) {
-      warnings.push('Hook title is quite long (over 200 characters)');
+    if (!serviceData.title || !serviceData.title.trim()) {
+      errors.push('Service title is required and cannot be empty');
+    } else if (serviceData.title.length > 200) {
+      warnings.push('Service title is quite long (over 200 characters)');
     }
 
     // Hook type validation
-    if (!hookData.hook) {
+    if (!serviceData.hook) {
       errors.push('Hook type is required');
     } else {
       const validHookTypes = ['patient-view', 'medication-prescribe', 'order-sign', 'order-select', 'encounter-start', 'encounter-discharge'];
-      if (!validHookTypes.includes(hookData.hook)) {
+      if (!validHookTypes.includes(serviceData.hook)) {
         errors.push(`Invalid hook type. Must be one of: ${validHookTypes.join(', ')}`);
       }
     }
 
     // Description validation
-    if (hookData.description && hookData.description.length > 1000) {
+    if (serviceData.description && serviceData.description.length > 1000) {
       warnings.push('Description is quite long (over 1000 characters)');
     }
 
     // Cards validation
-    if (!hookData.cards || !Array.isArray(hookData.cards)) {
+    if (!serviceData.cards || !Array.isArray(serviceData.cards)) {
       errors.push('Cards must be an array');
-    } else if (hookData.cards.length === 0) {
+    } else if (serviceData.cards.length === 0) {
       errors.push('At least one card must be defined');
     } else {
-      hookData.cards.forEach((card, index) => {
+      serviceData.cards.forEach((card, index) => {
         if (!card || typeof card !== 'object') {
           errors.push(`Card ${index + 1}: Must be a valid object`);
           return;
@@ -393,10 +394,10 @@ class CDSHooksService {
     }
 
     // Conditions validation
-    if (!hookData.conditions || !Array.isArray(hookData.conditions)) {
-      warnings.push('No conditions defined - hook will always trigger');
+    if (!serviceData.conditions || !Array.isArray(serviceData.conditions)) {
+      warnings.push('No conditions defined - service will always trigger');
     } else {
-      hookData.conditions.forEach((condition, index) => {
+      serviceData.conditions.forEach((condition, index) => {
         if (!condition || typeof condition !== 'object') {
           errors.push(`Condition ${index + 1}: Must be a valid object`);
           return;
@@ -439,7 +440,7 @@ class CDSHooksService {
     }
 
     // Prefetch validation
-    if (hookData.prefetch && typeof hookData.prefetch !== 'object') {
+    if (serviceData.prefetch && typeof serviceData.prefetch !== 'object') {
       warnings.push('Prefetch should be an object');
     }
 
@@ -447,12 +448,12 @@ class CDSHooksService {
   }
 
   /**
-   * Create a new CDS hook
+   * Create a new CDS service
    */
-  async createHook(hookData) {
+  async createService(serviceData) {
     try {
-      // Validate the hook data
-      const validation = this.validateHookData(hookData);
+      // Validate the service data
+      const validation = this.validateServiceData(serviceData);
       if (validation.errors.length > 0) {
         const error = new Error(`Validation failed: ${validation.errors.join(', ')}`);
         error.name = 'ValidationError';
@@ -462,13 +463,13 @@ class CDSHooksService {
 
       // Log warnings if any
       if (validation.warnings.length > 0) {
-        console.warn('CDS Hook validation warnings:', validation.warnings);
+        console.warn('CDS Service validation warnings:', validation.warnings);
       }
 
       // Transform to backend format with error handling
       let backendConfig;
       try {
-        backendConfig = this.transformToBackendFormat(hookData);
+        backendConfig = this.transformToBackendFormat(serviceData);
       } catch (transformError) {
         const error = new Error(`Data transformation failed: ${transformError.message}`);
         error.name = 'TransformationError';
@@ -481,7 +482,7 @@ class CDSHooksService {
       }
 
       // Send to backend with timeout
-      const response = await axios.post(`${this.baseUrl}/hooks`, backendConfig, {
+      const response = await axios.post(`${this.serviceManagementUrl}/services`, backendConfig, {
         timeout: 10000, // 10 second timeout
         headers: {
           'Content-Type': 'application/json'
@@ -491,11 +492,11 @@ class CDSHooksService {
       return {
         success: true,
         data: response.data,
-        message: 'Hook created successfully',
+        message: 'Service created successfully',
         warnings: validation.warnings
       };
     } catch (error) {
-      console.error('Create hook failed:', error);
+      console.error('Create service failed:', error);
       
       // Enhanced error categorization
       if (error.name === 'ValidationError') {
@@ -505,39 +506,39 @@ class CDSHooksService {
       } else if (error.code === 'ECONNABORTED') {
         throw new Error('Request timeout - the server took too long to respond. Please try again.');
       } else if (error.response?.status === 409) {
-        throw new Error('Hook ID already exists. Please choose a different ID.');
+        throw new Error('Service ID already exists. Please choose a different ID.');
       } else if (error.response?.status === 400) {
         const detail = error.response.data?.detail || error.response.data?.message || error.message;
-        throw new Error(`Invalid hook data: ${detail}`);
+        throw new Error(`Invalid service data: ${detail}`);
       } else if (error.response?.status === 401) {
         throw new Error('Authentication required. Please log in and try again.');
       } else if (error.response?.status === 403) {
-        throw new Error('Permission denied. You do not have access to create hooks.');
+        throw new Error('Permission denied. You do not have access to create services.');
       } else if (error.response?.status >= 500) {
         throw new Error('Server error. Please try again later or contact support.');
       } else if (!navigator.onLine) {
         throw new Error('No internet connection. Please check your network and try again.');
       } else {
-        throw new Error(`Failed to create hook: ${error.message || 'Unknown error'}`);
+        throw new Error(`Failed to create service: ${error.message || 'Unknown error'}`);
       }
     }
   }
 
   /**
-   * Update an existing CDS hook
+   * Update an existing CDS service
    */
-  async updateHook(hookId, hookData) {
+  async updateService(serviceId, serviceData) {
     try {
-      // Validate hook ID
-      if (!hookId || !hookId.trim()) {
-        throw new Error('Hook ID is required for updates');
+      // Validate service ID
+      if (!serviceId || !serviceId.trim()) {
+        throw new Error('Service ID is required for updates');
       }
 
       // Ensure ID matches
-      hookData.id = hookId;
+      serviceData.id = serviceId;
 
-      // Validate the hook data
-      const validation = this.validateHookData(hookData);
+      // Validate the service data
+      const validation = this.validateServiceData(serviceData);
       if (validation.errors.length > 0) {
         const error = new Error(`Validation failed: ${validation.errors.join(', ')}`);
         error.name = 'ValidationError';
@@ -547,13 +548,13 @@ class CDSHooksService {
 
       // Log warnings if any
       if (validation.warnings.length > 0) {
-        console.warn('CDS Hook validation warnings:', validation.warnings);
+        console.warn('CDS Service validation warnings:', validation.warnings);
       }
 
       // Transform to backend format with error handling
       let backendConfig;
       try {
-        backendConfig = this.transformToBackendFormat(hookData);
+        backendConfig = this.transformToBackendFormat(serviceData);
       } catch (transformError) {
         const error = new Error(`Data transformation failed: ${transformError.message}`);
         error.name = 'TransformationError';
@@ -566,7 +567,7 @@ class CDSHooksService {
       }
 
       // Send to backend with timeout
-      const response = await axios.put(`${this.baseUrl}/hooks/${hookId}`, backendConfig, {
+      const response = await axios.put(`${this.serviceManagementUrl}/services/${serviceId}`, backendConfig, {
         timeout: 10000, // 10 second timeout
         headers: {
           'Content-Type': 'application/json'
@@ -576,11 +577,11 @@ class CDSHooksService {
       return {
         success: true,
         data: response.data,
-        message: 'Hook updated successfully',
+        message: 'Service updated successfully',
         warnings: validation.warnings
       };
     } catch (error) {
-      console.error('Update hook failed:', error);
+      console.error('Update service failed:', error);
       
       // Enhanced error categorization
       if (error.name === 'ValidationError') {
@@ -590,117 +591,117 @@ class CDSHooksService {
       } else if (error.code === 'ECONNABORTED') {
         throw new Error('Request timeout - the server took too long to respond. Please try again.');
       } else if (error.response?.status === 404) {
-        throw new Error(`Hook "${hookId}" not found. It may have been deleted.`);
+        throw new Error(`Service "${serviceId}" not found. It may have been deleted.`);
       } else if (error.response?.status === 400) {
         const detail = error.response.data?.detail || error.response.data?.message || error.message;
-        throw new Error(`Invalid hook data: ${detail}`);
+        throw new Error(`Invalid service data: ${detail}`);
       } else if (error.response?.status === 401) {
         throw new Error('Authentication required. Please log in and try again.');
       } else if (error.response?.status === 403) {
-        throw new Error('Permission denied. You do not have access to update this hook.');
+        throw new Error('Permission denied. You do not have access to update this service.');
       } else if (error.response?.status === 409) {
-        throw new Error('Conflict: The hook has been modified by another user. Please refresh and try again.');
+        throw new Error('Conflict: The service has been modified by another user. Please refresh and try again.');
       } else if (error.response?.status >= 500) {
         throw new Error('Server error. Please try again later or contact support.');
       } else if (!navigator.onLine) {
         throw new Error('No internet connection. Please check your network and try again.');
       } else {
-        throw new Error(`Failed to update hook: ${error.message || 'Unknown error'}`);
+        throw new Error(`Failed to update service: ${error.message || 'Unknown error'}`);
       }
     }
   }
 
   /**
-   * Delete a CDS hook
+   * Delete a CDS service
    */
-  async deleteHook(hookId) {
+  async deleteService(serviceId) {
     try {
-      await axios.delete(`${this.baseUrl}/hooks/${hookId}`);
+      await axios.delete(`${this.serviceManagementUrl}/services/${serviceId}`);
       
       return {
         success: true,
-        message: 'Hook deleted successfully'
+        message: 'Service deleted successfully'
       };
     } catch (error) {
       
       
       if (error.response?.status === 404) {
-        throw new Error('Hook not found');
+        throw new Error('Service not found');
       } else {
-        throw new Error(`Failed to delete hook: ${error.message}`);
+        throw new Error(`Failed to delete service: ${error.message}`);
       }
     }
   }
 
   /**
-   * Get a specific CDS hook
+   * Get a specific CDS service
    */
-  async getHook(hookId) {
+  async getService(serviceId) {
     try {
-      const response = await axios.get(`${this.baseUrl}/hooks/${hookId}`);
+      const response = await axios.get(`${this.serviceManagementUrl}/services/${serviceId}`);
       
       // Transform to frontend format
-      const frontendHook = this.transformToFrontendFormat(response.data);
+      const frontendService = this.transformToFrontendFormat(response.data);
       
       return {
         success: true,
-        data: frontendHook
+        data: frontendService
       };
     } catch (error) {
       
       
       if (error.response?.status === 404) {
-        throw new Error('Hook not found');
+        throw new Error('Service not found');
       } else {
-        throw new Error(`Failed to get hook: ${error.message}`);
+        throw new Error(`Failed to get service: ${error.message}`);
       }
     }
   }
 
   /**
-   * List all custom CDS hooks
+   * List all custom CDS services
    */
-  async listCustomHooks() {
+  async listCustomServices() {
     try {
-      const response = await axios.get(`${this.baseUrl}/hooks`);
+      const response = await axios.get(`${this.serviceManagementUrl}/services`);
       
-      // Transform each hook to frontend format
-      const frontendHooks = response.data.map(hook => this.transformToFrontendFormat(hook));
+      // Transform each service to frontend format
+      const frontendServices = response.data.map(service => this.transformToFrontendFormat(service));
       
       return {
         success: true,
-        data: frontendHooks
+        data: frontendServices
       };
     } catch (error) {
       
-      throw new Error(`Failed to list hooks: ${error.message}`);
+      throw new Error(`Failed to list services: ${error.message}`);
     }
   }
 
   /**
-   * Test a hook with sample data
+   * Test a service with sample data
    */
-  async testHook(hookData, testContext = {}) {
+  async testService(serviceData, testContext = {}) {
     try {
-      // First, we need to create/update the hook to ensure it exists
-      let hookExists = false;
+      // First, we need to create/update the service to ensure it exists
+      let serviceExists = false;
       try {
-        await this.getHook(hookData.id);
-        hookExists = true;
+        await this.getService(serviceData.id);
+        serviceExists = true;
       } catch (e) {
-        // Hook doesn't exist yet
+        // Service doesn't exist yet
       }
 
-      // Save the hook first
-      if (hookExists) {
-        await this.updateHook(hookData.id, hookData);
+      // Save the service first
+      if (serviceExists) {
+        await this.updateService(serviceData.id, serviceData);
       } else {
-        await this.createHook(hookData);
+        await this.createService(serviceData);
       }
 
       // Create test request
       const testRequest = {
-        hook: hookData.hook,
+        hook: serviceData.hook,
         hookInstance: `test-${Date.now()}`,
         context: {
           patientId: testContext.patientId || 'test-patient-123',
@@ -710,21 +711,57 @@ class CDSHooksService {
       };
 
       // Now test it by calling the CDS service execution endpoint
-      const response = await axios.post(`${this.baseUrl}/cds-services/${hookData.id}`, testRequest);
+      const response = await axios.post(`${this.baseUrl}/${serviceData.id}`, testRequest);
       
       return {
         success: true,
         data: response.data,
-        message: 'Hook tested successfully'
+        message: 'Service tested successfully'
       };
     } catch (error) {
       
       return {
         success: false,
         error: error.message,
-        message: 'Hook test failed'
+        message: 'Service test failed'
       };
     }
+  }
+
+  // Backward compatibility - deprecated methods that forward to new names
+  async createHook(hookData) {
+    console.warn('createHook is deprecated. Use createService instead.');
+    return this.createService(hookData);
+  }
+
+  async updateHook(hookId, hookData) {
+    console.warn('updateHook is deprecated. Use updateService instead.');
+    return this.updateService(hookId, hookData);
+  }
+
+  async deleteHook(hookId) {
+    console.warn('deleteHook is deprecated. Use deleteService instead.');
+    return this.deleteService(hookId);
+  }
+
+  async getHook(hookId) {
+    console.warn('getHook is deprecated. Use getService instead.');
+    return this.getService(hookId);
+  }
+
+  async listCustomHooks() {
+    console.warn('listCustomHooks is deprecated. Use listCustomServices instead.');
+    return this.listCustomServices();
+  }
+
+  async testHook(hookData, testContext) {
+    console.warn('testHook is deprecated. Use testService instead.');
+    return this.testService(hookData, testContext);
+  }
+
+  validateHookData(hookData) {
+    console.warn('validateHookData is deprecated. Use validateServiceData instead.');
+    return this.validateServiceData(hookData);
   }
 }
 

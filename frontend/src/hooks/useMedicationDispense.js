@@ -4,7 +4,7 @@
  * Part of Phase 1 Implementation: MedicationDispense Integration
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
 
 export const useMedicationDispense = (patientId, options = {}) => {

@@ -3,7 +3,7 @@
  * Creates documentation prompts for quality measure compliance
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 export class QualityMeasureDocumentationService {
   constructor() {

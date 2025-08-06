@@ -6,9 +6,11 @@
  * - Observations and vital signs over time
  * - Interactive filtering and zoom capabilities
  * - Multi-track timeline with resource type grouping
+ * - Advanced zoom/pan controls
+ * - Export to PNG/PDF/SVG
  */
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -26,32 +28,30 @@ import {
   MenuItem,
   Switch,
   FormControlLabel,
-  Button,
-  ButtonGroup,
   Slider,
   Alert,
   LinearProgress,
-  useTheme
+  useTheme,
+  Menu
 } from '@mui/material';
 import {
   Timeline as TimelineIcon,
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
-  FilterList as FilterIcon,
   Refresh as RefreshIcon,
   Download as DownloadIcon,
-  Fullscreen as FullscreenIcon,
-  Person as PersonIcon,
   LocalHospital as HospitalIcon,
   Medication as MedicationIcon,
   Science as ScienceIcon,
   Assessment as AssessmentIcon,
-  Event as EventIcon,
-  TrendingUp as TrendingUpIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckCircleIcon
+  Image as ImageIcon,
+  PictureAsPdf as PdfIcon,
+  Code as SvgIcon,
+  NotificationsActive as LiveIcon
 } from '@mui/icons-material';
-import { alpha, darken, lighten } from '@mui/material/styles';
+import { alpha, darken } from '@mui/material/styles';
+import { exportToPNG, exportToPDF, exportToJSON } from './utils/timelineExport';
+import { getChartColors } from '../../../themes/chartColors';
 
 // Timeline configuration
 const TIMELINE_CONFIG = {
@@ -60,77 +60,87 @@ const TIMELINE_CONFIG = {
   eventHeight: 40,
   padding: 20,
   timeScale: {
-    min: 1, // 1 day per pixel
-    max: 365, // 1 year per pixel
+    min: 0.1, // 0.1 day per pixel (very zoomed in)
+    max: 365, // 1 year per pixel (very zoomed out)
     default: 30 // 30 days per pixel
+  },
+  animation: {
+    duration: 300,
+    easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
   }
 };
 
 // Resource type configurations with colors and tracks
-const RESOURCE_TRACKS = {
+// Will be populated with theme-aware colors
+const createResourceTracks = (chartColors) => ({
   Encounter: {
     label: 'Encounters',
-    color: '#1976d2',
+    color: chartColors.timeline.Encounter,
     icon: <HospitalIcon />,
     track: 0,
     priority: 1
   },
   Condition: {
     label: 'Conditions',
-    color: '#d32f2f',
+    color: chartColors.timeline.Condition,
     icon: <AssessmentIcon />,
     track: 1,
     priority: 2
   },
   MedicationRequest: {
     label: 'Medications',
-    color: '#ed6c02',
+    color: chartColors.timeline.MedicationRequest,
     icon: <MedicationIcon />,
     track: 2,
     priority: 3
   },
   Procedure: {
     label: 'Procedures',
-    color: '#7b1fa2',
+    color: chartColors.timeline.Procedure,
     icon: <HospitalIcon />,
     track: 3,
     priority: 4
   },
   Observation: {
     label: 'Observations',
-    color: '#2e7d32',
+    color: chartColors.timeline.Observation,
     icon: <ScienceIcon />,
     track: 4,
     priority: 5
   },
   DiagnosticReport: {
     label: 'Reports',
-    color: '#1565c0',
+    color: chartColors.timeline.DiagnosticReport,
     icon: <AssessmentIcon />,
     track: 5,
     priority: 6
   }
-};
+});
 
 /**
  * Timeline event component
  */
-const TimelineEvent = ({ event, scale, onEventClick, isSelected }) => {
-  const theme = useTheme();
-  const config = RESOURCE_TRACKS[event.resourceType] || RESOURCE_TRACKS.Observation;
+const TimelineEvent = ({ event, scale, onEventClick, isSelected, RESOURCE_TRACKS }) => {
+  const config = RESOURCE_TRACKS[event.resourceType] || RESOURCE_TRACKS.Observation || {
+    color: '#1976D2',
+    label: 'Unknown',
+    icon: <AssessmentIcon />
+  };
+  
+  const safeColor = config.color || '#1976D2';
   
   const eventStyle = {
     position: 'absolute',
     left: `${event.position}px`,
     width: `${Math.max(4, event.duration * scale)}px`,
     height: `${TIMELINE_CONFIG.eventHeight - 4}px`,
-    backgroundColor: isSelected ? darken(config.color, 0.2) : config.color,
+    backgroundColor: isSelected ? darken(safeColor, 0.2) : safeColor,
     borderRadius: 4,
     cursor: 'pointer',
     transition: 'all 0.2s ease-in-out',
     boxShadow: isSelected 
-      ? `0 4px 12px ${alpha(config.color, 0.4)}`
-      : `0 2px 4px ${alpha(config.color, 0.2)}`,
+      ? `0 4px 12px ${alpha(safeColor, 0.4)}`
+      : `0 2px 4px ${alpha(safeColor, 0.2)}`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -138,10 +148,10 @@ const TimelineEvent = ({ event, scale, onEventClick, isSelected }) => {
     fontSize: '0.75rem',
     fontWeight: 500,
     overflow: 'hidden',
-    border: isSelected ? `2px solid ${darken(config.color, 0.3)}` : 'none',
+    border: isSelected ? `2px solid ${darken(safeColor, 0.3)}` : 'none',
     '&:hover': {
       transform: 'translateY(-2px)',
-      boxShadow: `0 6px 16px ${alpha(config.color, 0.3)}`
+      boxShadow: `0 6px 16px ${alpha(safeColor, 0.3)}`
     }
   };
 
@@ -173,8 +183,14 @@ const TimelineEvent = ({ event, scale, onEventClick, isSelected }) => {
 /**
  * Timeline track component
  */
-const TimelineTrack = ({ trackData, scale, onEventClick, selectedEvent }) => {
-  const config = RESOURCE_TRACKS[trackData.resourceType];
+const TimelineTrack = ({ trackData, scale, onEventClick, selectedEvent, RESOURCE_TRACKS }) => {
+  const config = RESOURCE_TRACKS[trackData.resourceType] || {
+    color: '#1976D2',
+    label: 'Unknown',
+    icon: <AssessmentIcon />
+  };
+  
+  const safeColor = config.color || '#1976D2';
   
   return (
     <Box
@@ -183,9 +199,9 @@ const TimelineTrack = ({ trackData, scale, onEventClick, selectedEvent }) => {
         borderBottom: 1,
         borderColor: 'divider',
         position: 'relative',
-        backgroundColor: alpha(config.color, 0.02),
+        backgroundColor: alpha(safeColor, 0.02),
         '&:hover': {
-          backgroundColor: alpha(config.color, 0.05)
+          backgroundColor: alpha(safeColor, 0.05)
         }
       }}
     >
@@ -208,8 +224,8 @@ const TimelineTrack = ({ trackData, scale, onEventClick, selectedEvent }) => {
       >
         <Avatar
           sx={{
-            bgcolor: alpha(config.color, 0.1),
-            color: config.color,
+            bgcolor: alpha(safeColor, 0.1),
+            color: safeColor,
             width: 32,
             height: 32,
             mr: 2
@@ -236,6 +252,7 @@ const TimelineTrack = ({ trackData, scale, onEventClick, selectedEvent }) => {
             scale={scale}
             onEventClick={onEventClick}
             isSelected={selectedEvent?.id === event.id}
+            RESOURCE_TRACKS={RESOURCE_TRACKS}
           />
         ))}
       </Box>
@@ -254,8 +271,13 @@ const TimelineControls = ({
   filters,
   onFiltersChange,
   onRefresh,
-  onExport
+  onExport,
+  isLive,
+  onToggleLive,
+  RESOURCE_TRACKS
 }) => {
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
+  
   return (
     <Paper sx={{ p: 2, mb: 2 }}>
       <Grid container spacing={2} alignItems="center">
@@ -300,48 +322,91 @@ const TimelineControls = ({
 
         <Grid item xs={12} md={4}>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            {Object.entries(RESOURCE_TRACKS).map(([type, config]) => (
+            {Object.entries(RESOURCE_TRACKS).map(([type, config]) => {
+              // Safety check for undefined colors
+              const safeConfig = {
+                ...config,
+                color: config.color || '#1976D2'
+              };
+              
+              return (
+                <FormControlLabel
+                  key={type}
+                  control={
+                    <Switch
+                      checked={filters.includes(type)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          onFiltersChange([...filters, type]);
+                        } else {
+                          onFiltersChange(filters.filter(f => f !== type));
+                        }
+                      }}
+                      size="small"
+                    />
+                  }
+                  label={
+                    <Chip
+                      size="small"
+                      icon={React.cloneElement(safeConfig.icon, { fontSize: 'small' })}
+                      label={safeConfig.label}
+                      sx={{
+                        bgcolor: alpha(safeConfig.color, 0.1),
+                        color: safeConfig.color,
+                        '& .MuiChip-icon': { color: safeConfig.color }
+                      }}
+                    />
+                  }
+                />
+              );
+            })}
+          </Box>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {onToggleLive && (
               <FormControlLabel
-                key={type}
                 control={
                   <Switch
-                    checked={filters.includes(type)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        onFiltersChange([...filters, type]);
-                      } else {
-                        onFiltersChange(filters.filter(f => f !== type));
-                      }
-                    }}
+                    checked={isLive}
+                    onChange={(e) => onToggleLive(e.target.checked)}
+                    color="error"
                     size="small"
                   />
                 }
                 label={
-                  <Chip
-                    size="small"
-                    icon={React.cloneElement(config.icon, { fontSize: 'small' })}
-                    label={config.label}
-                    sx={{
-                      bgcolor: alpha(config.color, 0.1),
-                      color: config.color,
-                      '& .MuiChip-icon': { color: config.color }
-                    }}
-                  />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <LiveIcon sx={{ fontSize: 16, color: isLive ? 'error.main' : 'text.secondary' }} />
+                    Live
+                  </Box>
                 }
               />
-            ))}
+            )}
+            <IconButton onClick={onRefresh} color="primary">
+              <RefreshIcon />
+            </IconButton>
+            <Tooltip title="Export timeline">
+              <IconButton onClick={(e) => setExportMenuAnchor(e.currentTarget)}>
+                <DownloadIcon />
+              </IconButton>
+            </Tooltip>
+            <Menu
+              anchorEl={exportMenuAnchor}
+              open={Boolean(exportMenuAnchor)}
+              onClose={() => setExportMenuAnchor(null)}
+            >
+              <MenuItem onClick={() => { onExport('png'); setExportMenuAnchor(null); }}>
+                <ImageIcon sx={{ mr: 1 }} /> Export as PNG
+              </MenuItem>
+              <MenuItem onClick={() => { onExport('pdf'); setExportMenuAnchor(null); }}>
+                <PdfIcon sx={{ mr: 1 }} /> Export as PDF
+              </MenuItem>
+              <MenuItem onClick={() => { onExport('json'); setExportMenuAnchor(null); }}>
+                <SvgIcon sx={{ mr: 1 }} /> Export as JSON
+              </MenuItem>
+            </Menu>
           </Box>
-        </Grid>
-
-        <Grid item xs={12} md={2}>
-          <ButtonGroup size="small" fullWidth>
-            <Button onClick={onRefresh} startIcon={<RefreshIcon />}>
-              Refresh
-            </Button>
-            <Button onClick={onExport} startIcon={<DownloadIcon />}>
-              Export
-            </Button>
-          </ButtonGroup>
         </Grid>
       </Grid>
     </Paper>
@@ -351,10 +416,16 @@ const TimelineControls = ({
 /**
  * Event details panel
  */
-const EventDetailsPanel = ({ event, onClose }) => {
+const EventDetailsPanel = ({ event, onClose, RESOURCE_TRACKS }) => {
   if (!event) return null;
 
-  const config = RESOURCE_TRACKS[event.resourceType];
+  const config = RESOURCE_TRACKS[event.resourceType] || {
+    color: '#1976D2',
+    label: 'Unknown',
+    icon: <AssessmentIcon />
+  };
+  
+  const safeColor = config.color || '#1976D2';
 
   return (
     <Card sx={{ mt: 2 }}>
@@ -362,8 +433,8 @@ const EventDetailsPanel = ({ event, onClose }) => {
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <Avatar
             sx={{
-              bgcolor: alpha(config.color, 0.1),
-              color: config.color,
+              bgcolor: alpha(safeColor, 0.1),
+              color: safeColor,
               mr: 2
             }}
           >
@@ -450,84 +521,19 @@ const EventDetailsPanel = ({ event, onClose }) => {
  */
 function PatientTimeline({ patientId, fhirData, onNavigate }) {
   const theme = useTheme();
+  const chartColors = getChartColors(theme);
+  const RESOURCE_TRACKS = useMemo(() => createResourceTracks(chartColors), [chartColors]);
   const timelineRef = useRef(null);
   
   const [timeRange, setTimeRange] = useState('6months');
   const [scale, setScale] = useState(TIMELINE_CONFIG.timeScale.default);
-  const [filters, setFilters] = useState(Object.keys(RESOURCE_TRACKS));
+  const [filters, setFilters] = useState(Object.keys(createResourceTracks(chartColors)));
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  // Process FHIR data into timeline events
-  const timelineData = useMemo(() => {
-    if (!fhirData || !fhirData.resources) {
-      return { tracks: [], dateRange: { start: new Date(), end: new Date() }, events: [] };
-    }
-
-    const allEvents = [];
-    const now = new Date();
-    
-    // Calculate date range based on selection
-    let startDate;
-    switch (timeRange) {
-      case '1month':
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      case '3months':
-        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-        break;
-      case '6months':
-        startDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
-        break;
-      case '1year':
-        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        startDate = new Date('2020-01-01'); // All time
-    }
-
-    // Process each resource type
-    Object.entries(fhirData.resources).forEach(([resourceType, resources]) => {
-      if (!filters.includes(resourceType) || !RESOURCE_TRACKS[resourceType]) return;
-
-      resources.forEach(resource => {
-        const event = processResourceToEvent(resource, resourceType);
-        if (event && event.date >= startDate) {
-          allEvents.push(event);
-        }
-      });
-    });
-
-    // Sort events by date
-    allEvents.sort((a, b) => a.date - b.date);
-
-    // Calculate positions
-    const dateRange = {
-      start: allEvents.length > 0 ? allEvents[0].date : startDate,
-      end: allEvents.length > 0 ? allEvents[allEvents.length - 1].date : now
-    };
-
-    const totalDays = Math.max(1, (dateRange.end - dateRange.start) / (24 * 60 * 60 * 1000));
-    
-    allEvents.forEach(event => {
-      const daysSinceStart = (event.date - dateRange.start) / (24 * 60 * 60 * 1000);
-      event.position = (daysSinceStart / totalDays) * (window.innerWidth - 240) * (scale / TIMELINE_CONFIG.timeScale.default);
-    });
-
-    // Group events by track
-    const tracks = {};
-    filters.forEach(resourceType => {
-      tracks[resourceType] = {
-        resourceType,
-        events: allEvents.filter(e => e.resourceType === resourceType)
-      };
-    });
-
-    return { tracks: Object.values(tracks), dateRange, events: allEvents };
-  }, [fhirData, timeRange, scale, filters]);
+  const [isLive, setIsLive] = useState(false);
 
   // Process a FHIR resource into a timeline event
-  const processResourceToEvent = (resource, resourceType) => {
+  const processResourceToEvent = useCallback((resource, resourceType) => {
     try {
       let date, endDate, title, description, status, severity;
 
@@ -596,7 +602,75 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
       console.warn(`Failed to process ${resourceType} resource:`, err);
       return null;
     }
-  };
+  }, []);
+
+  // Process FHIR data into timeline events
+  const timelineData = useMemo(() => {
+    if (!fhirData || !fhirData.resources) {
+      return { tracks: [], dateRange: { start: new Date(), end: new Date() }, events: [] };
+    }
+
+    const allEvents = [];
+    const now = new Date();
+    
+    // Calculate date range based on selection
+    let startDate;
+    switch (timeRange) {
+      case '1month':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '3months':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case '6months':
+        startDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+        break;
+      case '1year':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date('2020-01-01'); // All time
+    }
+
+    // Process each resource type
+    Object.entries(fhirData.resources).forEach(([resourceType, resources]) => {
+      if (!filters.includes(resourceType) || !RESOURCE_TRACKS[resourceType]) return;
+
+      resources.forEach(resource => {
+        const event = processResourceToEvent(resource, resourceType);
+        if (event && event.date >= startDate) {
+          allEvents.push(event);
+        }
+      });
+    });
+
+    // Sort events by date
+    allEvents.sort((a, b) => a.date - b.date);
+
+    // Calculate positions
+    const dateRange = {
+      start: allEvents.length > 0 ? allEvents[0].date : startDate,
+      end: allEvents.length > 0 ? allEvents[allEvents.length - 1].date : now
+    };
+
+    const totalDays = Math.max(1, (dateRange.end - dateRange.start) / (24 * 60 * 60 * 1000));
+    
+    allEvents.forEach(event => {
+      const daysSinceStart = (event.date - dateRange.start) / (24 * 60 * 60 * 1000);
+      event.position = (daysSinceStart / totalDays) * (window.innerWidth - 240) * (scale / TIMELINE_CONFIG.timeScale.default);
+    });
+
+    // Group events by track
+    const tracks = {};
+    filters.forEach(resourceType => {
+      tracks[resourceType] = {
+        resourceType,
+        events: allEvents.filter(e => e.resourceType === resourceType)
+      };
+    });
+
+    return { tracks: Object.values(tracks), dateRange, events: allEvents };
+  }, [fhirData, timeRange, scale, filters, processResourceToEvent, RESOURCE_TRACKS]);
 
   const handleEventClick = useCallback((event) => {
     setSelectedEvent(event);
@@ -611,22 +685,35 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
     setTimeout(() => setLoading(false), 1000);
   }, [onNavigate]);
 
-  const handleExport = useCallback(() => {
-    const data = {
-      timeline: timelineData,
-      filters,
-      timeRange,
-      exportedAt: new Date().toISOString()
-    };
+  const handleExport = useCallback(async (format = 'json') => {
+    if (!timelineRef.current && format !== 'json') return;
     
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `patient-timeline-${patientId || 'unknown'}-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [timelineData, filters, timeRange, patientId]);
+    setLoading(true);
+    try {
+      switch (format) {
+        case 'png':
+          await exportToPNG(timelineRef.current, 'patient-timeline');
+          break;
+        case 'pdf':
+          await exportToPDF(timelineRef.current, 'patient-timeline');
+          break;
+        case 'json':
+        default:
+          exportToJSON({
+            timeline: timelineData,
+            filters,
+            timeRange,
+            scale,
+            patientId
+          }, 'patient-timeline-data');
+          break;
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [timelineData, filters, timeRange, scale, patientId]);
 
   if (!fhirData || !fhirData.hasData) {
     return (
@@ -646,7 +733,16 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
         <Typography variant="h4" sx={{ fontWeight: 600 }}>
           Patient Timeline
         </Typography>
-        <Box sx={{ ml: 'auto' }}>
+        <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
+          {isLive && (
+            <Chip
+              icon={<LiveIcon />}
+              label="Live Updates"
+              color="error"
+              size="small"
+              sx={{ animation: 'pulse 2s infinite' }}
+            />
+          )}
           <Chip
             label={`${timelineData.events.length} events`}
             color="primary"
@@ -664,6 +760,9 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
         onFiltersChange={setFilters}
         onRefresh={handleRefresh}
         onExport={handleExport}
+        isLive={isLive}
+        onToggleLive={setIsLive}
+        RESOURCE_TRACKS={RESOURCE_TRACKS}
       />
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
@@ -685,6 +784,7 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
             scale={scale}
             onEventClick={handleEventClick}
             selectedEvent={selectedEvent}
+            RESOURCE_TRACKS={RESOURCE_TRACKS}
           />
         ))}
 
@@ -708,7 +808,19 @@ function PatientTimeline({ patientId, fhirData, onNavigate }) {
       <EventDetailsPanel
         event={selectedEvent}
         onClose={() => setSelectedEvent(null)}
+        RESOURCE_TRACKS={RESOURCE_TRACKS}
       />
+
+      {/* Add pulse animation for live mode */}
+      <style>
+        {`
+          @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+          }
+        `}
+      </style>
     </Box>
   );
 }

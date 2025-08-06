@@ -86,9 +86,8 @@ export const getObservationInterpretation = (observation) => {
   const interpretation = observation.interpretation[0];
   if (!interpretation) return null;
   
-  return interpretation.coding?.[0]?.code ||
-         interpretation.code ||
-         interpretation;
+  // Return the full interpretation object so the caller can access coding
+  return interpretation;
 };
 
 /**

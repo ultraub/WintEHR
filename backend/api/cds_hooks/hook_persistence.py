@@ -25,8 +25,8 @@ class HookPersistenceManager:
         """Create the CDS hooks table if it doesn't exist"""
         # Create table SQL without schema creation
         # Table already exists with different schema - don't recreate
-        # Actual schema has: id (serial), hook_id, title, description, hook_type,
-        # prefetch, configuration, is_active, created_at, updated_at, display_behavior
+        # Actual schema has: id (varchar), title, description, hook_type,
+        # conditions, actions, prefetch, enabled, created_at, updated_at, display_behavior
         create_table_sql = """
         CREATE TABLE IF NOT EXISTS cds_hooks.hook_configurations (
             id SERIAL PRIMARY KEY,
@@ -36,7 +36,7 @@ class HookPersistenceManager:
             hook_type VARCHAR(100) NOT NULL,
             prefetch JSONB DEFAULT '{}'::jsonb,
             configuration JSONB NOT NULL,
-            is_active BOOLEAN DEFAULT true,
+            enabled BOOLEAN DEFAULT true,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             display_behavior JSONB DEFAULT NULL
@@ -62,8 +62,8 @@ class HookPersistenceManager:
             
             # Then create indexes - one at a time to avoid multi-statement error
             await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_type ON cds_hooks.hook_configurations(hook_type)"))
-            await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_active ON cds_hooks.hook_configurations(is_active)"))
-            await self.db.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS hook_configurations_hook_id_key ON cds_hooks.hook_configurations(hook_id)"))
+            await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_active ON cds_hooks.hook_configurations(enabled)"))
+            # Note: The id column in the table serves as the hook_id, no separate index needed
             await self.db.commit()
             
             logger.debug("CDS hooks table created or verified")
@@ -79,25 +79,27 @@ class HookPersistenceManager:
             existing = await self.get_hook(hook_config.id)
             
             if existing:
-                # Update existing hook
+                # Update existing hook - using hook_id column
                 update_sql = text("""
                     UPDATE cds_hooks.hook_configurations 
                     SET hook_type = :hook_type,
                         title = :title,
                         description = :description,
+                        enabled = :enabled,
                         is_active = :enabled,
-                        configuration = :configuration,
                         prefetch = :prefetch,
                         display_behavior = :display_behavior,
+                        configuration = :configuration,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE hook_id = :hook_id
                     RETURNING *
                 """)
-                
-                # Combine conditions and actions into configuration
+                # Create a complete configuration object
                 configuration = {
                     'conditions': [c.dict() for c in hook_config.conditions],
                     'actions': [a.dict() for a in hook_config.actions],
+                    'enabled': hook_config.enabled,
+                    'prefetch': hook_config.prefetch or {},
                     'usageRequirements': hook_config.usageRequirements
                 }
                 
@@ -107,25 +109,27 @@ class HookPersistenceManager:
                     'title': hook_config.title,
                     'description': hook_config.description,
                     'enabled': hook_config.enabled,
-                    'configuration': json.dumps(configuration),
                     'prefetch': json.dumps(hook_config.prefetch or {}),
-                    'display_behavior': json.dumps(hook_config.displayBehavior) if hook_config.displayBehavior else None
+                    'display_behavior': json.dumps(hook_config.displayBehavior) if hook_config.displayBehavior else None,
+                    'configuration': json.dumps(configuration)
                 })
             else:
-                # Insert new hook
+                # Insert new hook - using hook_id column and configuration field
                 insert_sql = text("""
                     INSERT INTO cds_hooks.hook_configurations 
-                    (hook_id, hook_type, title, description, is_active, configuration, 
-                     prefetch, display_behavior)
-                    VALUES (:hook_id, :hook_type, :title, :description, :enabled, :configuration, 
-                            :prefetch, :display_behavior)
+                    (hook_id, hook_type, title, description, enabled, is_active,
+                     prefetch, display_behavior, configuration)
+                    VALUES (:hook_id, :hook_type, :title, :description, :enabled, :enabled,
+                            :prefetch, :display_behavior, :configuration)
                     RETURNING *
                 """)
                 
-                # Combine conditions and actions into configuration
+                # Create a complete configuration object
                 configuration = {
                     'conditions': [c.dict() for c in hook_config.conditions],
                     'actions': [a.dict() for a in hook_config.actions],
+                    'enabled': hook_config.enabled,
+                    'prefetch': hook_config.prefetch or {},
                     'usageRequirements': hook_config.usageRequirements
                 }
                 
@@ -135,9 +139,9 @@ class HookPersistenceManager:
                     'title': hook_config.title,
                     'description': hook_config.description,
                     'enabled': hook_config.enabled,
-                    'configuration': json.dumps(configuration),
                     'prefetch': json.dumps(hook_config.prefetch or {}),
-                    'display_behavior': json.dumps(hook_config.displayBehavior) if hook_config.displayBehavior else None
+                    'display_behavior': json.dumps(hook_config.displayBehavior) if hook_config.displayBehavior else None,
+                    'configuration': json.dumps(configuration)
                 })
             
             await self.db.commit()
@@ -185,7 +189,7 @@ class HookPersistenceManager:
             params = {}
             
             if enabled_only:
-                where_clauses.append("is_active = true")
+                where_clauses.append("enabled = true")
             
             if hook_type:
                 where_clauses.append("hook_type = :hook_type")
@@ -235,7 +239,7 @@ class HookPersistenceManager:
         try:
             update_sql = text("""
                 UPDATE cds_hooks.hook_configurations 
-                SET is_active = :enabled, updated_at = CURRENT_TIMESTAMP
+                SET enabled = :enabled, is_active = :enabled, updated_at = CURRENT_TIMESTAMP
                 WHERE hook_id = :hook_id
             """)
             
@@ -292,23 +296,26 @@ class HookPersistenceManager:
         """Convert database row to HookConfiguration object"""
         from .models import HookType, HookCondition, HookAction
         
-        # Parse JSON fields from configuration
-        config_data = row.configuration if isinstance(row.configuration, dict) else json.loads(row.configuration or '{}')
-        conditions_data = config_data.get('conditions', [])
-        actions_data = config_data.get('actions', [])
-        usage_requirements = config_data.get('usageRequirements')
+        # Parse configuration JSON to extract conditions, actions, etc.
+        configuration = row.configuration if isinstance(row.configuration, dict) else json.loads(row.configuration or '{}')
         
+        # Extract conditions and actions from configuration
+        conditions_data = configuration.get('conditions', [])
+        actions_data = configuration.get('actions', [])
+        usage_requirements = configuration.get('usageRequirements')
+        
+        # Parse other JSON fields
         prefetch_data = row.prefetch if isinstance(row.prefetch, dict) else json.loads(row.prefetch or '{}')
         display_behavior_data = None
         if hasattr(row, 'display_behavior') and row.display_behavior:
             display_behavior_data = row.display_behavior if isinstance(row.display_behavior, dict) else json.loads(row.display_behavior)
         
         return HookConfiguration(
-            id=row.hook_id,
+            id=row.hook_id,  # Use hook_id column
             hook=HookType(row.hook_type),
             title=row.title,
             description=row.description or "",
-            enabled=row.is_active,
+            enabled=row.enabled if hasattr(row, 'enabled') else row.is_active if hasattr(row, 'is_active') else True,
             conditions=[HookCondition(**cond) for cond in conditions_data],
             actions=[HookAction(**action) for action in actions_data],
             prefetch=prefetch_data if prefetch_data else None,

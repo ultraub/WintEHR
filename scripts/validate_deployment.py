@@ -76,7 +76,7 @@ class DeploymentValidator:
             table_names = {row['table_name'] for row in tables}
             
             required_tables = {
-                'resources', 'search_params', 'resource_history', 'references'
+                'resources', 'search_params', 'resource_history', 'references', 'compartments', 'audit_logs'
             }
             
             missing_tables = required_tables - table_names
@@ -194,6 +194,90 @@ class DeploymentValidator:
     async def validate_search_functionality(self):
         """Validate search parameter functionality."""
         self.log("Validating search functionality...")
+    
+    async def validate_fhir_references(self):
+        """Validate FHIR references are properly populated."""
+        self.log("Validating FHIR references...")
+        
+        try:
+            # Connect to database
+            if self.use_docker:
+                conn = await asyncpg.connect(
+                    "postgresql://emr_user:emr_password@localhost:5432/emr_db"
+                )
+            else:
+                conn = await asyncpg.connect(DATABASE_URL)
+            
+            # Check if references table exists
+            exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_schema = 'fhir' 
+                    AND table_name = 'references'
+                )
+            """)
+            
+            if not exists:
+                self.log("fhir.references table does not exist", "ERROR")
+                return False
+            
+            # Check reference count
+            ref_count = await conn.fetchval("SELECT COUNT(*) FROM fhir.references")
+            self.log(f"Total references: {ref_count}", "INFO")
+            
+            if ref_count == 0:
+                self.log("No references found - relationship viewer will not work", "ERROR")
+                return False
+            
+            # Check resource count for comparison
+            resource_count = await conn.fetchval("""
+                SELECT COUNT(*) FROM fhir.resources 
+                WHERE deleted = FALSE OR deleted IS NULL
+            """)
+            
+            # Calculate ratio
+            if resource_count > 0:
+                ratio = ref_count / resource_count
+                self.log(f"Average references per resource: {ratio:.2f}", "INFO")
+                
+                if ratio < 1.0:
+                    self.log(f"Low reference ratio ({ratio:.2f}) - some resources may lack references", "WARNING")
+            
+            # Check for orphaned references
+            orphaned = await conn.fetchval("""
+                SELECT COUNT(*) 
+                FROM fhir.references ref
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM fhir.resources r 
+                    WHERE r.id = ref.source_id 
+                    AND (r.deleted = FALSE OR r.deleted IS NULL)
+                )
+            """)
+            
+            if orphaned > 0:
+                self.log(f"Found {orphaned} orphaned references", "WARNING")
+            
+            # Check reference types distribution
+            ref_types = await conn.fetch("""
+                SELECT source_type, target_type, COUNT(*) as count
+                FROM fhir.references
+                GROUP BY source_type, target_type
+                ORDER BY count DESC
+                LIMIT 5
+            """)
+            
+            self.log("Top reference relationships:", "INFO")
+            for row in ref_types:
+                self.log(f"  {row['source_type']} -> {row['target_type']}: {row['count']}", "INFO")
+            
+            await conn.close()
+            
+            # Pass if we have references and ratio is reasonable
+            return ref_count > 0 and (resource_count == 0 or ratio >= 0.5)
+            
+        except Exception as e:
+            self.log(f"Error validating references: {e}", "ERROR")
+            return False
         
         try:
             # Connect to database to check search parameters
@@ -269,7 +353,8 @@ class DeploymentValidator:
         validations = [
             ("Database Schema", self.validate_database_schema()),
             ("FHIR API", self.validate_fhir_api()),
-            ("Search Functionality", self.validate_search_functionality())
+            ("Search Functionality", self.validate_search_functionality()),
+            ("FHIR References", self.validate_fhir_references())
         ]
         
         results = {}

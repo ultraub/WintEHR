@@ -45,7 +45,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, subDays, isAfter, startOfDay, endOfDay } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 
 // Vital signs configuration with normal ranges
 const VITAL_SIGNS_CONFIG = {
@@ -427,7 +427,7 @@ const VitalSignsFlowsheet = ({ patientId, height = '600px' }) => {
               </TableHead>
               <TableBody>
                 {tableData.map((row, index) => (
-                  <TableRow key={index}>
+                  <TableRow key={`row-${row.date.toISOString()}-${index}`}>
                     <TableCell>
                       <Typography variant="body2" fontWeight="medium">
                         {format(row.date, 'MM/dd/yyyy')}

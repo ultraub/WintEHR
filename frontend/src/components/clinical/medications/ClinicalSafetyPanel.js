@@ -392,7 +392,7 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
                 <Stack direction="row" spacing={1} flexWrap="wrap">
                   {safetyReport.patientSpecific.riskFactors.map((factor, index) => (
                     <Chip 
-                      key={index}
+                      key={`factor-${factor.description.substring(0, 20)}-${factor.risk}-${index}`}
                       label={factor.description}
                       color={getRiskLevelColor(factor.risk)}
                       size="small"
@@ -444,7 +444,7 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
                   ) : (
                     <List>
                       {category.issues.map((issue, index) => (
-                        <ListItem key={index}>
+                        <ListItem key={`issue-${issue.type}-${issue.risk}-${index}`}>
                           <ListItemIcon>
                             {getRiskLevelIcon(issue.risk)}
                           </ListItemIcon>
@@ -452,11 +452,11 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
                             primary={issue.message}
                             secondary={
                               <span>
-                                <span style={{ fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)' }}>
+                                <span style={{ fontSize: '0.75rem', color: theme.palette.text.secondary }}>
                                   Type: {issue.type}
                                 </span>
                                 {issue.medicationName && (
-                                  <span style={{ fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)', marginLeft: '16px' }}>
+                                  <span style={{ fontSize: '0.75rem', color: theme.palette.text.secondary, marginLeft: '16px' }}>
                                     • Medication: {issue.medicationName}
                                   </span>
                                 )}
@@ -490,7 +490,7 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
               </Typography>
               <List>
                 {safetyReport.recommendations.map((recommendation, index) => (
-                  <ListItem key={index}>
+                  <ListItem key={`rec-${recommendation.message?.substring(0, 20) || index}-${index}`}>
                     <ListItemIcon>
                       <InfoIcon color="info" />
                     </ListItemIcon>
@@ -523,7 +523,7 @@ const ClinicalSafetyPanel = ({ patientId, medications = [], onRefresh }) => {
               </Typography>
               <List>
                 {safetyReport.actions.map((action, index) => (
-                  <ListItem key={index}>
+                  <ListItem key={`action-${action.type || 'action'}-${action.description?.substring(0, 20) || ''}-${index}`}>
                     <ListItemIcon>
                       <ScheduleIcon color="warning" />
                     </ListItemIcon>

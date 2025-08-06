@@ -14,7 +14,6 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Alert,
   Chip,
   Stack,
   Divider
@@ -28,7 +27,6 @@ import {
   PlayArrow as StartIcon,
   MenuBook as GuideIcon,
   Quiz as QuizIcon,
-  Assignment as ExerciseIcon,
   CheckCircle as CompletedIcon,
   Psychology as CDSIcon
 } from '@mui/icons-material';

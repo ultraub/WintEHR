@@ -40,7 +40,6 @@ import {
   Build as BuildIcon,
   Visibility as VisibilityIcon,
   Work as WorkspaceIcon,
-  School as SchoolIcon,
   Lightbulb as LightbulbIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
@@ -52,14 +51,12 @@ import {
   ExpandMore,
   ExpandLess,
   FiberManualRecord,
-  Analytics as AnalyticsIcon,
   Memory as MemoryIcon,
   Share as ShareIcon,
   Code as CodeIcon,
   Timeline as TimelineIcon,
   Hub as HubIcon,
   Schema as SchemaIcon,
-  Psychology as PsychologyIcon,
   Chat as ChatIcon,
   Playground as PlaygroundIcon,
   BarChart as ChartIcon,
@@ -70,6 +67,9 @@ import { alpha } from '@mui/material/styles';
 
 // Import mode constants
 import { APP_MODES, DISCOVERY_VIEWS, QUERY_VIEWS, VISUALIZATION_VIEWS } from '../constants/appConstants';
+
+// Import QuickThemeToggle
+import QuickThemeToggle from '../../theme/QuickThemeToggle';
 
 // Navigation structure with icons and descriptions
 const NAVIGATION_STRUCTURE = {
@@ -108,25 +108,20 @@ const NAVIGATION_STRUCTURE = {
     description: 'Build and test FHIR queries',
     color: '#f57c00',
     views: {
-      [QUERY_VIEWS.VISUAL]: {
-        label: 'Visual Builder',
-        icon: <BuildIcon />,
-        description: 'Drag-and-drop query building'
+      [QUERY_VIEWS.STUDIO]: {
+        label: 'Query Studio ✨',
+        icon: <CodeIcon />,
+        description: 'Enhanced query building with live values'
       },
       [QUERY_VIEWS.NATURAL_LANGUAGE]: {
         label: 'Natural Language',
         icon: <ChatIcon />,
         description: 'Query in plain English'
       },
-      [QUERY_VIEWS.AI_ASSISTANT]: {
-        label: 'AI Assistant',
-        icon: <PsychologyIcon />,
-        description: 'AI-powered query help'
-      },
-      [QUERY_VIEWS.PLAYGROUND]: {
-        label: 'Playground',
-        icon: <CodeIcon />,
-        description: 'Advanced query testing'
+      [QUERY_VIEWS.WORKSPACE]: {
+        label: 'Workspace',
+        icon: <WorkspaceIcon />,
+        description: 'Save and manage queries'
       }
     }
   },
@@ -151,24 +146,7 @@ const NAVIGATION_STRUCTURE = {
         icon: <NetworkIcon />,
         description: 'Resource relationship networks'
       },
-      [VISUALIZATION_VIEWS.ANALYTICS]: {
-        label: 'Population Analytics',
-        icon: <AnalyticsIcon />,
-        description: 'Population health insights'
-      }
     }
-  },
-  [APP_MODES.WORKSPACE]: {
-    label: 'Workspace',
-    icon: <WorkspaceIcon />,
-    description: 'Save and manage queries',
-    color: '#5d4037'
-  },
-  [APP_MODES.LEARNING]: {
-    label: 'Learning',
-    icon: <SchoolIcon />,
-    description: 'Tutorials and guidance',
-    color: '#c2185b'
   }
 };
 
@@ -180,10 +158,9 @@ const MINI_DRAWER_WIDTH = 64;
  */
 const AppHeader = ({ 
   onMenuToggle, 
-  onThemeToggle, 
-  themeMode, 
   isMobile,
-  dataLoading 
+  dataLoading,
+  showDrawerToggle = false
 }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationsAnchor, setNotificationsAnchor] = useState(null);
@@ -230,8 +207,8 @@ const AppHeader = ({
       )}
       
       <Toolbar sx={{ px: { xs: 1, sm: 3 } }}>
-        {/* Menu toggle for mobile */}
-        {isMobile && (
+        {/* Menu toggle for mobile and desktop (when showDrawerToggle is true) */}
+        {(isMobile || (!isMobile && showDrawerToggle)) && (
           <IconButton
             edge="start"
             onClick={onMenuToggle}
@@ -284,12 +261,21 @@ const AppHeader = ({
 
         {/* Actions */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* Desktop drawer toggle button */}
+          {!isMobile && showDrawerToggle && (
+            <Tooltip title="Toggle Navigation">
+              <IconButton onClick={onMenuToggle} color="inherit">
+                <MenuIcon />
+              </IconButton>
+            </Tooltip>
+          )}
+
           {/* Theme toggle */}
-          <Tooltip title={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} mode`}>
-            <IconButton onClick={onThemeToggle} color="inherit">
-              {themeMode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
-            </IconButton>
-          </Tooltip>
+          <QuickThemeToggle 
+            showLabel={false}
+            size="medium"
+            position="header"
+          />
 
           {/* Notifications */}
           <Tooltip title="Notifications">
@@ -440,12 +426,14 @@ const NavigationDrawer = ({
           }}
         >
           <ListItemIcon sx={{ minWidth: 40 }}>
-            {React.cloneElement(config.icon, {
-              sx: { 
-                color: isActive ? (config.color || 'primary.main') : 'text.secondary',
-                fontSize: 24
-              }
-            })}
+            {config.icon && React.isValidElement(config.icon) ? 
+              React.cloneElement(config.icon, {
+                sx: { 
+                  color: isActive ? (config.color || 'primary.main') : 'text.secondary',
+                  fontSize: 24
+                }
+              }) : config.icon
+            }
           </ListItemIcon>
           <ListItemText
             primary={config.label}
@@ -501,12 +489,14 @@ const NavigationDrawer = ({
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: 32 }}>
-                      {React.cloneElement(viewConfig.icon, {
-                        sx: { 
-                          color: isViewActive ? (config.color || 'primary.main') : 'text.secondary',
-                          fontSize: 20
-                        }
-                      })}
+                      {viewConfig.icon && React.isValidElement(viewConfig.icon) ?
+                        React.cloneElement(viewConfig.icon, {
+                          sx: { 
+                            color: isViewActive ? (config.color || 'primary.main') : 'text.secondary',
+                            fontSize: 20
+                          }
+                        }) : viewConfig.icon
+                      }
                     </ListItemIcon>
                     <ListItemText
                       primary={viewConfig.label}
@@ -675,14 +665,13 @@ function UnifiedLayout({
   currentMode,
   currentView,
   onModeChange,
-  onThemeToggle,
-  themeMode,
   isMobile,
   fhirData,
-  dataLoading 
+  dataLoading,
+  autoCollapse = false
 }) {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [desktopDrawerOpen, setDesktopDrawerOpen] = useState(true);
+  const [desktopDrawerOpen, setDesktopDrawerOpen] = useState(true); // Default to expanded
 
   const handleMobileDrawerToggle = useCallback(() => {
     setMobileDrawerOpen(prev => !prev);
@@ -692,15 +681,24 @@ function UnifiedLayout({
     setDesktopDrawerOpen(prev => !prev);
   }, []);
 
+  // Enhanced mode change handler with auto-collapse support
+  const handleModeChange = useCallback((mode, view) => {
+    onModeChange(mode, view);
+    
+    // Auto-collapse desktop drawer when a view is selected (if autoCollapse is enabled and not mobile)
+    if (autoCollapse && !isMobile && view) {
+      setDesktopDrawerOpen(false);
+    }
+  }, [onModeChange, autoCollapse, isMobile]);
+
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       {/* Header */}
       <AppHeader
         onMenuToggle={isMobile ? handleMobileDrawerToggle : handleDesktopDrawerToggle}
-        onThemeToggle={onThemeToggle}
-        themeMode={themeMode}
         isMobile={isMobile}
         dataLoading={dataLoading}
+        showDrawerToggle={true}
       />
 
       {/* Navigation drawer */}
@@ -708,7 +706,7 @@ function UnifiedLayout({
         open={isMobile ? mobileDrawerOpen : desktopDrawerOpen}
         currentMode={currentMode}
         currentView={currentView}
-        onModeChange={onModeChange}
+        onModeChange={handleModeChange}
         onClose={() => setMobileDrawerOpen(false)}
         isMobile={isMobile}
       />

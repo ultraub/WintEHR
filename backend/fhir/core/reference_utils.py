@@ -32,10 +32,7 @@ class ReferenceUtils:
             
         # Handle urn:uuid: references
         if reference.startswith('urn:uuid:'):
-            # Extract the UUID part
-            uuid_part = reference[9:]
-            # For now, keep the urn:uuid format as it's valid FHIR
-            # But we'll handle it specially in search
+            # Keep the urn:uuid format as it's valid FHIR
             return reference
             
         # Handle absolute URLs
@@ -46,6 +43,37 @@ class ReferenceUtils:
                 return f"{parts[-2]}/{parts[-1]}"
                 
         # Already in standard format
+        return reference
+    
+    @staticmethod
+    def normalize_for_search(reference: str) -> str:
+        """
+        Normalize a reference for search operations.
+        
+        Converts urn:uuid: references to just the ID part for consistent searching.
+        
+        Args:
+            reference: The reference string to normalize for search
+            
+        Returns:
+            Normalized reference string suitable for search
+        """
+        if not reference:
+            return reference
+            
+        # Handle urn:uuid: references
+        if reference.startswith('urn:uuid:'):
+            # Extract just the UUID part for search
+            return reference[9:]
+            
+        # Handle ResourceType/id references
+        if '/' in reference:
+            # For search, we might want just the ID part
+            parts = reference.split('/', 1)
+            if len(parts) == 2:
+                return parts[1]
+                
+        # Return as-is if no special handling needed
         return reference
     
     @staticmethod

@@ -82,6 +82,49 @@ class OrderSetItem(BaseModel):
     updated_at: Optional[datetime] = None
 
 
+class ProcedureCatalogItem(BaseModel):
+    """Procedure catalog item model"""
+    id: str
+    procedure_name: str
+    procedure_code: str
+    procedure_description: Optional[str] = None
+    cpt_code: Optional[str] = None
+    snomed_code: Optional[str] = None
+    category: Optional[str] = None
+    typical_duration: Optional[int] = None  # in minutes
+    requires_anesthesia: bool = False
+    usage_count: Optional[int] = None  # From dynamic extraction
+
+
+class VaccineCatalogItem(BaseModel):
+    """Vaccine/Immunization catalog item model"""
+    id: str
+    vaccine_name: str
+    vaccine_code: str
+    cvx_code: Optional[str] = None  # CDC vaccine code
+    manufacturer: Optional[str] = None
+    series_doses: Optional[int] = None
+    min_age_months: Optional[int] = None
+    max_age_months: Optional[int] = None
+    route: Optional[str] = None
+    site: Optional[str] = None
+    contraindications: Optional[List[str]] = []
+    usage_count: Optional[int] = None  # From dynamic extraction
+
+
+class AllergyCatalogItem(BaseModel):
+    """Allergy catalog item model"""
+    id: str
+    allergen_name: str
+    allergen_code: Optional[str] = None
+    allergen_type: str  # medication, food, environmental, etc.
+    rxnorm_code: Optional[str] = None  # for medication allergies
+    snomed_code: Optional[str] = None
+    common_reactions: Optional[List[str]] = []
+    severity_levels: Optional[List[str]] = []
+    usage_count: Optional[int] = None  # From dynamic extraction
+
+
 class CatalogSearchResult(BaseModel):
     """Unified catalog search result"""
     medications: List[MedicationCatalogItem] = []
@@ -89,4 +132,7 @@ class CatalogSearchResult(BaseModel):
     imaging_studies: List[ImagingStudyCatalogItem] = []
     conditions: List[ConditionCatalogItem] = []
     order_sets: List[OrderSetItem] = []
+    procedures: Optional[List[ProcedureCatalogItem]] = []
+    vaccines: Optional[List[VaccineCatalogItem]] = []
+    allergies: Optional[List[AllergyCatalogItem]] = []
     total_results: int = 0

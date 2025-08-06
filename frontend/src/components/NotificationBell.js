@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   IconButton,
-  Badge,
   Menu,
   MenuItem,
   Typography,
@@ -16,6 +15,7 @@ import {
   Avatar,
   Chip
 } from '@mui/material';
+import SafeBadge from './common/SafeBadge';
 import {
   Notifications as NotificationsIcon,
   NotificationsNone as NotificationsNoneIcon,
@@ -165,9 +165,9 @@ const NotificationBell = () => {
         onClick={handleClick}
         aria-label={`${count} notifications`}
       >
-        <Badge badgeContent={count} color="error">
+        <SafeBadge badgeContent={count} color="error">
           {count > 0 ? <NotificationsIcon /> : <NotificationsNoneIcon />}
-        </Badge>
+        </SafeBadge>
       </IconButton>
 
       <Menu

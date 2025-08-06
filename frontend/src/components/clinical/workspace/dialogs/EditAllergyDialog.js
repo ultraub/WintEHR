@@ -1,13 +1,13 @@
 /**
- * Edit Allergy Dialog Component (Migrated to BaseResourceDialog)
- * Uses the new BaseResourceDialog pattern for consistent UX
+ * Edit Allergy Dialog Component (Enhanced with Clinical Theming)
+ * Uses the new EnhancedBaseResourceDialog for clinical context-aware theming
  */
 import React from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { Button } from '@mui/material';
 import { Delete as DeleteIcon } from '@mui/icons-material';
-import BaseResourceDialog from '../../../base/BaseResourceDialog';
+import EnhancedBaseResourceDialog from '../../../base/EnhancedBaseResourceDialog';
 import AllergyFormFields from './components/AllergyFormFields';
 import {
   validationRules,
@@ -71,7 +71,7 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <BaseResourceDialog
+      <EnhancedBaseResourceDialog
         // Dialog props
         open={open}
         onClose={onClose}
@@ -96,9 +96,21 @@ const EditAllergyDialog = ({ open, onClose, onSave, onDelete, allergyIntolerance
         showPreview={true}
         showCancel={true}
         customActions={customActions}
+        
+        // Clinical context
+        clinicalContext="emergency"
+        patientId={patientId}
+        
+        // Enhanced features
+        showCDSHooks={true}
+        showResourceInfo={true}
+        enableAutoSave={false}
+        
+        // Alert-specific theming for allergies
+        primaryColor="error"
       >
         <AllergyFormFields />
-      </BaseResourceDialog>
+      </EnhancedBaseResourceDialog>
     </LocalizationProvider>
   );
 };

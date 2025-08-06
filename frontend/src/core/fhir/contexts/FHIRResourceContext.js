@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { intelligentCache, cacheUtils } from '../utils/intelligentCache';
 
 // Action Types
@@ -716,7 +716,7 @@ export function FHIRResourceProvider({ children }) {
       ];
       
       resourceTypes.forEach(resourceType => {
-        let params = { patient: patientId, _count: 1000 };
+        let params = { patient: patientId, _count: 50 };
         
         // Add appropriate sort parameters for each resource type
         switch (resourceType) {

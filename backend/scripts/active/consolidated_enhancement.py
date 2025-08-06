@@ -174,15 +174,25 @@ class ConsolidatedEnhancer:
                 }]
             }
             
-            # Insert into database
-            await self.conn.execute("""
-                INSERT INTO fhir.resources (id, fhir_id, resource_type, resource, version_id, last_updated)
-                VALUES ($1, $2, 'Organization', $3, 1, CURRENT_TIMESTAMP)
-                ON CONFLICT (fhir_id) DO UPDATE SET
-                    resource = EXCLUDED.resource,
-                    version_id = version_id + 1,
-                    last_updated = CURRENT_TIMESTAMP
-            """, str(uuid.uuid4()), org_id, json.dumps(organization))
+            # Insert into database - check if exists first
+            existing = await self.conn.fetchval("""
+                SELECT id FROM fhir.resources 
+                WHERE fhir_id = $1 AND resource_type = 'Organization'
+            """, org_id)
+            
+            if existing:
+                await self.conn.execute("""
+                    UPDATE fhir.resources 
+                    SET resource = $1,
+                        version_id = version_id + 1,
+                        last_updated = CURRENT_TIMESTAMP
+                    WHERE fhir_id = $2 AND resource_type = 'Organization'
+                """, json.dumps(organization), org_id)
+            else:
+                await self.conn.execute("""
+                    INSERT INTO fhir.resources (fhir_id, resource_type, resource, version_id, last_updated)
+                    VALUES ($1, 'Organization', $2, 1, CURRENT_TIMESTAMP)
+                """, org_id, json.dumps(organization))
             
             created_count += 1
             
@@ -228,15 +238,25 @@ class ConsolidatedEnhancer:
                 }]
             }
             
-            # Insert into database
-            await self.conn.execute("""
-                INSERT INTO fhir.resources (id, fhir_id, resource_type, resource, version_id, last_updated)
-                VALUES ($1, $2, 'Practitioner', $3, 1, CURRENT_TIMESTAMP)
-                ON CONFLICT (fhir_id) DO UPDATE SET
-                    resource = EXCLUDED.resource,
-                    version_id = version_id + 1,
-                    last_updated = CURRENT_TIMESTAMP
-            """, str(uuid.uuid4()), provider_id, json.dumps(practitioner))
+            # Insert into database - check if exists first
+            existing = await self.conn.fetchval("""
+                SELECT id FROM fhir.resources 
+                WHERE fhir_id = $1 AND resource_type = 'Practitioner'
+            """, provider_id)
+            
+            if existing:
+                await self.conn.execute("""
+                    UPDATE fhir.resources 
+                    SET resource = $1,
+                        version_id = version_id + 1,
+                        last_updated = CURRENT_TIMESTAMP
+                    WHERE fhir_id = $2 AND resource_type = 'Practitioner'
+                """, json.dumps(practitioner), provider_id)
+            else:
+                await self.conn.execute("""
+                    INSERT INTO fhir.resources (fhir_id, resource_type, resource, version_id, last_updated)
+                    VALUES ($1, 'Practitioner', $2, 1, CURRENT_TIMESTAMP)
+                """, provider_id, json.dumps(practitioner))
             
             created_count += 1
             
@@ -361,9 +381,9 @@ class ConsolidatedEnhancer:
                 
                 # Insert into database
                 await self.conn.execute("""
-                    INSERT INTO fhir.resources (id, fhir_id, resource_type, resource, version_id, last_updated)
-                    VALUES ($1, $2, 'ImagingStudy', $3, 1, CURRENT_TIMESTAMP)
-                """, str(uuid.uuid4()), study_id, json.dumps(imaging_study))
+                    INSERT INTO fhir.resources (fhir_id, resource_type, resource, version_id, last_updated)
+                    VALUES ($1, 'ImagingStudy', $2, 1, CURRENT_TIMESTAMP)
+                """, study_id, json.dumps(imaging_study))
                 
                 created_count += 1
         

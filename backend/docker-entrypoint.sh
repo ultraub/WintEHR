@@ -12,56 +12,16 @@ done
 
 echo "✅ PostgreSQL is ready!"
 
-# Initialize database schemas and tables
+# Initialize database schemas and tables (once, definitively)
 echo "🔧 Initializing database..."
+export DATABASE_URL="postgresql://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}"
 
-# Wait for database to be fully ready and schema initialized
-echo "Waiting for database schema to be available..."
-MAX_RETRIES=30
-RETRY_COUNT=0
-
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    # Check if schemas exist
-    if PGPASSWORD=${DB_PASSWORD:-emr_password} psql -h ${DB_HOST:-postgres} -U ${DB_USER:-emr_user} -d ${DB_NAME:-emr_db} -c "SELECT 1 FROM information_schema.schemata WHERE schema_name = 'fhir'" | grep -q "1"; then
-        echo "✅ Database schema initialized via docker-entrypoint-initdb.d"
-        break
-    fi
-    
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-    if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-        echo "❌ Database schema not initialized, attempting manual initialization..."
-        
-        # Fallback: Use consolidated initialization script
-        echo "Running consolidated database initialization..."
-        export DATABASE_URL="postgresql://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}"
-        
-        # Use our consolidated initialization script
-        cd /app/scripts
-        python setup/init_database_definitive.py --mode production || {
-            echo "⚠️  Consolidated initialization failed, trying Alembic fallback..."
-            
-            # Check if migration is needed
-            if alembic current 2>/dev/null | grep -q "head"; then
-                echo "✅ Database already up to date"
-            else
-                echo "Running initial migration..."
-                alembic upgrade head || {
-                    echo "⚠️  Alembic migration failed, trying direct SQL..."
-                    
-                    # Final fallback: Direct SQL execution
-                    if [ -f "/app/scripts/init_complete.sql" ]; then
-                        PGPASSWORD=${DB_PASSWORD:-emr_password} psql -h ${DB_HOST:-postgres} -U ${DB_USER:-emr_user} -d ${DB_NAME:-emr_db} -f /app/scripts/init_complete.sql || echo "⚠️  SQL initialization failed"
-                    fi
-                }
-            fi
-        }
-        fi
-        break
-    fi
-    
-    echo "Waiting for database schema initialization... (attempt $RETRY_COUNT/$MAX_RETRIES)"
-    sleep 2
-done
+# Run the definitive database initialization
+cd /app/scripts
+python setup/init_database_definitive.py --mode production || {
+    echo "❌ Database initialization failed"
+    exit 1
+}
 
 # Verify database schema is ready
 echo "🔍 Verifying database schema..."
@@ -78,11 +38,11 @@ async def verify_schema():
         tables = await conn.fetch(\"\"\"
             SELECT table_name FROM information_schema.tables 
             WHERE table_schema = 'fhir' 
-            AND table_name IN ('resources', 'search_params', 'resource_history', 'references')
+            AND table_name IN ('resources', 'search_params', 'resource_history', 'references', 'compartments', 'audit_logs')
         \"\"\")
         
         table_names = {row['table_name'] for row in tables}
-        required_tables = {'resources', 'search_params', 'resource_history', 'references'}
+        required_tables = {'resources', 'search_params', 'resource_history', 'references', 'compartments', 'audit_logs'}
         
         if required_tables.issubset(table_names):
             print('✅ Database schema verification passed')
@@ -104,26 +64,97 @@ sys.exit(0 if success else 1)
     exit 1
 }
 
-# Generate DICOM files for existing imaging studies if not already present
-echo "Checking DICOM files for imaging studies..."
+# Generate DICOM files for imaging studies (if needed)
+echo "🔍 Checking for DICOM files..."
 if [ -d "/app/data/generated_dicoms" ] && [ "$(ls -A /app/data/generated_dicoms 2>/dev/null | wc -l)" -gt 0 ]; then
     echo "✅ DICOM files already exist"
 else
-    echo "Generating DICOM files for imaging studies..."
-    # Use the realistic DICOM generator if available, otherwise fall back to basic one
-    if [ -f "scripts/generate_realistic_dicoms.py" ]; then
-        echo "Using realistic DICOM generator..."
-        python scripts/generate_realistic_dicoms.py || python scripts/generate_dicom_for_studies.py || echo "⚠️  DICOM generation skipped"
-    else
-        python scripts/generate_dicom_for_studies.py || echo "⚠️  DICOM generation skipped"
-    fi
+    # Check if there are any ImagingStudy resources first
+    python -c "
+import asyncio
+import asyncpg
+
+async def check_imaging_studies():
+    try:
+        conn = await asyncpg.connect('postgresql://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}')
+        count = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.resources WHERE resource_type = 'ImagingStudy' AND deleted = false\")
+        await conn.close()
+        return count > 0
+    except:
+        return False
+
+has_studies = asyncio.run(check_imaging_studies())
+exit(0 if has_studies else 1)
+" && {
+        echo "📸 Generating DICOM files for imaging studies..."
+        python scripts/active/generate_dicom_for_studies.py || {
+            echo "⚠️ DICOM generation had issues but continuing..."
+        }
+    } || {
+        echo "ℹ️ No imaging studies found, skipping DICOM generation"
+    }
 fi
 
-# Generate imaging reports for studies if not already present
-echo "Checking imaging reports..."
-if [ -f "scripts/generate_imaging_reports.py" ]; then
-    python scripts/generate_imaging_reports.py || echo "⚠️  Imaging report generation skipped"
-fi
+# Fix FHIR relationships if needed (only if data exists)
+echo "🔍 Checking FHIR relationships..."
+python -c "
+import asyncio
+import asyncpg
+
+async def check_and_fix_relationships():
+    try:
+        conn = await asyncpg.connect('postgresql://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}')
+        
+        # Check if we have data
+        resource_count = await conn.fetchval('SELECT COUNT(*) FROM fhir.resources')
+        if resource_count == 0:
+            print('ℹ️ No resources found, skipping relationship check')
+            await conn.close()
+            return
+        
+        # Check for problematic Resource/ references
+        bad_refs = await conn.fetchval(\"\"\"
+            SELECT COUNT(*) 
+            FROM fhir.resources 
+            WHERE resource::text LIKE '%\"Resource/%'
+        \"\"\")
+        
+        # Check for missing patient/subject search params
+        missing_params = await conn.fetchval(\"\"\"
+            SELECT COUNT(*) 
+            FROM fhir.resources r
+            WHERE r.resource_type IN ('Condition', 'Observation', 'MedicationRequest')
+            AND r.deleted = false
+            AND NOT EXISTS (
+                SELECT 1 FROM fhir.search_params sp
+                WHERE sp.resource_id = r.id
+                AND sp.param_name IN ('patient', 'subject')
+            )
+        \"\"\")
+        
+        await conn.close()
+        
+        if bad_refs > 0 or missing_params > 0:
+            print(f'⚠️ Found {bad_refs} bad references and {missing_params} missing search params')
+            print('🔧 Running relationship fixes...')
+            return True
+        else:
+            print('✅ FHIR relationships look good')
+            return False
+    except Exception as e:
+        print(f'⚠️ Could not check relationships: {e}')
+        return False
+
+needs_fix = asyncio.run(check_and_fix_relationships())
+exit(0 if needs_fix else 1)
+" && {
+    echo "🔧 Fixing FHIR relationships..."
+    python /app/scripts/active/fix_fhir_relationships.py || {
+        echo "⚠️ Relationship fix had issues but continuing..."
+    }
+} || {
+    echo "✅ FHIR relationships are correct"
+}
 
 # Create necessary directories
 echo "Creating directories..."

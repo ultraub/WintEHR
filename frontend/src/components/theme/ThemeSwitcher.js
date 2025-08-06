@@ -2,7 +2,7 @@
  * ThemeSwitcher Component
  * Allows users to switch between different medical themes and modes
  */
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   Box,
   Button,
@@ -36,7 +36,6 @@ import {
   LightMode as LightModeIcon,
   Accessibility as AccessibilityIcon,
   Colorize as ColorizeIcon,
-  Preview as PreviewIcon,
   Check as CheckIcon,
   Settings as SettingsIcon,
   Visibility as VisibilityIcon,
@@ -44,7 +43,30 @@ import {
   LocalHospital as MedicalIcon
 } from '@mui/icons-material';
 import { themePresets } from '../../themes/medicalTheme';
-import { getClinicalContext, getDepartmentContext } from '../../themes/clinicalThemeUtils';
+import { MedicalThemeContext } from '../../App';
+import {
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Alert
+} from '@mui/material';
+import {
+  LocalHospital as EmergencyIcon,
+  Favorite as CardiologyIcon,
+  ChildCare as PediatricsIcon,
+  Science as OncologyIcon,
+  MedicalServices as GeneralIcon
+} from '@mui/icons-material';
+
+// Department configuration
+const departments = [
+  { id: 'general', name: 'General Medicine', icon: <GeneralIcon />, color: '#1976D2' },
+  { id: 'emergency', name: 'Emergency', icon: <EmergencyIcon />, color: '#D32F2F' },
+  { id: 'cardiology', name: 'Cardiology', icon: <CardiologyIcon />, color: '#E91E63' },
+  { id: 'pediatrics', name: 'Pediatrics', icon: <PediatricsIcon />, color: '#4CAF50' },
+  { id: 'oncology', name: 'Oncology', icon: <OncologyIcon />, color: '#9C27B0' },
+];
 
 const ThemePreviewCard = ({ 
   theme, 
@@ -68,6 +90,30 @@ const ThemePreviewCard = ({
     dark: {
       light: { primary: '#1976D2', secondary: '#4CAF50', background: '#FAFAFA' },
       dark: { primary: '#42A5F5', secondary: '#66BB6A', background: '#0A0E13' }
+    },
+    ocean: {
+      light: { primary: '#0097A7', secondary: '#00ACC1', background: '#F0F7F8' },
+      dark: { primary: '#4DD0E1', secondary: '#5DDEF4', background: '#0A0E13' }
+    },
+    forest: {
+      light: { primary: '#2E7D32', secondary: '#558B2F', background: '#F1F8E9' },
+      dark: { primary: '#81C784', secondary: '#A5D6A7', background: '#0A0E13' }
+    },
+    sunrise: {
+      light: { primary: '#F57C00', secondary: '#FFD54F', background: '#FFF8E1' },
+      dark: { primary: '#FFB74D', secondary: '#FFFF81', background: '#0A0E13' }
+    },
+    midnight: {
+      light: { primary: '#5C6BC0', secondary: '#7E57C2', background: '#0A0E13' },
+      dark: { primary: '#5C6BC0', secondary: '#7E57C2', background: '#0A0E13' }
+    },
+    monochrome: {
+      light: { primary: '#616161', secondary: '#424242', background: '#FAFAFA' },
+      dark: { primary: '#BDBDBD', secondary: '#9E9E9E', background: '#0A0E13' }
+    },
+    pediatric: {
+      light: { primary: '#E91E63', secondary: '#00BCD4', background: '#FFF3E0' },
+      dark: { primary: '#F8BBD0', secondary: '#B2EBF2', background: '#0A0E13' }
     }
   };
 
@@ -258,58 +304,51 @@ const ThemeCustomizationPanel = ({ theme, onCustomize }) => (
   </Paper>
 );
 
-const ThemeSwitcher = ({ 
-  currentTheme = 'professional', 
-  currentMode = 'light', 
-  onThemeChange,
-  onModeChange,
-  department,
-  clinicalContext 
-}) => {
+const ThemeSwitcher = () => {
+  const context = useContext(MedicalThemeContext);
+  const {
+    currentTheme = 'professional',
+    currentMode = 'light',
+    department = 'general',
+    clinicalContext,
+    autoDetectContext = false,
+    onThemeChange,
+    onModeChange,
+    onDepartmentChange,
+    onAutoDetectChange
+  } = context || {};
   const [open, setOpen] = useState(false);
-  const [selectedTheme, setSelectedTheme] = useState(currentTheme || 'professional');
-  const [selectedMode, setSelectedMode] = useState(currentMode || 'light');
+  const [selectedTheme, setSelectedTheme] = useState(currentTheme);
+  const [selectedMode, setSelectedMode] = useState(currentMode);
   const [showCustomization, setShowCustomization] = useState(false);
-  const [selectedDepartment, setSelectedDepartment] = useState(department || 'general');
-  const [autoShiftMode, setAutoShiftMode] = useState(false);
+  const [selectedDepartment, setSelectedDepartment] = useState(department);
+  const [autoDetect, setAutoDetect] = useState(autoDetectContext);
   
-  // Get current clinical context
-  const currentContext = clinicalContext || getClinicalContext(
-    window.location.pathname,
-    new Date().getHours(),
-    selectedDepartment
-  );
+  // Get current department info with safe defaults
+  const currentDepartmentInfo = departments.find(d => d.id === selectedDepartment) || departments[0] || { 
+    id: 'general', 
+    name: 'General Medicine', 
+    icon: <MedicalIcon />, 
+    color: '#1976D2' 
+  };
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => {
     setOpen(false);
-    setSelectedTheme(currentTheme || 'professional');
-    setSelectedMode(currentMode || 'light');
+    // Reset to current values
+    setSelectedTheme(currentTheme);
+    setSelectedMode(currentMode);
+    setSelectedDepartment(department);
+    setAutoDetect(autoDetectContext);
   };
 
   const handleApply = () => {
     onThemeChange?.(selectedTheme);
     onModeChange?.(selectedMode);
-    // Apply clinical context if callback provided
-    if (typeof onThemeChange === 'function') {
-      onThemeChange(selectedTheme, {
-        department: selectedDepartment,
-        autoShiftMode,
-        clinicalContext: currentContext
-      });
-    }
+    onDepartmentChange?.(selectedDepartment);
+    onAutoDetectChange?.(autoDetect);
     setOpen(false);
   };
-  
-  // Department options
-  const departmentOptions = [
-    { value: 'general', label: 'General', icon: <MedicalIcon /> },
-    { value: 'emergency', label: 'Emergency', icon: <MedicalIcon /> },
-    { value: 'cardiology', label: 'Cardiology', icon: <MedicalIcon /> },
-    { value: 'pediatrics', label: 'Pediatrics', icon: <MedicalIcon /> },
-    { value: 'oncology', label: 'Oncology', icon: <MedicalIcon /> },
-    { value: 'neurology', label: 'Neurology', icon: <MedicalIcon /> }
-  ];
 
   const themes = Object.entries(themePresets).map(([key, preset]) => ({
     key,
@@ -349,6 +388,71 @@ const ThemeSwitcher = ({
 
         <DialogContent>
           <Stack spacing={4}>
+            {/* Clinical Context Settings */}
+            <Box>
+              <Typography variant="h6" gutterBottom>
+                Clinical Context
+              </Typography>
+              
+              <Stack spacing={3}>
+                {/* Department Selection */}
+                <FormControl fullWidth>
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={selectedDepartment}
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    label="Department"
+                    startAdornment={currentDepartmentInfo && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', mr: 1, color: currentDepartmentInfo.color || '#1976D2' }}>
+                        {currentDepartmentInfo.icon || <MedicalIcon />}
+                      </Box>
+                    )}
+                  >
+                    {departments.map((dept) => (
+                      <MenuItem key={dept.id} value={dept.id}>
+                        <Stack direction="row" spacing={2} alignItems="center">
+                          <Box sx={{ color: dept.color }}>
+                            {dept.icon}
+                          </Box>
+                          <Typography>{dept.name}</Typography>
+                        </Stack>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                {/* Auto-detect Context */}
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={autoDetect}
+                        onChange={(e) => setAutoDetect(e.target.checked)}
+                      />
+                    }
+                    label={
+                      <Stack>
+                        <Typography variant="body1">
+                          Auto-detect Clinical Context
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Automatically adjust theme based on time of day and department
+                        </Typography>
+                      </Stack>
+                    }
+                  />
+                  
+                  {autoDetect && clinicalContext && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      <Typography variant="body2">
+                        Current context: {clinicalContext.shift} shift in {clinicalContext.department}
+                      </Typography>
+                    </Alert>
+                  )}
+                </Paper>
+              </Stack>
+            </Box>
+
             {/* Mode Selection */}
             <Box>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

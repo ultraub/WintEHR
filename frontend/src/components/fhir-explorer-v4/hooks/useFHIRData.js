@@ -5,8 +5,8 @@
  * for the FHIR Explorer v4 application
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import api from '../../../services/api';
+import { useState, useEffect, useCallback, useRef, useContext } from 'react';
+import FHIRResourceContext from '../../../contexts/FHIRResourceContext';
 
 // Cache configuration
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
@@ -16,6 +16,8 @@ const MAX_CACHE_SIZE = 100; // Maximum cached resources per type
  * Custom hook for FHIR data management
  */
 export const useFHIRData = () => {
+  // Get context functions if available
+  const context = useContext(FHIRResourceContext);
   const [data, setData] = useState({
     resources: {},
     metadata: {},
@@ -79,9 +81,18 @@ export const useFHIRData = () => {
       await Promise.all(
         resourceTypes.map(async (resourceType) => {
           try {
-            const response = await api.get(`/fhir/R4/${resourceType}?_count=20&_summary=count`);
-            const total = response.data.total || 0;
-            const entries = response.data.entry || [];
+            // Use context search if available
+            let result;
+            if (context && context.searchResources) {
+              result = await context.searchResources(resourceType, { _count: 20, _summary: 'count' });
+            } else {
+              // Fallback if context not available
+              console.warn(`FHIRResourceContext not available for ${resourceType}, falling back to empty result`);
+              result = { resources: [], total: 0, bundle: { entry: [] } };
+            }
+            
+            const total = result.total || 0;
+            const entries = result.bundle?.entry || result.resources?.map(r => ({ resource: r })) || [];
             
             metadata[resourceType] = {
               total,
@@ -90,7 +101,7 @@ export const useFHIRData = () => {
             };
 
             // Store sample resources for quick access
-            resources[resourceType] = entries.map(entry => entry.resource);
+            resources[resourceType] = entries.map(entry => entry.resource || entry);
           } catch (err) {
             console.warn(`Failed to load ${resourceType}:`, err);
             metadata[resourceType] = { total: 0, sample: 0, error: err.message };
@@ -172,11 +183,23 @@ export const useFHIRData = () => {
     }
 
     try {
-      const response = await api.get(`/fhir/R4/${resourceType}?${queryString}`);
+      // Convert searchParams to params object for fhirClient
+      const params = Object.fromEntries(queryParams);
+      
+      // Use context search
+      let searchResult;
+      if (context && context.searchResources) {
+        searchResult = await context.searchResources(resourceType, params);
+      } else {
+        console.warn(`FHIRResourceContext not available for searching ${resourceType}`);
+        searchResult = { resources: [], total: 0, bundle: { resourceType: 'Bundle', entry: [] } };
+      }
+      
       const result = {
-        resources: response.data.entry || [],
-        total: response.data.total || 0,
-        links: response.data.link || [],
+        resources: searchResult.resources || [],
+        total: searchResult.total || 0,
+        bundle: searchResult.bundle || { resourceType: 'Bundle', entry: [] },
+        links: searchResult.bundle?.link || [],
         timestamp: new Date().toISOString()
       };
 
@@ -203,10 +226,19 @@ export const useFHIRData = () => {
     }
 
     try {
-      const response = await api.get(`/fhir/R4/${resourceType}/${id}`);
-      const result = response.data;
+      let result;
+      if (context && context.fetchResource) {
+        result = await context.fetchResource(resourceType, id);
+      } else if (context && context.searchResources) {
+        // Fallback to search by ID
+        const searchResult = await context.searchResources(resourceType, { _id: id });
+        result = searchResult.resources?.[0] || null;
+      } else {
+        console.warn(`FHIRResourceContext not available for fetching ${resourceType}/${id}`);
+        throw new Error('FHIRResourceContext not available');
+      }
 
-      if (useCache) {
+      if (useCache && result) {
         setCachedData(cacheKey, result);
       }
 
@@ -235,12 +267,57 @@ export const useFHIRData = () => {
     }
 
     try {
-      const response = await api.get(normalizedQuery);
-      const result = {
-        data: response.data,
-        timestamp: new Date().toISOString(),
-        query: normalizedQuery
-      };
+      // Extract resource type and params from query URL
+      const queryParts = normalizedQuery.replace('/fhir/R4/', '').split('?');
+      const [resourceType, ...rest] = queryParts[0].split('/');
+      const queryString = queryParts[1] || '';
+      const params = queryString ? Object.fromEntries(new URLSearchParams(queryString)) : {};
+      
+      let result;
+      if (rest.length > 0) {
+        // It's a read operation for a specific resource
+        let resource;
+        if (context && context.fetchResource) {
+          resource = await context.fetchResource(resourceType, rest[0]);
+        } else if (context && context.searchResources) {
+          const searchResult = await context.searchResources(resourceType, { _id: rest[0] });
+          resource = searchResult.resources?.[0];
+        }
+        
+        if (resource) {
+          result = {
+            data: {
+              resourceType: 'Bundle',
+              type: 'searchset',
+              total: 1,
+              entry: [{ resource }]
+            },
+            timestamp: new Date().toISOString(),
+            query: normalizedQuery
+          };
+        } else {
+          throw new Error('Resource not found');
+        }
+      } else {
+        // It's a search operation
+        if (context && context.searchResources) {
+          const searchResult = await context.searchResources(resourceType, params);
+          
+          result = {
+            data: searchResult.bundle || {
+              resourceType: 'Bundle',
+              type: 'searchset',
+              total: searchResult.total || 0,
+              entry: searchResult.resources?.map(r => ({ resource: r })) || []
+            },
+            timestamp: new Date().toISOString(),
+            query: normalizedQuery
+          };
+        } else {
+          console.warn(`FHIRResourceContext not available for query: ${normalizedQuery}`);
+          throw new Error('FHIRResourceContext not available');
+        }
+      }
 
       if (useCache) {
         setCachedData(cacheKey, result);
@@ -298,6 +375,13 @@ export const useFHIRData = () => {
     hasData: Object.keys(data.resources).length > 0,
     totalResources: Object.values(data.metadata).reduce((sum, meta) => sum + (meta.total || 0), 0),
     resourceTypes: Object.keys(data.resources),
-    lastUpdated: data.lastUpdated
+    lastUpdated: data.lastUpdated,
+    
+    // Additional methods from context for advanced usage
+    fetchResource: context?.fetchResource,
+    fetchPatientBundle: context?.fetchPatientBundle,
+    fetchPatientEverything: context?.fetchPatientEverything,
+    standardizeResponse: context?.standardizeResponse,
+    fhirClient: context?.fhirClient
   };
 };

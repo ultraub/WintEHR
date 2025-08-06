@@ -54,7 +54,7 @@ import {
 } from '@mui/icons-material';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
-import { fhirClient } from '../../../../services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { NOTE_TEMPLATES, noteAutoPopulationService } from '../../../../services/noteTemplatesService';
 import QualityMeasurePrompts from '../../quality/QualityMeasurePrompts';
 import { documentReferenceConverter } from '../../../../core/fhir/converters/DocumentReferenceConverter';

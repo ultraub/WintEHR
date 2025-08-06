@@ -2,18 +2,18 @@
  * Add Problem Dialog Component (Migrated to BaseResourceDialog)
  * Uses the new BaseResourceDialog pattern for consistent UX
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import BaseResourceDialog from '../../../base/BaseResourceDialog';
-import ConditionFormFields from './components/ConditionFormFields';
+import EnhancedBaseResourceDialog from '../../../base/EnhancedBaseResourceDialog';
+import EnhancedConditionFormFields from './components/EnhancedConditionFormFields';
 import {
   initialValues,
   validationRules,
   createConditionResource
 } from './config/conditionDialogConfig';
 
-const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
+const AddProblemDialog = ({ open, onClose, onAdd, patientId, department }) => {
   
   // Custom validation function
   const handleValidate = (formData) => {
@@ -42,7 +42,7 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <BaseResourceDialog
+      <EnhancedBaseResourceDialog
         // Force clean state for new additions
         key={`add-condition-${open ? 'open' : 'closed'}`}
         
@@ -68,9 +68,12 @@ const AddProblemDialog = ({ open, onClose, onAdd, patientId }) => {
         // UI customization
         showPreview={true}
         showCancel={true}
+        
+        // Clinical context
+        department={department}
       >
-        <ConditionFormFields />
-      </BaseResourceDialog>
+        <EnhancedConditionFormFields />
+      </EnhancedBaseResourceDialog>
     </LocalizationProvider>
   );
 };

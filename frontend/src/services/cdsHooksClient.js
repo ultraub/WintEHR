@@ -1,14 +1,16 @@
 /**
- * CDS Hooks Client Service
+ * CDS Hooks Client Service - CDS Hooks 2.0
  * Handles communication with CDS Hooks endpoints
  */
 import axios from 'axios';
+import { cdsPrefetchResolver } from './cdsPrefetchResolver';
+import { v4 as uuidv4 } from 'uuid';
 
 class CDSHooksClient {
   constructor() {
-    // Use backend URL directly in development, relative URL in production
-    this.baseUrl = process.env.REACT_APP_CDS_HOOKS_URL || 
-                   (process.env.NODE_ENV === 'development' ? 'http://localhost:8000/cds-hooks' : '/cds-hooks');
+    // Use proxied path for all environments - the proxy handles the actual backend URL
+    // In development, the proxy forwards /api to http://localhost:8000
+    this.baseUrl = process.env.REACT_APP_CDS_HOOKS_URL || '/api';
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
       timeout: 10000, // 10 second timeout
@@ -26,6 +28,9 @@ class CDSHooksClient {
     
     // Promise deduplication for in-flight requests
     this.inFlightRequests = new Map();
+    
+    // JWT token for CDS Hooks 2.0
+    this.jwtToken = null;
   }
 
   /**
@@ -78,8 +83,11 @@ class CDSHooksClient {
 
   /**
    * Execute a specific CDS Hook
+   * @param {string} hookId - Hook service ID
+   * @param {Object} context - Hook request context OR full request object
+   * @param {Object} prefetch - Optional prefetch data
    */
-  async executeHook(hookId, context) {
+  async executeHook(hookId, context, prefetch = null) {
     // Create cache key from hookId and context
     const cacheKey = `${hookId}-${JSON.stringify(context)}`;
     const now = Date.now();
@@ -98,7 +106,21 @@ class CDSHooksClient {
     // Create a new request promise
     const requestPromise = (async () => {
       try {
-        const response = await this.httpClient.post(`/cds-services/${hookId}`, context);
+        // Build request - check if context is already a full request object
+        let request;
+        if (context.hook && context.hookInstance && context.context) {
+          // It's already a full request object from CDSContext
+          request = { ...context };
+        } else {
+          // It's just a context object, build the full request
+          request = { ...context };
+        }
+        
+        if (prefetch) {
+          request.prefetch = prefetch;
+        }
+        
+        const response = await this.httpClient.post(`/cds-services/${hookId}`, request);
         
         // Cache the response
         this.requestCache.set(cacheKey, {
@@ -144,7 +166,7 @@ class CDSHooksClient {
   }
 
   /**
-   * Fire patient-view hook
+   * Fire patient-view hook with prefetch optimization
    */
   async firePatientView(patientId, userId, encounterId = null) {
     const services = await this.discoverServices();
@@ -154,20 +176,32 @@ class CDSHooksClient {
     
     for (const service of patientViewServices) {
       // Properly format context according to CDS Hooks v1.0 spec
-      const hookContext = {
-        hook: 'patient-view',
-        hookInstance: `${service.id}-${Date.now()}`,
-        context: {
-          patientId,
-          userId
-        }
+      const context = {
+        patientId,
+        userId
       };
       
       if (encounterId) {
-        hookContext.context.encounterId = encounterId;
+        context.encounterId = encounterId;
       }
       
-      const result = await this.executeHook(service.id, hookContext);
+      // Resolve prefetch data if service has prefetch templates
+      let prefetch = null;
+      if (service.prefetch && Object.keys(service.prefetch).length > 0) {
+        try {
+          prefetch = await cdsPrefetchResolver.resolvePrefetchTemplates(service, context);
+        } catch (error) {
+          // Prefetch resolution failed, continuing without prefetch
+        }
+      }
+      
+      const hookContext = {
+        hook: 'patient-view',
+        hookInstance: `${service.id}-${Date.now()}`,
+        context
+      };
+      
+      const result = await this.executeHook(service.id, hookContext, prefetch);
       if (result.cards && result.cards.length > 0) {
         allCards.push(...result.cards.map(card => ({
           ...card,
@@ -181,7 +215,7 @@ class CDSHooksClient {
   }
 
   /**
-   * Fire medication-prescribe hook
+   * Fire medication-prescribe hook with prefetch optimization
    */
   async fireMedicationPrescribe(patientId, userId, medications = []) {
     const services = await this.discoverServices();
@@ -190,18 +224,36 @@ class CDSHooksClient {
     const allCards = [];
     
     for (const service of prescribeServices) {
-      // Properly format context according to CDS Hooks v1.0 spec
+      const context = {
+        patientId,
+        userId,
+        medications
+      };
+      
+      // Resolve prefetch data if service has prefetch templates
+      let prefetch = null;
+      if (service.prefetch && Object.keys(service.prefetch).length > 0) {
+        try {
+          prefetch = await cdsPrefetchResolver.resolvePrefetchTemplates(service, context);
+        } catch (error) {
+          // Prefetch resolution failed, continuing without prefetch
+        }
+      } else {
+        // Use common prefetch for medication prescribe if no templates defined
+        try {
+          prefetch = await cdsPrefetchResolver.buildCommonPrefetch('medication-prescribe', context);
+        } catch (error) {
+          console.warn('Common prefetch failed, continuing without prefetch', error);
+        }
+      }
+      
       const hookContext = {
         hook: 'medication-prescribe',
         hookInstance: `${service.id}-${Date.now()}`,
-        context: {
-          patientId,
-          userId,
-          medications
-        }
+        context
       };
       
-      const result = await this.executeHook(service.id, hookContext);
+      const result = await this.executeHook(service.id, hookContext, prefetch);
       if (result.cards && result.cards.length > 0) {
         allCards.push(...result.cards.map(card => ({
           ...card,
@@ -224,10 +276,10 @@ class CDSHooksClient {
     const allCards = [];
     
     for (const service of orderServices) {
-      // Properly format context according to CDS Hooks v1.0 spec
+      // Properly format context according to CDS Hooks spec
       const hookContext = {
         hook: 'order-sign',
-        hookInstance: `${service.id}-${Date.now()}`,
+        hookInstance: uuidv4(), // CDS Hooks 2.0 requires UUID
         context: {
           patientId,
           userId,
@@ -246,6 +298,150 @@ class CDSHooksClient {
     }
 
     return allCards;
+  }
+
+  /**
+   * Send feedback about card outcomes - CDS Hooks 2.0
+   * @param {string} serviceId - Service that generated the card
+   * @param {object} feedbackData - Feedback data including card outcomes
+   */
+  async sendFeedback(serviceId, feedbackData) {
+    try {
+      const response = await this.httpClient.post(
+        `/cds-services/${serviceId}/feedback`,
+        feedbackData
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Apply system actions - CDS Hooks 2.0
+   * @param {array} systemActions - Array of system actions to apply
+   * @param {object} context - Context including hookInstance
+   */
+  async applySystemActions(systemActions, context) {
+    try {
+      const response = await this.httpClient.post(
+        `/cds-services/apply-system-actions`,
+        {
+          systemActions,
+          context,
+          hookInstance: context.hookInstance || uuidv4()
+        }
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Set JWT token for authentication - CDS Hooks 2.0
+   * @param {string} token - JWT token
+   */
+  setAuthToken(token) {
+    this.jwtToken = token;
+    if (token) {
+      this.httpClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete this.httpClient.defaults.headers.common['Authorization'];
+    }
+  }
+
+  /**
+   * Fire new CDS Hooks 2.0 hooks
+   */
+  
+  // AllergyIntolerance Create Hook
+  async fireAllergyIntoleranceCreate(patientId, userId, allergyIntolerance) {
+    return this.executeHookType('allergyintolerance-create', {
+      patientId,
+      userId,
+      allergyIntolerance
+    });
+  }
+
+  // Appointment Book Hook
+  async fireAppointmentBook(patientId, userId, appointments) {
+    return this.executeHookType('appointment-book', {
+      patientId,
+      userId,
+      appointments
+    });
+  }
+
+  // Problem List Item Create Hook
+  async fireProblemListItemCreate(patientId, userId, condition) {
+    return this.executeHookType('problem-list-item-create', {
+      patientId,
+      userId,
+      condition
+    });
+  }
+
+  // Order Dispatch Hook
+  async fireOrderDispatch(patientId, userId, order) {
+    return this.executeHookType('order-dispatch', {
+      patientId,
+      userId,
+      order
+    });
+  }
+
+  // Medication Refill Hook
+  async fireMedicationRefill(patientId, userId, medications) {
+    return this.executeHookType('medication-refill', {
+      patientId,
+      userId,
+      medications
+    });
+  }
+
+  /**
+   * Generic hook execution for CDS Hooks 2.0
+   */
+  async executeHookType(hookType, context, prefetch = null) {
+    const services = await this.discoverServices();
+    const relevantServices = services.filter(s => s.hook === hookType);
+    
+    const allCards = [];
+    const allSystemActions = [];
+    
+    for (const service of relevantServices) {
+      const hookContext = {
+        hook: hookType,
+        hookInstance: uuidv4(),
+        context,
+        fhirServer: window.location.origin + '/fhir/R4'
+      };
+      
+      if (prefetch) {
+        hookContext.prefetch = prefetch;
+      }
+      
+      const result = await this.executeHook(service.id, hookContext);
+      
+      if (result.cards && result.cards.length > 0) {
+        allCards.push(...result.cards.map(card => ({
+          ...card,
+          serviceId: service.id,
+          serviceTitle: service.title,
+          uuid: card.uuid || uuidv4() // Ensure all cards have UUIDs
+        })));
+      }
+      
+      if (result.systemActions && result.systemActions.length > 0) {
+        allSystemActions.push(...result.systemActions);
+      }
+    }
+
+    return {
+      cards: allCards,
+      systemActions: allSystemActions
+    };
   }
 }
 

@@ -3,7 +3,7 @@
  * Comprehensive lab result review, management, and notification system
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { format } from 'date-fns';
 
 // Critical value definitions based on standard medical practice

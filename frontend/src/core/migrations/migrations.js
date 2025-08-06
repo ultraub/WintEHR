@@ -4,7 +4,7 @@
  */
 
 import { validateResource } from '../fhir/validators/fhirValidation';
-import { fhirClient } from '../../services/fhirClient';
+import { fhirClient } from '../../core/fhir/services/fhirClient';
 
 /**
  * Migration result class

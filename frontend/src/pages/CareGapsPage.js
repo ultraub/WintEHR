@@ -8,13 +8,13 @@ import {
   Button,
   Stack,
   Grid,
-  Badge,
   Chip,
   List,
   ListItem,
   ListItemText,
   ListItemSecondaryAction
 } from '@mui/material';
+import SafeBadge from '../components/common/SafeBadge';
 import { Timeline as CareGapIcon, Assignment as ActionIcon, Notifications as AlertIcon } from '@mui/icons-material';
 
 const CareGapsPage = () => {
@@ -63,9 +63,9 @@ const CareGapsPage = () => {
   return (
     <Box>
       <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
-        <Badge badgeContent={criticalGaps} color="error">
+        <SafeBadge badgeContent={criticalGaps} color="error">
           <CareGapIcon color="primary" />
-        </Badge>
+        </SafeBadge>
         <Typography variant="h4" component="h1">
           Care Gaps Analysis
         </Typography>
@@ -81,8 +81,6 @@ const CareGapsPage = () => {
         severity="warning" 
         sx={{ 
           mb: 3, 
-          backgroundColor: '#fff3cd', 
-          border: '2px solid #ffcc02',
           '& .MuiAlert-message': { fontWeight: 'bold' }
         }}
       >

@@ -142,7 +142,7 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
 
   // Execute query
   const executeQuery = useCallback(async () => {
-    if (!fhirData || !fhirData.executeQuery) {
+    if (!fhirData || !fhirData.searchResources) {
       setError('FHIR data service not available');
       return;
     }
@@ -154,7 +154,77 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
     const startTime = performance.now();
 
     try {
-      const result = await fhirData.executeQuery(query);
+      let result;
+      
+      // Parse the query URL to determine the type of operation
+      const match = query.match(/^\/([A-Z][a-zA-Z]+)(\/[^?$]+)?(\$[^?]+)?(\?.*)?$/);
+      if (!match) {
+        throw new Error('Invalid query format. Expected format: /ResourceType or /ResourceType?param=value');
+      }
+      
+      const resourceType = match[1];
+      const resourceId = match[2]?.substring(1); // Remove leading slash
+      const operation = match[3];
+      const queryString = match[4];
+      
+      // Handle different query types
+      if (operation === '/$everything' && resourceId) {
+        // Patient/$everything operation
+        if (fhirData.fetchPatientEverything && resourceType === 'Patient') {
+          result = await fhirData.fetchPatientEverything(resourceId);
+          // Convert to expected format
+          result = {
+            data: result.bundle || { 
+              resourceType: 'Bundle', 
+              entry: result.resources?.map(r => ({ resource: r })) || [],
+              total: result.total || 0
+            }
+          };
+        } else {
+          throw new Error(`$everything operation is only supported for Patient resources`);
+        }
+      } else if (operation === '/$validate') {
+        throw new Error('$validate operation is not yet implemented');
+      } else if (operation || query === '/metadata') {
+        throw new Error(`Operation ${operation || 'metadata'} is not yet implemented`);
+      } else if (resourceId && !operation && !queryString) {
+        // Single resource fetch: /Patient/123
+        if (fhirData.fetchResource) {
+          const resource = await fhirData.fetchResource(resourceType, resourceId);
+          result = {
+            data: {
+              resourceType: 'Bundle',
+              type: 'searchset',
+              total: 1,
+              entry: [{ resource }]
+            }
+          };
+        } else {
+          throw new Error('Single resource fetch not available');
+        }
+      } else {
+        // Search query: /Patient?name=Smith
+        const params = queryString ? Object.fromEntries(new URLSearchParams(queryString.substring(1))) : {};
+        const searchResult = await fhirData.searchResources(resourceType, params);
+        
+        // Ensure standardized format
+        if (searchResult.bundle) {
+          result = { data: searchResult.bundle };
+        } else if (searchResult.resources) {
+          result = {
+            data: {
+              resourceType: 'Bundle',
+              type: 'searchset',
+              total: searchResult.total || searchResult.resources.length,
+              entry: searchResult.resources.map(r => ({ resource: r }))
+            }
+          };
+        } else {
+          // Fallback for unexpected formats
+          result = { data: searchResult };
+        }
+      }
+      
       const endTime = performance.now();
       setExecutionTime(Math.round(endTime - startTime));
       
@@ -265,7 +335,13 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
                 mb: 2,
                 '& .MuiInputBase-input': {
                   fontFamily: 'monospace',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  color: (theme) => theme.palette.text.primary
+                },
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: (theme) => theme.palette.mode === 'dark'
+                    ? alpha(theme.palette.background.paper, 0.1)
+                    : 'transparent'
                 }
               }}
             />
@@ -345,9 +421,27 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
           {(results || error) && (
             <Paper sx={{ p: 3 }}>
               {error ? (
-                <Alert severity="error" sx={{ mb: 2 }}>
+                <Alert 
+                  severity="error" 
+                  sx={{ mb: 2 }}
+                  action={
+                    <Button size="small" onClick={() => setError(null)}>
+                      Dismiss
+                    </Button>
+                  }
+                >
                   <Typography variant="subtitle2" gutterBottom>Query Error</Typography>
-                  {error}
+                  <Typography variant="body2">{error}</Typography>
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Suggestions:
+                    </Typography>
+                    <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                      <li><Typography variant="caption">Check that the resource type is valid</Typography></li>
+                      <li><Typography variant="caption">Verify parameter names match FHIR specification</Typography></li>
+                      <li><Typography variant="caption">Ensure the server is accessible</Typography></li>
+                    </ul>
+                  </Box>
                 </Alert>
               ) : results && (
                 <>
@@ -388,7 +482,9 @@ function QueryPlayground({ onNavigate, useFHIRData, useQueryHistory }) {
                     sx={{
                       maxHeight: 400,
                       overflow: 'auto',
-                      bgcolor: 'background.surface',
+                      bgcolor: (theme) => theme.palette.mode === 'dark' 
+                        ? theme.palette.grey[900] 
+                        : theme.palette.grey[50],
                       borderRadius: 1,
                       p: 2
                     }}

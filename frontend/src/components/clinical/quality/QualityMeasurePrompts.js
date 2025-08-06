@@ -45,7 +45,6 @@ import {
   CheckCircle as CheckIcon,
   Schedule as ClockIcon,
   Star as StarIcon,
-  Description as NoteIcon,
   Visibility as ViewIcon,
   Create as CreateIcon,
   MonitorHeart as ClinicalIcon,

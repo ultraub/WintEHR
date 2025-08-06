@@ -5,9 +5,7 @@
  * with advanced filtering, sorting, and analytics support.
  */
 
-import { fhirService } from '../core/fhir/services/fhirService';
 import { cdsClinicalDataService } from './cdsClinicalDataService';
-import { fhirClient } from '../core/fhir/services/fhirClient';
 
 class EnhancedOrderSearchService {
   constructor() {

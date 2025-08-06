@@ -3,7 +3,7 @@
  * Manages clinical orders using FHIR ServiceRequest resources
  */
 import React, { createContext, useContext, useState } from 'react';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { useClinical } from './ClinicalContext';
 import { useFHIRResource } from './FHIRResourceContext';
 import api from '../services/api';
@@ -22,7 +22,7 @@ export const OrderProvider = ({ children }) => {
   const { currentPatient, currentEncounter } = useClinical();
   const { refreshPatientResources } = useFHIRResource();
   const [activeOrders, setActiveOrders] = useState([]);
-  const [pendingOrders, setPendingOrders] = useState([]);
+  const [pendingOrders] = useState([]);
   const [orderSets, setOrderSets] = useState([]);
   const [currentOrderAlerts, setCurrentOrderAlerts] = useState([]);
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);

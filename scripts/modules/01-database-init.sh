@@ -86,12 +86,14 @@ if ! docker-compose ps backend | grep -q "Up"; then
     success "Backend container is ready"
 fi
 
-# Run the unified database initialization script
+# Run the definitive database initialization script
 log "Creating database schema..."
-docker exec emr-backend bash -c "cd /app && python scripts/init_database_unified.py" || {
-    # Fallback to definitive script if unified doesn't exist yet
-    log "Using definitive database script as fallback..."
-    docker exec emr-backend bash -c "cd /app && python -c 'import logging; logging.basicConfig(level=logging.INFO); exec(open(\"scripts/init_database_definitive.py\").read())'"
+docker exec emr-backend bash -c "cd /app && python scripts/setup/init_database_definitive.py --mode $MODE" || {
+    # Fallback if script is not in setup directory
+    log "Trying alternative location..."
+    docker exec emr-backend bash -c "cd /app && python scripts/init_database_definitive.py --mode $MODE" || {
+        error "Database initialization script not found in expected locations"
+    }
 }
 
 success "Database schema created"
@@ -103,12 +105,13 @@ log "Verifying database schema..."
 FHIR_TABLES=$(docker exec emr-postgres psql -U emr_user -d emr_db -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'fhir'" 2>&1 | tr -d ' ')
 CDS_TABLES=$(docker exec emr-postgres psql -U emr_user -d emr_db -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'cds_hooks'" 2>&1 | tr -d ' ')
 
-if [ "$FHIR_TABLES" -ge "4" ] && [ "$CDS_TABLES" -ge "1" ]; then
+# We now expect 6 FHIR tables: resources, search_params, resource_history, references, compartments, audit_logs
+if [ "$FHIR_TABLES" -ge "6" ] && [ "$CDS_TABLES" -ge "1" ]; then
     success "Database schema verification passed"
     log "  FHIR tables: $FHIR_TABLES"
     log "  CDS Hooks tables: $CDS_TABLES"
 else
-    error "Schema verification failed: FHIR tables=$FHIR_TABLES, CDS tables=$CDS_TABLES"
+    error "Schema verification failed: FHIR tables=$FHIR_TABLES (expected 6), CDS tables=$CDS_TABLES (expected 1)"
 fi
 
 # Get table counts for reporting

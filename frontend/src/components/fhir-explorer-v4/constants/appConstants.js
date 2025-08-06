@@ -9,8 +9,7 @@ export const APP_MODES = {
   DASHBOARD: 'dashboard',
   DISCOVERY: 'discovery',
   QUERY_BUILDING: 'query-building',
-  VISUALIZATION: 'visualization',
-  LEARNING: 'learning'
+  VISUALIZATION: 'visualization'
 };
 
 export const DISCOVERY_VIEWS = {
@@ -20,21 +19,13 @@ export const DISCOVERY_VIEWS = {
 };
 
 export const QUERY_VIEWS = {
-  VISUAL: 'visual',
+  STUDIO: 'studio',
   NATURAL_LANGUAGE: 'natural-language',
-  AI_ASSISTANT: 'ai-assistant',
-  PLAYGROUND: 'playground'
+  WORKSPACE: 'workspace'
 };
 
 export const VISUALIZATION_VIEWS = {
   CHARTS: 'charts',
   TIMELINE: 'timeline',
-  NETWORK: 'network',
-  ANALYTICS: 'analytics'
-};
-
-export const LEARNING_VIEWS = {
-  TUTORIALS: 'tutorials',
-  SCENARIOS: 'scenarios',
-  HELP: 'help'
+  NETWORK: 'network'
 };

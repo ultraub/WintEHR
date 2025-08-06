@@ -185,6 +185,9 @@ preflight_checks() {
         "02-data-generation.sh"
         "03-data-import.sh"
         "04-data-processing.sh"
+        "04a-reference-indexing.sh"
+        "04b-search-indexing.sh"
+        "04c-compartment-indexing.sh"
         "05-nginx-config.sh"
         "06-validation.sh"
     )
@@ -266,6 +269,18 @@ run_deployment() {
     section "🔄 Phase 5: Data Processing"
     execute_module "04-data-processing.sh"
     
+    # Phase 5a: Reference Indexing
+    section "🔗 Phase 5a: Reference Indexing"
+    execute_module "04a-reference-indexing.sh"
+    
+    # Phase 5b: Search Parameter Indexing
+    section "🔍 Phase 5b: Search Parameter Indexing"
+    execute_module "04b-search-indexing.sh"
+    
+    # Phase 5c: Compartment Indexing
+    section "📁 Phase 5c: Compartment Indexing"
+    execute_module "04c-compartment-indexing.sh"
+    
     # Phase 6: Configuration
     section "⚙️ Phase 6: System Configuration"
     execute_module "05-nginx-config.sh"
@@ -292,7 +307,7 @@ run_deployment() {
     info "  Backend:   http://localhost:8000"
     info "  API Docs:  http://localhost:8000/docs"
     info "  FHIR API:  http://localhost:8000/fhir/R4"
-    info "  CDS Hooks: http://localhost:8000/cds-hooks/services"
+    info "  CDS Hooks: http://localhost:8000/cds-services"
     
     echo ""
     info "📊 Quick Health Check:"

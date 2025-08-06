@@ -3,7 +3,6 @@
  */
 
 import { format, parseISO } from 'date-fns';
-import { NOTE_TEMPLATES } from '../../services/noteTemplatesService';
 import { documentReferenceConverter } from '../fhir/converters/DocumentReferenceConverter';
 
 /**

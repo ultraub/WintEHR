@@ -3,7 +3,7 @@
  * Quick note generation from order results (lab, diagnostic, etc.)
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 export class ResultDocumentationService {
   constructor() {

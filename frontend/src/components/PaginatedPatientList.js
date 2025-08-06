@@ -15,7 +15,6 @@ import {
   DialogContent,
   Tabs,
   Tab,
-  Badge,
   Tooltip,
   CircularProgress,
   TablePagination,
@@ -25,6 +24,7 @@ import {
   useMediaQuery,
   useTheme
 } from '@mui/material';
+import SafeBadge from './common/SafeBadge';
 import {
   Search as SearchIcon,
   Add as AddIcon,
@@ -37,7 +37,7 @@ import {
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { format } from 'date-fns';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import PatientForm from './PatientForm';
 import { getPatientDetailUrl } from '../core/navigation/navigationUtils';
 import { debounce } from 'lodash';
@@ -178,7 +178,8 @@ function PaginatedPatientList() {
         _count: currentPageSize,
         _offset: currentPage * currentPageSize,
         _sort: '-_lastUpdated',
-        _total: 'accurate' // Request total count
+        _total: 'accurate', // Request total count
+        _summary: 'true' // Only essential fields for list view
       };
       
       if (searchQuery && searchQuery.length >= 2) {
@@ -328,7 +329,7 @@ function PaginatedPatientList() {
             label={
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 My Patients
-                <Badge badgeContent={myPatientsCount} color="primary" />
+                <SafeBadge badgeContent={myPatientsCount} color="primary" />
               </Box>
             } 
           />

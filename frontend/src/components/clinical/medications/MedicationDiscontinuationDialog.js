@@ -442,7 +442,7 @@ const MedicationDiscontinuationDialog = ({
                 </Typography>
                 <List dense>
                   {getSelectedTaperingSchedule()?.steps.map((step, index) => (
-                    <ListItem key={index}>
+                    <ListItem key={`step-day${step.day}-${step.percentage}-${index}`}>
                       <ListItemIcon>
                         <ScheduleIcon color={step.percentage === 0 ? 'error' : 'primary'} />
                       </ListItemIcon>

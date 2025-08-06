@@ -246,6 +246,112 @@ class DynamicCatalogService:
         logger.info(f"Extracted {len(lab_tests)} unique lab tests from patient data")
         return lab_tests
     
+    async def extract_imaging_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Extract imaging catalog from ImagingStudy and DiagnosticReport resources."""
+        cache_key = f"imaging_{limit}"
+        if self._is_cached(cache_key):
+            return self.cache[cache_key]
+        
+        logger.info("Extracting imaging catalog from patient data")
+        
+        # Query ImagingStudy resources
+        sql = text("""
+            SELECT DISTINCT 
+                resource->'modality'->0->'code' as modality_code,
+                resource->'modality'->0->'display' as modality_display,
+                resource->>'description' as description,
+                resource->'procedureCode'->0->'coding'->0->>'code' as procedure_code,
+                resource->'procedureCode'->0->'coding'->0->>'display' as procedure_display,
+                resource->'bodySite'->0->'display' as body_site,
+                COUNT(*) as frequency,
+                array_agg(DISTINCT resource->>'status') as statuses
+            FROM fhir.resources 
+            WHERE resource_type = 'ImagingStudy'
+            AND resource->>'modality' IS NOT NULL
+            GROUP BY modality_code, modality_display, description, procedure_code, procedure_display, body_site
+            """)
+        
+        if limit:
+            sql = text(sql.text + f" ORDER BY frequency DESC LIMIT {limit}")
+        else:
+            sql = text(sql.text + " ORDER BY frequency DESC")
+        
+        result = await self.db.execute(sql)
+        imaging_studies = []
+        
+        for row in result:
+            # Determine modality from code
+            modality_code = row.modality_code if row.modality_code else ""
+            modality_map = {
+                "CT": "CT", "MR": "MR", "US": "US", "CR": "CR", "DX": "DX",
+                "NM": "NM", "PT": "PET", "XA": "XA", "MG": "MG"
+            }
+            modality = modality_map.get(modality_code, modality_code)
+            
+            # Build display name
+            display_name = row.procedure_display or row.description
+            if not display_name and row.modality_display and row.body_site:
+                display_name = f"{row.modality_display} {row.body_site}"
+            elif not display_name and row.modality_display:
+                display_name = row.modality_display
+            
+            imaging_study = {
+                "code": row.procedure_code or f"{modality_code}_{row.body_site}".replace(" ", "_"),
+                "display": display_name or "Imaging Study",
+                "modality": modality,
+                "body_site": row.body_site,
+                "cpt_code": row.procedure_code,
+                "frequency": row.frequency,
+                "statuses": [s for s in row.statuses if s] if row.statuses else [],
+                "usage_count": row.frequency,
+                "source": "patient_data"
+            }
+            imaging_studies.append(imaging_study)
+        
+        # Also check DiagnosticReport resources for imaging
+        diag_sql = text("""
+            SELECT DISTINCT 
+                resource->'code'->'coding'->0->>'code' as code,
+                resource->'code'->'coding'->0->>'display' as display,
+                resource->'category'->0->'coding'->0->>'code' as category_code,
+                COUNT(*) as frequency
+            FROM fhir.resources 
+            WHERE resource_type = 'DiagnosticReport'
+            AND resource->'category'->0->'coding'->0->>'code' IN ('RAD', 'IMG', 'RUS', 'VUS', 'OUS')
+            GROUP BY code, display, category_code
+            """)
+        
+        if limit:
+            remaining_limit = limit - len(imaging_studies)
+            if remaining_limit > 0:
+                diag_sql = text(diag_sql.text + f" ORDER BY frequency DESC LIMIT {remaining_limit}")
+        else:
+            diag_sql = text(diag_sql.text + " ORDER BY frequency DESC")
+        
+        diag_result = await self.db.execute(diag_sql)
+        
+        for row in diag_result:
+            # Map category codes to modalities
+            category_to_modality = {
+                "RAD": "CR", "IMG": "CT", "RUS": "US", "VUS": "US", "OUS": "US"
+            }
+            modality = category_to_modality.get(row.category_code, "OT")
+            
+            imaging_study = {
+                "code": row.code or f"DIAG_{row.category_code}",
+                "display": row.display or "Diagnostic Imaging",
+                "modality": modality,
+                "category": row.category_code,
+                "frequency": row.frequency,
+                "usage_count": row.frequency,
+                "source": "diagnostic_reports"
+            }
+            imaging_studies.append(imaging_study)
+        
+        self._cache_result(cache_key, imaging_studies)
+        logger.info(f"Extracted {len(imaging_studies)} unique imaging studies from patient data")
+        return imaging_studies
+    
     async def extract_procedure_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """Extract procedure catalog from Procedure resources."""
         cache_key = f"procedures_{limit}"
@@ -381,6 +487,350 @@ class DynamicCatalogService:
         """Cache a result with timestamp."""
         self.cache[key] = result
         self.cache[f"{key}_time"] = datetime.now()
+    
+    async def extract_order_set_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Extract order sets from CarePlan and PlanDefinition resources."""
+        cache_key = f"order_sets_{limit}"
+        if self._is_cached(cache_key):
+            return self.cache[cache_key]
+        
+        logger.info("Extracting order set catalog from patient data")
+        
+        order_sets = []
+        
+        # Extract from CarePlan resources (active care plans can represent order sets)
+        care_plan_sql = text("""
+            SELECT 
+                resource->>'id' as id,
+                resource->>'title' as title,
+                resource->>'description' as description,
+                resource->'category'->0->'coding'->0->>'display' as category,
+                resource->>'status' as status,
+                resource->'activity' as activities,
+                COUNT(*) OVER (PARTITION BY resource->>'title') as usage_count
+            FROM fhir.resources 
+            WHERE resource_type = 'CarePlan'
+            AND resource->>'title' IS NOT NULL
+            GROUP BY id, title, description, category, status, activities
+            ORDER BY usage_count DESC
+            LIMIT :limit
+        """)
+        
+        result = await self.db.execute(care_plan_sql, {"limit": limit or 100})
+        
+        for row in result:
+            # Parse activities to extract order items
+            items = []
+            if row.activities:
+                try:
+                    activities = json.loads(row.activities) if isinstance(row.activities, str) else row.activities
+                    for activity in activities:
+                        detail = activity.get('detail', {})
+                        if detail:
+                            item = {
+                                "type": detail.get('kind', 'Unknown'),
+                                "code": detail.get('code', {}).get('coding', [{}])[0].get('code'),
+                                "display": detail.get('code', {}).get('text', detail.get('description', '')),
+                                "status": detail.get('status', 'unknown')
+                            }
+                            if item['display']:  # Only add if we have a display name
+                                items.append(item)
+                except Exception as e:
+                    logger.warning(f"Error parsing activities for CarePlan {row.id}: {e}")
+            
+            order_set = {
+                "id": f"careplan_{row.id}",
+                "name": row.title or f"Care Plan {row.id}",
+                "description": row.description,
+                "category": row.category or "Clinical",
+                "specialty": None,  # Could be extracted from context
+                "items": items,
+                "usage_count": row.usage_count or 0,
+                "source": "care_plans",
+                "is_active": row.status in ['active', 'draft']
+            }
+            order_sets.append(order_set)
+        
+        # Extract from PlanDefinition resources if available
+        plan_def_sql = text("""
+            SELECT 
+                resource->>'id' as id,
+                resource->>'title' as title,
+                resource->>'description' as description,
+                resource->'type'->'coding'->0->>'display' as type_display,
+                resource->>'status' as status,
+                resource->'action' as actions,
+                resource->'useContext' as use_context
+            FROM fhir.resources 
+            WHERE resource_type = 'PlanDefinition'
+            AND resource->>'title' IS NOT NULL
+        """)
+        
+        if limit:
+            remaining_limit = limit - len(order_sets)
+            if remaining_limit > 0:
+                plan_def_sql = text(plan_def_sql.text + f" LIMIT {remaining_limit}")
+        
+        plan_result = await self.db.execute(plan_def_sql)
+        
+        for row in plan_result:
+            # Parse actions to extract order items
+            items = []
+            if row.actions:
+                try:
+                    actions = json.loads(row.actions) if isinstance(row.actions, str) else row.actions
+                    for action in actions:
+                        item = {
+                            "type": action.get('type', {}).get('coding', [{}])[0].get('display', 'Action'),
+                            "code": action.get('code', [{}])[0].get('coding', [{}])[0].get('code') if action.get('code') else None,
+                            "display": action.get('title', action.get('description', '')),
+                            "status": "active"  # PlanDefinitions are templates
+                        }
+                        if item['display']:
+                            items.append(item)
+                except Exception as e:
+                    logger.warning(f"Error parsing actions for PlanDefinition {row.id}: {e}")
+            
+            # Extract specialty from use context if available
+            specialty = None
+            if row.use_context:
+                try:
+                    use_contexts = json.loads(row.use_context) if isinstance(row.use_context, str) else row.use_context
+                    for context in use_contexts:
+                        if context.get('code', {}).get('code') == 'focus':
+                            specialty = context.get('valueCodeableConcept', {}).get('coding', [{}])[0].get('display')
+                            break
+                except Exception:
+                    pass
+            
+            order_set = {
+                "id": f"plandef_{row.id}",
+                "name": row.title or f"Plan Definition {row.id}",
+                "description": row.description,
+                "category": row.type_display or "Clinical Protocol",
+                "specialty": specialty,
+                "items": items,
+                "usage_count": 0,  # PlanDefinitions don't have direct usage counts
+                "source": "plan_definitions",
+                "is_active": row.status == 'active'
+            }
+            order_sets.append(order_set)
+        
+        # Also create some common order sets from patterns in the data
+        common_order_sets = await self._extract_common_order_patterns(limit)
+        order_sets.extend(common_order_sets)
+        
+        self._cache_result(cache_key, order_sets)
+        logger.info(f"Extracted {len(order_sets)} order sets from patient data")
+        return order_sets
+    
+    async def _extract_common_order_patterns(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Extract common ordering patterns from ServiceRequest and MedicationRequest resources."""
+        order_sets = []
+        
+        # Find common grouped orders (orders placed within same encounter/time window)
+        grouped_orders_sql = text("""
+            WITH order_groups AS (
+                SELECT 
+                    resource->>'encounter' as encounter_ref,
+                    DATE_TRUNC('hour', (resource->'authoredOn')::timestamp) as order_hour,
+                    array_agg(DISTINCT jsonb_build_object(
+                        'type', 'ServiceRequest',
+                        'code', resource->'code'->'coding'->0->>'code',
+                        'display', COALESCE(
+                            resource->'code'->'coding'->0->>'display',
+                            resource->'code'->>'text'
+                        )
+                    )) as service_requests
+                FROM fhir.resources
+                WHERE resource_type = 'ServiceRequest'
+                AND resource->>'encounter' IS NOT NULL
+                AND resource->>'authoredOn' IS NOT NULL
+                GROUP BY encounter_ref, order_hour
+                HAVING COUNT(*) > 2  -- Groups with more than 2 orders
+            )
+            SELECT 
+                service_requests,
+                COUNT(*) as frequency
+            FROM order_groups
+            GROUP BY service_requests
+            ORDER BY frequency DESC
+            LIMIT 10
+        """)
+        
+        result = await self.db.execute(grouped_orders_sql)
+        
+        for idx, row in enumerate(result):
+            if row.service_requests:
+                items = []
+                try:
+                    # Parse the service requests
+                    requests = json.loads(row.service_requests) if isinstance(row.service_requests, str) else row.service_requests
+                    for req in requests:
+                        if req.get('display'):
+                            items.append({
+                                "type": req.get('type', 'ServiceRequest'),
+                                "code": req.get('code'),
+                                "display": req.get('display'),
+                                "status": "active"
+                            })
+                except Exception as e:
+                    logger.warning(f"Error parsing grouped orders: {e}")
+                    continue
+                
+                if len(items) >= 3:  # Only include sets with at least 3 items
+                    # Try to categorize the order set based on the items
+                    category = self._categorize_order_set(items)
+                    
+                    order_set = {
+                        "id": f"pattern_{idx + 1}",
+                        "name": f"{category} Order Set {idx + 1}",
+                        "description": f"Common {category.lower()} orders frequently placed together",
+                        "category": category,
+                        "specialty": None,
+                        "items": items[:10],  # Limit items
+                        "usage_count": row.frequency,
+                        "source": "order_patterns",
+                        "is_active": True
+                    }
+                    order_sets.append(order_set)
+        
+        return order_sets[:limit] if limit else order_sets
+    
+    def _categorize_order_set(self, items: List[Dict[str, Any]]) -> str:
+        """Categorize an order set based on its items."""
+        item_displays = [item.get('display', '').lower() for item in items]
+        all_text = ' '.join(item_displays)
+        
+        # Simple categorization based on keywords
+        if any(word in all_text for word in ['lab', 'blood', 'urine', 'culture']):
+            return "Laboratory"
+        elif any(word in all_text for word in ['xray', 'ct', 'mri', 'ultrasound', 'imaging']):
+            return "Radiology"
+        elif any(word in all_text for word in ['admission', 'admit', 'discharge']):
+            return "Admission"
+        elif any(word in all_text for word in ['emergency', 'ed', 'urgent']):
+            return "Emergency"
+        elif any(word in all_text for word in ['surgery', 'operative', 'pre-op', 'post-op']):
+            return "Surgical"
+        else:
+            return "General"
+    
+    async def extract_vaccine_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Extract vaccine/immunization catalog from Immunization resources."""
+        cache_key = f"vaccines_{limit}"
+        if self._is_cached(cache_key):
+            return self.cache[cache_key]
+        
+        logger.info("Extracting vaccine catalog from patient data")
+        
+        sql = text("""
+            SELECT DISTINCT 
+                resource->'vaccineCode'->'coding'->0->>'code' as cvx_code,
+                resource->'vaccineCode'->'coding'->0->>'display' as display,
+                resource->'vaccineCode'->>'text' as text,
+                resource->'manufacturer'->>'display' as manufacturer,
+                COUNT(*) as frequency,
+                array_agg(DISTINCT resource->>'status') as statuses,
+                array_agg(DISTINCT resource->'route'->'coding'->0->>'display') as routes,
+                array_agg(DISTINCT resource->'site'->'coding'->0->>'display') as sites
+            FROM fhir.resources 
+            WHERE resource_type = 'Immunization'
+            AND resource->'vaccineCode'->'coding'->0->>'code' IS NOT NULL
+            GROUP BY cvx_code, display, text, manufacturer
+            ORDER BY COUNT(*) DESC
+            LIMIT :limit
+        """)
+        
+        result = await self.db.execute(sql, {"limit": limit or 1000})
+        
+        vaccines = []
+        for row in result:
+            vaccine = {
+                "id": f"vax_{row.cvx_code}" if row.cvx_code else f"vax_{len(vaccines)}",
+                "vaccine_code": row.cvx_code,
+                "vaccine_name": row.display or row.text or "Unknown vaccine",
+                "cvx_code": row.cvx_code,
+                "manufacturer": row.manufacturer,
+                "frequency_count": row.frequency,
+                "common_statuses": [s for s in row.statuses if s] if row.statuses else [],
+                "common_routes": [r for r in row.routes if r] if row.routes else [],
+                "common_sites": [s for s in row.sites if s] if row.sites else [],
+                "usage_count": row.frequency,
+                "source": "patient_data"
+            }
+            vaccines.append(vaccine)
+        
+        self._cache_result(cache_key, vaccines)
+        logger.info(f"Extracted {len(vaccines)} unique vaccines from patient data")
+        return vaccines
+    
+    async def extract_allergy_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Extract allergy catalog from AllergyIntolerance resources."""
+        cache_key = f"allergies_{limit}"
+        if self._is_cached(cache_key):
+            return self.cache[cache_key]
+        
+        logger.info("Extracting allergy catalog from patient data")
+        
+        sql = text("""
+            SELECT DISTINCT 
+                resource->'code'->'coding'->0->>'code' as code,
+                resource->'code'->'coding'->0->>'display' as display,
+                resource->'code'->'coding'->0->>'system' as system,
+                resource->'code'->>'text' as text,
+                resource->'category'->0 as category,
+                COUNT(*) as frequency,
+                array_agg(DISTINCT resource->>'type') as types,
+                array_agg(DISTINCT resource->>'criticality') as criticalities,
+                array_agg(DISTINCT reaction->'manifestation'->0->'coding'->0->>'display') as reactions
+            FROM fhir.resources,
+                 jsonb_array_elements(resource->'reaction') as reaction
+            WHERE resource_type = 'AllergyIntolerance'
+            AND resource->'code'->'coding'->0->>'code' IS NOT NULL
+            GROUP BY code, display, system, text, category
+            ORDER BY COUNT(*) DESC
+            LIMIT :limit
+        """)
+        
+        result = await self.db.execute(sql, {"limit": limit or 1000})
+        
+        allergies = []
+        for row in result:
+            # Determine allergy type from category
+            allergen_type = "other"
+            if row.category:
+                category_str = row.category if isinstance(row.category, str) else str(row.category).lower()
+                if 'medication' in category_str:
+                    allergen_type = "medication"
+                elif 'food' in category_str:
+                    allergen_type = "food"
+                elif 'environment' in category_str:
+                    allergen_type = "environmental"
+            
+            allergy = {
+                "id": f"allergy_{row.code}" if row.code else f"allergy_{len(allergies)}",
+                "allergen_code": row.code,
+                "allergen_name": row.display or row.text or "Unknown allergen",
+                "allergen_type": allergen_type,
+                "system": row.system,
+                "frequency_count": row.frequency,
+                "common_types": [t for t in row.types if t] if row.types else [],
+                "criticality_levels": [c for c in row.criticalities if c] if row.criticalities else [],
+                "common_reactions": [r for r in row.reactions if r] if row.reactions else [],
+                "usage_count": row.frequency,
+                "source": "patient_data"
+            }
+            
+            # Add RxNorm code for medication allergies
+            if allergen_type == "medication" and row.system == "http://www.nlm.nih.gov/research/umls/rxnorm":
+                allergy["rxnorm_code"] = row.code
+            
+            allergies.append(allergy)
+        
+        self._cache_result(cache_key, allergies)
+        logger.info(f"Extracted {len(allergies)} unique allergies from patient data")
+        return allergies
     
     def clear_cache(self) -> None:
         """Clear all cached results."""

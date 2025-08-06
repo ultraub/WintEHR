@@ -258,147 +258,166 @@ const professionalMedicalPalette = {
   }
 };
 
-// Dark Medical Theme
+// Dark Medical Theme (Enhanced for better contrast and readability)
 const darkMedicalPalette = {
   mode: 'dark',
   primary: {
-    main: '#42A5F5',
-    light: '#64B5F6',
-    dark: '#1976D2',
-    contrastText: '#000000'
+    main: '#60A5FA', // Brighter blue for better contrast
+    light: '#93BBFC',
+    dark: '#2563EB',
+    contrastText: '#FFFFFF'
   },
   secondary: {
-    main: '#66BB6A',
-    light: '#81C784',
-    dark: '#4CAF50',
+    main: '#86EFAC', // Brighter green
+    light: '#BBF7D0',
+    dark: '#22C55E',
     contrastText: '#000000'
   },
   error: {
-    main: '#EF5350',
-    light: '#F44336',
-    dark: '#D32F2F',
+    main: '#F87171', // Softer red that's easier on eyes in dark mode
+    light: '#FCA5A5',
+    dark: '#DC2626',
     contrastText: '#FFFFFF'
   },
   warning: {
-    main: '#FFB74D',
-    light: '#FFC107',
-    dark: '#F57C00',
+    main: '#FCD34D', // Brighter yellow
+    light: '#FDE68A',
+    dark: '#F59E0B',
     contrastText: '#000000'
   },
   info: {
-    main: '#4FC3F7',
-    light: '#03A9F4',
-    dark: '#0288D1',
-    contrastText: '#000000'
+    main: '#60A5FA',
+    light: '#93BBFC',
+    dark: '#2563EB',
+    contrastText: '#FFFFFF'
   },
   success: {
-    main: '#81C784',
-    light: '#4CAF50',
-    dark: '#388E3C',
+    main: '#86EFAC',
+    light: '#BBF7D0',
+    dark: '#16A34A',
     contrastText: '#000000'
   },
   background: {
-    default: '#0A0E13',
-    paper: '#1A202C',
-    surface: '#2D3748'
+    default: '#0F172A', // Slightly lighter for better layering
+    paper: '#1E293B',   // Better contrast with default
+    surface: '#334155'   // Third level for nested components
   },
   text: {
-    primary: '#F7FAFC',
-    secondary: '#E2E8F0',
-    disabled: '#718096'
+    primary: '#F8FAFC',   // Slightly brighter
+    secondary: '#CBD5E1', // Better contrast
+    disabled: '#64748B'   // More visible disabled state
   },
-  divider: '#4A5568',
+  divider: '#334155', // Better visibility
   action: {
-    active: '#42A5F5',
-    hover: 'rgba(66, 165, 245, 0.08)',
-    selected: 'rgba(66, 165, 245, 0.12)',
+    active: '#60A5FA',
+    hover: 'rgba(96, 165, 250, 0.12)',
+    selected: 'rgba(96, 165, 250, 0.16)',
     disabled: 'rgba(255, 255, 255, 0.3)',
     disabledBackground: 'rgba(255, 255, 255, 0.12)'
   },
-  // Clinical-specific semantic tokens (dark mode)
+  // Clinical-specific semantic tokens (dark mode - enhanced)
   clinical: {
     surfaces: {
-      primary: 'rgba(66, 165, 245, 0.08)',
-      secondary: 'rgba(102, 187, 106, 0.08)',
-      warning: 'rgba(255, 183, 77, 0.08)',
-      error: 'rgba(239, 83, 80, 0.08)',
-      info: 'rgba(79, 195, 247, 0.08)',
-      success: 'rgba(129, 199, 132, 0.08)'
+      primary: 'rgba(96, 165, 250, 0.08)',
+      secondary: 'rgba(134, 239, 172, 0.08)',
+      warning: 'rgba(252, 211, 77, 0.08)',
+      error: 'rgba(248, 113, 113, 0.08)',
+      info: 'rgba(96, 165, 250, 0.08)',
+      success: 'rgba(134, 239, 172, 0.08)'
     },
     interactions: {
-      hover: 'rgba(66, 165, 245, 0.12)',
-      pressed: 'rgba(66, 165, 245, 0.16)',
-      focus: 'rgba(66, 165, 245, 0.20)',
-      selected: 'rgba(66, 165, 245, 0.12)'
+      hover: 'rgba(96, 165, 250, 0.16)',
+      pressed: 'rgba(96, 165, 250, 0.20)',
+      focus: 'rgba(96, 165, 250, 0.24)',
+      selected: 'rgba(96, 165, 250, 0.16)'
     },
     status: {
-      active: '#81C784',
-      inactive: '#9E9E9E',
-      pending: '#FFB74D',
-      completed: '#4FC3F7',
-      cancelled: '#EF5350',
-      draft: '#B0BEC5',
-      inProgress: '#7986CB'
+      active: '#86EFAC',
+      inactive: '#64748B',
+      pending: '#FCD34D',
+      completed: '#60A5FA',
+      cancelled: '#F87171',
+      draft: '#94A3B8',
+      inProgress: '#A78BFA'
     },
     severity: {
-      normal: '#81C784',
-      mild: '#AED581',
-      moderate: '#FFB74D',
-      severe: '#FF7043',
-      critical: '#EF5350'
+      normal: '#86EFAC',
+      mild: '#BBF7D0',
+      moderate: '#FCD34D',
+      severe: '#FB923C',
+      critical: '#F87171'
     },
-    // Department-specific color themes (dark mode)
+    // Department-specific color themes (dark mode - enhanced)
     departments: {
       emergency: {
-        primary: '#EF5350',
-        surface: 'rgba(239, 83, 80, 0.08)',
-        accent: '#F44336'
+        primary: '#F87171',
+        surface: 'rgba(248, 113, 113, 0.08)',
+        accent: '#FCA5A5'
       },
       cardiology: {
-        primary: '#F06292',
-        surface: 'rgba(240, 98, 146, 0.08)',
-        accent: '#E91E63'
+        primary: '#F472B6',
+        surface: 'rgba(244, 114, 182, 0.08)',
+        accent: '#FBCFE8'
       },
       pediatrics: {
-        primary: '#FFB74D',
-        surface: 'rgba(255, 183, 77, 0.08)',
-        accent: '#FF9800'
+        primary: '#FCD34D',
+        surface: 'rgba(252, 211, 77, 0.08)',
+        accent: '#FDE68A'
       },
       oncology: {
-        primary: '#BA68C8',
-        surface: 'rgba(186, 104, 200, 0.08)',
-        accent: '#9C27B0'
+        primary: '#C084FC',
+        surface: 'rgba(192, 132, 252, 0.08)',
+        accent: '#E9D5FF'
       },
       neurology: {
-        primary: '#7986CB',
-        surface: 'rgba(121, 134, 203, 0.08)',
-        accent: '#3F51B5'
+        primary: '#A78BFA',
+        surface: 'rgba(167, 139, 250, 0.08)',
+        accent: '#C4B5FD'
       }
     },
-    // Time-based themes for clinical shifts (dark mode)
+    // Time-based themes for clinical shifts (dark mode - enhanced)
     shifts: {
       day: {
-        background: '#1A202C',
-        surface: '#2D3748',
-        text: '#F7FAFC'
+        background: '#1E293B',
+        surface: '#334155',
+        text: '#F8FAFC'
       },
       night: {
-        background: '#0A0E13',
-        surface: '#1A202C',
+        background: '#0F172A',
+        surface: '#1E293B',
         text: '#E2E8F0'
       },
       emergency: {
-        background: '#2D1B14',
-        surface: '#4A2C17',
-        text: '#FFB74D'
+        background: '#27171A',
+        surface: '#3F1F24',
+        text: '#FCD34D'
       }
     },
     // Enhanced severity with psychological comfort levels (dark mode)
     comfort: {
-      reassuring: '#81C784',
-      concerning: '#FFB74D',
-      alarming: '#EF5350',
-      neutral: '#B0BEC5'
+      reassuring: '#86EFAC',
+      concerning: '#FCD34D',
+      alarming: '#F87171',
+      neutral: '#94A3B8'
+    }
+  },
+  // Animation tokens
+  animations: {
+    duration: {
+      shortest: 150,
+      shorter: 200,
+      short: 250,
+      standard: 300,
+      complex: 375,
+      enteringScreen: 225,
+      leavingScreen: 195
+    },
+    easing: {
+      easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
+      easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+      sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
+      elastic: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
     }
   }
 };
@@ -492,6 +511,25 @@ const accessiblePalette = {
       severe: '#FF3300',
       critical: '#CC0000'
     }
+  },
+  // Animation tokens
+  animations: {
+    duration: {
+      shortest: 150,
+      shorter: 200,
+      short: 250,
+      standard: 300,
+      complex: 375,
+      enteringScreen: 225,
+      leavingScreen: 195
+    },
+    easing: {
+      easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
+      easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+      sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
+      elastic: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+    }
   }
 };
 
@@ -552,6 +590,12 @@ const warmClinicalPalette = {
     disabled: 'rgba(0, 0, 0, 0.26)',
     disabledBackground: 'rgba(0, 0, 0, 0.12)'
   },
+  default: {
+    main: '#718096', // A neutral gray for default badges in warm mode
+    light: '#A0AEC0',
+    dark: '#4A5568',
+    contrastText: '#FFFFFF'
+  },
   // Clinical-specific semantic tokens (warm)
   clinical: {
     surfaces: {
@@ -583,6 +627,481 @@ const warmClinicalPalette = {
       moderate: '#DD6B20',
       severe: '#F56500',
       critical: '#E53E3E'
+    }
+  },
+  // Animation tokens
+  animations: {
+    duration: {
+      shortest: 150,
+      shorter: 200,
+      short: 250,
+      standard: 300,
+      complex: 375,
+      enteringScreen: 225,
+      leavingScreen: 195
+    },
+    easing: {
+      easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
+      easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+      sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
+      elastic: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+    }
+  }
+};
+
+// Ocean Health Theme
+const oceanHealthPalette = {
+  mode: 'light',
+  primary: {
+    main: '#0097A7',
+    light: '#4DD0E1',
+    dark: '#006064',
+    contrastText: '#FFFFFF'
+  },
+  secondary: {
+    main: '#00ACC1',
+    light: '#5DDEF4',
+    dark: '#007C91',
+    contrastText: '#FFFFFF'
+  },
+  error: {
+    main: '#E53935',
+    light: '#FF6F60',
+    dark: '#AB000D',
+    contrastText: '#FFFFFF'
+  },
+  warning: {
+    main: '#FFB300',
+    light: '#FFE54C',
+    dark: '#C68400',
+    contrastText: '#000000'
+  },
+  info: {
+    main: '#039BE5',
+    light: '#63CCFF',
+    dark: '#006DB3',
+    contrastText: '#FFFFFF'
+  },
+  success: {
+    main: '#00897B',
+    light: '#4EBAAA',
+    dark: '#005B4F',
+    contrastText: '#FFFFFF'
+  },
+  background: {
+    default: '#F0F7F8',
+    paper: '#FFFFFF',
+    surface: '#E0F2F1'
+  },
+  text: {
+    primary: '#263238',
+    secondary: '#607D8B',
+    disabled: '#B0BEC5'
+  },
+  divider: '#CFD8DC',
+  action: {
+    active: '#0097A7',
+    hover: 'rgba(0, 151, 167, 0.04)',
+    selected: 'rgba(0, 151, 167, 0.08)',
+    disabled: 'rgba(0, 0, 0, 0.26)',
+    disabledBackground: 'rgba(0, 0, 0, 0.12)'
+  },
+  clinical: {
+    surfaces: {
+      primary: 'rgba(0, 151, 167, 0.05)',
+      secondary: 'rgba(0, 172, 193, 0.05)',
+      warning: 'rgba(255, 179, 0, 0.05)',
+      error: 'rgba(229, 57, 53, 0.05)',
+      info: 'rgba(3, 155, 229, 0.05)',
+      success: 'rgba(0, 137, 123, 0.05)'
+    },
+    severity: {
+      normal: '#00897B',
+      mild: '#26A69A',
+      moderate: '#FFB300',
+      severe: '#FF6F00',
+      critical: '#E53935'
+    }
+  }
+};
+
+// Forest Wellness Theme
+const forestWellnessPalette = {
+  mode: 'light',
+  primary: {
+    main: '#2E7D32',
+    light: '#60AD5E',
+    dark: '#005005',
+    contrastText: '#FFFFFF'
+  },
+  secondary: {
+    main: '#558B2F',
+    light: '#85BB5C',
+    dark: '#255D00',
+    contrastText: '#FFFFFF'
+  },
+  error: {
+    main: '#C62828',
+    light: '#F05545',
+    dark: '#8E0000',
+    contrastText: '#FFFFFF'
+  },
+  warning: {
+    main: '#F9A825',
+    light: '#FFD95A',
+    dark: '#C17900',
+    contrastText: '#000000'
+  },
+  info: {
+    main: '#1976D2',
+    light: '#63A4FF',
+    dark: '#004BA0',
+    contrastText: '#FFFFFF'
+  },
+  success: {
+    main: '#43A047',
+    light: '#76D275',
+    dark: '#00701A',
+    contrastText: '#FFFFFF'
+  },
+  background: {
+    default: '#F1F8E9',
+    paper: '#FFFFFF',
+    surface: '#E8F5E9'
+  },
+  text: {
+    primary: '#1B5E20',
+    secondary: '#388E3C',
+    disabled: '#81C784'
+  },
+  divider: '#C8E6C9',
+  action: {
+    active: '#2E7D32',
+    hover: 'rgba(46, 125, 50, 0.04)',
+    selected: 'rgba(46, 125, 50, 0.08)',
+    disabled: 'rgba(0, 0, 0, 0.26)',
+    disabledBackground: 'rgba(0, 0, 0, 0.12)'
+  },
+  clinical: {
+    surfaces: {
+      primary: 'rgba(46, 125, 50, 0.05)',
+      secondary: 'rgba(85, 139, 47, 0.05)',
+      warning: 'rgba(249, 168, 37, 0.05)',
+      error: 'rgba(198, 40, 40, 0.05)',
+      info: 'rgba(25, 118, 210, 0.05)',
+      success: 'rgba(67, 160, 71, 0.05)'
+    },
+    severity: {
+      normal: '#43A047',
+      mild: '#66BB6A',
+      moderate: '#F9A825',
+      severe: '#FF6F00',
+      critical: '#C62828'
+    }
+  }
+};
+
+// Sunrise Care Theme
+const sunriseCarePalette = {
+  mode: 'light',
+  primary: {
+    main: '#F57C00',
+    light: '#FFB74D',
+    dark: '#BB4D00',
+    contrastText: '#FFFFFF'
+  },
+  secondary: {
+    main: '#FFD54F',
+    light: '#FFFF81',
+    dark: '#C8A415',
+    contrastText: '#000000'
+  },
+  error: {
+    main: '#D32F2F',
+    light: '#FF6659',
+    dark: '#9A0007',
+    contrastText: '#FFFFFF'
+  },
+  warning: {
+    main: '#FFA000',
+    light: '#FFD149',
+    dark: '#C67100',
+    contrastText: '#000000'
+  },
+  info: {
+    main: '#1E88E5',
+    light: '#6AB7FF',
+    dark: '#005CB2',
+    contrastText: '#FFFFFF'
+  },
+  success: {
+    main: '#689F38',
+    light: '#9CCC65',
+    dark: '#387002',
+    contrastText: '#FFFFFF'
+  },
+  background: {
+    default: '#FFF8E1',
+    paper: '#FFFFFF',
+    surface: '#FFECB3'
+  },
+  text: {
+    primary: '#3E2723',
+    secondary: '#6D4C41',
+    disabled: '#A1887F'
+  },
+  divider: '#FFE0B2',
+  action: {
+    active: '#F57C00',
+    hover: 'rgba(245, 124, 0, 0.04)',
+    selected: 'rgba(245, 124, 0, 0.08)',
+    disabled: 'rgba(0, 0, 0, 0.26)',
+    disabledBackground: 'rgba(0, 0, 0, 0.12)'
+  },
+  clinical: {
+    surfaces: {
+      primary: 'rgba(245, 124, 0, 0.05)',
+      secondary: 'rgba(255, 213, 79, 0.05)',
+      warning: 'rgba(255, 160, 0, 0.05)',
+      error: 'rgba(211, 47, 47, 0.05)',
+      info: 'rgba(30, 136, 229, 0.05)',
+      success: 'rgba(104, 159, 56, 0.05)'
+    },
+    severity: {
+      normal: '#689F38',
+      mild: '#8BC34A',
+      moderate: '#FFA000',
+      severe: '#FF6F00',
+      critical: '#D32F2F'
+    }
+  }
+};
+
+// Midnight Shift Theme (Ultra-dark)
+const midnightShiftPalette = {
+  mode: 'dark',
+  primary: {
+    main: '#5C6BC0',
+    light: '#8E99F3',
+    dark: '#26418F',
+    contrastText: '#FFFFFF'
+  },
+  secondary: {
+    main: '#7E57C2',
+    light: '#B085F5',
+    dark: '#4D2C91',
+    contrastText: '#FFFFFF'
+  },
+  error: {
+    main: '#EF5350',
+    light: '#FF867C',
+    dark: '#B61827',
+    contrastText: '#FFFFFF'
+  },
+  warning: {
+    main: '#FFA726',
+    light: '#FFD95B',
+    dark: '#C77800',
+    contrastText: '#000000'
+  },
+  info: {
+    main: '#42A5F5',
+    light: '#80D6FF',
+    dark: '#0077C2',
+    contrastText: '#FFFFFF'
+  },
+  success: {
+    main: '#66BB6A',
+    light: '#98EE99',
+    dark: '#338A3E',
+    contrastText: '#000000'
+  },
+  background: {
+    default: '#0A0E13',
+    paper: '#1A1F2E',
+    surface: '#151922'
+  },
+  text: {
+    primary: '#F7FAFC',
+    secondary: '#CBD5E0',
+    disabled: '#718096'
+  },
+  divider: 'rgba(255, 255, 255, 0.08)',
+  action: {
+    active: '#5C6BC0',
+    hover: 'rgba(92, 107, 192, 0.08)',
+    selected: 'rgba(92, 107, 192, 0.12)',
+    disabled: 'rgba(255, 255, 255, 0.26)',
+    disabledBackground: 'rgba(255, 255, 255, 0.12)'
+  },
+  clinical: {
+    surfaces: {
+      primary: 'rgba(92, 107, 192, 0.08)',
+      secondary: 'rgba(126, 87, 194, 0.08)',
+      warning: 'rgba(255, 167, 38, 0.08)',
+      error: 'rgba(239, 83, 80, 0.08)',
+      info: 'rgba(66, 165, 245, 0.08)',
+      success: 'rgba(102, 187, 106, 0.08)'
+    },
+    severity: {
+      normal: '#66BB6A',
+      mild: '#81C784',
+      moderate: '#FFA726',
+      severe: '#FF7043',
+      critical: '#EF5350'
+    }
+  }
+};
+
+// Monochrome Clinical Theme
+const monochromeClinicalPalette = {
+  mode: 'light',
+  primary: {
+    main: '#616161',
+    light: '#8E8E8E',
+    dark: '#373737',
+    contrastText: '#FFFFFF'
+  },
+  secondary: {
+    main: '#424242',
+    light: '#6D6D6D',
+    dark: '#1B1B1B',
+    contrastText: '#FFFFFF'
+  },
+  error: {
+    main: '#D32F2F',
+    light: '#EF5350',
+    dark: '#C62828',
+    contrastText: '#FFFFFF'
+  },
+  warning: {
+    main: '#F57C00',
+    light: '#FFB74D',
+    dark: '#E65100',
+    contrastText: '#FFFFFF'
+  },
+  info: {
+    main: '#757575',
+    light: '#A4A4A4',
+    dark: '#494949',
+    contrastText: '#FFFFFF'
+  },
+  success: {
+    main: '#4CAF50',
+    light: '#81C784',
+    dark: '#388E3C',
+    contrastText: '#FFFFFF'
+  },
+  background: {
+    default: '#FAFAFA',
+    paper: '#FFFFFF',
+    surface: '#F5F5F5'
+  },
+  text: {
+    primary: '#212121',
+    secondary: '#757575',
+    disabled: '#BDBDBD'
+  },
+  divider: '#E0E0E0',
+  action: {
+    active: '#616161',
+    hover: 'rgba(97, 97, 97, 0.04)',
+    selected: 'rgba(97, 97, 97, 0.08)',
+    disabled: 'rgba(0, 0, 0, 0.26)',
+    disabledBackground: 'rgba(0, 0, 0, 0.12)'
+  },
+  clinical: {
+    surfaces: {
+      primary: 'rgba(97, 97, 97, 0.05)',
+      secondary: 'rgba(66, 66, 66, 0.05)',
+      warning: 'rgba(245, 124, 0, 0.05)',
+      error: 'rgba(211, 47, 47, 0.05)',
+      info: 'rgba(117, 117, 117, 0.05)',
+      success: 'rgba(76, 175, 80, 0.05)'
+    },
+    severity: {
+      normal: '#4CAF50',
+      mild: '#66BB6A',
+      moderate: '#F57C00',
+      severe: '#FF5722',
+      critical: '#D32F2F'
+    }
+  }
+};
+
+// Pediatric Friendly Theme
+const pediatricFriendlyPalette = {
+  mode: 'light',
+  primary: {
+    main: '#E91E63',
+    light: '#F8BBD0',
+    dark: '#AD1457',
+    contrastText: '#FFFFFF'
+  },
+  secondary: {
+    main: '#00BCD4',
+    light: '#B2EBF2',
+    dark: '#0097A7',
+    contrastText: '#FFFFFF'
+  },
+  error: {
+    main: '#F44336',
+    light: '#FFCDD2',
+    dark: '#C62828',
+    contrastText: '#FFFFFF'
+  },
+  warning: {
+    main: '#FF9800',
+    light: '#FFE0B2',
+    dark: '#F57C00',
+    contrastText: '#000000'
+  },
+  info: {
+    main: '#2196F3',
+    light: '#BBDEFB',
+    dark: '#1976D2',
+    contrastText: '#FFFFFF'
+  },
+  success: {
+    main: '#4CAF50',
+    light: '#C8E6C9',
+    dark: '#388E3C',
+    contrastText: '#FFFFFF'
+  },
+  background: {
+    default: '#FFF3E0',
+    paper: '#FFFFFF',
+    surface: '#FCE4EC'
+  },
+  text: {
+    primary: '#311B92',
+    secondary: '#5E35B1',
+    disabled: '#9575CD'
+  },
+  divider: '#E1BEE7',
+  action: {
+    active: '#E91E63',
+    hover: 'rgba(233, 30, 99, 0.04)',
+    selected: 'rgba(233, 30, 99, 0.08)',
+    disabled: 'rgba(0, 0, 0, 0.26)',
+    disabledBackground: 'rgba(0, 0, 0, 0.12)'
+  },
+  clinical: {
+    surfaces: {
+      primary: 'rgba(233, 30, 99, 0.05)',
+      secondary: 'rgba(0, 188, 212, 0.05)',
+      warning: 'rgba(255, 152, 0, 0.05)',
+      error: 'rgba(244, 67, 54, 0.05)',
+      info: 'rgba(33, 150, 243, 0.05)',
+      success: 'rgba(76, 175, 80, 0.05)'
+    },
+    severity: {
+      normal: '#4CAF50',
+      mild: '#81C784',
+      moderate: '#FF9800',
+      severe: '#FF5722',
+      critical: '#F44336'
     }
   }
 };
@@ -617,7 +1136,7 @@ const getComponentOverrides = (palette) => ({
         borderRadius: 12,
         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)',
         border: `1px solid ${palette.divider}`,
-        transition: 'all 0.2s ease-in-out',
+        transition: `all ${palette.animations?.duration?.shorter || 200}ms ${palette.animations?.easing?.easeInOut || 'ease-in-out'}`,
         '&:hover': {
           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08)'
         }
@@ -649,7 +1168,7 @@ const getComponentOverrides = (palette) => ({
         fontWeight: 500,
         fontSize: '0.875rem',
         padding: '8px 16px',
-        transition: 'all 0.2s ease-in-out',
+        transition: `all ${palette.animations?.duration?.shorter || 200}ms ${palette.animations?.easing?.easeInOut || 'ease-in-out'}`,
         '&:hover': {
           transform: 'translateY(-1px)',
           boxShadow: '0 4px 8px rgba(0, 0, 0, 0.12)'
@@ -678,7 +1197,7 @@ const getComponentOverrides = (palette) => ({
       root: {
         '& .MuiOutlinedInput-root': {
           borderRadius: 8,
-          transition: 'all 0.2s ease-in-out',
+          transition: `all ${palette.animations?.duration?.shorter || 200}ms ${palette.animations?.easing?.easeInOut || 'ease-in-out'}`,
           '&:hover': {
             transform: 'translateY(-1px)',
             boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
@@ -768,26 +1287,103 @@ const getComponentOverrides = (palette) => ({
 export const createMedicalTheme = (themeName = 'professional', mode = 'light') => {
   let palette;
   
-  switch (themeName) {
-    case 'dark':
-      palette = darkMedicalPalette;
-      break;
-    case 'accessible':
-      palette = accessiblePalette;
-      break;
-    case 'warm':
-      palette = warmClinicalPalette;
-      break;
-    case 'professional':
-    default:
-      palette = professionalMedicalPalette;
-      break;
+  // For dark mode, use the enhanced dark medical palette as base
+  if (mode === 'dark') {
+    // Special case: midnight is already a dark theme
+    if (themeName === 'midnight') {
+      palette = { ...midnightShiftPalette };
+    } else {
+      palette = { ...darkMedicalPalette };
+      
+      // Apply theme-specific adjustments to dark mode
+      switch (themeName) {
+        case 'accessible':
+          // High contrast adjustments for dark mode
+          palette.primary.main = '#66B2FF';
+          palette.secondary.main = '#66FF66';
+          palette.text.primary = '#FFFFFF';
+          palette.text.secondary = '#E0E0E0';
+          palette.divider = '#666666';
+          break;
+        case 'warm':
+          // Warm adjustments for dark mode
+          palette.primary.main = '#B794F4';
+          palette.secondary.main = '#F6AD55';
+          break;
+        case 'ocean':
+          // Ocean adjustments for dark mode
+          palette.primary.main = '#4DD0E1';
+          palette.secondary.main = '#5DDEF4';
+          palette.clinical.severity.normal = '#4EBAAA';
+          break;
+        case 'forest':
+          // Forest adjustments for dark mode
+          palette.primary.main = '#81C784';
+          palette.secondary.main = '#A5D6A7';
+          palette.clinical.severity.normal = '#66BB6A';
+          break;
+        case 'sunrise':
+          // Sunrise adjustments for dark mode
+          palette.primary.main = '#FFB74D';
+          palette.secondary.main = '#FFFF81';
+          palette.clinical.severity.normal = '#9CCC65';
+          break;
+        case 'monochrome':
+          // Monochrome adjustments for dark mode
+          palette.primary.main = '#BDBDBD';
+          palette.secondary.main = '#9E9E9E';
+          palette.clinical.severity = {
+            normal: '#81C784',
+            mild: '#A5D6A7',
+            moderate: '#FFB74D',
+            severe: '#FF8A65',
+            critical: '#EF5350'
+          };
+          break;
+        case 'pediatric':
+          // Pediatric adjustments for dark mode
+          palette.primary.main = '#F8BBD0';
+          palette.secondary.main = '#B2EBF2';
+          palette.clinical.severity.normal = '#81C784';
+          break;
+      }
+    }
+  } else {
+    // Light mode themes
+    switch (themeName) {
+      case 'accessible':
+        palette = accessiblePalette;
+        break;
+      case 'warm':
+        palette = warmClinicalPalette;
+        break;
+      case 'ocean':
+        palette = oceanHealthPalette;
+        break;
+      case 'forest':
+        palette = forestWellnessPalette;
+        break;
+      case 'sunrise':
+        palette = sunriseCarePalette;
+        break;
+      case 'midnight':
+        palette = midnightShiftPalette;
+        break;
+      case 'monochrome':
+        palette = monochromeClinicalPalette;
+        break;
+      case 'pediatric':
+        palette = pediatricFriendlyPalette;
+        break;
+      case 'professional':
+      default:
+        palette = professionalMedicalPalette;
+        break;
+    }
   }
 
-  // Override mode if specified
-  if (mode) {
-    palette = { ...palette, mode };
-  }
+  // Ensure mode is set correctly
+  palette.mode = mode;
 
   const theme = createTheme({
     palette,
@@ -957,6 +1553,36 @@ export const themePresets = {
     name: 'Warm Clinical',
     description: 'Warm, approachable clinical interface',
     preview: '#7C4DFF'
+  },
+  ocean: {
+    name: 'Ocean Health',
+    description: 'Calming blues and teals for therapeutic environments',
+    preview: '#0097A7'
+  },
+  forest: {
+    name: 'Forest Wellness',
+    description: 'Natural greens promoting healing and wellness',
+    preview: '#2E7D32'
+  },
+  sunrise: {
+    name: 'Sunrise Care',
+    description: 'Warm oranges and yellows for optimistic healthcare',
+    preview: '#F57C00'
+  },
+  midnight: {
+    name: 'Midnight Shift',
+    description: 'Ultra-dark theme for night shift workers',
+    preview: '#1A237E'
+  },
+  monochrome: {
+    name: 'Monochrome Clinical',
+    description: 'Grayscale theme for minimal color distraction',
+    preview: '#616161'
+  },
+  pediatric: {
+    name: 'Pediatric Friendly',
+    description: 'Bright, cheerful colors for pediatric departments',
+    preview: '#E91E63'
   }
 };
 

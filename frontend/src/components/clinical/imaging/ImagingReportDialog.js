@@ -31,6 +31,7 @@ import {
   getReportCodeFromStudy
 } from './config/diagnosticReportDialogConfig';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const ImagingReportDialog = ({ 
   open, 
@@ -41,6 +42,7 @@ const ImagingReportDialog = ({
   mode = 'add' // 'add' | 'edit' | 'view'
 }) => {
   const { getPatientResources } = useFHIRResource();
+  const { user } = useAuth();
   const [existingReport, setExistingReport] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -78,7 +80,7 @@ const ImagingReportDialog = ({
 
       setExistingReport(linkedReport || null);
     } catch (error) {
-      console.error('Error finding existing report:', error);
+      // Error finding existing report - will create new report
       setExistingReport(null);
     } finally {
       setLoading(false);
@@ -125,8 +127,8 @@ const ImagingReportDialog = ({
         savedResource = updateDiagnosticReportResource(
           formData, 
           existingReport, 
-          'current-user', // TODO: Get from auth context
-          'Dr. Current User' // TODO: Get from auth context
+          user?.username || 'current-user',
+          user?.display_name || 'Dr. Current User'
         );
       } else {
         // Create new DiagnosticReport
@@ -134,8 +136,8 @@ const ImagingReportDialog = ({
           formData, 
           patientId,
           study,
-          'current-user', // TODO: Get from auth context
-          'Dr. Current User' // TODO: Get from auth context
+          user?.username || 'current-user',
+          user?.display_name || 'Dr. Current User'
         );
       }
       

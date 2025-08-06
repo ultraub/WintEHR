@@ -2,14 +2,9 @@
  * MedicationFormFields Component
  * Specialized form fields for MedicationRequest resource management
  */
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import {
   Grid,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Typography,
   Chip,
   Stack,
@@ -17,12 +12,24 @@ import {
   FormControlLabel,
   Checkbox,
   Divider,
-  InputAdornment
+  InputAdornment,
+  Alert,
+  Paper,
+  useTheme,
+  alpha,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format } from 'date-fns';
 import ResourceSearchAutocomplete from '../../../../search/ResourceSearchAutocomplete';
 import { useCatalogMedicationSearch } from '../../../../../hooks/useResourceSearch';
+import ClinicalTextField from '../../../common/ClinicalTextField';
+import ClinicalSelect from '../../../common/ClinicalSelect';
+import { ClinicalResourceCard } from '../../../shared/cards';
 import {
   MEDICATION_STATUS_OPTIONS,
   MEDICATION_PRIORITY_OPTIONS,
@@ -33,8 +40,25 @@ import {
   getPriorityColor,
   getMedicationDisplay
 } from '../../../../../core/fhir/converters/MedicationConverter';
+import {
+  Warning as WarningIcon,
+  Info as InfoIcon,
+  LocalPharmacy as PharmacyIcon,
+  Schedule as ScheduleIcon,
+  Science as ScienceIcon
+} from '@mui/icons-material';
 
-const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }) => {
+const MedicationFormFields = ({ 
+  formData = {}, 
+  errors = {}, 
+  onChange, 
+  disabled,
+  clinicalContext,
+  department,
+  mode = 'add' 
+}) => {
+  const theme = useTheme();
+  
   // Use catalog-enhanced medication search hook
   const medicationSearch = useCatalogMedicationSearch({
     debounceMs: 300,
@@ -62,6 +86,57 @@ const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }
     notes: formData.notes || ''
   }), [formData]);
 
+  // Determine urgency based on priority
+  const getFormUrgency = () => {
+    if (safeFormData.priority === 'urgent' || safeFormData.priority === 'stat') {
+      return 'urgent';
+    }
+    if (safeFormData.priority === 'asap') {
+      return 'high';
+    }
+    return 'normal';
+  };
+
+  const formUrgency = getFormUrgency();
+
+  // Prepare enhanced options
+  const priorityOptions = (MEDICATION_PRIORITY_OPTIONS || []).map(opt => ({
+    value: opt.value,
+    label: opt.label,
+    category: 'Priority',
+    severity: opt.value === 'stat' ? 'critical' : opt.value === 'urgent' ? 'severe' : null
+  }));
+
+  const routeOptions = (ROUTES || []).map(opt => ({
+    value: opt.value,
+    label: opt.label,
+    category: opt.category || 'Route'
+  }));
+
+  const frequencyOptions = (DOSING_FREQUENCIES || []).map(opt => ({
+    value: opt.value,
+    label: opt.label,
+    category: 'Frequency',
+    code: opt.code
+  }));
+
+  // Calculate duration from dates
+  const calculateDuration = useCallback(() => {
+    if (safeFormData.startDate && safeFormData.endDate) {
+      const start = new Date(safeFormData.startDate);
+      const end = new Date(safeFormData.endDate);
+      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+      return `${days} days`;
+    }
+    return '';
+  }, [safeFormData.startDate, safeFormData.endDate]);
+
+  // Handle medication selection
+  const handleMedicationChange = useCallback((event, newValue) => {
+    onChange('selectedMedication', newValue);
+    onChange('customMedication', newValue ? (newValue.display || newValue.code?.text || '') : safeFormData.customMedication);
+  }, [onChange, safeFormData.customMedication]);
+
   // Memoize onChange handlers to prevent recreation
   const handleNotesChange = useCallback((e) => {
     onChange('notes', e.target.value);
@@ -69,498 +144,439 @@ const MedicationFormFields = ({ formData = {}, errors = {}, onChange, disabled }
 
   return (
     <Stack spacing={3}>
-      <Grid container spacing={2}>
-        {/* Medication Search */}
-        <Grid item xs={12}>
-          <Typography variant="subtitle2" gutterBottom>
-            Medication
+      {/* Priority Alert */}
+      {(safeFormData.priority === 'stat' || safeFormData.priority === 'urgent') && (
+        <Alert 
+          severity="warning" 
+          icon={<WarningIcon />}
+          sx={{ 
+            borderLeft: `4px solid ${theme.palette.warning?.main || '#ff9800'}`,
+            backgroundColor: alpha(theme.palette.warning?.main || '#ff9800', 0.05)
+          }}
+        >
+          <Typography variant="body2" fontWeight={600}>
+            {safeFormData.priority === 'stat' ? 'STAT Order' : 'Urgent Order'}
           </Typography>
-          <ResourceSearchAutocomplete
-            label="Search for medications"
-            placeholder="Type to search medications from dynamic catalog..."
-            searchService={medicationSearch.searchService}
-            resourceTypes={['Medication']}
-            value={safeFormData.selectedMedication}
-            onChange={(event, newValue) => {
-              onChange('selectedMedication', newValue);
-              onChange('customMedication', newValue ? (newValue.display || newValue.code?.text || '') : safeFormData.customMedication);
-            }}
-            disabled={disabled}
-            error={!!errors.selectedMedication}
-            helperText={errors.selectedMedication || "Search medications from dynamic clinical catalog"}
-            freeSolo={false}
-            showCacheStatus={true}
-            enableCache={true}
-            cacheTTL={10}
-            debounceMs={300}
-            minQueryLength={2}
-            groupBy={(option) => option.searchSource || 'catalog'}
-            getOptionLabel={(option) => {
-              if (typeof option === 'string') return option;
-              // Handle both catalog format and FHIR format
-              const display = option.display || option.generic_name || option.code?.text || option.id || 'Unknown medication';
-              // Append strength if available
-              if (option.strength) {
-                return `${display} ${option.strength}`;
-              }
-              return display;
-            }}
-            getOptionKey={(option) => {
-              if (typeof option === 'string') return option;
-              // Handle both catalog format (code directly) and FHIR format (code.coding)
-              const code = option.code || option.rxnorm_code || option.code?.coding?.[0]?.code || option.id;
-              return `medication-${code}-${option.system || ''}`;
-            }}
-            renderOption={(props, option) => {
-              const { key, ...otherProps } = props;
-              // Handle both catalog format and FHIR format
-              const display = option.display || option.generic_name || option.code?.text || 'Unknown medication';
-              const code = option.code || option.rxnorm_code || option.code?.coding?.[0]?.code || option.id;
-              const frequency = option.frequency || option.usage_count || 0;
-              const source = option.source || option.searchSource || 'catalog';
-              const strength = option.strength || '';
-              const form = option.dosage_form || option.form || '';
-              const route = option.route || '';
-              
-              return (
-                <Box component="li" key={key} {...otherProps}>
-                  <Stack sx={{ width: '100%' }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {display}
-                      {option.brand_name && (
-                        <Typography component="span" variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
-                          ({option.brand_name})
-                        </Typography>
-                      )}
-                    </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                      {code && (
+          <Typography variant="caption">
+            This medication will be prioritized for immediate processing
+          </Typography>
+        </Alert>
+      )}
+
+      {/* Medication Selection */}
+      <ClinicalResourceCard
+        title="Medication Details"
+        icon={<PharmacyIcon />}
+        urgency={formUrgency}
+        department={department}
+        clinicalContext={clinicalContext}
+        variant="clinical"
+      >
+        <Stack spacing={3}>
+          {/* Medication Search */}
+          <Box>
+            <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+              Medication
+            </Typography>
+            <ResourceSearchAutocomplete
+              label="Search for medications"
+              placeholder="Type to search medications from dynamic catalog..."
+              searchService={medicationSearch.searchService}
+              resourceTypes={['Medication']}
+              value={safeFormData.selectedMedication}
+              onChange={handleMedicationChange}
+              disabled={disabled}
+              error={!!errors.selectedMedication}
+              helperText={errors.selectedMedication || "Search medications from dynamic clinical catalog"}
+              freeSolo={false}
+              showCacheStatus={true}
+              enableCache={true}
+              cacheTTL={10}
+              debounceMs={300}
+              minQueryLength={2}
+              groupBy={(option) => option.searchSource || 'catalog'}
+              getOptionLabel={(option) => {
+                if (typeof option === 'string') return option;
+                const display = option.display || option.generic_name || option.code?.text || option.id || 'Unknown medication';
+                if (option.strength) {
+                  return `${display} ${option.strength}`;
+                }
+                return display;
+              }}
+              getOptionKey={(option) => {
+                if (typeof option === 'string') return option;
+                const code = option.code || option.rxnorm_code || option.code?.coding?.[0]?.code || option.id;
+                return `medication-${code}-${option.system || ''}`;
+              }}
+              renderOption={(props, option) => {
+                const { key, ...otherProps } = props;
+                const display = option.display || option.generic_name || option.code?.text || 'Unknown medication';
+                const code = option.code || option.rxnorm_code || option.code?.coding?.[0]?.code || option.id;
+                const frequency = option.frequency || option.usage_count || 0;
+                const source = option.source || option.searchSource || 'catalog';
+                const strength = option.strength || '';
+                const form = option.dosage_form || option.form || '';
+                const route = option.route || '';
+                
+                return (
+                  <Box component="li" key={key} {...otherProps}>
+                    <Stack sx={{ width: '100%' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {display}
+                        {option.brand_name && (
+                          <Typography component="span" variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
+                            ({option.brand_name})
+                          </Typography>
+                        )}
+                      </Typography>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                        {code && (
+                          <Chip 
+                            label={`RxNorm: ${code}`} 
+                            size="small" 
+                            variant="outlined"
+                            color="primary"
+                          />
+                        )}
+                        {strength && (
+                          <Chip 
+                            label={strength} 
+                            size="small" 
+                            variant="outlined"
+                            color="secondary"
+                          />
+                        )}
+                        {form && (
+                          <Chip 
+                            label={form} 
+                            size="small" 
+                            variant="outlined"
+                            color="info"
+                          />
+                        )}
+                        {route && (
+                          <Chip 
+                            label={route} 
+                            size="small" 
+                            variant="outlined"
+                          />
+                        )}
+                        {frequency > 0 && (
+                          <Chip 
+                            label={`Freq: ${frequency}`} 
+                            size="small" 
+                            variant="outlined"
+                            color="warning"
+                          />
+                        )}
                         <Chip 
-                          label={`RxNorm: ${code}`} 
+                          label={source} 
                           size="small" 
                           variant="outlined"
-                          color="primary"
+                          color={source === 'catalog' ? 'success' : 'default'}
                         />
-                      )}
-                      {strength && (
-                        <Chip 
-                          label={strength} 
-                          size="small" 
-                          variant="outlined"
-                          color="secondary"
-                        />
-                      )}
-                      {form && (
-                        <Chip 
-                          label={form} 
-                          size="small" 
-                          variant="outlined"
-                          color="info"
-                        />
-                      )}
-                      {route && (
-                        <Chip 
-                          label={route} 
-                          size="small" 
-                          variant="outlined"
-                        />
-                      )}
-                      {frequency > 0 && (
-                        <Chip 
-                          label={`Freq: ${frequency}`} 
-                          size="small" 
-                          variant="outlined"
-                          color="warning"
-                        />
-                      )}
-                      <Chip 
-                        label={source} 
-                        size="small" 
-                        variant="outlined"
-                        color={source === 'catalog' ? 'success' : 'default'}
-                      />
+                      </Stack>
                     </Stack>
-                  </Stack>
-                </Box>
-              );
-            }}
-          />
-        </Grid>
+                  </Box>
+                );
+              }}
+            />
+          </Box>
 
-        {/* Custom Medication */}
-        <Grid item xs={12}>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            Or enter a custom medication:
-          </Typography>
-          <TextField
-            fullWidth
-            label="Custom Medication"
-            value={safeFormData.customMedication}
-            onChange={(e) => {
-              onChange('customMedication', e.target.value);
-              onChange('selectedMedication', null);
-            }}
-            variant="outlined"
-            disabled={disabled}
-            error={!!errors.customMedication}
-            helperText={errors.customMedication || "Enter a medication not found in the search results"}
-          />
-        </Grid>
-
-        <Grid item xs={12}>
-          <Divider>
-            <Typography variant="caption" color="text.secondary">
-              Prescription Details
+          {/* Custom Medication */}
+          <Box>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Or enter a custom medication:
             </Typography>
-          </Divider>
-        </Grid>
+            <ClinicalTextField
+              fullWidth
+              label="Custom Medication Name"
+              value={safeFormData.customMedication}
+              onChange={(e) => {
+                onChange('customMedication', e.target.value);
+                onChange('selectedMedication', null);
+              }}
+              placeholder="Enter medication if not found in search"
+              disabled={disabled || !!safeFormData.selectedMedication}
+              clinicalHint="Use for compounded medications or special formulations"
+              department={department}
+              clinicalContext={clinicalContext}
+            />
+          </Box>
+        </Stack>
+      </ClinicalResourceCard>
 
-        {/* Dosage and Route */}
-        <Grid item xs={6}>
-          <TextField
-            fullWidth
-            label="Dosage"
-            value={safeFormData.dosage}
-            onChange={(e) => onChange('dosage', e.target.value)}
-            variant="outlined"
-            disabled={disabled}
-            error={!!errors.dosage}
-            helperText={errors.dosage || "e.g., 10mg, 1 tablet, 5ml"}
-            placeholder="Enter dosage amount"
-            required
-          />
-        </Grid>
+      {/* Dosing Information */}
+      <Paper 
+        sx={{ 
+          p: 2, 
+          backgroundColor: theme.clinical?.surfaces?.secondary || theme.palette.background.paper,
+          border: `1px solid ${theme.palette.divider}`
+        }}
+      >
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+          <ScheduleIcon color="action" />
+          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+            Dosing Information
+          </Typography>
+        </Stack>
+        
+        <Grid container spacing={2}>
+          {/* Dosage */}
+          <Grid item xs={12} sm={6}>
+            <ClinicalTextField
+              fullWidth
+              label="Dosage"
+              value={safeFormData.dosage}
+              onChange={(e) => onChange('dosage', e.target.value)}
+              placeholder="e.g., 10 mg, 2 tablets"
+              required
+              error={!!errors.dosage}
+              helperText={errors.dosage}
+              disabled={disabled}
+              clinicalHint="Specify amount and unit"
+              department={department}
+              clinicalContext={clinicalContext}
+            />
+          </Grid>
 
-        <Grid item xs={6}>
-          <FormControl fullWidth error={!!errors.route}>
-            <InputLabel>Route</InputLabel>
-            <Select
-              value={safeFormData.route}
+          {/* Route */}
+          <Grid item xs={12} sm={6}>
+            <ClinicalSelect
               label="Route"
-              disabled={disabled}
+              value={safeFormData.route}
               onChange={(e) => onChange('route', e.target.value)}
+              options={routeOptions}
               required
-            >
-              {ROUTES.map(route => (
-                <MenuItem key={route.value} value={route.value}>
-                  {route.display}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
+              disabled={disabled}
+              showCategories={true}
+              department={department}
+              clinicalContext={clinicalContext}
+            />
+          </Grid>
 
-        {/* Frequency and Duration */}
-        <Grid item xs={6}>
-          <FormControl fullWidth error={!!errors.frequency}>
-            <InputLabel>Frequency</InputLabel>
-            <Select
-              value={safeFormData.frequency}
+          {/* Frequency */}
+          <Grid item xs={12} sm={6}>
+            <ClinicalSelect
               label="Frequency"
-              disabled={disabled}
+              value={safeFormData.frequency}
               onChange={(e) => onChange('frequency', e.target.value)}
+              options={frequencyOptions}
               required
-            >
-              {DOSING_FREQUENCIES.map(freq => (
-                <MenuItem key={freq.value} value={freq.value}>
-                  <Stack direction="row" justifyContent="space-between" sx={{ width: '100%' }}>
-                    <Typography variant="body2">{freq.display}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {freq.timing}
-                    </Typography>
-                  </Stack>
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
-
-        <Grid item xs={6}>
-          <TextField
-            fullWidth
-            label="Duration"
-            value={safeFormData.duration}
-            onChange={(e) => onChange('duration', e.target.value)}
-            variant="outlined"
-            disabled={disabled}
-            error={!!errors.duration}
-            helperText={errors.duration || "Supply duration in days"}
-            placeholder="e.g., 30"
-            InputProps={{
-              endAdornment: <InputAdornment position="end">days</InputAdornment>
-            }}
-          />
-        </Grid>
-
-        {/* Quantity and Refills */}
-        <Grid item xs={6}>
-          <TextField
-            fullWidth
-            label="Quantity"
-            value={safeFormData.quantity}
-            onChange={(e) => onChange('quantity', e.target.value)}
-            variant="outlined"
-            disabled={disabled}
-            error={!!errors.quantity}
-            helperText={errors.quantity || "Total quantity to dispense"}
-            placeholder="e.g., 30"
-            required
-          />
-        </Grid>
-
-        <Grid item xs={6}>
-          <TextField
-            fullWidth
-            label="Refills"
-            type="number"
-            value={safeFormData.refills}
-            onChange={(e) => onChange('refills', parseInt(e.target.value) || 0)}
-            variant="outlined"
-            disabled={disabled}
-            error={!!errors.refills}
-            helperText={errors.refills || "Number of refills allowed"}
-            inputProps={{ min: 0, max: 12 }}
-          />
-        </Grid>
-
-        <Grid item xs={12}>
-          <Divider>
-            <Typography variant="caption" color="text.secondary">
-              Clinical Information
-            </Typography>
-          </Divider>
-        </Grid>
-
-        {/* Status, Priority, Intent */}
-        <Grid item xs={4}>
-          <FormControl fullWidth error={!!errors.status}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={safeFormData.status}
-              label="Status"
               disabled={disabled}
-              onChange={(e) => onChange('status', e.target.value)}
-              required
-            >
-              {MEDICATION_STATUS_OPTIONS.map(status => (
-                <MenuItem key={status.value} value={status.value}>
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    <Typography variant="body2">{status.display}</Typography>
-                    <Chip 
-                      size="small" 
-                      label={status.value} 
-                      color={getStatusColor(status.value)}
-                      variant="outlined"
-                    />
-                  </Stack>
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
+              showClinicalCodes={true}
+              frequentOptions={['once-daily', 'twice-daily', 'three-times-daily', 'as-needed']}
+              department={department}
+              clinicalContext={clinicalContext}
+            />
+          </Grid>
 
-        <Grid item xs={4}>
-          <FormControl fullWidth error={!!errors.priority}>
-            <InputLabel>Priority</InputLabel>
-            <Select
-              value={safeFormData.priority}
+          {/* Priority */}
+          <Grid item xs={12} sm={6}>
+            <ClinicalSelect
               label="Priority"
-              disabled={disabled}
+              value={safeFormData.priority}
               onChange={(e) => onChange('priority', e.target.value)}
-              required
-            >
-              {MEDICATION_PRIORITY_OPTIONS.map(priority => (
-                <MenuItem key={priority.value} value={priority.value}>
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    <Typography variant="body2">{priority.display}</Typography>
-                    <Chip 
-                      size="small" 
-                      label={priority.value} 
-                      color={getPriorityColor(priority.value)}
-                      variant="outlined"
-                    />
-                  </Stack>
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
-
-        <Grid item xs={4}>
-          <FormControl fullWidth error={!!errors.intent}>
-            <InputLabel>Intent</InputLabel>
-            <Select
-              value={safeFormData.intent}
-              label="Intent"
+              options={priorityOptions}
               disabled={disabled}
-              onChange={(e) => onChange('intent', e.target.value)}
-              required
-            >
-              {INTENT_OPTIONS.map(intent => (
-                <MenuItem key={intent.value} value={intent.value}>
-                  {intent.display}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
+              showSeverityIndicators={true}
+              department={department}
+              clinicalContext={clinicalContext}
+              urgency={formUrgency}
+            />
+          </Grid>
 
-        {/* Dates */}
-        <Grid item xs={6}>
-          <DatePicker
-            label="Start Date"
-            value={safeFormData.startDate}
-            disabled={disabled}
-            onChange={(newValue) => onChange('startDate', newValue)}
-            slotProps={{
-              textField: { 
-                fullWidth: true,
-                error: !!errors.startDate,
-                helperText: errors.startDate || "When to start the medication"
-              }
-            }}
-            minDate={new Date()}
-          />
-        </Grid>
+          {/* Start Date */}
+          <Grid item xs={12} sm={6}>
+            <DatePicker
+              label="Start Date"
+              value={safeFormData.startDate}
+              onChange={(date) => onChange('startDate', date)}
+              disabled={disabled}
+              minDate={new Date()}
+              slotProps={{
+                textField: {
+                  fullWidth: true,
+                  error: !!errors.startDate,
+                  helperText: errors.startDate
+                }
+              }}
+            />
+          </Grid>
 
-        <Grid item xs={6}>
-          <DatePicker
-            label="End Date (Optional)"
-            value={safeFormData.endDate}
-            disabled={disabled}
-            onChange={(newValue) => onChange('endDate', newValue)}
-            slotProps={{
-              textField: { 
-                fullWidth: true,
-                error: !!errors.endDate,
-                helperText: errors.endDate || "When to stop the medication (optional)"
-              }
-            }}
-            minDate={safeFormData.startDate}
-          />
+          {/* End Date */}
+          <Grid item xs={12} sm={6}>
+            <DatePicker
+              label="End Date (Optional)"
+              value={safeFormData.endDate}
+              onChange={(date) => onChange('endDate', date)}
+              disabled={disabled}
+              minDate={safeFormData.startDate || new Date()}
+              slotProps={{
+                textField: {
+                  fullWidth: true,
+                  error: !!errors.endDate,
+                  helperText: errors.endDate || calculateDuration()
+                }
+              }}
+            />
+          </Grid>
         </Grid>
+      </Paper>
 
-        {/* Instructions and Indication */}
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Special Instructions"
-            value={safeFormData.instructions}
-            disabled={disabled}
-            onChange={(e) => onChange('instructions', e.target.value)}
-            variant="outlined"
-            multiline
-            rows={2}
-            error={!!errors.instructions}
-            helperText={errors.instructions || "Special dosing instructions for the patient"}
-            placeholder="e.g., Take with food, Take at bedtime..."
-          />
-        </Grid>
-
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Indication"
-            value={safeFormData.indication}
-            disabled={disabled}
-            onChange={(e) => onChange('indication', e.target.value)}
-            variant="outlined"
-            error={!!errors.indication}
-            helperText={errors.indication || "What condition is this medication treating?"}
-            placeholder="e.g., Hypertension, Diabetes, Pain management..."
-          />
-        </Grid>
-
-        {/* Generic Substitution */}
-        <Grid item xs={12}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={safeFormData.genericSubstitution}
-                onChange={(e) => onChange('genericSubstitution', e.target.checked)}
-                disabled={disabled}
-              />
-            }
-            label="Allow generic substitution"
-          />
-        </Grid>
-
-        {/* Additional Notes */}
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Additional Notes"
-            value={safeFormData.notes}
-            disabled={disabled}
-            onChange={handleNotesChange}
-            variant="outlined"
-            multiline
-            rows={3}
-            error={!!errors.notes}
-            helperText={errors.notes || "Additional clinical notes about this prescription"}
-            placeholder="Clinical notes, drug interactions, patient preferences..."
-          />
-        </Grid>
-      </Grid>
-
-      {/* Preview */}
-      {(safeFormData.selectedMedication || safeFormData.customMedication) && safeFormData.dosage && (
-        <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
-          <Typography variant="subtitle2" gutterBottom>
-            Prescription Preview:
+      {/* Dispensing Information */}
+      <Paper 
+        sx={{ 
+          p: 2, 
+          backgroundColor: theme.palette.background.paper,
+          border: `1px solid ${theme.palette.divider}`
+        }}
+      >
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+          <ScienceIcon color="action" />
+          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+            Dispensing Information
           </Typography>
-          <Stack spacing={1}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-              <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                {getMedicationDisplay(safeFormData)}
-              </Typography>
-              <Chip 
-                label={safeFormData.status} 
-                size="small" 
-                color={getStatusColor(safeFormData.status)}
+        </Stack>
+        
+        <Grid container spacing={2}>
+          {/* Quantity */}
+          <Grid item xs={12} sm={4}>
+            <ClinicalTextField
+              fullWidth
+              label="Quantity"
+              value={safeFormData.quantity}
+              onChange={(e) => onChange('quantity', e.target.value)}
+              placeholder="e.g., 30"
+              required
+              error={!!errors.quantity}
+              helperText={errors.quantity}
+              disabled={disabled}
+              unit="units"
+              type="number"
+              department={department}
+              clinicalContext={clinicalContext}
+            />
+          </Grid>
+
+          {/* Refills */}
+          <Grid item xs={12} sm={4}>
+            <ClinicalTextField
+              fullWidth
+              label="Refills"
+              value={safeFormData.refills}
+              onChange={(e) => onChange('refills', parseInt(e.target.value) || 0)}
+              error={!!errors.refills}
+              helperText={errors.refills}
+              disabled={disabled}
+              type="number"
+              inputProps={{ min: 0, max: 12 }}
+              department={department}
+              clinicalContext={clinicalContext}
+            />
+          </Grid>
+
+          {/* Generic Substitution */}
+          <Grid item xs={12} sm={4}>
+            <Box sx={{ pt: 2 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={safeFormData.genericSubstitution}
+                    onChange={(e) => onChange('genericSubstitution', e.target.checked)}
+                    disabled={disabled}
+                  />
+                }
+                label="Generic substitution allowed"
               />
-              <Chip 
-                label={safeFormData.priority} 
-                size="small" 
-                color={getPriorityColor(safeFormData.priority)}
-                variant="outlined"
-              />
-            </Stack>
-            
-            <Typography variant="body2">
-              <strong>Dosage:</strong> {safeFormData.dosage} {ROUTES.find(r => r.value === safeFormData.route)?.display} {DOSING_FREQUENCIES.find(f => f.value === safeFormData.frequency)?.display}
-            </Typography>
-            
-            {safeFormData.quantity && (
-              <Typography variant="body2">
-                <strong>Dispense:</strong> {safeFormData.quantity} doses
-                {safeFormData.refills > 0 && ` (${safeFormData.refills} refills)`}
-                {safeFormData.duration && ` • ${safeFormData.duration} day supply`}
-              </Typography>
-            )}
-            
-            {safeFormData.instructions && (
-              <Typography variant="body2">
-                <strong>Instructions:</strong> {safeFormData.instructions}
-              </Typography>
-            )}
-            
-            {safeFormData.indication && (
-              <Typography variant="body2">
-                <strong>For:</strong> {safeFormData.indication}
-              </Typography>
-            )}
-            
-            <Typography variant="caption" color="text.secondary">
-              Start: {format(safeFormData.startDate, 'MMM d, yyyy')}
-              {safeFormData.endDate && ` • End: ${format(safeFormData.endDate, 'MMM d, yyyy')}`}
-              {!safeFormData.genericSubstitution && " • Brand name only"}
+            </Box>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      {/* Additional Information */}
+      <Stack spacing={2}>
+        {/* Indication */}
+        <ClinicalTextField
+          fullWidth
+          label="Indication"
+          value={safeFormData.indication}
+          onChange={(e) => onChange('indication', e.target.value)}
+          placeholder="What condition is this medication treating?"
+          required
+          error={!!errors.indication}
+          helperText={errors.indication}
+          disabled={disabled}
+          clinicalHint="This helps pharmacists verify appropriate use"
+          department={department}
+          clinicalContext={clinicalContext}
+        />
+
+        {/* Patient Instructions */}
+        <ClinicalTextField
+          fullWidth
+          multiline
+          rows={2}
+          label="Patient Instructions"
+          value={safeFormData.instructions}
+          onChange={(e) => onChange('instructions', e.target.value)}
+          placeholder="Special instructions for the patient..."
+          disabled={disabled}
+          clinicalHint="These will appear on the medication label"
+          department={department}
+          clinicalContext={clinicalContext}
+        />
+
+        {/* Clinical Notes */}
+        <ClinicalTextField
+          fullWidth
+          multiline
+          rows={2}
+          label="Clinical Notes (Internal)"
+          value={safeFormData.notes}
+          onChange={handleNotesChange}
+          placeholder="Additional notes for healthcare providers..."
+          disabled={disabled}
+          helperText="These notes are for clinical staff only"
+          department={department}
+          clinicalContext={clinicalContext}
+        />
+      </Stack>
+
+      {/* Prescription Summary */}
+      {(safeFormData.selectedMedication || safeFormData.customMedication) && safeFormData.dosage && (
+        <Paper 
+          variant="outlined" 
+          sx={{ 
+            p: 2, 
+            backgroundColor: alpha(theme.palette.info?.main || '#2196f3', 0.05),
+            borderColor: theme.palette.info?.main || '#2196f3'
+          }}
+        >
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+            <InfoIcon fontSize="small" sx={{ color: theme.palette.info?.main || '#2196f3' }} />
+            <Typography variant="subtitle2" sx={{ color: theme.palette.info?.main || '#2196f3' }}>
+              Prescription Summary
             </Typography>
           </Stack>
-        </Box>
+          <Typography variant="body2">
+            <strong>Medication:</strong> {getMedicationDisplay(safeFormData.selectedMedication) || safeFormData.customMedication}
+          </Typography>
+          <Typography variant="body2">
+            <strong>Sig:</strong> {safeFormData.dosage} {safeFormData.route} {safeFormData.frequency}
+          </Typography>
+          <Typography variant="body2">
+            <strong>Dispense:</strong> {safeFormData.quantity} units, {safeFormData.refills} refills
+          </Typography>
+          {safeFormData.indication && (
+            <Typography variant="body2">
+              <strong>For:</strong> {safeFormData.indication}
+            </Typography>
+          )}
+        </Paper>
       )}
     </Stack>
   );
 };
 
-export default React.memo(MedicationFormFields);
+export default MedicationFormFields;

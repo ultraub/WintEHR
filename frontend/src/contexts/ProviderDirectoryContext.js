@@ -117,7 +117,9 @@ export const ProviderDirectoryProvider = ({ children }) => {
   useEffect(() => {
     loadSpecialties();
     loadOrganizations();
-  }, []); // Empty dependency array ensures this only runs once
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Missing deps: loadSpecialties, loadOrganizations. These functions don't change
+  // and we only want to load once on mount
 
   const value = {
     // Data

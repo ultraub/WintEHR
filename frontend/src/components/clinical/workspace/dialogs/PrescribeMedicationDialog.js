@@ -5,7 +5,7 @@
 import React from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import BaseResourceDialog from '../../../base/BaseResourceDialog';
+import EnhancedBaseResourceDialog from '../../../base/EnhancedBaseResourceDialog';
 import MedicationFormFields from './components/MedicationFormFields';
 import {
   initialValues,
@@ -13,7 +13,7 @@ import {
   createMedicationRequestResource
 } from './config/medicationDialogConfig';
 
-const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) => {
+const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId, department }) => {
   
   // Custom validation function
   const handleValidate = (formData) => {
@@ -69,7 +69,7 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <BaseResourceDialog
+      <EnhancedBaseResourceDialog
         // Dialog props
         open={open}
         onClose={onClose}
@@ -92,9 +92,12 @@ const PrescribeMedicationDialog = ({ open, onClose, onPrescribe, patientId }) =>
         // UI customization
         showPreview={true}
         showCancel={true}
+        
+        // Clinical context
+        department={department}
       >
         <MedicationFormFields />
-      </BaseResourceDialog>
+      </EnhancedBaseResourceDialog>
     </LocalizationProvider>
   );
 };

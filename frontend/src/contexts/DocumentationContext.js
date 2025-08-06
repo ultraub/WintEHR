@@ -3,7 +3,7 @@
  * Manages clinical documentation state using FHIR DocumentReference resources
  */
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { useClinical } from './ClinicalContext';
 import { useFHIRResource } from './FHIRResourceContext';
 import { documentReferenceConverter } from '../core/fhir/converters/DocumentReferenceConverter';

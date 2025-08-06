@@ -3,8 +3,8 @@
  * Handles tracking medication effectiveness and generating monitoring prompts
  */
 
-import { fhirClient } from './fhirClient';
-import { format, addDays, addWeeks, addMonths, parseISO, isAfter, differenceInDays } from 'date-fns';
+import { fhirClient } from '../core/fhir/services/fhirClient';
+import { addDays, addMonths, parseISO, isAfter, differenceInDays } from 'date-fns';
 
 class MedicationEffectivenessService {
   constructor() {
@@ -303,7 +303,7 @@ class MedicationEffectivenessService {
    */
   async recordAssessmentResults(assessmentData) {
     try {
-      const { medicationRequestId, responses, metrics, clinicalNotes, nextReviewDate } = assessmentData;
+      const { medicationRequestId, responses, clinicalNotes, nextReviewDate } = assessmentData;
 
       // Create an Observation for the effectiveness assessment
       const effectivenessObservation = {
@@ -555,7 +555,6 @@ class MedicationEffectivenessService {
   }
 
   determineUrgencyLevel(medicationRequest, parameters) {
-    const daysSinceStart = differenceInDays(new Date(), parseISO(medicationRequest.authoredOn));
     const nextAssessment = parseISO(this.calculateNextAssessmentDate(medicationRequest, parameters));
     const daysUntilAssessment = differenceInDays(nextAssessment, new Date());
 
@@ -645,7 +644,7 @@ class MedicationEffectivenessService {
         note: [
           ...(monitoringPlan.note || []),
           {
-            text: `Assessment completed: ${assessmentData.overallEffectiveness}. Next review: ${format(parseISO(assessmentData.nextReviewDate), 'MMM d, yyyy')}`,
+            text: `Assessment completed: ${assessmentData.overallEffectiveness}. Next review: ${new Date(assessmentData.nextReviewDate).toLocaleDateString()}`,
             time: new Date().toISOString()
           }
         ]

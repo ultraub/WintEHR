@@ -2,15 +2,14 @@ import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import ProtectedRoute from '../components/ProtectedRoute';
 import LayoutV3 from '../components/LayoutV3';
-import ClinicalLayout from '../components/ClinicalLayout';
 import Login from '../pages/Login';
 import PatientList from '../pages/PatientList';
 import PatientDashboardV2Page from '../pages/PatientDashboardV2Page';
-import ClinicalWorkspaceV3 from '../components/clinical/ClinicalWorkspaceV3';
+import ClinicalWorkspaceWrapper from '../components/clinical/ClinicalWorkspaceWrapper';
 import Dashboard from '../pages/Dashboard';
 import Analytics from '../pages/Analytics';
-import FHIRExplorerRedesigned from '../pages/FHIRExplorerRedesigned';
 import FHIRExplorerApp from '../components/fhir-explorer-v4/core/FHIRExplorerApp';
+import QueryStudioEnhanced from '../components/fhir-explorer-v4/query-building/QueryStudioEnhanced';
 import { AppProviders } from '../providers/AppProviders';
 import Settings from '../pages/Settings';
 import Schedule from '../pages/Schedule';
@@ -19,6 +18,7 @@ import MedicationReconciliationPage from '../pages/MedicationReconciliationPage'
 import VitalSignsPage from '../pages/VitalSignsPage';
 import TrainingCenterPage from '../pages/TrainingCenterPage';
 import CDSHooksStudio from '../pages/CDSHooksStudio';
+import CDSPresentationModeTester from '../components/clinical/cds/CDSPresentationModeTester';
 import EncountersPage from '../pages/EncountersPage';
 import LabResultsPage from '../pages/LabResultsPage';
 import MedicationsPage from '../pages/MedicationsPage';
@@ -26,8 +26,11 @@ import QualityMeasuresPage from '../pages/QualityMeasuresPage';
 import CareGapsPage from '../pages/CareGapsPage';
 import AuditTrailPage from '../pages/AuditTrailPage';
 import PharmacyPage from '../pages/PharmacyPage';
+import InventoryManagementPage from '../pages/InventoryManagementPage';
 import PatientTimelinePage from '../pages/PatientTimelinePage';
 import UIComposerMain from '../modules/ui-composer/UIComposerMain';
+import PerformanceTestPage from '../pages/PerformanceTestPage';
+import PageTransitionProvider, { transitionPresets } from '../components/transitions/PageTransitionProvider';
 
 // Create router with future flags enabled
 export const router = createBrowserRouter([
@@ -63,9 +66,7 @@ export const router = createBrowserRouter([
     path: '/patients/:id/clinical',
     element: (
       <ProtectedRoute>
-        <ClinicalLayout>
-          <ClinicalWorkspaceV3 />
-        </ClinicalLayout>
+        <ClinicalWorkspaceWrapper />
       </ProtectedRoute>
     )
   },
@@ -164,6 +165,16 @@ export const router = createBrowserRouter([
     )
   },
   {
+    path: '/inventory',
+    element: (
+      <ProtectedRoute>
+        <LayoutV3>
+          <InventoryManagementPage />
+        </LayoutV3>
+      </ProtectedRoute>
+    )
+  },
+  {
     path: '/analytics',
     element: (
       <ProtectedRoute>
@@ -197,19 +208,19 @@ export const router = createBrowserRouter([
     path: '/fhir-explorer',
     element: (
       <ProtectedRoute>
-        <LayoutV3>
-          <FHIRExplorerRedesigned />
-        </LayoutV3>
+        <AppProviders>
+          <FHIRExplorerApp />
+        </AppProviders>
       </ProtectedRoute>
     )
   },
   {
-    path: '/fhir-explorer-v4',
+    path: '/fhir-explorer/query-studio-enhanced',
     element: (
       <ProtectedRoute>
-        <AppProviders>
-          <FHIRExplorerApp />
-        </AppProviders>
+        <LayoutV3>
+          <QueryStudioEnhanced />
+        </LayoutV3>
       </ProtectedRoute>
     )
   },
@@ -232,6 +243,16 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <LayoutV3>
           <CDSHooksStudio />
+        </LayoutV3>
+      </ProtectedRoute>
+    )
+  },
+  {
+    path: '/cds-presentation-test',
+    element: (
+      <ProtectedRoute>
+        <LayoutV3>
+          <CDSPresentationModeTester />
         </LayoutV3>
       </ProtectedRoute>
     )
@@ -272,6 +293,16 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <LayoutV3>
           <TrainingCenterPage />
+        </LayoutV3>
+      </ProtectedRoute>
+    )
+  },
+  {
+    path: '/performance-test',
+    element: (
+      <ProtectedRoute>
+        <LayoutV3>
+          <PerformanceTestPage />
         </LayoutV3>
       </ProtectedRoute>
     )

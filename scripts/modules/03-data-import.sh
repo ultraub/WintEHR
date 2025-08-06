@@ -220,7 +220,36 @@ else
     error "Data verification completed with unknown status: $VERIFICATION_RESULT"
 fi
 
-# Step 6: Test basic FHIR operations
+# Step 6: Verify search parameters were extracted
+log "Verifying search parameter extraction..."
+
+SEARCH_PARAM_VERIFICATION=$(docker exec emr-backend bash -c "cd /app && python scripts/verify_search_params_after_import.py" 2>&1 || echo "SEARCH_VERIFICATION_FAILED")
+
+if echo "$SEARCH_PARAM_VERIFICATION" | grep -q "VERIFICATION PASSED"; then
+    success "Search parameter verification passed"
+elif echo "$SEARCH_PARAM_VERIFICATION" | grep -q "VERIFICATION FAILED"; then
+    warning "Search parameter verification failed"
+    warning "Some resources are missing search parameters"
+    
+    # Show the issues
+    echo "$SEARCH_PARAM_VERIFICATION" | grep -E "❌|Issues found:" -A 20 | while read -r line; do
+        log "$line"
+    done
+    
+    # Automatically fix by running migration
+    log "Attempting to fix by running search parameter migration..."
+    MIGRATION_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/active/run_migration.py" 2>&1 || echo "MIGRATION_FAILED")
+    
+    if echo "$MIGRATION_RESULT" | grep -q "Migration completed successfully"; then
+        success "Search parameter migration completed"
+    else
+        warning "Search parameter migration failed - searches may not work properly"
+    fi
+else
+    warning "Search parameter verification completed with unknown status"
+fi
+
+# Step 7: Test basic FHIR operations
 log "Testing FHIR operations..."
 
 API_TEST_RESULT=$(docker exec emr-backend bash -c "cd /app && python -c '
@@ -256,7 +285,7 @@ else
     warning "FHIR API test error: $API_TEST_RESULT"
 fi
 
-# Step 7: Mode-specific validations
+# Step 8: Mode-specific validations
 if [ "$MODE" = "production" ]; then
     log "Running production data validations..."
     

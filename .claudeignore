@@ -1,0 +1,98 @@
+# Node modules - extremely large, causes search to hang
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+**/node_modules/
+
+# Python virtual environments
+venv/
+.venv/
+backend/venv/
+ENV/
+env/
+**/__pycache__/
+*.pyc
+
+# Large data directories
+synthea/output/
+backend/synthea/output/
+backend/data/synthea_output/
+backend/data/synthea_backups/
+data/synthea_backups/
+
+# Binary files that can't be searched
+*.dcm
+*.jar
+*.so
+*.dylib
+*.dll
+*.exe
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.pdf
+*.zip
+*.tar
+*.gz
+*.rar
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+postgres_data/
+
+# Build artifacts
+build/
+dist/
+frontend/build/
+*.egg-info/
+.gradle/
+
+# Lock files (very large in npm projects)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Logs and temporary files
+*.log
+logs/
+*.tmp
+*.bak
+temp/
+tmp/
+
+# Test coverage and reports
+coverage/
+htmlcov/
+.coverage
+.nyc_output/
+.pytest_cache/
+test_results/
+
+# Docker volumes
+docker-volumes/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large backup directories
+*backup*/
+*_backup_*/
+backup_*/
+archives/
+# Additional aggressive exclusions
+frontend/
+backend/data/
+.claude/
+e2e-tests/videos/
+e2e-tests/screenshots/

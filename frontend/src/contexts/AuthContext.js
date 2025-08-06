@@ -2,7 +2,7 @@
  * Auth Context Provider
  * Real authentication context for the EMR system
  */
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
 const AuthContext = createContext(undefined);
@@ -19,12 +19,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check for existing session on mount
-  useEffect(() => {
-    checkSession();
-  }, []);
-
-  const checkSession = async () => {
+  const checkSession = useCallback(async () => {
     const token = localStorage.getItem('auth_token');
     if (token) {
       // For now, just use cached user data since auth endpoints are not implemented
@@ -41,7 +36,12 @@ export const AuthProvider = ({ children }) => {
       }
     }
     setLoading(false);
-  };
+  }, []);
+
+  // Check for existing session on mount
+  useEffect(() => {
+    checkSession();
+  }, [checkSession]);
 
   const login = async (username, password = 'password') => {
     setLoading(true);

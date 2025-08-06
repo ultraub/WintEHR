@@ -2,7 +2,7 @@
  * Lab Trends Component
  * Displays laboratory test trends over time with filtering
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -16,7 +16,8 @@ import {
   Chip,
   Grid,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  useTheme
 } from '@mui/material';
 import {
   LineChart,
@@ -25,14 +26,17 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   ReferenceLine
 } from 'recharts';
 import { format, parseISO, subDays } from 'date-fns';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
+import { getChartColors, getReferenceColors } from '../../../themes/chartColors';
 
 const LabTrends = ({ patientId, height = 300 }) => {
+  const theme = useTheme();
+  const chartColors = getChartColors(theme);
+  const refColors = getReferenceColors(theme);
   const [allLabData, setAllLabData] = useState([]);
   const [labData, setLabData] = useState([]);
   const [availableTests, setAvailableTests] = useState([]);
@@ -42,17 +46,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
   const [testInfo, setTestInfo] = useState(null);
   const [timeRange, setTimeRange] = useState(1095); // days - default to 3 years
 
-  useEffect(() => {
-    fetchAllLabData();
-  }, [patientId, timeRange]);
-
-  useEffect(() => {
-    if (selectedTest && allLabData.length > 0) {
-      filterLabDataByTest();
-    }
-  }, [selectedTest, allLabData]);
-
-  const fetchAllLabData = async () => {
+  const fetchAllLabData = useCallback(async () => {
     if (!patientId) return;
     
     setLoading(true);
@@ -73,7 +67,11 @@ const LabTrends = ({ patientId, height = 300 }) => {
         value_unit: obs.valueQuantity?.unit || '',
         unit: obs.valueQuantity?.unit || '',
         status: obs.status,
-        reference_range: obs.referenceRange?.[0]?.text
+        reference_range: obs.referenceRange?.[0]?.text,
+        reference_range_low: obs.referenceRange?.[0]?.low?.value,
+        reference_range_high: obs.referenceRange?.[0]?.high?.value,
+        interpretation: obs.interpretation?.[0]?.coding?.[0]?.code || obs.interpretation?.[0]?.text,
+        value_quantity: obs.valueQuantity?.value
       }));
 
       // Filter by time range on frontend
@@ -113,9 +111,9 @@ const LabTrends = ({ patientId, height = 300 }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [patientId, timeRange, selectedTest]);
 
-  const filterLabDataByTest = () => {
+  const filterLabDataByTest = useCallback(() => {
     if (!selectedTest || !allLabData.length) return;
     
     // Filter data for the selected test
@@ -150,7 +148,17 @@ const LabTrends = ({ patientId, height = 300 }) => {
         refHigh: latestResult.referenceRangeHigh
       });
     }
-  };
+  }, [selectedTest, allLabData, availableTests]);
+
+  useEffect(() => {
+    fetchAllLabData();
+  }, [fetchAllLabData]);
+
+  useEffect(() => {
+    if (selectedTest && allLabData.length > 0) {
+      filterLabDataByTest();
+    }
+  }, [selectedTest, allLabData, filterLabDataByTest]);
 
   const formatXAxisDate = (dateStr) => {
     return format(parseISO(dateStr), 'MM/dd');
@@ -234,7 +242,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
             {testInfo?.refLow && (
               <ReferenceLine 
                 y={testInfo.refLow} 
-                stroke="green" 
+                stroke={refColors.normal} 
                 strokeDasharray="3 3" 
                 label={{ value: "Lower limit", position: "right" }}
               />
@@ -242,7 +250,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
             {testInfo?.refHigh && (
               <ReferenceLine 
                 y={testInfo.refHigh} 
-                stroke="red" 
+                stroke={refColors.abnormal} 
                 strokeDasharray="3 3" 
                 label={{ value: "Upper limit", position: "right" }}
               />
@@ -251,7 +259,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
             <Line 
               type="monotone" 
               dataKey="value" 
-              stroke="#8884d8" 
+              stroke={chartColors.palette[0]} 
               strokeWidth={2}
               dot={(props) => {
                 const { cx, cy, payload } = props;
@@ -260,7 +268,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
                     cx={cx} 
                     cy={cy} 
                     r={4} 
-                    fill={payload.isAbnormal ? '#f44336' : '#8884d8'}
+                    fill={payload.isAbnormal ? theme.palette.error.main : chartColors.palette[0]}
                   />
                 );
               }}

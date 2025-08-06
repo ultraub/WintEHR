@@ -8,22 +8,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { enhancedOrderSearchService } from '../services/enhancedOrderSearch';
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
-import { useClinicalWorkflow } from '../contexts/ClinicalWorkflowContext';
 
 export const useAdvancedOrderSearch = (options = {}) => {
   const { currentPatient } = useFHIRResource();
-  const { getActivePatient } = useClinicalWorkflow();
   
   const {
     patientId: propPatientId,
     autoSearch = false,
     includeAnalytics = false,
-    debounceMs = 300,
-    cacheResults = true
+    debounceMs = 300
   } = options;
 
   // Determine patient ID
-  const patientId = propPatientId || currentPatient?.id || getActivePatient()?.id;
+  const patientId = propPatientId || currentPatient?.id;
 
   // State management
   const [searchState, setSearchState] = useState({
@@ -148,7 +145,7 @@ export const useAdvancedOrderSearch = (options = {}) => {
         }
       });
     } else {
-      console.error('Invalid filter format. Expected URLSearchParams or object.');
+      // Invalid filter format - expected URLSearchParams or object
       return;
     }
 
@@ -236,7 +233,7 @@ export const useAdvancedOrderSearch = (options = {}) => {
 
       return suggestions;
     } catch (error) {
-      console.error('Error getting search suggestions:', error);
+      // Error getting search suggestions - return empty array
       setSearchState(prev => ({
         ...prev,
         suggestions: [],
@@ -271,7 +268,7 @@ export const useAdvancedOrderSearch = (options = {}) => {
 
       return recommendations;
     } catch (error) {
-      console.error('Error getting order recommendations:', error);
+      // Error getting order recommendations - return empty array
       setSearchState(prev => ({
         ...prev,
         recommendations: [],
@@ -366,7 +363,7 @@ export const useAdvancedOrderSearch = (options = {}) => {
         loading: false
       }));
     } catch (error) {
-      console.error('Error loading more results:', error);
+      // Error loading more results - keep existing results
       setSearchState(prev => ({
         ...prev,
         loading: false,
@@ -390,7 +387,17 @@ export const useAdvancedOrderSearch = (options = {}) => {
   }, []);
 
   /**
-   * Auto-search on patient change
+   * Initial search on mount when autoSearch is enabled
+   */
+  useEffect(() => {
+    if (autoSearch && patientId && !searchState.hasSearched) {
+      // Execute initial search for patient when autoSearch is enabled
+      executeSearch();
+    }
+  }, [autoSearch, patientId]); // Only run when autoSearch or patientId changes
+  
+  /**
+   * Auto-search on patient change after initial search
    */
   useEffect(() => {
     if (autoSearch && patientId && searchState.hasSearched) {

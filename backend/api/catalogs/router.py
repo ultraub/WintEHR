@@ -16,6 +16,9 @@ from .models import (
     ImagingStudyCatalogItem,
     ConditionCatalogItem,
     OrderSetItem,
+    ProcedureCatalogItem,
+    VaccineCatalogItem,
+    AllergyCatalogItem,
     CatalogSearchResult
 )
 
@@ -82,11 +85,7 @@ async def search_imaging_studies(
     service: UnifiedCatalogService = Depends(get_catalog_service)
 ):
     """Search imaging study catalog"""
-    # TODO: Implement imaging study search
-    raise HTTPException(
-        status_code=501,
-        detail="Imaging study catalog not yet implemented"
-    )
+    return await service.search_imaging_studies(search, limit)
 
 
 @router.get("/order-sets", response_model=List[OrderSetItem])
@@ -96,12 +95,72 @@ async def search_order_sets(
     limit: int = Query(50, ge=1, le=500),
     service: UnifiedCatalogService = Depends(get_catalog_service)
 ):
-    """Search order set catalog"""
-    # TODO: Implement order set search
-    raise HTTPException(
-        status_code=501,
-        detail="Order set catalog not yet implemented"
-    )
+    """
+    Search order set catalog.
+    
+    Data sources (in priority order):
+    1. Dynamic FHIR data - extracted from CarePlans and PlanDefinitions
+    2. Common order patterns - detected from grouped ServiceRequests
+    3. Static catalog - pre-defined common order sets
+    
+    Filter by:
+    - search: Search in name, description, and item names
+    - category: Filter by category (Admission, Emergency, Surgical, etc.)
+    """
+    return await service.search_order_sets(search, category, limit)
+
+
+@router.get("/procedures", response_model=List[ProcedureCatalogItem])
+async def search_procedures(
+    search: Optional[str] = Query(None, description="Search term"),
+    limit: int = Query(50, ge=1, le=500),
+    service: UnifiedCatalogService = Depends(get_catalog_service)
+):
+    """
+    Search procedure catalog.
+    
+    Data sources (in priority order):
+    1. Dynamic FHIR data - extracted from actual patient procedures
+    2. Static catalog - common CPT procedures
+    """
+    return await service.search_procedures(search, limit)
+
+
+@router.get("/vaccines", response_model=List[VaccineCatalogItem])
+async def search_vaccines(
+    search: Optional[str] = Query(None, description="Search term"),
+    limit: int = Query(50, ge=1, le=500),
+    service: UnifiedCatalogService = Depends(get_catalog_service)
+):
+    """
+    Search vaccine/immunization catalog.
+    
+    Data sources (in priority order):
+    1. Dynamic FHIR data - extracted from patient immunization records
+    2. Static catalog - common vaccines with CVX codes
+    """
+    return await service.search_vaccines(search, limit)
+
+
+@router.get("/allergies", response_model=List[AllergyCatalogItem])
+async def search_allergies(
+    search: Optional[str] = Query(None, description="Search term"),
+    allergen_type: Optional[str] = Query(None, description="Filter by type: medication, food, environmental"),
+    limit: int = Query(50, ge=1, le=500),
+    service: UnifiedCatalogService = Depends(get_catalog_service)
+):
+    """
+    Search allergy catalog.
+    
+    Data sources (in priority order):
+    1. Dynamic FHIR data - extracted from patient allergy records
+    2. Static catalog - common allergens
+    
+    Filter by:
+    - search: Search in allergen name
+    - allergen_type: medication, food, environmental, or other
+    """
+    return await service.search_allergies(search, allergen_type, limit)
 
 
 @router.get("/search", response_model=CatalogSearchResult)

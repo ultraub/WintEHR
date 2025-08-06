@@ -3,7 +3,7 @@
  * Manages clinical inbox messages using FHIR Communication resources
  */
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { useAuth } from './AuthContext';
 
 const InboxContext = createContext(undefined);

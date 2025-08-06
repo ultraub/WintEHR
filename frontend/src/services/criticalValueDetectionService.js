@@ -196,7 +196,7 @@ class CriticalValueDetectionService {
 
       return processedResults.filter(result => result.assessments.length > 0);
     } catch (error) {
-      console.error('Error monitoring critical values:', error);
+      // Error handled - monitoring continues
       return [];
     }
   }
@@ -240,7 +240,7 @@ class CriticalValueDetectionService {
               });
             }
           } catch (error) {
-            console.error(`Error searching for critical values: ${loincCode}`, error);
+            // Continue searching other values despite individual errors
           }
         }
       }
@@ -258,7 +258,7 @@ class CriticalValueDetectionService {
     const lastAlert = this.recentAssessments.get(alertKey);
     
     if (lastAlert && (new Date() - new Date(lastAlert.timestamp)) < this.alertCooldownPeriod) {
-      console.log('Suppressing duplicate critical value alert:', alertKey);
+      // Duplicate alert suppressed
       return null;
     }
 
@@ -293,11 +293,11 @@ class CriticalValueDetectionService {
         severity: assessment.severity
       });
 
-      console.log(`Critical value alert created: ${assessment.testName} = ${assessment.actualValue} (${assessment.description})`);
+      // Critical value alert created successfully
       
       return alert;
     } catch (error) {
-      console.error('Error creating critical value alert:', error);
+      // Alert creation failed - will retry on next check
       return null;
     }
   }

@@ -3,7 +3,7 @@
  * Simplified hook for FHIR resource searching with built-in service integration
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 // Default search implementation using FHIR client
 const defaultSearchService = async (query, options = {}) => {
@@ -346,7 +346,8 @@ export const useCatalogMedicationSearch = (options = {}) => {
       console.warn('Catalog medication search failed:', error);
       return [];
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // cdsClinicalDataService is imported at module level and doesn't change
   
   return useResourceSearch({
     resourceTypes: ['Medication'],
@@ -394,7 +395,8 @@ export const useCatalogConditionSearch = (options = {}) => {
       console.warn('Catalog condition search failed:', error);
       return [];
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // cdsClinicalDataService is imported at module level and doesn't change
   
   return useResourceSearch({
     resourceTypes: ['Condition'],
@@ -506,7 +508,8 @@ export const useHybridSearch = (resourceTypes, options = {}) => {
       // Fall back to FHIR search only
       return await searchService.searchFHIR(query, searchOpts);
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // cdsClinicalDataService and searchService are imported at module level and don't change
   
   return useResourceSearch({
     resourceTypes,
@@ -545,7 +548,8 @@ export const useLabTestSearch = (options = {}) => {
       console.warn('Lab test search failed:', error);
       return [];
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // cdsClinicalDataService is imported at module level and doesn't change
   
   return useResourceSearch({
     resourceTypes: ['Observation'],

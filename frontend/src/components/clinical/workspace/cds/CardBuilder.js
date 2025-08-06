@@ -27,7 +27,9 @@ import {
   ListItemSecondaryAction,
   Tooltip,
   Card,
-  CardContent
+  CardContent,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import {
   Info as InfoIcon,
@@ -282,6 +284,21 @@ const CardBuilder = ({ card, onChange, onRemove }) => {
             rows={2}
             helperText="Comma-separated list of valid override reasons"
           />
+        </Grid>
+        <Grid item xs={12}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={card.overrideReasonRequired || false}
+                onChange={(e) => handleChange('overrideReasonRequired', e.target.checked)}
+                disabled
+              />
+            }
+            label="Override reason required (Deprecated)"
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 3, display: 'block' }}>
+            Note: Override requirements should now be configured at the hook level in the Display Behavior tab
+          </Typography>
         </Grid>
         <Grid item xs={12}>
           <TextField

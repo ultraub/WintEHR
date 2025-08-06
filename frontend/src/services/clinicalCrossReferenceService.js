@@ -3,7 +3,7 @@
  * Builds bidirectional links between notes and clinical data
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 export class ClinicalCrossReferenceService {
   constructor() {

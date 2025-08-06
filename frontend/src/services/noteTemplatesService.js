@@ -3,7 +3,7 @@
  * Manages core clinical note templates with auto-population from patient data
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 // Core note template definitions
 export const NOTE_TEMPLATES = {

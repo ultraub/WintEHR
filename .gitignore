@@ -133,12 +133,10 @@ synthea_import_report.py
 validate_synthea_import.py
 analyze_synthea_resources.py
 
-# Temporary test files (should not be committed)
-test_*.py
-test_*.js
-test_*.html
-test-*.sh
-test-*.html
+# Temporary test data files (but not test code!)
+test_data_*.json
+test_output_*.txt
+test_results_*.xml
 
 # Generated component files
 generated_*.js
@@ -168,5 +166,22 @@ old/*
 
 
 .claude
+.claude_old
 AWS_DEPLOYMENT_ISSUES_AND_FIXES.md
 AWS_DEPLOYMENT_COMPLETE_SUMMARY.md
+CLAUDE.md
+backend/database_optimized.py
+backend/api/monitoring.py
+backend/api/middleware/query_monitoring.py
+backend/scripts/testing/FAILURE_ANALYSIS.md
+backend/scripts/testing/FHIR_OPERATIONS_COMPLIANCE_SUMMARY.md
+backend/scripts/testing/FHIR_PAGINATION_SUMMARY.md
+backend/scripts/testing/FHIR_SEARCH_COMPLETE_SUMMARY.md
+backend/scripts/testing/FHIR_SEARCH_FINAL_SUMMARY.md
+backend/scripts/testing/FHIR_SEARCH_PARAMETERS_DOCUMENTATION.md
+backend/scripts/testing/FHIR_SORT_IMPLEMENTATION_SUMMARY.md
+backend/scripts/testing/PERFORMANCE_TEST_SUMMARY.md
+backend/scripts/testing/QUERY_VALIDATION_SUMMARY.md
+docs/FHIR_EXPLORER_V4_ENHANCEMENTS_SUMMARY.md
+docs/performance/DATABASE_INDEX_OPTIMIZATION.md
+docs/performance/PERFORMANCE_OPTIMIZATION_SUMMARY.md

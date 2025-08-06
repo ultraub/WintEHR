@@ -84,11 +84,16 @@ const MedicationConditionBuilder = ({ condition, onChange }) => {
     setSearchLoading(true);
     try {
       const results = await cdsClinicalDataService.getDynamicMedicationCatalog(query, 20);
+      console.log('[MedicationConditionBuilder] Search results:', results);
+      
+      // Map from backend MedicationCatalogItem model
       setMedicationOptions(results.map(med => ({
-        code: med.code,
-        display: med.display,
-        system: med.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
-        frequency: med.frequency_count
+        code: med.rxnorm_code || med.id || 'unknown',
+        display: `${med.generic_name || med.brand_name || 'Unknown medication'}${med.strength ? ' ' + med.strength : ''}`,
+        system: 'http://www.nlm.nih.gov/research/umls/rxnorm',
+        frequency: med.usage_count || 0,
+        // Store original data for reference
+        raw: med
       })));
     } catch (error) {
       setMedicationOptions([]);

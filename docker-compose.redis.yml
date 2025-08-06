@@ -1,0 +1,45 @@
+# Redis Cache Service Extension for WintEHR
+# 
+# This extends the main docker-compose.yml to add Redis caching
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.redis.yml up
+
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: emr-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - emr-network
+
+  backend:
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - ENABLE_REDIS_CACHE=true
+      - USE_OPTIMIZED_SEARCH=true
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  emr-network:
+    external: true

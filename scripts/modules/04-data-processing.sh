@@ -286,7 +286,153 @@ else
     warning "CDS hooks creation completed with warnings: $CDS_HOOKS_RESULT"
 fi
 
-# Step 4: Generate DICOM files for imaging studies
+# Step 4: Re-index search parameters for all resources
+log "🔍 Re-indexing search parameters for all resources..."
+
+# First check if fast indexing script exists, use it if available
+if docker exec emr-backend test -f "/app/scripts/fast_search_indexing.py"; then
+    log "Using fast search indexing script (with batching)..."
+    SEARCH_PARAM_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/fast_search_indexing.py --docker --batch-size 2000 --workers 4" 2>&1 || echo "SEARCH_PARAM_INDEXING_FAILED")
+    
+    if echo "$SEARCH_PARAM_RESULT" | grep -q "SEARCH_PARAM_INDEXING_FAILED"; then
+        warning "Fast indexing failed, trying consolidated script..."
+        SEARCH_PARAM_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/consolidated_search_indexing.py --docker --mode index" 2>&1 || echo "SEARCH_PARAM_INDEXING_FAILED")
+    fi
+    
+    if echo "$SEARCH_PARAM_RESULT" | grep -q "Indexing complete:" || echo "$SEARCH_PARAM_RESULT" | grep -q "INDEXING SUMMARY"; then
+        # Extract statistics from new format
+        RESOURCES_INDEXED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "[0-9]* indexed" | grep -o "[0-9]*" | head -1 || echo "unknown")
+        RESOURCES_SKIPPED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "[0-9]* skipped" | grep -o "[0-9]*" | head -1 || echo "unknown")
+        INDEXING_ERRORS=$(echo "$SEARCH_PARAM_RESULT" | grep -o "[0-9]* errors" | grep -o "[0-9]*" | head -1 || echo "0")
+        
+        if [ "$INDEXING_ERRORS" = "0" ]; then
+            success "Search parameter indexing completed successfully"
+        else
+            warning "Search parameter indexing completed with $INDEXING_ERRORS errors"
+        fi
+        log "  Resources indexed: $RESOURCES_INDEXED"
+        log "  Resources skipped: $RESOURCES_SKIPPED"
+        
+        # Run verification
+        log "Verifying search parameter indexing..."
+        VERIFY_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/consolidated_search_indexing.py --mode verify" 2>&1 || true)
+        if echo "$VERIFY_RESULT" | grep -q "All critical search parameters are properly indexed"; then
+            success "Search parameter verification passed"
+        else
+            warning "Some search parameters may need attention - running fix..."
+            # Try to fix any missing parameters
+            FIX_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/consolidated_search_indexing.py --mode fix" 2>&1 || true)
+            if echo "$FIX_RESULT" | grep -q "Fixed [0-9]* resources"; then
+                RESOURCES_FIXED=$(echo "$FIX_RESULT" | grep -o "Fixed [0-9]* resources" | grep -o "[0-9]*" | head -1)
+                success "Fixed $RESOURCES_FIXED resources with missing parameters"
+            fi
+        fi
+    else
+        warning "Search parameter indexing may have failed"
+        log "Output: $SEARCH_PARAM_RESULT"
+    fi
+else
+    # Fallback to old method if new script doesn't exist
+    warning "Consolidated search indexing script not found, trying legacy method..."
+    SEARCH_PARAM_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/active/run_migration.py" 2>&1 || echo "SEARCH_PARAM_MIGRATION_FAILED")
+    
+    if echo "$SEARCH_PARAM_RESULT" | grep -q "Migration completed successfully\|Search parameter migration completed"; then
+        # Extract statistics if available
+        RESOURCES_MIGRATED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "Migrated [0-9]* resources" | grep -o "[0-9]*" | head -1 || echo "unknown")
+        PARAMS_CREATED=$(echo "$SEARCH_PARAM_RESULT" | grep -o "Created [0-9]* search parameters" | grep -o "[0-9]*" | head -1 || echo "unknown")
+        
+        success "Search parameter migration completed"
+        log "  Resources migrated: $RESOURCES_MIGRATED"
+        log "  Search parameters created: $PARAMS_CREATED"
+    elif echo "$SEARCH_PARAM_RESULT" | grep -q "SEARCH_PARAM_MIGRATION_FAILED"; then
+        warning "Search parameter migration failed"
+        warning "System will continue but searches may not work properly"
+        log "Error: $SEARCH_PARAM_RESULT"
+    else
+        log "Search parameter migration output: $SEARCH_PARAM_RESULT"
+    fi
+fi
+
+# Step 5: Fix URN format references in search parameters
+log "🔗 Fixing URN format references for proper patient search..."
+
+if docker exec emr-backend test -f "/app/scripts/fix_allergy_intolerance_search_params_v2.py"; then
+    URN_FIX_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/fix_allergy_intolerance_search_params_v2.py --docker" 2>&1 || echo "URN_FIX_FAILED")
+    
+    if echo "$URN_FIX_RESULT" | grep -q "Fixed [0-9]* AllergyIntolerance resources"; then
+        # Extract statistics
+        ALLERGIES_FIXED=$(echo "$URN_FIX_RESULT" | grep -o "Fixed [0-9]* AllergyIntolerance" | grep -o "[0-9]*" || echo "0")
+        success "URN reference fix completed"
+        log "  AllergyIntolerance resources fixed: $ALLERGIES_FIXED"
+        
+        # Check if other resource types were fixed
+        if echo "$URN_FIX_RESULT" | grep -q "Fixed [0-9]* Condition"; then
+            CONDITIONS_FIXED=$(echo "$URN_FIX_RESULT" | grep -o "Fixed [0-9]* Condition" | grep -o "[0-9]*" || echo "0")
+            log "  Condition resources fixed: $CONDITIONS_FIXED"
+        fi
+        if echo "$URN_FIX_RESULT" | grep -q "Fixed [0-9]* Observation"; then
+            OBSERVATIONS_FIXED=$(echo "$URN_FIX_RESULT" | grep -o "Fixed [0-9]* Observation" | grep -o "[0-9]*" || echo "0")
+            log "  Observation resources fixed: $OBSERVATIONS_FIXED"
+        fi
+        if echo "$URN_FIX_RESULT" | grep -q "Fixed [0-9]* MedicationRequest"; then
+            MEDICATIONS_FIXED=$(echo "$URN_FIX_RESULT" | grep -o "Fixed [0-9]* MedicationRequest" | grep -o "[0-9]*" || echo "0")
+            log "  MedicationRequest resources fixed: $MEDICATIONS_FIXED"
+        fi
+    elif echo "$URN_FIX_RESULT" | grep -q "URN_FIX_FAILED"; then
+        warning "URN reference fix failed, but continuing..."
+        warning "Some resources may not appear in patient searches"
+    else
+        log "URN reference fix output: $URN_FIX_RESULT"
+    fi
+else
+    warning "URN reference fix script not found, skipping..."
+    warning "AllergyIntolerance and other resources may not show in Chart Review"
+fi
+
+# Step 6: Populate compartments table
+log "📦 Populating patient compartments for all resources..."
+
+COMPARTMENT_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/populate_compartments.py" 2>&1 || echo "COMPARTMENT_POPULATION_FAILED")
+
+if echo "$COMPARTMENT_RESULT" | grep -q "Population complete:"; then
+    # Extract statistics
+    RESOURCES_PROCESSED=$(echo "$COMPARTMENT_RESULT" | grep "Resources processed:" | grep -o "[0-9]*" || echo "0")
+    COMPARTMENTS_CREATED=$(echo "$COMPARTMENT_RESULT" | grep "Compartments created:" | grep -o "[0-9]*" || echo "0")
+    
+    success "Compartment population completed"
+    log "  Resources processed: $RESOURCES_PROCESSED"
+    log "  Compartments created: $COMPARTMENTS_CREATED"
+    
+    # Get total compartments
+    TOTAL_COMPARTMENTS=$(echo "$COMPARTMENT_RESULT" | grep "Total patient compartments:" | grep -o "[0-9]*" || echo "0")
+    if [ "$TOTAL_COMPARTMENTS" -gt "0" ]; then
+        log "  Total patient compartments: $TOTAL_COMPARTMENTS"
+    else
+        warning "No patient compartments found - Patient/$everything operations may not work"
+    fi
+elif echo "$COMPARTMENT_RESULT" | grep -q "COMPARTMENT_POPULATION_FAILED"; then
+    warning "Compartment population failed"
+    warning "Patient/$everything operations may not work properly"
+    log "Error: $COMPARTMENT_RESULT"
+else
+    log "Compartment population output: $COMPARTMENT_RESULT"
+fi
+
+# Step 7: Fix CDS hooks schema if needed
+log "🔧 Checking CDS hooks schema..."
+
+CDS_HOOKS_FIX_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/fix_cds_hooks_enabled_column.py" 2>&1 || echo "CDS_HOOKS_FIX_FAILED")
+
+if echo "$CDS_HOOKS_FIX_RESULT" | grep -q "Schema fix completed successfully"; then
+    success "CDS hooks schema verified/fixed"
+elif echo "$CDS_HOOKS_FIX_RESULT" | grep -q "already exists"; then
+    success "CDS hooks schema already correct"
+else
+    warning "Could not verify/fix CDS hooks schema"
+    warning "CDS hooks may not work properly"
+fi
+
+# Step 8: Generate DICOM files for imaging studies
 log "🏥 Generating DICOM files for imaging studies..."
 
 DICOM_GENERATION_RESULT=$(docker exec emr-backend bash -c "cd /app && python scripts/generate_dicom_for_studies.py" 2>&1 || echo "DICOM_GENERATION_FAILED")
@@ -307,7 +453,7 @@ else
     warning "DICOM generation completed with warnings: $DICOM_GENERATION_RESULT"
 fi
 
-# Step 4: Validate cross-references and data integrity
+# Step 9: Validate cross-references and data integrity
 log "🔗 Validating data cross-references..."
 
 REFERENCE_VALIDATION_RESULT=$(docker exec emr-backend bash -c "cd /app && python -c '
@@ -398,7 +544,7 @@ else
     warning "Reference validation completed with warnings: $REFERENCE_VALIDATION_RESULT"
 fi
 
-# Step 5: Performance optimizations based on mode
+# Step 10: Performance optimizations based on mode
 if [ "$MODE" = "production" ]; then
     log "⚡ Applying production performance optimizations..."
     
@@ -413,7 +559,7 @@ else
     log "Development mode - skipping heavy optimizations"
 fi
 
-# Step 6: Create processing summary
+# Step 11: Create processing summary
 log "📋 Creating data processing summary..."
 
 docker exec emr-backend bash -c "cd /app && python -c '
@@ -446,7 +592,7 @@ with open(\"/app/backend/data/processing_summary.json\", \"w\") as f:
 
 success "Processing summary created"
 
-# Step 7: Final data validation
+# Step 12: Final data validation
 log "🔍 Running final data validation..."
 
 FINAL_VALIDATION=$(docker exec emr-backend bash -c "cd /app && python -c '
@@ -461,11 +607,16 @@ async def final_check():
         total_resources = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.resources WHERE deleted = FALSE OR deleted IS NULL\")
         total_patients = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.resources WHERE resource_type = \\'Patient\\' AND (deleted = FALSE OR deleted IS NULL)\")
         total_search_params = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.search_params\")
+        total_compartments = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.compartments WHERE compartment_type = \\'Patient\\'\")
         total_cds_hooks = await conn.fetchval(\"SELECT COUNT(*) FROM cds_hooks.hook_configurations WHERE enabled = true\")
+        
+        # Validate patient search parameters exist
+        patient_params = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.search_params WHERE param_name IN (\\'patient\\', \\'subject\\') AND param_type = \\'reference\\'\")
+        condition_patient_params = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.search_params WHERE resource_type = \\'Condition\\' AND param_name = \\'patient\\'\")
         
         await conn.close()
         
-        print(f\"FINAL_VALIDATION_SUCCESS:resources={total_resources},patients={total_patients},search_params={total_search_params},cds_hooks={total_cds_hooks}\")
+        print(f\"FINAL_VALIDATION_SUCCESS:resources={total_resources},patients={total_patients},search_params={total_search_params},cds_hooks={total_cds_hooks},compartments={total_compartments},patient_params={patient_params},condition_patient_params={condition_patient_params}\")
         
     except Exception as e:
         print(f\"FINAL_VALIDATION_ERROR:{e}\")
@@ -478,11 +629,17 @@ if echo "$FINAL_VALIDATION" | grep -q "FINAL_VALIDATION_SUCCESS"; then
     FINAL_PATIENTS=$(echo "$FINAL_VALIDATION" | grep -o "patients=[0-9]*" | cut -d= -f2)
     FINAL_SEARCH_PARAMS=$(echo "$FINAL_VALIDATION" | grep -o "search_params=[0-9]*" | cut -d= -f2)
     FINAL_CDS_HOOKS=$(echo "$FINAL_VALIDATION" | grep -o "cds_hooks=[0-9]*" | cut -d= -f2)
+    FINAL_COMPARTMENTS=$(echo "$FINAL_VALIDATION" | grep -o "compartments=[0-9]*" | cut -d= -f2)
+    PATIENT_PARAMS=$(echo "$FINAL_VALIDATION" | grep -o "patient_params=[0-9]*" | cut -d= -f2)
+    CONDITION_PATIENT_PARAMS=$(echo "$FINAL_VALIDATION" | grep -o "condition_patient_params=[0-9]*" | cut -d= -f2)
     
     success "Final validation passed"
     log "  Total resources: $FINAL_RESOURCES"
     log "  Patients: $FINAL_PATIENTS"
     log "  Search parameters: $FINAL_SEARCH_PARAMS"
+    log "  Compartments: $FINAL_COMPARTMENTS"
+    log "  Patient/subject params: $PATIENT_PARAMS"
+    log "  Condition patient params: $CONDITION_PATIENT_PARAMS"
     log "  CDS hooks: $FINAL_CDS_HOOKS"
     
     if [ "$FINAL_RESOURCES" -eq "0" ]; then
@@ -493,6 +650,14 @@ if echo "$FINAL_VALIDATION" | grep -q "FINAL_VALIDATION_SUCCESS"; then
         error "No patients found after processing"
     fi
     
+    if [ "$PATIENT_PARAMS" -eq "0" ]; then
+        warning "No patient/subject search parameters found - searches may not work properly"
+    fi
+    
+    if [ "$FINAL_COMPARTMENTS" -eq "0" ]; then
+        warning "No patient compartments found - Patient/$everything operations may not work properly"
+    fi
+    
 else
     error "Final validation failed: $FINAL_VALIDATION"
 fi
@@ -500,6 +665,8 @@ fi
 log "🎉 Data processing completed successfully!"
 log "✅ Name cleaning: Complete"
 log "✅ CDS hooks: $HOOKS_CREATED created"
+log "✅ Search parameters: $FINAL_SEARCH_PARAMS indexed"
+log "✅ Compartments: $FINAL_COMPARTMENTS populated"
 log "✅ DICOM generation: $DICOM_FILES_CREATED files"
 log "✅ Data validation: Passed"
 log "✅ Final resource count: $FINAL_RESOURCES"

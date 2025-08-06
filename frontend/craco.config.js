@@ -33,6 +33,39 @@ module.exports = {
       ],
     },
     configure: (webpackConfig, { env, paths }) => {
+      // Add TypeScript support
+      webpackConfig.resolve.extensions = ['.ts', '.tsx', '.js', '.jsx', '.json'];
+      
+      // Fix MUI ESM module resolution issues
+      webpackConfig.module.rules.push({
+        test: /\.m?js$/,
+        resolve: {
+          fullySpecified: false,
+        },
+      });
+      
+      // Disable source-map-loader for problematic modules
+      webpackConfig.module.rules = webpackConfig.module.rules.map(rule => {
+        if (rule.enforce === 'pre' && rule.loader && rule.loader.includes('source-map-loader')) {
+          // Handle different types of exclude patterns
+          const existingExclude = Array.isArray(rule.exclude) 
+            ? rule.exclude 
+            : rule.exclude 
+              ? [rule.exclude] 
+              : [];
+          
+          return {
+            ...rule,
+            exclude: [
+              ...existingExclude,
+              /@mui\/x-tree-view/,
+              /eventemitter3/
+            ]
+          };
+        }
+        return rule;
+      });
+      
       // Production optimizations
       if (env === 'production') {
         // Optimize chunks for better caching

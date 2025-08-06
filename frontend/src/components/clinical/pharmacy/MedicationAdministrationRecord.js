@@ -241,7 +241,7 @@ const MedicationAdministrationRecord = ({
       setAdministrationDialogOpen(false);
       onAdministrationComplete('administered', selectedMedication.medicationRequest.id);
     } catch (error) {
-      console.error('Error recording administration:', error);
+      // Error recording administration - user will need to retry
     }
   };
 
@@ -256,7 +256,7 @@ const MedicationAdministrationRecord = ({
       setMissedDoseDialogOpen(false);
       onAdministrationComplete('missed', selectedMedication.medicationRequest.id);
     } catch (error) {
-      console.error('Error recording missed dose:', error);
+      // Error recording missed dose - user will need to retry
     }
   };
 

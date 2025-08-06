@@ -1,22 +1,28 @@
 """
 CDS Hooks Data Models
-Implements CDS Hooks 1.0 specification data models
+Implements CDS Hooks 2.0 specification data models
 """
 
 from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from datetime import datetime
 from enum import Enum
 
 
 class HookType(str, Enum):
-    """Standard CDS Hook types"""
+    """Standard CDS Hook types - CDS Hooks 2.0"""
+    # Standard hooks in CDS Hooks 2.0
     PATIENT_VIEW = "patient-view"
     MEDICATION_PRESCRIBE = "medication-prescribe"
     ORDER_SIGN = "order-sign"
     ORDER_SELECT = "order-select"
     ENCOUNTER_START = "encounter-start"
     ENCOUNTER_DISCHARGE = "encounter-discharge"
+    ALLERGYINTOLERANCE_CREATE = "allergyintolerance-create"
+    APPOINTMENT_BOOK = "appointment-book"
+    MEDICATION_REFILL = "medication-refill"
+    ORDER_DISPATCH = "order-dispatch"
+    PROBLEM_LIST_ITEM_CREATE = "problem-list-item-create"
 
 
 class IndicatorType(str, Enum):
@@ -53,20 +59,83 @@ class PatientViewContext(BaseModel):
     encounterId: Optional[str] = Field(None, description="FHIR Encounter ID")
 
 
-class MedicationPrescribeContext(BaseModel):
-    """Context for medication-prescribe hook"""
-    patientId: str = Field(..., description="FHIR Patient ID")
-    userId: str = Field(..., description="FHIR Practitioner ID")
-    encounterId: Optional[str] = Field(None, description="FHIR Encounter ID")
-    medications: List[Dict[str, Any]] = Field([], description="Draft medication resources")
-
-
 class OrderSignContext(BaseModel):
     """Context for order-sign hook"""
     patientId: str = Field(..., description="FHIR Patient ID")
     userId: str = Field(..., description="FHIR Practitioner ID")
     encounterId: Optional[str] = Field(None, description="FHIR Encounter ID")
     draftOrders: List[Dict[str, Any]] = Field([], description="Draft order resources")
+
+
+class OrderSelectContext(BaseModel):
+    """Context for order-select hook"""
+    patientId: str = Field(..., description="FHIR Patient ID")
+    userId: str = Field(..., description="FHIR Practitioner ID")
+    encounterId: Optional[str] = Field(None, description="FHIR Encounter ID")
+    selections: List[str] = Field([], description="Selected order references")
+    draftOrders: Optional[List[Dict[str, Any]]] = Field(None, description="Draft order resources")
+
+
+class EncounterStartContext(BaseModel):
+    """Context for encounter-start hook"""
+    patientId: str = Field(..., description="FHIR Patient ID")
+    userId: str = Field(..., description="FHIR Practitioner ID")
+    encounterId: str = Field(..., description="FHIR Encounter ID")
+
+
+class EncounterDischargeContext(BaseModel):
+    """Context for encounter-discharge hook"""
+    patientId: str = Field(..., description="FHIR Patient ID")
+    userId: str = Field(..., description="FHIR Practitioner ID")
+    encounterId: str = Field(..., description="FHIR Encounter ID")
+
+
+class MedicationPrescribeContext(BaseModel):
+    """Context for medication-prescribe hook"""
+    patientId: str = Field(..., description="FHIR Patient ID")
+    userId: str = Field(..., description="FHIR Practitioner ID")
+    encounterId: Optional[str] = Field(None, description="FHIR Encounter ID")
+    medications: List[Dict[str, Any]] = Field(..., description="Draft MedicationRequest resources")
+
+
+class AllergyIntoleranceCreateContext(BaseModel):
+    """Context for allergyintolerance-create hook (CDS Hooks 2.0)"""
+    patientId: str = Field(..., description="FHIR Patient ID")
+    userId: str = Field(..., description="FHIR Practitioner ID")
+    encounterId: Optional[str] = Field(None, description="FHIR Encounter ID")
+    allergyIntolerance: Dict[str, Any] = Field(..., description="Draft AllergyIntolerance resource")
+
+
+class AppointmentBookContext(BaseModel):
+    """Context for appointment-book hook (CDS Hooks 2.0)"""
+    patientId: str = Field(..., description="FHIR Patient ID")
+    userId: str = Field(..., description="FHIR Practitioner ID")
+    encounterId: Optional[str] = Field(None, description="FHIR Encounter ID")
+    appointments: List[Dict[str, Any]] = Field(..., description="Draft Appointment resources")
+
+
+class MedicationRefillContext(BaseModel):
+    """Context for medication-refill hook (CDS Hooks 2.0)"""
+    patientId: str = Field(..., description="FHIR Patient ID")
+    userId: str = Field(..., description="FHIR Practitioner ID")
+    encounterId: Optional[str] = Field(None, description="FHIR Encounter ID")
+    medications: List[Dict[str, Any]] = Field(..., description="Medication resources for refill")
+
+
+class OrderDispatchContext(BaseModel):
+    """Context for order-dispatch hook (CDS Hooks 2.0)"""
+    patientId: str = Field(..., description="FHIR Patient ID")
+    userId: str = Field(..., description="FHIR Practitioner ID")
+    encounterId: Optional[str] = Field(None, description="FHIR Encounter ID")
+    order: Dict[str, Any] = Field(..., description="Order being dispatched")
+
+
+class ProblemListItemCreateContext(BaseModel):
+    """Context for problem-list-item-create hook (CDS Hooks 2.0)"""
+    patientId: str = Field(..., description="FHIR Patient ID")
+    userId: str = Field(..., description="FHIR Practitioner ID")
+    encounterId: Optional[str] = Field(None, description="FHIR Encounter ID")
+    condition: Dict[str, Any] = Field(..., description="Draft Condition resource")
 
 
 class FHIRAuthorization(BaseModel):
@@ -78,13 +147,30 @@ class FHIRAuthorization(BaseModel):
 
 
 class CDSHookRequest(BaseModel):
-    """CDS Hook request format"""
+    """CDS Hook request format - CDS Hooks 2.0"""
     hook: HookType = Field(..., description="Hook type")
-    hookInstance: str = Field(..., description="Unique hook instance ID")
+    hookInstance: str = Field(..., description="Unique hook instance ID (UUID)")
     context: Dict[str, Any] = Field(..., description="Hook context")
-    fhirServer: Optional[str] = Field(None, description="FHIR server base URL")
+    fhirServer: Optional[str] = Field(None, description="FHIR server base URL (must use HTTPS)")
     fhirAuthorization: Optional[FHIRAuthorization] = Field(None, description="FHIR authorization")
     prefetch: Optional[Dict[str, Any]] = Field(None, description="Prefetched FHIR resources")
+    
+    @validator('fhirServer')
+    def validate_https(cls, v):
+        """CDS Hooks 2.0 requires HTTPS for fhirServer"""
+        if v and not v.startswith('https://'):
+            raise ValueError('fhirServer must use HTTPS scheme in CDS Hooks 2.0')
+        return v
+    
+    @validator('hookInstance')
+    def validate_hook_instance(cls, v):
+        """Validate hookInstance is a valid UUID format"""
+        import uuid
+        try:
+            uuid.UUID(v)
+        except ValueError:
+            raise ValueError('hookInstance must be a valid UUID')
+        return v
 
 
 # Response Models
@@ -121,8 +207,16 @@ class Suggestion(BaseModel):
     delete: Optional[List[Dict[str, Any]]] = Field(None, description="Resources to delete")
 
 
+class OverrideReason(BaseModel):
+    """Override reason for CDS Hooks 2.0"""
+    code: str = Field(..., description="Code for override reason")
+    system: Optional[str] = Field(None, description="Code system")
+    display: Optional[str] = Field(None, description="Human-readable display")
+
+
 class Card(BaseModel):
-    """CDS Hook card"""
+    """CDS Hook card - CDS Hooks 2.0"""
+    uuid: str = Field(..., description="Card UUID (required in 2.0)")
     summary: str = Field(..., max_length=140, description="Brief summary")
     indicator: IndicatorType = Field(..., description="Urgency indicator")
     source: Source = Field(..., description="Source information")
@@ -130,13 +224,29 @@ class Card(BaseModel):
     suggestions: Optional[List[Suggestion]] = Field(None, description="Suggested actions")
     links: Optional[List[Link]] = Field(None, description="External links")
     selectionBehavior: Optional[SelectionBehavior] = Field(None, description="Selection behavior")
-    uuid: Optional[str] = Field(None, description="Card UUID")
+    overrideReasons: Optional[List[OverrideReason]] = Field(None, description="Reasons for overriding (CDS Hooks 2.0)")
+    
+    @validator('uuid')
+    def validate_uuid(cls, v):
+        """Validate UUID format"""
+        import uuid
+        try:
+            uuid.UUID(v)
+        except ValueError:
+            raise ValueError('Card uuid must be a valid UUID')
+        return v
+
+
+class SystemAction(BaseModel):
+    """System action for auto-applying changes - CDS Hooks 2.0"""
+    type: str = Field(..., description="Action type (create, update, delete)")
+    resource: Dict[str, Any] = Field(..., description="FHIR resource to apply")
 
 
 class CDSHookResponse(BaseModel):
-    """CDS Hook response format"""
+    """CDS Hook response format - CDS Hooks 2.0"""
     cards: List[Card] = Field([], description="Decision support cards")
-    systemActions: Optional[List[Action]] = Field(None, description="System actions")
+    systemActions: Optional[List[SystemAction]] = Field(None, description="System actions to auto-apply")
 
 
 # Discovery Models
@@ -160,34 +270,49 @@ class CDSServicesResponse(BaseModel):
     services: List[CDSService] = Field(..., description="Available services")
 
 
-# Feedback Models
+# Feedback Models - CDS Hooks 2.0
 class FeedbackOutcome(str, Enum):
     """Feedback outcome types"""
     ACCEPTED = "accepted"
     OVERRIDDEN = "overridden"
-    IGNORED = "ignored"
 
 
-class OverrideReason(BaseModel):
-    """Override reason"""
-    reason: Dict[str, str] = Field(..., description="Coded reason")
+class FeedbackOverrideReason(BaseModel):
+    """Override reason in feedback - CDS Hooks 2.0"""
+    key: str = Field(..., description="Reason identifier provided by service")
+    userComment: Optional[str] = Field(None, description="Optional free text field")
 
 
 class AcceptedSuggestion(BaseModel):
-    """Accepted suggestion"""
-    id: str = Field(..., description="Suggestion ID")
+    """Accepted suggestion in feedback"""
+    id: str = Field(..., description="Suggestion UUID")
 
 
 class FeedbackItem(BaseModel):
-    """Individual feedback item"""
+    """Individual feedback item - CDS Hooks 2.0"""
     card: str = Field(..., description="Card UUID")
-    outcome: FeedbackOutcome = Field(..., description="Outcome")
-    acceptedSuggestions: Optional[List[AcceptedSuggestion]] = Field(None, description="Accepted suggestions")
-    overrideReasons: Optional[List[OverrideReason]] = Field(None, description="Override reasons")
+    outcome: FeedbackOutcome = Field(..., description="Outcome (accepted or overridden)")
+    outcomeTimestamp: datetime = Field(..., description="ISO timestamp in UTC")
+    acceptedSuggestions: Optional[List[AcceptedSuggestion]] = Field(None, description="Accepted suggestions (when outcome is accepted)")
+    overrideReason: Optional[FeedbackOverrideReason] = Field(None, description="Override reason (when outcome is overridden)")
+    
+    @validator('acceptedSuggestions')
+    def validate_accepted_suggestions(cls, v, values):
+        """Accepted suggestions only valid when outcome is accepted"""
+        if v and values.get('outcome') != FeedbackOutcome.ACCEPTED:
+            raise ValueError('acceptedSuggestions can only be provided when outcome is accepted')
+        return v
+    
+    @validator('overrideReason')
+    def validate_override_reason(cls, v, values):
+        """Override reason only valid when outcome is overridden"""
+        if v and values.get('outcome') != FeedbackOutcome.OVERRIDDEN:
+            raise ValueError('overrideReason can only be provided when outcome is overridden')
+        return v
 
 
 class FeedbackRequest(BaseModel):
-    """Feedback request"""
+    """Feedback request - CDS Hooks 2.0"""
     feedback: List[FeedbackItem] = Field(..., description="Feedback items")
 
 

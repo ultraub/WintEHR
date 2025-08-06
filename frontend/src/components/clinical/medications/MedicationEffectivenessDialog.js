@@ -219,7 +219,7 @@ const MedicationEffectivenessDialog = ({
           <Stack direction="row" spacing={1} flexWrap="wrap">
             {assessmentPrompts.targetConditions.map((condition, index) => (
               <Chip 
-                key={index}
+                key={`condition-${condition}-${index}`}
                 label={condition}
                 variant="outlined"
                 size="small"
@@ -434,7 +434,7 @@ const MedicationEffectivenessDialog = ({
       </Typography>
 
       {assessmentPrompts?.assessmentQuestions?.map((question, index) => (
-        <Card key={index} variant="outlined" sx={{ mb: 2, p: 2 }}>
+        <Card key={`question-${question.substring(0, 20)}-${index}`} variant="outlined" sx={{ mb: 2, p: 2 }}>
           <Typography variant="body1" fontWeight="medium" gutterBottom>
             {index + 1}. {question}
           </Typography>
@@ -526,7 +526,7 @@ const MedicationEffectivenessDialog = ({
                     <Typography variant="caption" color="text.secondary">Recommendations</Typography>
                     <List dense>
                       {assessmentPrompts.recommendations.map((rec, index) => (
-                        <ListItem key={index}>
+                        <ListItem key={`rec-${rec.substring(0, 20)}-${index}`}>
                           <ListItemIcon>
                             <InfoIcon fontSize="small" />
                           </ListItemIcon>
@@ -555,7 +555,7 @@ const MedicationEffectivenessDialog = ({
             'Patient education needed'
           ].map((action, index) => (
             <FormControlLabel
-              key={index}
+              key={`action-${action.substring(0, 20)}-${index}`}
               control={
                 <Checkbox
                   checked={recommendedActions.includes(action)}

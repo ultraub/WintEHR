@@ -145,14 +145,14 @@ const FacilityResultManager = ({
             critical: results.filter(r => isCriticalResult(r)).length
           };
         } catch (error) {
-          console.error(`Error loading results for facility ${facility.id}:`, error);
+          // Error loading results for facility - defaulting to empty counts
           resultCounts[facility.id] = { total: 0, recent: 0, critical: 0 };
         }
       }
       setFacilityResults(resultCounts);
 
     } catch (error) {
-      console.error('Error loading lab facilities:', error);
+      // Error loading lab facilities - component will show empty state
     } finally {
       setLoading(false);
     }
@@ -171,7 +171,7 @@ const FacilityResultManager = ({
 
       return response.resources || [];
     } catch (error) {
-      console.error('Error getting facility results:', error);
+      // Error getting facility results - returning empty array
       return [];
     }
   };
@@ -198,7 +198,7 @@ const FacilityResultManager = ({
         });
         onResultsUpdate(results);
       } catch (error) {
-        console.error('Error filtering by facility:', error);
+        // Error filtering by facility - keeping current results
       } finally {
         setLoading(false);
       }

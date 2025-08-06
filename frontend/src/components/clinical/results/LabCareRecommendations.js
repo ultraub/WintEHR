@@ -38,14 +38,12 @@ import {
 } from '@mui/material';
 import {
   TrendingUp as AdjustmentIcon,
-  Science as DiagnosticIcon,
   Science,
   Warning as CriticalIcon,
   Schedule as MonitoringIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   CheckCircle as ApplyIcon,
-  Assignment as TaskIcon,
   Share as ShareIcon,
   Psychology as ReasoningIcon,
   MedicalServices as ProtocolIcon,
@@ -53,7 +51,7 @@ import {
   Close as CloseIcon
 } from '@mui/icons-material';
 import { labToCareIntegrationService } from '../../../services/labToCareIntegrationService';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import { format } from 'date-fns';
 
@@ -356,7 +354,7 @@ const LabCareRecommendations = ({ patientId, observations, carePlanId, onRecomme
       case 'treatment-adjustment':
         return <AdjustmentIcon color="primary" />;
       case 'diagnostic-workup':
-        return <DiagnosticIcon color="secondary" />;
+        return <Science color="secondary" />;
       case 'monitoring-due':
         return <MonitoringIcon color="warning" />;
       case 'critical-value':

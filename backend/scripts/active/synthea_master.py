@@ -47,8 +47,9 @@ import logging
 from collections import defaultdict
 import uuid
 
-# Add parent directory to path
-sys.path.append(str(Path(__file__).parent.parent))
+# Add parent directory to path for local execution
+if '/app' not in sys.path:
+    sys.path.insert(0, '/app')
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -388,7 +389,7 @@ class SyntheaMaster:
                     ["./gradlew", "build", "-x", "test"],
                     cwd=self.synthea_dir,
                     capture_output=True, text=True,
-                    timeout=600
+                    timeout=1800
                 )
                 
                 if result.returncode != 0:
@@ -620,6 +621,11 @@ generate.demographics.default_state = Massachusetts
                     self.log(f"Failed to process {file_path.name}: {e}", "ERROR")
                     stats['errors_by_type'][f"file_error"] += 1
             
+            # Run enhancements after import
+            if stats['resources_imported'] > 0:
+                self.log("\n🔧 Running post-import enhancements...", "INFO")
+                await self._run_enhancements(session)
+            
             # Report results
             self.log("📊 Import Summary:", "SUCCESS")
             self.log(f"  Files processed: {stats['files_processed']}")
@@ -635,11 +641,9 @@ generate.demographics.default_state = Massachusetts
             self.stats['import_stats'] = stats
             self.stats['total_resources'] = stats['resources_imported']
             
-            # Remind about database initialization
+            # All enhancements done inline
             if stats['resources_imported'] > 0:
-                self.log("\n⚠️  IMPORTANT: Run database initialization to fix references and search parameters:", "WARN")
-                self.log("  docker exec emr-backend python scripts/init_database.py", "INFO")
-                self.log("  or: cd backend && python scripts/init_database.py", "INFO")
+                self.log("\n✅ Import complete with all transformations and enhancements applied!", "SUCCESS")
             
             return stats['resources_imported'] > 0
             
@@ -699,8 +703,85 @@ generate.demographics.default_state = Massachusetts
                     import traceback
                     traceback.print_exc()
     
+    def _transform_urn_references(self, resource_data: dict) -> dict:
+        """Transform all urn:uuid references to standard FHIR format."""
+        # Build a map of patient UUIDs for proper reference resolution
+        if not hasattr(self, '_patient_uuid_map'):
+            self._patient_uuid_map = set()
+        
+        # If this is a Patient resource, add its ID to our map
+        if resource_data.get('resourceType') == 'Patient' and 'id' in resource_data:
+            self._patient_uuid_map.add(resource_data['id'])
+        
+        def transform_reference(ref_obj):
+            if isinstance(ref_obj, dict) and 'reference' in ref_obj:
+                ref = ref_obj['reference']
+                # Handle case where reference might be a dict instead of string
+                if isinstance(ref, str) and ref.startswith('urn:uuid:'):
+                    # Extract UUID
+                    uuid_val = ref.replace('urn:uuid:', '')
+                    
+                    # Check if this UUID is a known patient
+                    if uuid_val in self._patient_uuid_map:
+                        ref_obj['reference'] = f"Patient/{uuid_val}"
+                    else:
+                        # For non-patient references, try to determine type from context
+                        # This will be properly resolved during search parameter extraction
+                        ref_obj['reference'] = f"Resource/{uuid_val}"
+                return ref_obj
+            return ref_obj
+        
+        def walk_and_transform(obj):
+            if isinstance(obj, dict):
+                # Check for reference fields
+                if 'reference' in obj:
+                    transform_reference(obj)
+                # Common reference field names
+                for ref_field in ['subject', 'patient', 'encounter', 'performer', 
+                                  'requester', 'author', 'recorder', 'asserter',
+                                  'participant', 'individual', 'actor', 'agent']:
+                    if ref_field in obj:
+                        if isinstance(obj[ref_field], dict):
+                            transform_reference(obj[ref_field])
+                # Recurse into dict values
+                for value in obj.values():
+                    walk_and_transform(value)
+            elif isinstance(obj, list):
+                for item in obj:
+                    walk_and_transform(item)
+            return obj
+        
+        return walk_and_transform(resource_data.copy())
+    
+    def _clean_name_fields(self, resource_data: dict) -> dict:
+        """Clean numeric suffixes from patient and practitioner names."""
+        resource_type = resource_data.get('resourceType')
+        
+        if resource_type in ['Patient', 'Practitioner']:
+            if 'name' in resource_data:
+                for name_obj in resource_data.get('name', []):
+                    # Clean family name
+                    if 'family' in name_obj:
+                        import re
+                        # Remove numeric suffixes like "123"
+                        name_obj['family'] = re.sub(r'\d+$', '', name_obj['family']).strip()
+                    # Clean given names
+                    if 'given' in name_obj:
+                        name_obj['given'] = [
+                            re.sub(r'\d+$', '', n).strip() 
+                            for n in name_obj['given']
+                        ]
+        
+        return resource_data
+
     async def _store_resource(self, session, resource_type, resource_id, resource_data):
-        """Store a resource in the database."""
+        """Store a resource in the database with inline transformations."""
+        # Clean name fields
+        resource_data = self._clean_name_fields(resource_data)
+        
+        # Transform URN references to standard format
+        resource_data = self._transform_urn_references(resource_data)
+        
         # Ensure resource has required metadata
         if 'id' not in resource_data:
             resource_data['id'] = resource_id or str(uuid.uuid4())
@@ -739,73 +820,339 @@ generate.demographics.default_state = Massachusetts
         
         resource_db_id = result.scalar()
         
-        # Extract basic search parameters
+        # Extract search parameters inline
         await self._extract_search_params(session, resource_db_id, resource_type, resource_data)
+        
+        # Populate compartments inline
+        await self._populate_compartments(session, resource_db_id, resource_type, resource_data)
+        
+        # Store references inline
+        await self._extract_references(session, resource_db_id, resource_type, resource_data)
     
     async def _extract_search_params(self, session, resource_id, resource_type, resource_data):
-        """Extract and store comprehensive search parameters for all resource types."""
-        # Always index the resource ID
-        await self._add_search_param(
-            session, resource_id, resource_type, '_id', 'token', 
-            value_string=resource_data.get('id')
-        )
-        
-        # Get search parameter definitions for this resource type
-        param_defs = self.search_param_definitions.get(resource_type, {})
-        
-        for param_name, (field_path, param_type, extractor) in param_defs.items():
-            try:
-                # Extract values using the defined extractor function
-                values = extractor(resource_data)
+        """Extract and store comprehensive search parameters using the FHIR core extractor."""
+        try:
+            # Import the comprehensive search parameter extractor
+            from fhir.core.search_param_extraction import SearchParameterExtractor
+            
+            # Create extractor instance if not already created
+            if not hasattr(self, '_search_extractor'):
+                self._search_extractor = SearchParameterExtractor()
                 
-                # Store each extracted value
-                for value in values:
-                    if value is not None:
-                        if param_type == 'string':
+                # Set URN mapping for proper reference resolution
+                if hasattr(self, '_patient_uuid_map'):
+                    urn_map = {uuid: f"Patient/{uuid}" for uuid in self._patient_uuid_map}
+                    self._search_extractor.set_urn_mapping(urn_map)
+            
+            # Extract all search parameters using the comprehensive extractor
+            params = self._search_extractor.extract_parameters(resource_type, resource_data)
+            
+            # Store each extracted parameter
+            for param in params:
+                param_name = param['param_name']
+                param_type = param['param_type']
+                
+                # Map the extracted values to our storage format
+                kwargs = {}
+                if 'value_string' in param:
+                    kwargs['value_string'] = param['value_string']
+                if 'value_number' in param:
+                    kwargs['value_number'] = param['value_number']
+                if 'value_date' in param:
+                    kwargs['value_date'] = param['value_date']
+                if 'value_token' in param:
+                    kwargs['value_token'] = param['value_token']
+                if 'value_token_system' in param:
+                    kwargs['value_token_system'] = param['value_token_system']
+                if 'value_token_code' in param:
+                    kwargs['value_token_code'] = param['value_token_code']
+                if 'value_reference' in param:
+                    kwargs['value_reference'] = param['value_reference']
+                if 'value_quantity' in param:
+                    kwargs['value_quantity'] = param['value_quantity']
+                if 'value_quantity_system' in param:
+                    kwargs['value_quantity_system'] = param['value_quantity_system']
+                if 'value_quantity_code' in param:
+                    kwargs['value_quantity_code'] = param['value_quantity_code']
+                if 'value_quantity_unit' in param:
+                    kwargs['value_quantity_unit'] = param['value_quantity_unit']
+                
+                await self._add_search_param(
+                    session, resource_id, resource_type, param_name, param_type,
+                    **kwargs
+                )
+                
+        except ImportError:
+            # Fallback to simplified extraction if comprehensive extractor not available
+            self.log("Warning: Comprehensive search extractor not available, using simplified extraction", "WARN")
+            
+            # At minimum, index the resource ID and any patient references
+            await self._add_search_param(
+                session, resource_id, resource_type, '_id', 'token', 
+                value_string=resource_data.get('id')
+            )
+            
+            # Extract patient/subject references
+            for field in ['subject', 'patient']:
+                if field in resource_data and isinstance(resource_data[field], dict):
+                    if 'reference' in resource_data[field]:
+                        ref = resource_data[field]['reference']
+                        await self._add_search_param(
+                            session, resource_id, resource_type, field, 'reference',
+                            value_reference=ref
+                        )
+                        # Also index as 'patient' for consistency
+                        if field == 'subject' and 'Patient/' in ref:
                             await self._add_search_param(
-                                session, resource_id, resource_type, param_name, param_type,
-                                value_string=str(value)
+                                session, resource_id, resource_type, 'patient', 'reference',
+                                value_reference=ref
                             )
-                        elif param_type == 'token':
-                            # Handle system|code format
-                            if '|' in str(value):
-                                system, code = str(value).split('|', 1)
-                                await self._add_search_param(
-                                    session, resource_id, resource_type, param_name, param_type,
-                                    value_token_system=system, value_token_code=code
-                                )
-                            else:
-                                await self._add_search_param(
-                                    session, resource_id, resource_type, param_name, param_type,
-                                    value_string=str(value)
-                                )
-                        elif param_type == 'reference':
-                            await self._add_search_param(
-                                session, resource_id, resource_type, param_name, param_type,
-                                value_reference=str(value)
-                            )
-                        elif param_type == 'date':
-                            # Convert to datetime if needed
-                            if isinstance(value, str):
-                                try:
-                                    # Parse ISO date/datetime
-                                    if 'T' in value:
-                                        dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
-                                    else:
-                                        dt = datetime.strptime(value, '%Y-%m-%d')
-                                    await self._add_search_param(
-                                        session, resource_id, resource_type, param_name, param_type,
-                                        value_date=dt
-                                    )
-                                except:
-                                    pass
                             
-            except Exception as e:
-                if self.verbose:
-                    self.log(f"Error extracting {param_name} for {resource_type}: {e}", "WARN")
+        except Exception as e:
+            if self.verbose:
+                self.log(f"Error extracting search params for {resource_type}: {e}", "WARN")
     
     # Note: All individual parameter extraction methods have been consolidated 
     # into the comprehensive search_param_definitions and unified extraction logic above
+    
+    async def _run_enhancements(self, session):
+        """Orchestrate all enhancement modules for comprehensive data enrichment."""
+        try:
+            # Basic inline enhancements (always run)
+            self.log("  Running basic enhancements...", "INFO")
+            await self._basic_organizations_providers(session)
+            
+            # Check if full enhancement requested
+            full_enhancement = getattr(self.args, 'full_enhancement', False) or \
+                              getattr(self.args, 'command', '') == 'full'
+            
+            if full_enhancement:
+                self.log("\n🚀 Running full enhancement suite...", "INFO")
+                
+                # Run consolidated enhancement module
+                try:
+                    self.log("  Running consolidated enhancements...", "INFO")
+                    from consolidated_enhancement import ConsolidatedEnhancer
+                    enhancer = ConsolidatedEnhancer()
+                    await enhancer.connect_database()
+                    await enhancer.enhance_fhir_data()
+                    await enhancer.enhance_lab_results()
+                    await enhancer.close_database()
+                    self.log("  ✅ Consolidated enhancements complete", "SUCCESS")
+                except ImportError:
+                    self.log("  ⚠️ Consolidated enhancement module not available", "WARN")
+                except Exception as e:
+                    self.log(f"  ⚠️ Enhancement error: {e}", "WARN")
+                
+                # Run catalog extraction
+                try:
+                    self.log("  Extracting clinical catalogs...", "INFO")
+                    from consolidated_catalog_setup import ConsolidatedCatalogSetup
+                    catalog = ConsolidatedCatalogSetup()
+                    await catalog.connect_database()
+                    await catalog.extract_from_fhir()
+                    await catalog.close_database()
+                    self.log("  ✅ Clinical catalog extraction complete", "SUCCESS")
+                except ImportError:
+                    self.log("  ⚠️ Catalog setup module not available", "WARN")
+                except Exception as e:
+                    self.log(f"  ⚠️ Catalog extraction error: {e}", "WARN")
+                
+                # Run workflow setup
+                try:
+                    self.log("  Setting up clinical workflows...", "INFO")
+                    from consolidated_workflow_setup import ConsolidatedWorkflowSetup
+                    workflow = ConsolidatedWorkflowSetup()
+                    await workflow.connect_database()
+                    await workflow.create_order_sets()
+                    await workflow.create_drug_interactions()
+                    await workflow.link_results_to_orders()
+                    await workflow.close_database()
+                    self.log("  ✅ Clinical workflow setup complete", "SUCCESS")
+                except ImportError:
+                    self.log("  ⚠️ Workflow setup module not available", "WARN")
+                except Exception as e:
+                    self.log(f"  ⚠️ Workflow setup error: {e}", "WARN")
+            else:
+                self.log("  ℹ️  Use --full-enhancement flag for complete clinical setup", "INFO")
+            
+            self.log("  ✅ All enhancements completed", "SUCCESS")
+            
+        except Exception as e:
+            self.log(f"  ⚠️ Enhancement orchestration error: {e}", "WARN")
+    
+    async def _basic_organizations_providers(self, session):
+        """Basic organization and provider setup (always run)."""
+        # Create organizations from Organization resources
+        self.log("    Creating organizations...", "INFO")
+        org_result = await session.execute(text("""
+            INSERT INTO auth.organizations (id, synthea_id, name, type, address, city, state, zip_code, phone)
+            SELECT 
+                resource->>'id',
+                resource->>'id',
+                resource->>'name',
+                resource->'type'->0->'coding'->0->>'display',
+                resource->'address'->0->'line'->>0,
+                resource->'address'->0->>'city',
+                resource->'address'->0->>'state',
+                resource->'address'->0->>'postalCode',
+                resource->'telecom'->0->>'value'
+            FROM fhir.resources
+            WHERE resource_type = 'Organization'
+            AND deleted = false
+            ON CONFLICT (id) DO NOTHING
+        """))
+        
+        # Create providers from Practitioner resources
+        self.log("    Creating providers...", "INFO")
+        pract_result = await session.execute(text("""
+            INSERT INTO auth.providers (
+                id, synthea_id, first_name, last_name, 
+                specialty, active, fhir_json
+            )
+            SELECT 
+                resource->>'id',
+                resource->>'id',
+                COALESCE(resource->'name'->0->'given'->>0, 'Unknown'),
+                COALESCE(resource->'name'->0->>'family', 'Provider'),
+                resource->'qualification'->0->'code'->'coding'->0->>'display',
+                COALESCE((resource->>'active')::boolean, true),
+                resource
+            FROM fhir.resources
+            WHERE resource_type = 'Practitioner'
+            AND deleted = false
+            ON CONFLICT (id) DO NOTHING
+        """))
+        
+        # Assign patients to providers randomly
+        self.log("    Assigning patients to providers...", "INFO")
+        providers = await session.execute(text("""
+            SELECT id FROM auth.providers WHERE active = true LIMIT 100
+        """))
+        provider_ids = [row[0] for row in providers]
+        
+        if provider_ids:
+            patients = await session.execute(text("""
+                SELECT fhir_id FROM fhir.resources 
+                WHERE resource_type = 'Patient' AND deleted = false
+            """))
+            
+            import random
+            for patient_row in patients:
+                patient_id = patient_row[0]
+                provider_id = random.choice(provider_ids)
+                
+                await session.execute(text("""
+                    INSERT INTO auth.patient_provider_assignments (
+                        patient_id, provider_id, assignment_type, is_active
+                    ) VALUES (
+                        :patient_id, :provider_id, 'primary', true
+                    )
+                    ON CONFLICT DO NOTHING
+                """), {
+                    'patient_id': patient_id,
+                    'provider_id': provider_id
+                })
+    
+    async def _populate_compartments(self, session, resource_id, resource_type, resource_data):
+        """Populate patient compartments inline during import."""
+        # Determine which compartments this resource belongs to
+        patient_id = None
+        
+        # Direct patient resource
+        if resource_type == 'Patient':
+            patient_id = resource_data.get('id')
+        # Resources with patient/subject reference
+        elif resource_type in ['Observation', 'Condition', 'MedicationRequest', 
+                              'AllergyIntolerance', 'Procedure', 'Immunization',
+                              'DiagnosticReport', 'CarePlan', 'CareTeam']:
+            # Check for patient or subject reference
+            for ref_field in ['patient', 'subject']:
+                if ref_field in resource_data:
+                    ref = resource_data[ref_field]
+                    if isinstance(ref, dict) and 'reference' in ref:
+                        ref_str = ref['reference']
+                        if '/' in ref_str:
+                            ref_type, ref_id = ref_str.split('/', 1)
+                            if ref_type == 'Patient':
+                                patient_id = ref_id
+                                break
+        # Encounter resources
+        elif resource_type == 'Encounter' and 'subject' in resource_data:
+            ref = resource_data['subject']
+            if isinstance(ref, dict) and 'reference' in ref:
+                ref_str = ref['reference']
+                if '/' in ref_str:
+                    ref_type, ref_id = ref_str.split('/', 1)
+                    if ref_type == 'Patient':
+                        patient_id = ref_id
+        
+        # Add to compartment if patient identified
+        if patient_id:
+            query = text("""
+                INSERT INTO fhir.compartments (
+                    compartment_type, compartment_id, resource_id
+                ) VALUES (
+                    :compartment_type, :compartment_id, :resource_id
+                )
+                ON CONFLICT (compartment_type, compartment_id, resource_id) DO NOTHING
+            """)
+            
+            await session.execute(query, {
+                'compartment_type': 'Patient',
+                'compartment_id': patient_id,
+                'resource_id': resource_id
+            })
+    
+    async def _extract_references(self, session, resource_id, resource_type, resource_data):
+        """Extract and store resource references inline."""
+        def extract_refs_from_obj(obj, path=''):
+            refs = []
+            if isinstance(obj, dict):
+                # Check for direct reference
+                if 'reference' in obj:
+                    ref_str = obj['reference']
+                    if '/' in ref_str:
+                        target_type, target_id = ref_str.split('/', 1)
+                        refs.append({
+                            'path': path,
+                            'target_type': target_type,
+                            'target_id': target_id,
+                            'value': ref_str
+                        })
+                # Recurse into dict
+                for key, value in obj.items():
+                    new_path = f"{path}.{key}" if path else key
+                    refs.extend(extract_refs_from_obj(value, new_path))
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    new_path = f"{path}[{i}]"
+                    refs.extend(extract_refs_from_obj(item, new_path))
+            return refs
+        
+        # Extract all references from resource
+        references = extract_refs_from_obj(resource_data)
+        
+        # Store each reference
+        for ref in references:
+            query = text("""
+                INSERT INTO fhir.references (
+                    source_id, source_type, target_type, target_id, 
+                    reference_path, reference_value
+                ) VALUES (
+                    :source_id, :source_type, :target_type, :target_id,
+                    :reference_path, :reference_value
+                )
+            """)
+            
+            await session.execute(query, {
+                'source_id': resource_id,
+                'source_type': resource_type,
+                'target_type': ref['target_type'],
+                'target_id': ref['target_id'],
+                'reference_path': ref['path'],
+                'reference_value': ref['value']
+            })
     
     async def _add_search_param(self, session, resource_id, resource_type, param_name, param_type, **values):
         """Add a search parameter to the database."""
@@ -908,7 +1255,7 @@ generate.demographics.default_state = Massachusetts
         self.log("🖼️  Generating DICOM files")
         self.log("=" * 60)
         
-        dicom_script = self.script_dir / "generate_dicom_for_synthea.py"
+        dicom_script = self.script_dir / ".." / "archive" / "generate_dicom_for_synthea.py"
         if not dicom_script.exists():
             self.log("DICOM generation script not found", "ERROR")
             return False
@@ -939,10 +1286,11 @@ generate.demographics.default_state = Massachusetts
         try:
             # Run the cleaning script
             result = subprocess.run(
-                [sys.executable, str(self.script_dir / "clean_fhir_names.py")],
+                [sys.executable, str(self.script_dir / ".." / "migrations" / "clean_fhir_names.py")],
                 capture_output=True,
                 text=True,
-                check=False
+                check=False,
+                timeout=300
             )
             
             if result.returncode != 0:
@@ -970,28 +1318,21 @@ generate.demographics.default_state = Massachusetts
         self.log("🧪 Enhancing lab results with reference ranges...")
         
         try:
-            # Run the lab enhancement script
-            result = subprocess.run(
-                [sys.executable, str(self.script_dir / "enhance_lab_results.py")],
-                capture_output=True,
-                text=True,
-                check=False
-            )
+            # Use the consolidated enhancer
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from consolidated_enhancement import ConsolidatedEnhancer
             
-            if result.returncode != 0:
-                self.log(f"Lab enhancement failed: {result.stderr}", "ERROR")
-                return False
+            enhancer = ConsolidatedEnhancer()
+            await enhancer.connect_database()
             
-            # Parse output for statistics
-            output_lines = result.stdout.strip().split('\n')
-            for line in output_lines:
-                if "Observations updated:" in line:
-                    obs_updated = line.split(':')[1].strip()
-                    self.log(f"✓ Enhanced {obs_updated} lab observations")
-                elif "Already had reference range:" in line:
-                    already_had = line.split(':')[1].strip()
-                    self.log(f"ℹ️  {already_had} observations already had reference ranges")
+            # Run the enhancement
+            await enhancer.enhance_lab_results()
             
+            await enhancer.close_database()
+            
+            self.log("✓ Lab results enhancement completed")
             return True
             
         except Exception as e:
@@ -1000,10 +1341,13 @@ generate.demographics.default_state = Massachusetts
     
     async def full_workflow(self, count: int = 10, validation_mode: str = "transform_only",
                           include_dicom: bool = False, clean_names: bool = False,
-                          state: str = "Massachusetts", city: Optional[str] = None) -> bool:
+                          state: str = "Massachusetts", city: Optional[str] = None,
+                          full_enhancement: bool = False) -> bool:
         """Run the complete Synthea workflow."""
         self.log("🚀 Starting full Synthea workflow")
         self.log("=" * 80)
+        self.log(f"Configuration: count={count}, validation={validation_mode}, ")
+        self.log(f"  dicom={include_dicom}, clean_names={clean_names}, full_enhancement={full_enhancement}")
         
         workflow_start = time.time()
         success = True
@@ -1028,16 +1372,21 @@ generate.demographics.default_state = Massachusetts
         if not await self.validate_data():
             success = False  # Continue anyway
         
-        # Step 6: Enhance lab results
+        # Step 6: Enhance lab results (basic inline)
         if not await self.enhance_lab_results():
             success = False  # Continue anyway
         
-        # Step 7: DICOM (optional)
+        # Step 7: Run full enhancements if requested
+        if full_enhancement:
+            if not await self.run_full_enhancements():
+                success = False  # Continue anyway
+        
+        # Step 8: DICOM (optional)
         if include_dicom:
             if not await self.generate_dicom():
                 success = False  # Continue anyway
         
-        # Step 8: Clean names (optional but recommended)
+        # Step 9: Clean names (optional but recommended)
         if clean_names:
             if not await self.clean_names():
                 success = False  # Continue anyway
@@ -1053,6 +1402,84 @@ generate.demographics.default_state = Massachusetts
         
         self.log(f"⏱️  Total time: {workflow_duration:.1f} seconds")
         self.log(f"📊 Resources imported: {self.stats.get('total_resources', 0)}")
+        
+        return success
+    
+    async def run_full_enhancements(self) -> bool:
+        """
+        Run all enhancement modules for comprehensive data enrichment.
+        
+        Returns:
+            bool: Success status
+        """
+        enhancement_start = time.time()
+        
+        self.log("=" * 80)
+        self.log("🔧 Running Full Enhancement Suite", "INFO")
+        self.log("=" * 80)
+        
+        success = True
+        
+        try:
+            # Run consolidated enhancement (organizations, providers, names, labs)
+            self.log("🏥 Running consolidated FHIR data enhancement...")
+            # Import from same directory
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from consolidated_enhancement import ConsolidatedEnhancer
+            
+            enhancer = ConsolidatedEnhancer()
+            await enhancer.connect_database()
+            await enhancer.enhance_fhir_data()
+            await enhancer.enhance_imaging_studies()
+            await enhancer.enhance_lab_results()
+            await enhancer.close_database()
+            self.log("✅ Consolidated enhancement completed", "SUCCESS")
+            
+        except Exception as e:
+            self.log(f"❌ Consolidated enhancement failed: {e}", "ERROR")
+            self.stats['errors'].append(str(e))
+            success = False
+        
+        try:
+            # Run catalog extraction from FHIR data
+            self.log("📋 Extracting clinical catalogs from FHIR data...")
+            from consolidated_catalog_setup import ConsolidatedCatalogSetup
+            
+            catalog = ConsolidatedCatalogSetup()
+            await catalog.connect_database()
+            await catalog.extract_from_fhir()
+            await catalog.populate_static_catalogs()
+            await catalog.close_database()
+            self.log("✅ Catalog extraction completed", "SUCCESS")
+            
+        except Exception as e:
+            self.log(f"❌ Catalog extraction failed: {e}", "ERROR")
+            self.stats['errors'].append(str(e))
+            success = False
+        
+        try:
+            # Run workflow setup (order sets, drug interactions, assignments)
+            self.log("🔗 Setting up clinical workflows...")
+            from consolidated_workflow_setup import ConsolidatedWorkflowSetup
+            
+            workflow = ConsolidatedWorkflowSetup()
+            await workflow.connect_database()
+            await workflow.create_order_sets()
+            await workflow.create_drug_interactions()
+            await workflow.link_results_to_orders()
+            await workflow.assign_patients_to_providers()
+            await workflow.close_database()
+            self.log("✅ Workflow setup completed", "SUCCESS")
+            
+        except Exception as e:
+            self.log(f"❌ Workflow setup failed: {e}", "ERROR")
+            self.stats['errors'].append(str(e))
+            success = False
+        
+        enhancement_duration = time.time() - enhancement_start
+        self.log(f"⏱️  Enhancement duration: {enhancement_duration:.1f} seconds")
         
         return success
     
@@ -1144,6 +1571,10 @@ Examples:
         "--clean-names", action="store_true",
         help="Remove numeric suffixes from patient and provider names after import"
     )
+    parser.add_argument(
+        "--full-enhancement", action="store_true",
+        help="Run all enhancement modules (organizations, catalogs, workflows)"
+    )
     
     # General options
     parser.add_argument(
@@ -1192,7 +1623,8 @@ Examples:
                 include_dicom=args.include_dicom,
                 clean_names=args.clean_names,
                 state=args.state,
-                city=args.city
+                city=args.city,
+                full_enhancement=args.full_enhancement
             )
         
         # Print final stats

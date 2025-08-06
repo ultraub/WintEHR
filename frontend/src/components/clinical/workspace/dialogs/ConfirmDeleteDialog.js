@@ -92,6 +92,13 @@ const ConfirmDeleteDialog = ({
       onClose={onClose}
       maxWidth="sm"
       fullWidth
+      sx={{
+        '& .MuiDialog-paper': {
+          borderRadius: 0,
+          border: '1px solid',
+          borderColor: 'divider'
+        }
+      }}
     >
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -112,7 +119,7 @@ const ConfirmDeleteDialog = ({
             <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
               Resource to be deleted:
             </Typography>
-            <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'grey.300' }}>
+            <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 0, border: '1px solid', borderColor: 'grey.300' }}>
               <Typography variant="body1" sx={{ fontWeight: 'bold', mb: 1 }}>
                 {resourceDisplay}
               </Typography>

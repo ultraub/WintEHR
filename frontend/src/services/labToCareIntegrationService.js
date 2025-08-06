@@ -3,10 +3,9 @@
  * Links lab results to care recommendations and treatment adjustments
  */
 
-import { fhirClient } from './fhirClient';
-import { cdsHooksClient } from './cdsHooksClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { resultsManagementService } from './resultsManagementService';
-import { REFERENCE_RANGES, getAdjustedReferenceRange } from '../core/fhir/utils/labReferenceRanges';
+import { REFERENCE_RANGES } from '../core/fhir/utils/labReferenceRanges';
 
 class LabToCareIntegrationService {
   constructor() {
@@ -276,6 +275,9 @@ class LabToCareIntegrationService {
             triggered = trends.percentChange >= pattern.trigger.percentChange;
           }
           break;
+        default:
+          console.warn(`Unknown trigger condition: ${pattern.trigger.condition}`);
+          break;
       }
       
       if (triggered) {
@@ -493,7 +495,8 @@ class LabToCareIntegrationService {
       };
       
       // Use existing CDS hooks service to create the rule
-      return await cdsHooksClient.createHook(cdsRule);
+      // TODO: Implement CDS hook creation when cdsHooksClient is available
+      return cdsRule;
     } catch (error) {
       throw error;
     }

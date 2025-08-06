@@ -20,10 +20,10 @@ import {
   DialogActions,
   Alert,
   Tooltip,
-  Badge,
   useTheme,
   alpha
 } from '@mui/material';
+import SafeBadge from '../common/SafeBadge';
 import {
   Schedule as PendingIcon,
   VerifiedUser as VerifyIcon,
@@ -40,6 +40,10 @@ import {
   ArrowForward as MoveIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow } from 'date-fns';
+import { printPrescriptionLabel } from '../../services/prescriptionLabelService';
+import { checkAvailability } from '../../services/inventoryManagementService';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../contexts/ClinicalWorkflowContext';
+import websocketService from '../../services/websocket';
 
 // Pharmacy queue column configuration
 const QUEUE_COLUMNS = {
@@ -75,16 +79,18 @@ const QUEUE_COLUMNS = {
 
 // Priority levels with colors and labels
 const PRIORITY_LEVELS = {
-  1: { label: 'STAT', color: 'error', bgColor: '#ffebee' },
-  2: { label: 'Urgent', color: 'warning', bgColor: '#fff3e0' },
-  3: { label: 'Normal', color: 'info', bgColor: '#f3f4f6' },
-  4: { label: 'Low', color: 'default', bgColor: '#fafafa' }
+  1: { label: 'STAT', color: 'error' },
+  2: { label: 'Urgent', color: 'warning' },
+  3: { label: 'Normal', color: 'info' },
+  4: { label: 'Low', color: 'default' }
 };
 
 // Prescription Card Component
 const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewDetails }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
+  const [inventoryStatus, setInventoryStatus] = useState(null);
+  const [checkingInventory, setCheckingInventory] = useState(false);
   
   // Extract prescription details
   const medicationName = prescription.medicationCodeableConcept?.text ||
@@ -131,6 +137,55 @@ const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewD
     setAnchorEl(null);
   };
 
+  const handleCheckInventory = async () => {
+    setCheckingInventory(true);
+    try {
+      // Get medication code from the prescription
+      const rxNormCode = prescription.medicationCodeableConcept?.coding?.find(
+        c => c.system === 'http://www.nlm.nih.gov/research/umls/rxnorm'
+      )?.code;
+      
+      if (rxNormCode && quantity) {
+        const availability = await checkAvailability(rxNormCode, parseInt(quantity));
+        setInventoryStatus(availability);
+      } else {
+        // Fallback to medication name search
+        const availability = await checkAvailability(medicationName, parseInt(quantity) || 30);
+        setInventoryStatus(availability);
+      }
+    } catch (error) {
+      console.error('Error checking inventory:', error);
+      setInventoryStatus({
+        available: false,
+        reason: 'Error checking inventory'
+      });
+    } finally {
+      setCheckingInventory(false);
+    }
+    handleMenuClose();
+  };
+
+  const handlePrintLabel = () => {
+    // Use the prescription label service for enhanced printing
+    const labelOptions = {
+      template: isControlled ? 'large' : 'standard',
+      includeBarcode: true,
+      includeQRCode: isControlled, // QR code for controlled substances
+      pharmacyName: 'WintEHR PHARMACY',
+      pharmacyAddress: '123 Healthcare Blvd, Medical City, HC 12345',
+      pharmacyPhone: '(555) 123-4567',
+      // In production, these would come from the logged-in pharmacist
+      pharmacistName: 'Licensed Pharmacist',
+      deaNumber: isControlled ? 'BW1234567' : ''
+    };
+    
+    // Print the label
+    printPrescriptionLabel(prescription, labelOptions);
+    
+    // Close the menu
+    handleMenuClose();
+  };
+
   // Get next workflow action based on current column
   const getNextAction = () => {
     switch (currentColumn) {
@@ -155,7 +210,7 @@ const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewD
       sx={{
         p: 2,
         mb: 2,
-        bgcolor: priorityInfo.bgColor,
+        bgcolor: alpha(theme.palette[priorityInfo.color]?.main || theme.palette.grey[500], 0.08),
         border: `1px solid ${theme.palette[priorityInfo.color]?.main || theme.palette.grey[300]}`,
         borderLeft: `4px solid ${theme.palette[priorityInfo.color]?.main || theme.palette.grey[500]}`,
         '&:hover': {
@@ -245,6 +300,26 @@ const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewD
         </Typography>
       </Box>
 
+      {/* Inventory Status Alert */}
+      {inventoryStatus && (
+        <Alert 
+          severity={inventoryStatus.available ? 'success' : 'warning'} 
+          sx={{ mb: 1, py: 0.5 }}
+        >
+          {inventoryStatus.available ? (
+            <>
+              In Stock: {inventoryStatus.totalInStock} {unit}
+              {inventoryStatus.willTriggerReorder && ' (Will trigger reorder)'}
+            </>
+          ) : (
+            <>
+              {inventoryStatus.reason}
+              {inventoryStatus.suggestion && ` - ${inventoryStatus.suggestion}`}
+            </>
+          )}
+        </Alert>
+      )}
+
       {/* Action Buttons */}
       <Stack direction="row" spacing={1} justifyContent="space-between">
         <Button
@@ -261,7 +336,7 @@ const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewD
             variant="contained"
             color={nextAction.color}
             startIcon={<MoveIcon />}
-            onClick={() => onStatusChange(prescription.id, nextAction.nextStatus, nextAction.nextStatus)}
+            onClick={() => onStatusChange(prescription.id, nextAction.nextStatus)}
           >
             {nextAction.label}
           </Button>
@@ -278,13 +353,13 @@ const PrescriptionCard = ({ prescription, currentColumn, onStatusChange, onViewD
           <EditIcon sx={{ mr: 1 }} fontSize="small" />
           View Details
         </MenuItem>
-        <MenuItem onClick={handleMenuClose}>
+        <MenuItem onClick={handlePrintLabel}>
           <PrintIcon sx={{ mr: 1 }} fontSize="small" />
           Print Label
         </MenuItem>
-        <MenuItem onClick={handleMenuClose}>
+        <MenuItem onClick={handleCheckInventory} disabled={checkingInventory}>
           <InventoryIcon sx={{ mr: 1 }} fontSize="small" />
-          Check Stock
+          {checkingInventory ? 'Checking...' : 'Check Stock'}
         </MenuItem>
       </Menu>
     </Paper>
@@ -323,7 +398,7 @@ const QueueColumn = ({ column, prescriptions, onStatusChange, onViewDetails }) =
             <Typography variant="h6" fontWeight="bold">
               {columnConfig.title}
             </Typography>
-            <Badge 
+            <SafeBadge 
               badgeContent={prescriptions.length} 
               color={columnConfig.color}
               max={99}

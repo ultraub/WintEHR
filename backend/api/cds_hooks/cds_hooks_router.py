@@ -18,6 +18,16 @@ from .hook_persistence import (
     load_hooks_from_database, 
     save_sample_hooks_to_database
 )
+from .feedback_persistence import (
+    get_feedback_manager,
+    process_cds_feedback,
+    get_service_analytics,
+    log_hook_execution
+)
+from .prefetch_engine import (
+    get_prefetch_engine,
+    execute_hook_prefetch
+)
 from .models import (
     CDSHookRequest,
     CDSHookResponse,
@@ -40,11 +50,27 @@ from .models import (
     HookAction
 )
 from .medication_prescribe_hooks import medication_prescribe_hooks
+from .rules_engine.integration import cds_integration
+from .rules_engine.safety import safety_manager, FeatureFlag
+from .service_registry import service_registry, register_builtin_services
+from .service_implementations import register_example_services
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["CDS Hooks"])
+
+# Initialize service registry with built-in services
+register_builtin_services()
+register_example_services(service_registry)
+
+# Include action execution router
+from .action_router import router as action_router
+router.include_router(action_router, prefix="", tags=["CDS Actions"])
+
+# Include audit trail router
+from .audit_router import router as audit_router
+router.include_router(audit_router, prefix="", tags=["CDS Audit"])
 
 # Sample hook configurations - in production, these would be stored in database
 SAMPLE_HOOKS = {
@@ -72,7 +98,23 @@ SAMPLE_HOOKS = {
                     ]
                 }
             )
-        ]
+        ],
+        displayBehavior={
+            "defaultMode": "popup",
+            "indicatorOverrides": {
+                "critical": "modal",
+                "warning": "popup",
+                "info": "inline"
+            },
+            "acknowledgment": {
+                "required": False,
+                "reasonRequired": False
+            },
+            "snooze": {
+                "enabled": True,
+                "defaultDuration": 60
+            }
+        }
     ),
     "senior-care-reminder": HookConfiguration(
         id="senior-care-reminder",
@@ -387,18 +429,20 @@ class CDSHookEngine:
         """Evaluate a CDS hook against the given request"""
         cards = []
         
-        logger.debug(f"Evaluating hook: {hook_config.id} for patient: {request.context.get('patientId')}")
+        logger.info(f"Evaluating hook: {hook_config.id} for patient: {request.context.get('patientId')}")
+        logger.info(f"Hook has {len(hook_config.conditions)} conditions to evaluate")
+        logger.info(f"Hook conditions: {[{'type': c.type, 'params': c.parameters} for c in hook_config.conditions]}")
         
         # Check if conditions are met
         if await self._evaluate_conditions(hook_config.conditions, request):
-            logger.debug(f"Conditions met for hook: {hook_config.id}")
+            logger.info(f"Conditions met for hook: {hook_config.id}")
             # Execute actions
             for action in hook_config.actions:
                 card = await self._execute_action(action, request)
                 if card:
                     cards.append(card)
         else:
-            logger.debug(f"Conditions NOT met for hook: {hook_config.id}")
+            logger.info(f"Conditions NOT met for hook: {hook_config.id}")
         
         return cards
     
@@ -445,7 +489,7 @@ class CDSHookEngine:
                 # Some hooks might not require patient context
                 return condition_type in ['system-status', 'user-preference', 'time-based']
             
-            logger.debug(f"Checking condition type: {condition_type} with parameters: {parameters}")
+            logger.info(f"Evaluating condition type: {condition_type} with parameters: {parameters} for patient: {patient_id}")
             
             # Make condition evaluation more forgiving by handling missing data gracefully
             if condition_type == 'patient-age':
@@ -661,6 +705,9 @@ class CDSHookEngine:
             value = float(parameters.get('value', 0))
             timeframe = int(parameters.get('timeframe', 90))  # days
             
+            logger.info(f"Lab value check - Initial parameters: {parameters}")
+            logger.info(f"Lab value check - Extracted values: code={code}, operator={operator}, value={value}, patient_id={patient_id}")
+            
             if not code:
                 logger.debug(f"No lab code provided in parameters: {parameters}")
                 return False
@@ -671,7 +718,7 @@ class CDSHookEngine:
             
             cutoff_date = (datetime.now() - timedelta(days=timeframe)).isoformat()
             
-            logger.debug(f"Lab value check: patient={patient_id}, code={code}, operator={operator}, value={value}, timeframe={timeframe} days")
+            logger.info(f"Lab value check: patient={patient_id}, code={code}, operator={operator}, value={value}, timeframe={timeframe} days, cutoff_date={cutoff_date}")
             
             # Try both reference formats: urn:uuid: and Patient/
             query = text("""
@@ -696,16 +743,20 @@ class CDSHookEngine:
                 LIMIT 1
             """)
             
-            result = await self.db.execute(query, {
+            params = {
                 'patient_ref_fhir': f'Patient/{patient_id}',
                 'patient_ref_uuid': f'urn:uuid:{patient_id}',
                 'code': code,
                 'cutoff_date': cutoff_date
-            })
+            }
+            logger.info(f"Lab value check - Query parameters: {params}")
+            
+            result = await self.db.execute(query, params)
             
             row = result.first()
             if not row:
-                logger.debug(f"No lab values found for code {code} within {timeframe} days for patient {patient_id}")
+                logger.info(f"No lab values found for code {code} within {timeframe} days for patient {patient_id}")
+                logger.info(f"Checked references: Patient/{patient_id} and urn:uuid:{patient_id}")
                 return operator == 'missing'
             
             obs_dict = row.resource
@@ -857,6 +908,16 @@ class CDSHookEngine:
                         for l in parameters['links']
                     ]
                 
+                if 'overrideReasons' in parameters:
+                    card.overrideReasons = [
+                        OverrideReason(
+                            code=reason.get('code', reason.get('key', '')),
+                            display=reason.get('display', reason.get('label', '')),
+                            system=reason.get('system', '')
+                        )
+                        for reason in parameters['overrideReasons']
+                    ]
+                
                 return card
             
             # Handle medication prescribe specific actions
@@ -882,8 +943,32 @@ class CDSHookEngine:
 
 # CDS Hooks Discovery Endpoint
 @router.get("/cds-services", response_model=CDSServicesResponse)
-async def discover_services(db: AsyncSession = Depends(get_db_session)):
+async def discover_services(db: AsyncSession = Depends(get_db_session), use_registry: bool = False):
     """CDS Hooks discovery endpoint - returns available services"""
+    
+    # Option to use new service registry
+    if use_registry:
+        registry_services = service_registry.list_services()
+        # Also include legacy services from database
+        try:
+            db_hooks = await load_hooks_from_database(db)
+            for hook_id, hook_config in db_hooks.items():
+                if hook_config.enabled and hook_id not in [s.id for s in registry_services]:
+                    service = CDSService(
+                        hook=hook_config.hook,
+                        title=hook_config.title,
+                        description=hook_config.description,
+                        id=hook_id,
+                        prefetch=hook_config.prefetch,
+                        usageRequirements=hook_config.usageRequirements
+                    )
+                    registry_services.append(service)
+        except Exception as e:
+            logger.error(f"Error loading legacy services: {e}")
+        
+        return CDSServicesResponse(services=registry_services)
+    
+    # Legacy discovery logic
     services = []
     
     try:
@@ -936,9 +1021,67 @@ async def discover_services(db: AsyncSession = Depends(get_db_session)):
 async def execute_service(
     service_id: str,
     request: CDSHookRequest,
-    db: AsyncSession = Depends(get_db_session)
+    db: AsyncSession = Depends(get_db_session),
+    use_rules_engine: bool = False,  # Query parameter to optionally use rules engine
+    use_registry: bool = False  # Query parameter to use service registry
 ):
     """Execute a specific CDS service"""
+    
+    # Option to use service registry
+    if use_registry:
+        try:
+            # Try to execute through service registry first
+            if service_registry.get_service_definition(service_id):
+                response = await service_registry.invoke_service(service_id, request, db)
+                return response
+        except Exception as e:
+            logger.error(f"Error executing service {service_id} through registry: {e}")
+            # Fall through to legacy execution
+    # Check if we should use the rules engine for certain services
+    rules_engine_services = {
+        "medication-prescribe-v2", "patient-view-v2", "order-select-v2",
+        "encounter-start-v2", "encounter-discharge-v2"
+    }
+    
+    # Use rules engine for v2 services or if explicitly requested
+    if service_id in rules_engine_services or use_rules_engine:
+        try:
+            # Convert context to dict format expected by rules engine
+            context_dict = request.context if isinstance(request.context, dict) else request.context.dict()
+            
+            # Execute with rules engine
+            response = await cds_integration.execute_hook(
+                hook=request.hook.value,
+                context=context_dict,
+                prefetch=request.prefetch,
+                use_legacy=True  # Include legacy results for better coverage
+            )
+            
+            # Convert response to CDSHookResponse format
+            cards = []
+            for card_data in response.get("cards", []):
+                card = Card(
+                    summary=card_data.get("summary", ""),
+                    detail=card_data.get("detail", ""),
+                    indicator=IndicatorType(card_data.get("indicator", "info")),
+                    source=Source(**card_data.get("source", {"label": "CDS Rules Engine"})),
+                    uuid=card_data.get("uuid", str(uuid.uuid4()))
+                )
+                
+                if "suggestions" in card_data:
+                    card.suggestions = card_data["suggestions"]
+                if "links" in card_data:
+                    card.links = card_data["links"]
+                
+                cards.append(card)
+            
+            return CDSHookResponse(cards=cards)
+            
+        except Exception as e:
+            logger.error(f"Error executing CDS service {service_id} with rules engine: {e}")
+            # Fall through to legacy execution
+    
+    # Legacy execution path
     # Get the hook configuration from database first, then fallback to sample hooks
     try:
         manager = await get_persistence_manager(db)
@@ -963,17 +1106,68 @@ async def execute_service(
             detail=f"Hook type mismatch: service expects {hook_config.hook}, got {request.hook}"
         )
     
+    # Execute prefetch if configured and not provided
+    if hook_config.prefetch and not request.prefetch:
+        try:
+            prefetch_start = datetime.now()
+            request.prefetch = await execute_hook_prefetch(
+                db, 
+                hook_config.prefetch, 
+                request.context if isinstance(request.context, dict) else request.context.dict()
+            )
+            prefetch_time = int((datetime.now() - prefetch_start).total_seconds() * 1000)
+            logger.debug(f"Executed prefetch for {service_id} in {prefetch_time}ms")
+        except Exception as e:
+            logger.warning(f"Prefetch execution failed for {service_id}: {e}")
+            # Continue without prefetch data
+            request.prefetch = {}
+    
     # Create execution engine
     engine = CDSHookEngine(db)
     
-    # Execute hook
+    # Execute hook with performance tracking
+    start_time = datetime.now()
+    execution_success = True
+    error_message = None
+    cards = []
+    
     try:
         cards = await engine.evaluate_hook(hook_config, request)
-        return CDSHookResponse(cards=cards)
+        response = CDSHookResponse(cards=cards)
     except Exception as e:
         logger.error(f"Error executing CDS Service {service_id}: {str(e)}")
+        execution_success = False
+        error_message = str(e)
         # CDS Hooks should be non-blocking - return empty cards on error
-        return CDSHookResponse(cards=[])
+        response = CDSHookResponse(cards=[])
+    
+    # Calculate execution time
+    execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+    
+    # Log the execution (fire and forget - don't block response)
+    try:
+        patient_id = request.context.get('patientId') if isinstance(request.context, dict) else None
+        user_id = request.context.get('userId') if isinstance(request.context, dict) else None
+        
+        await log_hook_execution(
+            db=db,
+            service_id=service_id,
+            hook_type=request.hook.value,
+            patient_id=patient_id,
+            user_id=user_id,
+            context=request.context if isinstance(request.context, dict) else request.context.dict(),
+            request_data=request.dict(),
+            response_data=response.dict(),
+            cards_returned=len(cards),
+            execution_time_ms=execution_time_ms,
+            success=execution_success,
+            error_message=error_message
+        )
+    except Exception as log_error:
+        logger.warning(f"Failed to log hook execution: {log_error}")
+        # Don't fail the response due to logging issues
+    
+    return response
 
 
 # CDS Service Feedback Endpoint
@@ -983,32 +1177,175 @@ async def provide_feedback(
     feedback: FeedbackRequest,
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Provide feedback on CDS service recommendations"""
-    # Get the hook configuration
-    hook_config = SAMPLE_HOOKS.get(service_id)
-    if not hook_config:
-        raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
-    
-    # Log feedback for monitoring/analytics
-    logger.debug(f"Received feedback for service {service_id}: {feedback.feedback}")
-    
-    # In a production system, you would:
-    # 1. Store feedback in database
-    # 2. Update recommendation algorithms
-    # 3. Generate analytics reports
-    # 4. Trigger quality improvement processes
-    
-    return {"message": "Feedback received successfully"}
+    """Provide feedback on CDS service recommendations - CDS Hooks v2.0 compliant"""
+    try:
+        # Verify the service exists
+        manager = await get_persistence_manager(db)
+        hook_config = await manager.get_hook(service_id)
+        if not hook_config and service_id not in SAMPLE_HOOKS:
+            raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
+        
+        # Process and store the feedback
+        # The feedback request contains an array of feedback items
+        if not feedback.feedback or len(feedback.feedback) == 0:
+            raise HTTPException(status_code=400, detail="No feedback items provided")
+        
+        # Process each feedback item
+        feedback_ids = []
+        for feedback_item in feedback.feedback:
+            feedback_data = {
+                'hookInstance': getattr(feedback_item, 'hookInstance', None),
+                'service': service_id,
+                'card': feedback_item.card,
+                'outcome': feedback_item.outcome,
+                'overrideReason': getattr(feedback_item, 'overrideReason', None) or getattr(feedback_item, 'overrideReasons', None),
+                'acceptedSuggestions': getattr(feedback_item, 'acceptedSuggestions', None),
+                # Extract additional context if available from the request
+                'userId': getattr(feedback, 'userId', None),
+                'patientId': getattr(feedback, 'patientId', None),
+                'encounterId': getattr(feedback, 'encounterId', None),
+                'context': getattr(feedback, 'context', None),
+                'outcomeTimestamp': getattr(feedback_item, 'outcomeTimestamp', None)
+            }
+            
+            feedback_id = await process_cds_feedback(db, feedback_data)
+            feedback_ids.append(feedback_id)
+            
+            logger.info(f"Stored feedback {feedback_id} for service {service_id}: outcome={feedback_item.outcome}")
+        
+        # Return success response per CDS Hooks specification
+        return {
+            "status": "success",
+            "feedbackIds": feedback_ids,
+            "message": f"Feedback received and stored successfully ({len(feedback_ids)} items)"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing feedback for service {service_id}: {e}")
+        # CDS Hooks specification allows for graceful error handling
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to process feedback. The feedback has been logged for manual review."
+        )
 
 
-# Hook Management Endpoints (for CRUD operations)
-@router.get("/hooks", response_model=List[HookConfiguration])
-async def list_hooks(
+# CDS Analytics Endpoint
+@router.get("/cds-services/{service_id}/analytics")
+async def get_feedback_analytics(
+    service_id: str,
+    days: int = 30,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Get analytics for a specific CDS service"""
+    try:
+        # Verify the service exists
+        manager = await get_persistence_manager(db)
+        hook_config = await manager.get_hook(service_id)
+        if not hook_config and service_id not in SAMPLE_HOOKS:
+            raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
+        
+        # Get analytics
+        analytics = await get_service_analytics(db, service_id, days)
+        
+        return {
+            "status": "success",
+            "service_id": service_id,
+            "analytics": analytics,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting analytics for service {service_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve analytics"
+        )
+
+
+# Global Analytics Endpoint
+@router.get("/cds-services/analytics/summary")
+async def get_global_analytics(
+    days: int = 30,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Get analytics summary for all CDS services"""
+    try:
+        feedback_manager = await get_feedback_manager(db)
+        summary = await feedback_manager.get_analytics_summary(period_days=days)
+        
+        return {
+            "status": "success",
+            "period_days": days,
+            "summary": summary,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting global analytics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve analytics summary"
+        )
+
+
+# Prefetch Analysis Endpoint
+@router.get("/cds-services/{service_id}/prefetch-analysis")
+async def analyze_prefetch_patterns(
+    service_id: str,
+    days: int = 30,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Analyze prefetch patterns for optimization"""
+    try:
+        # Verify the service exists
+        manager = await get_persistence_manager(db)
+        hook_config = await manager.get_hook(service_id)
+        if not hook_config and service_id not in SAMPLE_HOOKS:
+            raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
+        
+        # Get prefetch analysis
+        engine = await get_prefetch_engine(db)
+        analysis = await engine.analyze_prefetch_patterns(service_id, days)
+        
+        # Add current prefetch configuration
+        if hook_config and hook_config.prefetch:
+            analysis['current_prefetch_config'] = hook_config.prefetch
+        
+        # Add recommended prefetch based on hook type
+        if hook_config:
+            analysis['recommended_prefetch'] = engine.get_recommended_prefetch(
+                hook_config.hook.value
+            )
+        
+        return {
+            "status": "success",
+            "service_id": service_id,
+            "analysis": analysis,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error analyzing prefetch patterns for service {service_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to analyze prefetch patterns"
+        )
+
+
+# Service Management Endpoints (for CRUD operations)
+@router.get("/services", response_model=List[HookConfiguration])
+async def list_services(
     hook_type: Optional[str] = None,
     enabled_only: bool = True,
     db: AsyncSession = Depends(get_db_session)
 ):
-    """List all CDS hooks"""
+    """List all CDS services"""
     try:
         manager = await get_persistence_manager(db)
         return await manager.list_hooks(hook_type=hook_type, enabled_only=enabled_only)
@@ -1023,12 +1360,12 @@ async def list_hooks(
         return hooks
 
 
-@router.post("/hooks", response_model=HookConfiguration)
-async def create_hook(
+@router.post("/services", response_model=HookConfiguration)
+async def create_service(
     hook_config: HookConfiguration, 
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Create a new CDS hook"""
+    """Create a new CDS service"""
     try:
         manager = await get_persistence_manager(db)
         
@@ -1047,10 +1384,10 @@ async def create_hook(
         raise HTTPException(status_code=500, detail="Failed to create hook")
 
 
-# Hook Management Endpoints (specific routes before parameterized routes)
-@router.get("/hooks/backup")
-async def backup_hooks(db: AsyncSession = Depends(get_db_session)):
-    """Create a backup of all hook configurations"""
+# Service Management Endpoints (specific routes before parameterized routes)
+@router.get("/services/backup")
+async def backup_services(db: AsyncSession = Depends(get_db_session)):
+    """Create a backup of all service configurations"""
     try:
         manager = await get_persistence_manager(db)
         backup = await manager.backup_hooks()
@@ -1061,77 +1398,77 @@ async def backup_hooks(db: AsyncSession = Depends(get_db_session)):
         return backup
         
     except Exception as e:
-        logger.error(f"Error creating hooks backup: {e}")
+        logger.error(f"Error creating services backup: {e}")
         raise HTTPException(status_code=500, detail="Failed to create backup")
 
-@router.post("/hooks/restore")
-async def restore_hooks(backup_data: Dict[str, Any], db: AsyncSession = Depends(get_db_session)):
-    """Restore hooks from backup data"""
+@router.post("/services/restore")
+async def restore_services(backup_data: Dict[str, Any], db: AsyncSession = Depends(get_db_session)):
+    """Restore services from backup data"""
     try:
         manager = await get_persistence_manager(db)
         restored_count = await manager.restore_hooks(backup_data)
         
         return {
-            "message": f"Successfully restored {restored_count} hooks",
+            "message": f"Successfully restored {restored_count} services",
             "restored_count": restored_count
         }
         
     except Exception as e:
-        logger.error(f"Error restoring hooks: {e}")
-        raise HTTPException(status_code=500, detail="Failed to restore hooks")
+        logger.error(f"Error restoring services: {e}")
+        raise HTTPException(status_code=500, detail="Failed to restore services")
 
-@router.post("/hooks/sync-samples")
-async def sync_sample_hooks(db: AsyncSession = Depends(get_db_session)):
-    """Sync sample hooks to database"""
+@router.post("/services/sync-samples")
+async def sync_sample_services(db: AsyncSession = Depends(get_db_session)):
+    """Sync sample services to database"""
     try:
         await save_sample_hooks_to_database(db, SAMPLE_HOOKS)
         db_hooks = await load_hooks_from_database(db)
         
         return {
-            "message": f"Successfully synced {len(SAMPLE_HOOKS)} sample hooks",
-            "hooks_count": len(db_hooks),
-            "hooks": list(db_hooks.keys())
+            "message": f"Successfully synced {len(SAMPLE_HOOKS)} sample services",
+            "services_count": len(db_hooks),
+            "services": list(db_hooks.keys())
         }
     except Exception as e:
-        logger.error(f"Error syncing sample hooks: {e}")
-        raise HTTPException(status_code=500, detail="Failed to sync sample hooks")
+        logger.error(f"Error syncing sample services: {e}")
+        raise HTTPException(status_code=500, detail="Failed to sync sample services")
 
-@router.get("/hooks/{hook_id}", response_model=HookConfiguration)
-async def get_hook(hook_id: str, db: AsyncSession = Depends(get_db_session)):
-    """Get a specific CDS hook"""
+@router.get("/services/{service_id}", response_model=HookConfiguration)
+async def get_service(service_id: str, db: AsyncSession = Depends(get_db_session)):
+    """Get a specific CDS service"""
     try:
         manager = await get_persistence_manager(db)
-        hook_config = await manager.get_hook(hook_id)
+        hook_config = await manager.get_hook(service_id)
         if not hook_config:
             # Fallback to sample hooks
-            hook_config = SAMPLE_HOOKS.get(hook_id)
+            hook_config = SAMPLE_HOOKS.get(service_id)
         if not hook_config:
-            raise HTTPException(status_code=404, detail="Hook not found")
+            raise HTTPException(status_code=404, detail="Service not found")
         return hook_config
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrieving hook {hook_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve hook")
+        logger.error(f"Error retrieving service {service_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve service")
 
 
-@router.put("/hooks/{hook_id}", response_model=HookConfiguration)
-async def update_hook(
-    hook_id: str, 
+@router.put("/services/{service_id}", response_model=HookConfiguration)
+async def update_service(
+    service_id: str, 
     hook_config: HookConfiguration, 
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Update a CDS hook"""
+    """Update a CDS service"""
     try:
         manager = await get_persistence_manager(db)
         
         # Check if hook exists
-        existing = await manager.get_hook(hook_id)
-        if not existing and hook_id not in SAMPLE_HOOKS:
-            raise HTTPException(status_code=404, detail="Hook not found")
+        existing = await manager.get_hook(service_id)
+        if not existing and service_id not in SAMPLE_HOOKS:
+            raise HTTPException(status_code=404, detail="Service not found")
         
         # Ensure the ID matches
-        hook_config.id = hook_id
+        hook_config.id = service_id
         
         # Save to database
         return await manager.save_hook(hook_config, "api-user")
@@ -1139,79 +1476,79 @@ async def update_hook(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating hook {hook_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update hook")
+        logger.error(f"Error updating service {service_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update service")
 
 
-@router.delete("/hooks/{hook_id}")
-async def delete_hook(hook_id: str, db: AsyncSession = Depends(get_db_session)):
-    """Delete a CDS hook"""
+@router.delete("/services/{service_id}")
+async def delete_service(service_id: str, db: AsyncSession = Depends(get_db_session)):
+    """Delete a CDS service"""
     try:
         manager = await get_persistence_manager(db)
         
         # Try to delete from database first
-        deleted = await manager.delete_hook(hook_id)
+        deleted = await manager.delete_hook(service_id)
         
         if not deleted:
             # Check if it exists in sample hooks
-            if hook_id not in SAMPLE_HOOKS:
-                raise HTTPException(status_code=404, detail="Hook not found")
+            if service_id not in SAMPLE_HOOKS:
+                raise HTTPException(status_code=404, detail="Service not found")
             # For sample hooks, we can't delete them, just disable
-            raise HTTPException(status_code=400, detail="Cannot delete sample hooks, only disable them")
+            raise HTTPException(status_code=400, detail="Cannot delete sample services, only disable them")
         
-        return {"message": f"Hook {hook_id} deleted successfully"}
+        return {"message": f"Service {service_id} deleted successfully"}
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting hook {hook_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete hook")
+        logger.error(f"Error deleting service {service_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete service")
 
 
 # Additional hook management endpoints
-@router.patch("/hooks/{hook_id}/toggle")
-async def toggle_hook(hook_id: str, enabled: bool, db: AsyncSession = Depends(get_db_session)):
-    """Enable or disable a CDS hook"""
+@router.patch("/services/{service_id}/toggle")
+async def toggle_service(service_id: str, enabled: bool, db: AsyncSession = Depends(get_db_session)):
+    """Enable or disable a CDS service"""
     try:
         manager = await get_persistence_manager(db)
-        success = await manager.toggle_hook(hook_id, enabled)
+        success = await manager.toggle_hook(service_id, enabled)
         
         if not success:
             # Try sample hooks
-            if hook_id in SAMPLE_HOOKS:
-                SAMPLE_HOOKS[hook_id].enabled = enabled
-                return {"message": f"Hook {hook_id} {'enabled' if enabled else 'disabled'} successfully"}
-            raise HTTPException(status_code=404, detail="Hook not found")
+            if service_id in SAMPLE_HOOKS:
+                SAMPLE_HOOKS[service_id].enabled = enabled
+                return {"message": f"Service {service_id} {'enabled' if enabled else 'disabled'} successfully"}
+            raise HTTPException(status_code=404, detail="Service not found")
         
-        return {"message": f"Hook {hook_id} {'enabled' if enabled else 'disabled'} successfully"}
+        return {"message": f"Service {service_id} {'enabled' if enabled else 'disabled'} successfully"}
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error toggling hook {hook_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to toggle hook")
+        logger.error(f"Error toggling service {service_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to toggle service")
 
-@router.post("/hooks/test/{hook_id}")
-async def test_hook(
-    hook_id: str,
+@router.post("/services/test/{service_id}")
+async def test_service(
+    service_id: str,
     test_context: Dict[str, Any],
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Test a specific hook with provided context"""
+    """Test a specific service with provided context"""
     try:
         # Get hook configuration
         manager = await get_persistence_manager(db)
-        hook_config = await manager.get_hook(hook_id)
+        hook_config = await manager.get_hook(service_id)
         if not hook_config:
-            hook_config = SAMPLE_HOOKS.get(hook_id)
+            hook_config = SAMPLE_HOOKS.get(service_id)
         
         if not hook_config:
-            raise HTTPException(status_code=404, detail="Hook not found")
+            raise HTTPException(status_code=404, detail="Service not found")
         
         # Create test request
         test_request = CDSHookRequest(
             hook=hook_config.hook,
-            hookInstance=f"test-{hook_id}-{datetime.now().timestamp()}",
+            hookInstance=f"test-{service_id}-{datetime.now().timestamp()}",
             context=test_context
         )
         
@@ -1220,7 +1557,7 @@ async def test_hook(
         cards = await engine.evaluate_hook(hook_config, test_request)
         
         return {
-            "hook_id": hook_id,
+            "service_id": service_id,
             "test_context": test_context,
             "cards": [card.dict() for card in cards],
             "cards_count": len(cards),
@@ -1230,8 +1567,201 @@ async def test_hook(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error testing hook {hook_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to test hook")
+        logger.error(f"Error testing service {service_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to test service")
+
+# Rules Engine Management Endpoints
+@router.get("/rules-engine/statistics")
+async def get_rules_statistics():
+    """Get statistics about the rules engine"""
+    try:
+        stats = await cds_integration.get_rule_statistics()
+        return {
+            "status": "success",
+            "statistics": stats,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting rules statistics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get rules statistics")
+
+
+@router.post("/rules-engine/evaluate")
+async def evaluate_rules(
+    context: Dict[str, Any],
+    categories: Optional[List[str]] = None,
+    priorities: Optional[List[str]] = None
+):
+    """Directly evaluate rules against provided context"""
+    try:
+        # Execute rules engine
+        response = await cds_integration.rules_engine.evaluate(
+            context=context,
+            categories=categories,
+            priorities=priorities
+        )
+        
+        return {
+            "status": "success",
+            "response": response,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error evaluating rules: {e}")
+        raise HTTPException(status_code=500, detail="Failed to evaluate rules")
+
+
+@router.patch("/rules-engine/rules/{rule_set_name}/{rule_id}/toggle")
+async def toggle_rule(rule_set_name: str, rule_id: str, enabled: bool):
+    """Enable or disable a specific rule"""
+    try:
+        cds_integration.toggle_rule(rule_set_name, rule_id, enabled)
+        return {
+            "status": "success",
+            "message": f"Rule {rule_id} {'enabled' if enabled else 'disabled'}",
+            "rule_set": rule_set_name,
+            "rule_id": rule_id,
+            "enabled": enabled
+        }
+    except Exception as e:
+        logger.error(f"Error toggling rule: {e}")
+        raise HTTPException(status_code=500, detail="Failed to toggle rule")
+
+
+# Safety and Feature Flag Endpoints
+@router.get("/rules-engine/safety/metrics")
+async def get_safety_metrics():
+    """Get safety metrics and circuit breaker status"""
+    try:
+        metrics = safety_manager.get_metrics()
+        return {
+            "status": "success",
+            "metrics": metrics,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting safety metrics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get safety metrics")
+
+
+@router.patch("/rules-engine/safety/feature-flags/{flag}")
+async def set_feature_flag(flag: str, enabled: bool):
+    """Enable or disable a feature flag"""
+    try:
+        feature_flag = FeatureFlag(flag)
+        safety_manager.set_feature_flag(feature_flag, enabled)
+        return {
+            "status": "success",
+            "message": f"Feature flag {flag} set to {enabled}",
+            "flag": flag,
+            "enabled": enabled
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid feature flag: {flag}")
+    except Exception as e:
+        logger.error(f"Error setting feature flag: {e}")
+        raise HTTPException(status_code=500, detail="Failed to set feature flag")
+
+
+@router.get("/rules-engine/safety/health")
+async def rules_engine_health():
+    """Get rules engine health status including circuit breakers"""
+    try:
+        health = safety_manager.health_check()
+        return health
+    except Exception as e:
+        logger.error(f"Error checking rules engine health: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@router.post("/rules-engine/safety/circuit-breaker/{service}/reset")
+async def reset_circuit_breaker(service: str):
+    """Reset a circuit breaker for a specific service"""
+    try:
+        if service in safety_manager.circuit_breakers:
+            breaker = safety_manager.circuit_breakers[service]
+            breaker.state = "closed"
+            breaker.failure_count = 0
+            breaker.success_count = 0
+            breaker.opened_at = None
+            
+            return {
+                "status": "success",
+                "message": f"Circuit breaker for {service} reset",
+                "service": service,
+                "new_state": "closed"
+            }
+        else:
+            raise HTTPException(status_code=404, detail=f"Circuit breaker for {service} not found")
+    except Exception as e:
+        logger.error(f"Error resetting circuit breaker: {e}")
+        raise HTTPException(status_code=500, detail="Failed to reset circuit breaker")
+
+
+@router.get("/rules-engine/safety/ab-test/results")
+async def get_ab_test_results():
+    """Get A/B test results comparing rules engine to legacy"""
+    try:
+        if not safety_manager.is_enabled(FeatureFlag.A_B_TESTING_ENABLED):
+            return {
+                "status": "disabled",
+                "message": "A/B testing is not enabled",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        results = dict(safety_manager.ab_test_results)
+        
+        # Calculate success rates
+        for group in results:
+            if results[group]["total"] > 0:
+                results[group]["success_rate"] = (
+                    results[group]["success"] / results[group]["total"] * 100
+                )
+            else:
+                results[group]["success_rate"] = 0
+        
+        return {
+            "status": "success",
+            "results": results,
+            "allocation": safety_manager.ab_test_allocation,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting A/B test results: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get A/B test results")
+
+
+# Service Registry Management Endpoints
+@router.get("/registry/services")
+async def list_registry_services():
+    """List all services registered in the service registry"""
+    services = service_registry.list_services()
+    return {
+        "status": "success",
+        "count": len(services),
+        "services": [s.dict() for s in services]
+    }
+
+
+@router.get("/registry/services/{service_id}")
+async def get_registry_service(service_id: str):
+    """Get details of a specific service from the registry"""
+    definition = service_registry.get_service_definition(service_id)
+    if not definition:
+        raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found in registry")
+    
+    has_implementation = service_registry.get_service_implementation(service_id) is not None
+    
+    return {
+        "status": "success",
+        "service": definition.dict(),
+        "has_implementation": has_implementation
+    }
+
 
 # Health check endpoint
 @router.get("/health")
@@ -1246,6 +1776,18 @@ async def health_check(db: AsyncSession = Depends(get_db_session)):
         db_status = f"error: {str(e)}"
         db_hooks_count = 0
     
+    # Get rules engine statistics
+    try:
+        rules_stats = await cds_integration.get_rule_statistics()
+        rules_engine_status = "healthy"
+    except Exception as e:
+        rules_stats = {}
+        rules_engine_status = f"error: {str(e)}"
+    
+    # Get service registry information
+    registry_services = service_registry.list_services()
+    registry_count = len(registry_services)
+    
     return {
         "status": "healthy",
         "service": "CDS Hooks",
@@ -1253,6 +1795,13 @@ async def health_check(db: AsyncSession = Depends(get_db_session)):
         "sample_hooks_count": len(SAMPLE_HOOKS),
         "database_status": db_status,
         "database_hooks_count": db_hooks_count,
-        "total_hooks": db_hooks_count + len(SAMPLE_HOOKS),
+        "registry_services_count": registry_count,
+        "total_services": db_hooks_count + len(SAMPLE_HOOKS) + registry_count,
+        "rules_engine_status": rules_engine_status,
+        "rules_engine_statistics": rules_stats,
+        "service_registry": {
+            "status": "active",
+            "services": [s.id for s in registry_services]
+        },
         "timestamp": datetime.now().isoformat()
     }

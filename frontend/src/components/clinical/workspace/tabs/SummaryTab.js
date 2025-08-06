@@ -6,7 +6,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Grid,
-  Paper,
   Typography,
   Card,
   CardContent,
@@ -35,15 +34,17 @@ import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   ArrowForward as ArrowIcon,
+  ArrowForward as ArrowForwardIcon,
   Refresh as RefreshIcon,
   CalendarMonth as CalendarIcon,
-  Print as PrintIcon
+  Print as PrintIcon,
+  Event as EventIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
-import { useFHIRResource, usePatientResources } from '../../../../contexts/FHIRResourceContext';
+import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useStableCallback } from '../../../../hooks/useStableReferences';
-import { useNavigate } from 'react-router-dom';
-import { fhirClient } from '../../../../services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
+import { TAB_IDS } from '../../utils/navigationHelper';
 import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
 import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
@@ -62,8 +63,14 @@ import {
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import CareTeamSummary from '../components/CareTeamSummary';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
-import MetricCard from '../../common/MetricCard';
-import StatusChip from '../../common/StatusChip';
+import { StatusChip } from '../../shared/display';
+import { ViewControls, useDensity } from '../../shared/layout';
+import { 
+  ClinicalResourceCard,
+  ClinicalSummaryCard,
+  ClinicalLoadingState,
+  ClinicalEmptyState
+} from '../../shared';
 
 // Use the new MetricCard component from common components
 
@@ -76,7 +83,7 @@ const RecentItem = ({ primary, secondary, icon, status, onClick }) => {
       component="button"
       onClick={onClick}
       sx={{ 
-        borderRadius: theme.shape.borderRadius / 8,
+        borderRadius: 0,
         mb: theme.spacing(1),
         transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
         '&:hover': { 
@@ -113,9 +120,8 @@ const RecentItem = ({ primary, secondary, icon, status, onClick }) => {
   );
 };
 
-const SummaryTab = ({ patientId, onNotificationUpdate }) => {
+const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const { 
     resources,
     fetchPatientBundle,
@@ -124,11 +130,14 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     relationships,
     isCacheWarm 
   } = useFHIRResource();
+  
   const { subscribe, publish } = useClinicalWorkflow();
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [density, setDensity] = useDensity('comfortable');
+  const [viewMode, setViewMode] = useState('dashboard');
   const [stats, setStats] = useState({
     activeProblems: 0,
     activeMedications: 0,
@@ -143,38 +152,26 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     
     try {
       // Use batch request to get counts efficiently
-      const batchBundle = {
-        resourceType: "Bundle",
-        type: "batch",
-        entry: [
-          {
-            request: {
-              method: "GET",
-              url: `Condition?patient=${patientId}&clinical-status=active&_summary=count`
-            }
-          },
-          {
-            request: {
-              method: "GET",
-              url: `MedicationRequest?patient=${patientId}&status=active&_summary=count`
-            }
-          },
-          {
-            request: {
-              method: "GET",
-              url: `Observation?patient=${patientId}&category=laboratory&date=ge${subDays(new Date(), 7).toISOString().split('T')[0]}&_summary=count`
-            }
-          },
-          {
-            request: {
-              method: "GET",
-              url: `AllergyIntolerance?patient=${patientId}&_summary=count`
-            }
-          }
-        ]
-      };
+      const batchRequests = [
+        {
+          method: "GET",
+          url: `Condition?patient=${patientId}&clinical-status=active&_summary=count`
+        },
+        {
+          method: "GET",
+          url: `MedicationRequest?patient=${patientId}&status=active&_summary=count`
+        },
+        {
+          method: "GET",
+          url: `Observation?patient=${patientId}&category=laboratory&date=ge${subDays(new Date(), 7).toISOString().split('T')[0]}&_summary=count`
+        },
+        {
+          method: "GET",
+          url: `AllergyIntolerance?patient=${patientId}&_summary=count`
+        }
+      ];
 
-      const batchResult = await fhirClient.batch(batchBundle);
+      const batchResult = await fhirClient.batch(batchRequests);
       
       // Extract counts from batch response
       const entries = batchResult.entry || [];
@@ -192,53 +189,73 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         overdueItems: 0 // Will be calculated separately
       });
     } catch (error) {
-      console.error('Error loading summary stats:', error);
-      // Fallback to original method
-      if (patientId && !isCacheWarm(patientId, ['Condition', 'MedicationRequest', 'Observation', 'AllergyIntolerance'])) {
-        fetchPatientBundle(patientId, false, 'critical');
-      }
+      // Error loading summary stats - stats will not be displayed
+      // Log error but don't call fetchPatientBundle to avoid infinite loop
     }
-  }, [patientId, fhirClient, isCacheWarm, fetchPatientBundle]);
+  }, [patientId, fhirClient]);
 
   // Load optimized summary stats on patient change
-  useEffect(() => {
-    loadSummaryStats();
-  }, [loadSummaryStats]);
+  // DISABLED: Using loadDashboardData instead which filters resources client-side
+  // The API search filtering isn't working properly, so we rely on client-side filtering
+  // useEffect(() => {
+  //   if (patientId) {
+  //     loadSummaryStats();
+  //   }
+  // }, [patientId]); // Only depend on patientId to avoid infinite loop
 
   // Get resources from context - these are already cached and shared
-  const conditions = useMemo(() => 
-    Object.values(resources.Condition || {}).filter(c => 
+  const conditions = useMemo(() => {
+    // Processing raw Condition resources
+    const filtered = Object.values(resources.Condition || {}).filter(c => 
       c.subject?.reference === `Patient/${patientId}` || 
-      c.patient?.reference === `Patient/${patientId}`
-    ), [resources.Condition, patientId]);
+      c.subject?.reference === `urn:uuid:${patientId}` ||
+      c.patient?.reference === `Patient/${patientId}` ||
+      c.patient?.reference === `urn:uuid:${patientId}`
+    );
+    // Conditions filtered by status
+    return filtered;
+  }, [resources.Condition, patientId]);
   
-  const medications = useMemo(() => 
-    Object.values(resources.MedicationRequest || {}).filter(m => 
+  const medications = useMemo(() => {
+    // Processing raw MedicationRequest resources
+    const filtered = Object.values(resources.MedicationRequest || {}).filter(m => 
       m.subject?.reference === `Patient/${patientId}` || 
-      m.patient?.reference === `Patient/${patientId}`
-    ), [resources.MedicationRequest, patientId]);
+      m.subject?.reference === `urn:uuid:${patientId}` ||
+      m.patient?.reference === `Patient/${patientId}` ||
+      m.patient?.reference === `urn:uuid:${patientId}`
+    );
+    // Medications filtered by status
+    return filtered;
+  }, [resources.MedicationRequest, patientId]);
   
   const observations = useMemo(() => 
     Object.values(resources.Observation || {}).filter(o => 
       o.subject?.reference === `Patient/${patientId}` || 
-      o.patient?.reference === `Patient/${patientId}`
+      o.subject?.reference === `urn:uuid:${patientId}` ||
+      o.patient?.reference === `Patient/${patientId}` ||
+      o.patient?.reference === `urn:uuid:${patientId}`
     ), [resources.Observation, patientId]);
   
   const encounters = useMemo(() => 
     Object.values(resources.Encounter || {}).filter(e => 
       e.subject?.reference === `Patient/${patientId}` || 
-      e.patient?.reference === `Patient/${patientId}`
+      e.subject?.reference === `urn:uuid:${patientId}` ||
+      e.patient?.reference === `Patient/${patientId}` ||
+      e.patient?.reference === `urn:uuid:${patientId}`
     ), [resources.Encounter, patientId]);
   
   const allergies = useMemo(() => 
     Object.values(resources.AllergyIntolerance || {}).filter(a => 
-      a.patient?.reference === `Patient/${patientId}`
+      a.patient?.reference === `Patient/${patientId}` ||
+      a.patient?.reference === `urn:uuid:${patientId}`
     ), [resources.AllergyIntolerance, patientId]);
 
   const serviceRequests = useMemo(() => 
     Object.values(resources.ServiceRequest || {}).filter(s => 
       s.subject?.reference === `Patient/${patientId}` || 
-      s.patient?.reference === `Patient/${patientId}`
+      s.subject?.reference === `urn:uuid:${patientId}` ||
+      s.patient?.reference === `Patient/${patientId}` ||
+      s.patient?.reference === `urn:uuid:${patientId}`
     ), [resources.ServiceRequest, patientId]);
 
   // Define loadDashboardData function with stable callback to prevent infinite loops
@@ -303,7 +320,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         activeMedications: activeMeds.length,
         recentLabs: recentLabs.length,
         upcomingAppointments: upcomingAppointments,
-        overdueItems: overdueCount
+        overdueItems: overdueCount,
+        totalAllergies: allergies.length
       });
 
       // Update notifications
@@ -324,20 +342,33 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   useEffect(() => {
     if (!patientId) return;
     
+    // Resource check: tracking patient resources and cache status
+    
     // Check if we have any resources loaded for this patient
     const hasAnyResources = conditions.length > 0 || medications.length > 0 || observations.length > 0 || encounters.length > 0;
     
     if (hasAnyResources) {
       // We have resources, process them
+      // Processing resources from context
       loadDashboardData();
       setLoading(false);
     } else {
-      // No resources yet, show loading if cache isn't warm
-      if (!isCacheWarm(patientId)) {
+      // No resources yet, check if we're already loading from context
+      if (isResourceLoading(patientId)) {
+        // Resources are loading from context
         setLoading(true);
+      } else if (!isCacheWarm(patientId)) {
+        // Cache isn't warm and we're not loading, trigger a fetch
+        // Cache not warm, fetching patient bundle
+        setLoading(true);
+        fetchPatientBundle(patientId, false, 'critical');
+      } else {
+        // Cache is warm but no resources - patient might have no data
+        // Cache is warm but no resources found
+        setLoading(false);
       }
     }
-  }, [patientId, conditions.length, medications.length, observations.length, encounters.length, allergies.length, serviceRequests.length]);
+  }, [patientId, conditions.length, medications.length, observations.length, encounters.length, allergies.length, serviceRequests.length, isResourceLoading, isCacheWarm, fetchPatientBundle, loadDashboardData]);
 
   // Note: Removed problematic useEffect that was causing infinite loops
   // Data refreshing is now handled only by the event system below
@@ -345,6 +376,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   // Subscribe to clinical events to refresh summary when data changes
   useEffect(() => {
     const unsubscribers = [];
+    let timeoutId = null;
 
     // Subscribe to events that should trigger a refresh
     const eventsToWatch = [
@@ -364,7 +396,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
         if (data.patientId === patientId || data.resourceType) {
           setRefreshing(true);
           // Use a timeout to prevent rapid successive calls
-          setTimeout(() => loadDashboardData(), 100);
+          if (timeoutId) clearTimeout(timeoutId);
+          timeoutId = setTimeout(() => loadDashboardData(), 100);
         }
       });
       unsubscribers.push(unsubscribe);
@@ -373,8 +406,9 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
     // Cleanup subscriptions on unmount
     return () => {
       unsubscribers.forEach(unsubscribe => unsubscribe());
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [subscribe, patientId]); // Removed loadDashboardData dependency to prevent loops
+  }, [subscribe, patientId, loadDashboardData]); // Include all dependencies
 
 
   const handleRefresh = useCallback(() => {
@@ -445,6 +479,23 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
 
   // Memoized data processing to prevent recalculation on every render
   const processedData = useMemo(() => {
+    // Get critical conditions
+    const criticalConditions = conditions.filter(c => 
+      isConditionActive(c) && 
+      (c.severity?.coding?.[0]?.code === 'severe' || 
+       c.code?.text?.toLowerCase().includes('critical'))
+    );
+    
+    // Generate vitals trend data (mock for now, should come from real observations)
+    const vitalsTrend = observations
+      .filter(o => o.code?.coding?.[0]?.system === 'http://loinc.org' && 
+                   ['8867-4', '8462-4', '8310-5'].includes(o.code?.coding?.[0]?.code))
+      .slice(-10)
+      .map(o => ({
+        value: o.valueQuantity?.value || 0,
+        date: o.effectiveDateTime || o.issued
+      }));
+    
     return {
       recentConditions: conditions
         .sort((a, b) => new Date(b.recordedDate || 0) - new Date(a.recordedDate || 0))
@@ -462,11 +513,22 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
       
       recentEncounters: encounters
         .sort((a, b) => new Date(b.period?.start || 0) - new Date(a.period?.start || 0))
-        .slice(0, 5)
+        .slice(0, 5),
+        
+      criticalConditions,
+      vitalsTrend
     };
   }, [conditions, medications, observations, encounters]);
   
-  const { recentConditions, recentMedications, recentLabs, recentEncounters } = processedData;
+  const { recentConditions, recentMedications, recentLabs, recentEncounters, criticalConditions, vitalsTrend } = processedData;
+  
+  // Calculate patient acuity for header
+  const patientAcuity = useMemo(() => {
+    if (criticalConditions.length > 0) return 'critical';
+    if (stats.overdueItems > 3) return 'high';
+    if (stats.activeProblems > 5) return 'moderate';
+    return 'low';
+  }, [criticalConditions.length, stats]);
 
   if (loading && !refreshing) {
     return (
@@ -484,438 +546,543 @@ const SummaryTab = ({ patientId, onNotificationUpdate }) => {
   }
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 } }}>
-      {refreshing && <LinearProgress sx={{ mb: 2 }} />}
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      {refreshing && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 }} />}
       
-      {/* Header */}
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: { xs: 'flex-start', md: 'center' }, 
-        mb: 3,
-        flexDirection: { xs: 'column', md: 'row' },
-        gap: { xs: 2, md: 0 }
-      }}>
-        <Typography variant="h5" fontWeight="bold">
-          Clinical Summary
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography 
-            variant="caption" 
-            color="text.secondary"
-            sx={{ display: { xs: 'none', sm: 'block' } }}
-          >
+      {/* Main Content */}
+      <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+        {/* Action Bar */}
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          mb: 2
+        }}>
+          <Typography variant="caption" color="text.secondary">
             Last updated: {formatDistanceToNow(lastRefresh, { addSuffix: true })}
           </Typography>
-          <IconButton 
-            onClick={handlePrintSummary} 
-            title="Print Summary"
-            aria-label="Print clinical summary for this patient"
-            sx={{
-              transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-              '&:hover': {
-                transform: 'scale(1.1)',
-                backgroundColor: theme.clinical?.interactions?.hover || alpha(theme.palette.primary.main, 0.08)
-              }
-            }}
-          >
-            <PrintIcon />
-          </IconButton>
-          <IconButton 
-            onClick={handleRefresh} 
-            disabled={refreshing}
-            aria-label={refreshing ? "Refreshing summary data..." : "Refresh summary data"}
-            sx={{
-              transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-              '&:hover': {
-                transform: 'scale(1.1)',
-                backgroundColor: theme.clinical?.interactions?.hover || alpha(theme.palette.primary.main, 0.08)
-              },
-              ...(refreshing && {
-                animation: 'spin 1s linear infinite',
-                '@keyframes spin': {
-                  '0%': { transform: 'rotate(0deg)' },
-                  '100%': { transform: 'rotate(360deg)' }
-                }
-              })
-            }}
-          >
-            <RefreshIcon />
-          </IconButton>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <ViewControls
+              density={density}
+              onDensityChange={setDensity}
+              showViewMode={false}
+              size="small"
+            />
+            <IconButton 
+              onClick={handlePrintSummary} 
+              title="Print Summary"
+              size="small"
+            >
+              <PrintIcon />
+            </IconButton>
+            <IconButton 
+              onClick={handleRefresh} 
+              disabled={refreshing}
+              size="small"
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Box>
         </Box>
-      </Box>
 
-      {/* Metric Cards */}
-      <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Box sx={{
-            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.1s both',
-            '@keyframes slideInUp': {
-              '0%': { transform: 'translateY(20px)', opacity: 0 },
-              '100%': { transform: 'translateY(0)', opacity: 1 }
-            }
-          }}>
-            <MetricCard
+        {/* Key Metrics */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <ClinicalSummaryCard
               title="Active Problems"
               value={stats.activeProblems}
               icon={<ProblemIcon />}
-              color="warning"
-              variant="clinical"
+              severity={stats.activeProblems > 5 ? 'high' : stats.activeProblems > 3 ? 'moderate' : 'normal'}
+              trend={stats.activeProblems > 3 ? { direction: 'up' } : null}
             />
-          </Box>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Box sx={{
-            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.2s both',
-            '@keyframes slideInUp': {
-              '0%': { transform: 'translateY(20px)', opacity: 0 },
-              '100%': { transform: 'translateY(0)', opacity: 1 }
-            }
-          }}>
-            <MetricCard
-              title="Active Medications"
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <ClinicalSummaryCard
+              title="Medications"
               value={stats.activeMedications}
               icon={<MedicationIcon />}
-              color="primary"
-              variant="clinical"
+              severity="normal"
+              chips={stats.overdueItems > 0 ? [{ label: `${stats.overdueItems} need refill`, color: 'error' }] : []}
             />
-          </Box>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Box sx={{
-            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.3s both',
-            '@keyframes slideInUp': {
-              '0%': { transform: 'translateY(20px)', opacity: 0 },
-              '100%': { transform: 'translateY(0)', opacity: 1 }
-            }
-          }}>
-            <MetricCard
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <ClinicalSummaryCard
               title="Recent Labs"
               value={stats.recentLabs}
-              subtitle="Last 7 days"
               icon={<LabIcon />}
-              color="info"
-              variant="clinical"
+              severity="info"
+              chips={[{ label: 'Last 7 days', color: 'default' }]}
             />
-          </Box>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Box sx={{
-            animation: loading ? 'none' : 'slideInUp 0.4s ease-out 0.4s both',
-            '@keyframes slideInUp': {
-              '0%': { transform: 'translateY(20px)', opacity: 0 },
-              '100%': { transform: 'translateY(0)', opacity: 1 }
-            }
-          }}>
-            <MetricCard
-              title="Overdue Items"
-              value={stats.overdueItems}
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <ClinicalSummaryCard
+              title="Allergies"
+              value={stats.totalAllergies}
               icon={<WarningIcon />}
-              color="error"
-              trend="down"
-              trendValue={-25}
-              variant="clinical"
+              severity={stats.totalAllergies > 3 ? 'high' : stats.totalAllergies > 0 ? 'moderate' : 'normal'}
             />
-          </Box>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <ClinicalSummaryCard
+              title="Overdue"
+              value={stats.overdueItems}
+              icon={<CalendarIcon />}
+              severity={stats.overdueItems > 0 ? 'high' : 'normal'}
+              progress={stats.overdueItems > 0 ? (stats.overdueItems / 10) * 100 : 0}
+            />
+          </Grid>
         </Grid>
-      </Grid>
 
 
-      {/* Clinical Alerts */}
-      {allergies.length > 0 && (
-        <Alert 
-          severity="error" 
-          sx={{ mb: 3 }}
-          action={
-            <Button size="small" onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}>
-              View All
-            </Button>
-          }
-        >
-          <Typography variant="subtitle2" fontWeight="bold">
-            Allergies ({allergies.length})
-          </Typography>
-          {allergies.slice(0, 3).map((allergy, index) => (
-            <Typography key={index} variant="body2">
-              • {getResourceDisplayText(allergy)} 
-              {allergy.criticality && ` (${allergy.criticality})`}
-            </Typography>
-          ))}
-        </Alert>
-      )}
-
-      {/* Recent Activity Grid */}
-      <Grid container spacing={{ xs: 2, md: 3 }}>
-        {/* Recent Problems */}
-        <Grid item xs={12} md={6}>
-          <Card sx={{
-            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 8px 24px ${alpha(theme.palette.warning.main, 0.15)}`
-            }
-          }}>
-            <CardHeader
-              title="Recent Problems"
-              action={
-                <IconButton 
-                  onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
-                  sx={{
-                    transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                    '&:hover': {
-                      transform: 'rotate(45deg)',
-                      backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                    }
-                  }}
+        {/* Clinical Alerts */}
+        {(allergies.length > 0 || criticalConditions.length > 0) && (
+            <Box sx={{ mt: 2, mb: 2 }}>
+              {criticalConditions.length > 0 && (
+                <Alert 
+                  severity="error" 
+                  sx={{ mb: 1 }}
+                  action={
+                    <Button size="small" onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.CHART_REVIEW)}>
+                      Manage
+                    </Button>
+                  }
                 >
-                  <ArrowIcon />
-                </IconButton>
-              }
-            />
-            <CardContent>
-              <List disablePadding>
-                {recentConditions.length > 0 ? (
-                  recentConditions.map((condition) => (
-                    <RecentItem
-                      key={condition.id}
-                      primary={getResourceDisplayText(condition)}
-                      secondary={condition.recordedDate ? 
-                        `Recorded ${format(parseISO(condition.recordedDate), 'MMM d, yyyy')}` : 
-                        'Date unknown'
-                      }
-                      icon={<ProblemIcon color="warning" />}
-                      status={getConditionStatus(condition)}
-                      onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
-                    />
-                  ))
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No problems recorded
+                  <Typography variant="subtitle2" fontWeight="bold">
+                    Critical Conditions
                   </Typography>
-                )}
-              </List>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Recent Medications */}
-        <Grid item xs={12} md={6}>
-          <Card sx={{
-            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`
-            }
-          }}>
-            <CardHeader
-              title="Active Medications"
-              action={
-                <IconButton 
-                  onClick={() => navigate(`/medications`)}
-                  sx={{
-                    transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                    '&:hover': {
-                      transform: 'rotate(45deg)',
-                      backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                    }
-                  }}
+                  {criticalConditions.slice(0, 2).map((condition, index) => (
+                    <Typography key={index} variant="body2">
+                      • {getResourceDisplayText(condition)}
+                    </Typography>
+                  ))}
+                </Alert>
+              )}
+              {allergies.length > 0 && (
+                <Alert 
+                  severity="warning" 
+                  sx={{ mb: 1 }}
+                  action={
+                    <Button size="small" onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.CHART_REVIEW)}>
+                      View All
+                    </Button>
+                  }
                 >
-                  <ArrowIcon />
-                </IconButton>
-              }
-            />
-            <CardContent>
-              <List disablePadding>
-                {recentMedications.length > 0 ? (
-                  recentMedications.map((med) => (
-                    <RecentItem
-                      key={med.id}
-                      primary={getMedicationDisplay(med)}
-                      secondary={getMedicationDosageDisplay(med)}
-                      icon={<MedicationIcon color="primary" />}
-                      onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
-                    />
-                  ))
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No active medications
+                  <Typography variant="subtitle2" fontWeight="bold">
+                    Allergies ({allergies.length})
                   </Typography>
-                )}
-              </List>
-            </CardContent>
-          </Card>
-        </Grid>
+                  {allergies.slice(0, 3).map((allergy, index) => (
+                    <Typography key={index} variant="body2">
+                      • {getResourceDisplayText(allergy)} 
+                      {allergy.criticality && ` (${allergy.criticality})`}
+                    </Typography>
+                  ))}
+                </Alert>
+              )}
+            </Box>
+        )}
 
-        {/* Recent Labs */}
-        <Grid item xs={12} md={6}>
-          <Card sx={{
-            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 8px 24px ${alpha(theme.palette.info.main, 0.15)}`
-            }
-          }}>
-            <CardHeader
-              title="Recent Lab Results"
-              action={
-                <IconButton 
-                  onClick={() => navigate(`/clinical/${patientId}?tab=results`)}
-                  sx={{
-                    transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                    '&:hover': {
-                      transform: 'rotate(45deg)',
-                      backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                    }
-                  }}
-                >
-                  <ArrowIcon />
-                </IconButton>
-              }
-            />
-            <CardContent>
-              <List disablePadding>
-                {recentLabs.length > 0 ? (
-                  recentLabs.map((lab) => (
-                    <RecentItem
-                      key={lab.id}
-                      primary={getResourceDisplayText(lab)}
-                      secondary={
-                        <>
-                          {lab.valueQuantity ? 
-                            `${lab.valueQuantity.value} ${lab.valueQuantity.unit}` : 
-                            lab.valueString || 'Result pending'
+        {/* Clinical Snapshot Grid - 2x2 Layout */}
+        <Grid container spacing={3}>
+          {/* Active Problems Card */}
+          <Grid item xs={12} md={6}>
+              <ClinicalResourceCard
+                title="Active Problems"
+                subtitle={`${stats.activeProblems} conditions`}
+                icon={<ProblemIcon />}
+                severity={criticalConditions.length > 0 ? 'critical' : stats.activeProblems > 5 ? 'high' : stats.activeProblems > 3 ? 'moderate' : 'normal'}
+                actions={
+                  <IconButton
+                    size="small"
+                    onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.CHART_REVIEW)}
+                    title="View All"
+                  >
+                    <ArrowForwardIcon fontSize="small" />
+                  </IconButton>
+                }
+                sx={{ height: '100%' }}
+              >
+                <List disablePadding>
+                  {recentConditions.length > 0 ? (
+                    recentConditions.slice(0, density === 'compact' ? 3 : 5).map((condition) => (
+                      <ListItem
+                        key={condition.id}
+                        sx={{ 
+                          px: density === 'compact' ? 1 : 2,
+                          py: density === 'compact' ? 0.5 : 1
+                        }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 36 }}>
+                          <ProblemIcon 
+                            color="warning" 
+                            fontSize={density === 'compact' ? 'small' : 'medium'}
+                          />
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary={getResourceDisplayText(condition)}
+                          secondary={condition.recordedDate ? 
+                            format(parseISO(condition.recordedDate), 'MMM d, yyyy') : 
+                            null
                           }
-                          {' • '}
-                          {format(parseISO(lab.effectiveDateTime || lab.issued), 'MMM d, yyyy')}
-                        </>
-                      }
-                      icon={<LabIcon color="info" />}
-                      status={(() => {
-                        const interpretation = getObservationInterpretation(lab);
-                        return interpretation === 'H' ? 'High' : 
-                               interpretation === 'L' ? 'Low' : null;
-                      })()}
-                      onClick={() => navigate(`/clinical/${patientId}?tab=chart`)}
-                    />
-                  ))
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No recent lab results
-                  </Typography>
-                )}
-              </List>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Recent Encounters */}
-        <Grid item xs={12} md={6}>
-          <Card sx={{
-            transition: `all ${theme.animations?.duration?.standard || 300}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`
-            }
-          }}>
-            <CardHeader
-              title="Recent Encounters"
-              action={
-                <IconButton 
-                  onClick={() => navigate(`/clinical/${patientId}?tab=encounters`)}
-                  sx={{
-                    transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                    '&:hover': {
-                      transform: 'rotate(45deg)',
-                      backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
-                    }
-                  }}
-                >
-                  <ArrowIcon />
-                </IconButton>
-              }
-            />
-            <CardContent>
-              <List disablePadding>
-                {recentEncounters.length > 0 ? (
-                  recentEncounters.map((encounter) => (
-                    <ListItem 
-                      key={encounter.id}
-                      component="button"
-                      onClick={() => navigate(`/clinical/${patientId}?tab=encounters`)}
-                      sx={{ 
-                        borderRadius: theme.shape.borderRadius / 8,
-                        mb: theme.clinicalSpacing?.sm || 1,
-                        transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-                        '&:hover': { 
-                          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover',
-                          transform: 'translateY(-1px)',
-                          boxShadow: `0 2px 8px ${alpha(theme.palette.secondary.main, 0.1)}`
-                        },
-                        cursor: 'pointer',
-                        border: 'none',
-                        width: '100%',
-                        textAlign: 'left',
-                        background: 'transparent',
-                        '&:focus': {
-                          outline: '2px solid',
-                          outlineColor: 'primary.main',
-                          outlineOffset: '2px'
-                        }
-                      }}
-                      role="button"
-                      tabIndex={0}
+                          primaryTypographyProps={{
+                            variant: density === 'compact' ? 'body2' : 'body1',
+                            noWrap: density === 'compact'
+                          }}
+                          secondaryTypographyProps={{
+                            variant: 'caption'
+                          }}
+                        />
+                        <StatusChip 
+                          status={getConditionStatus(condition)}
+                          size="small"
+                        />
+                      </ListItem>
+                    ))
+                  ) : (
+                    <Typography 
+                      variant="body2" 
+                      color="text.secondary"
+                      sx={{ p: 2, textAlign: 'center' }}
                     >
-                      <ListItemIcon>
-                        <EncounterIcon color="secondary" />
+                      No active problems
+                    </Typography>
+                  )}
+                </List>
+              </ClinicalResourceCard>
+          </Grid>
+
+          {/* Current Medications Card */}
+          <Grid item xs={12} md={6}>
+              <ClinicalResourceCard
+                title="Current Medications"
+                subtitle={`${stats.activeMedications} active medications`}
+                icon={<MedicationIcon />}
+                severity={stats.overdueItems > 0 ? 'high' : stats.activeMedications > 10 ? 'moderate' : 'normal'}
+                status={stats.overdueItems > 0 ? `${stats.overdueItems} need refill` : null}
+                statusColor={stats.overdueItems > 0 ? 'error' : 'default'}
+                actions={
+                  <IconButton
+                    size="small"
+                    onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.PHARMACY)}
+                    title="View All"
+                  >
+                    <ArrowForwardIcon fontSize="small" />
+                  </IconButton>
+                }
+                sx={{ height: '100%' }}
+              >
+                <List disablePadding>
+                  {recentMedications.length > 0 ? (
+                    recentMedications.slice(0, density === 'compact' ? 3 : 5).map((med) => (
+                      <ListItem
+                        key={med.id}
+                        sx={{ 
+                          px: density === 'compact' ? 1 : 2,
+                          py: density === 'compact' ? 0.5 : 1
+                        }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 36 }}>
+                          <MedicationIcon 
+                            color="primary" 
+                            fontSize={density === 'compact' ? 'small' : 'medium'}
+                          />
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary={getMedicationDisplay(med)}
+                          secondary={getMedicationDosageDisplay(med)}
+                          primaryTypographyProps={{
+                            variant: density === 'compact' ? 'body2' : 'body1',
+                            noWrap: density === 'compact'
+                          }}
+                          secondaryTypographyProps={{
+                            variant: 'caption',
+                            noWrap: true
+                          }}
+                        />
+                        {med.dispenseRequest?.validityPeriod?.end && 
+                         new Date(med.dispenseRequest.validityPeriod.end) < new Date() && (
+                          <Chip 
+                            label="Refill" 
+                            size="small" 
+                            color="error"
+                            variant="outlined"
+                          />
+                        )}
+                      </ListItem>
+                    ))
+                  ) : (
+                    <Typography 
+                      variant="body2" 
+                      color="text.secondary"
+                      sx={{ p: 2, textAlign: 'center' }}
+                    >
+                      No active medications
+                    </Typography>
+                  )}
+                </List>
+              </ClinicalResourceCard>
+          </Grid>
+
+          {/* Recent Lab Results Card */}
+          <Grid item xs={12} md={6}>
+              <ClinicalResourceCard
+                title="Recent Lab Results"
+                subtitle={`${recentLabs.length} results in last 7 days`}
+                icon={<LabIcon />}
+                severity={recentLabs.some(lab => {
+                  const interp = getObservationInterpretation(lab);
+                  return interp === 'H' || interp === 'L';
+                }) ? 'high' : 'normal'}
+                status={recentLabs.filter(lab => {
+                  const interp = getObservationInterpretation(lab);
+                  return interp === 'H' || interp === 'L';
+                }).length > 0 ? `${recentLabs.filter(lab => {
+                  const interp = getObservationInterpretation(lab);
+                  return interp === 'H' || interp === 'L';
+                }).length} abnormal` : null}
+                statusColor={recentLabs.some(lab => {
+                  const interp = getObservationInterpretation(lab);
+                  return interp === 'H' || interp === 'L';
+                }) ? 'warning' : 'default'}
+                actions={
+                  <IconButton
+                    size="small"
+                    onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.RESULTS)}
+                    title="View All"
+                  >
+                    <ArrowForwardIcon fontSize="small" />
+                  </IconButton>
+                }
+                sx={{ height: '100%' }}
+              >
+                <List disablePadding>
+                  {recentLabs.length > 0 ? (
+                    recentLabs.slice(0, density === 'compact' ? 3 : 5).map((lab) => {
+                      const interpretation = getObservationInterpretation(lab);
+                      const isAbnormal = interpretation === 'H' || interpretation === 'L';
+                      
+                      return (
+                        <ListItem
+                          key={lab.id}
+                          sx={{ 
+                            px: density === 'compact' ? 1 : 2,
+                            py: density === 'compact' ? 0.5 : 1,
+                            backgroundColor: isAbnormal ? 
+                              alpha(theme.palette.error.main, 0.04) : 'transparent'
+                          }}
+                        >
+                          <ListItemIcon sx={{ minWidth: 36 }}>
+                            <LabIcon 
+                              color={isAbnormal ? 'error' : 'info'}
+                              fontSize={density === 'compact' ? 'small' : 'medium'}
+                            />
+                          </ListItemIcon>
+                          <ListItemText 
+                            primary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography 
+                                  variant={density === 'compact' ? 'body2' : 'body1'}
+                                  noWrap
+                                >
+                                  {getResourceDisplayText(lab)}
+                                </Typography>
+                                {isAbnormal && (
+                                  <Chip 
+                                    label={interpretation} 
+                                    size="small" 
+                                    color="error"
+                                    sx={{ height: 16, fontSize: '0.7rem' }}
+                                  />
+                                )}
+                              </Box>
+                            }
+                            secondary={
+                              <>
+                                {lab.valueQuantity ? 
+                                  `${lab.valueQuantity.value} ${lab.valueQuantity.unit}` : 
+                                  lab.valueString || 'Pending'
+                                }
+                                {' • '}
+                                {format(parseISO(lab.effectiveDateTime || lab.issued), 'MMM d')}
+                              </>
+                            }
+                            secondaryTypographyProps={{
+                              variant: 'caption'
+                            }}
+                          />
+                        </ListItem>
+                      );
+                    })
+                  ) : (
+                    <Typography 
+                      variant="body2" 
+                      color="text.secondary"
+                      sx={{ p: 2, textAlign: 'center' }}
+                    >
+                      No recent lab results
+                    </Typography>
+                  )}
+                </List>
+              </ClinicalResourceCard>
+          </Grid>
+
+          {/* Upcoming Care Card */}
+          <Grid item xs={12} md={6}>
+              <ClinicalResourceCard
+                title="Upcoming Care"
+                subtitle="Next scheduled activities"
+                icon={<EventIcon />}
+                severity={stats.overdueItems > 0 ? 'high' : 'normal'}
+                status={stats.overdueItems > 0 ? `${stats.overdueItems} overdue` : null}
+                statusColor={stats.overdueItems > 0 ? 'error' : 'default'}
+                actions={
+                  <IconButton
+                    size="small"
+                    onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.ENCOUNTERS)}
+                    title="View Calendar"
+                  >
+                    <ArrowForwardIcon fontSize="small" />
+                  </IconButton>
+                }
+                sx={{ height: '100%' }}
+              >
+                <List disablePadding>
+                  {encounters.filter(enc => {
+                    const startDate = enc.period?.start;
+                    return startDate && new Date(startDate) > new Date() && enc.status === 'planned';
+                  }).slice(0, density === 'compact' ? 3 : 5).map((encounter) => (
+                    <ListItem
+                      key={encounter.id}
+                      sx={{ 
+                        px: density === 'compact' ? 1 : 2,
+                        py: density === 'compact' ? 0.5 : 1
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <CalendarIcon 
+                          color="secondary" 
+                          fontSize={density === 'compact' ? 'small' : 'medium'}
+                        />
                       </ListItemIcon>
                       <ListItemText 
-                        primary={encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Encounter'}
-                        secondary={
-                          <Box>
-                            <Typography variant="body2" color="text.secondary">
-                              {(encounter.actualPeriod || encounter.period)?.start ? 
-                                format(parseISO((encounter.actualPeriod || encounter.period).start), 'MMM d, yyyy h:mm a') : 
-                                'Date unknown'
-                              }
-                            </Typography>
-                            {encounter.participant && (
-                              <EnhancedProviderDisplay
-                                participants={encounter.participant}
-                                encounter={encounter}
-                                mode="compact"
-                                showIcon={false}
-                              />
-                            )}
-                          </Box>
+                        primary={encounter.type?.[0]?.text || 'Appointment'}
+                        secondary={encounter.period?.start ? 
+                          format(parseISO(encounter.period.start), 'MMM d, yyyy h:mm a') : 
+                          'Date TBD'
                         }
-                      />
-                      <StatusChip 
-                        status={getEncounterStatus(encounter)}
-                        size="small"
-                        variant="clinical"
+                        primaryTypographyProps={{
+                          variant: density === 'compact' ? 'body2' : 'body1',
+                          noWrap: density === 'compact'
+                        }}
+                        secondaryTypographyProps={{
+                          variant: 'caption'
+                        }}
                       />
                     </ListItem>
-                  ))
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No recent encounters
-                  </Typography>
-                )}
-              </List>
-            </CardContent>
-          </Card>
+                  ))}
+                  {stats.overdueItems > 0 && (
+                    <ListItem
+                      sx={{ 
+                        px: density === 'compact' ? 1 : 2,
+                        py: density === 'compact' ? 0.5 : 1,
+                        backgroundColor: alpha(theme.palette.error.main, 0.04)
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <WarningIcon 
+                          color="error" 
+                          fontSize={density === 'compact' ? 'small' : 'medium'}
+                        />
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary={`${stats.overdueItems} overdue items`}
+                        secondary="Action required"
+                        primaryTypographyProps={{
+                          variant: density === 'compact' ? 'body2' : 'body1',
+                          color: 'error'
+                        }}
+                        secondaryTypographyProps={{
+                          variant: 'caption'
+                        }}
+                      />
+                    </ListItem>
+                  )}
+                  {encounters.filter(enc => enc.status === 'planned').length === 0 && 
+                   stats.overdueItems === 0 && (
+                    <Typography 
+                      variant="body2" 
+                      color="text.secondary"
+                      sx={{ p: 2, textAlign: 'center' }}
+                    >
+                      No upcoming appointments
+                    </Typography>
+                  )}
+                </List>
+              </ClinicalResourceCard>
+          </Grid>
         </Grid>
 
-        {/* Care Team Summary */}
-        <Grid item xs={12} md={6}>
-          <CareTeamSummary
-            patientId={patientId}
-            onViewFullTeam={() => navigate(`/clinical/${patientId}?tab=carePlan`)}
-          />
+        {/* Additional Information Row */}
+        <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+          Recent Activity
+        </Typography>
+        <Grid container spacing={3}>
+          {/* Recent Encounters */}
+          <Grid item xs={12} md={6}>
+              <Card sx={{ height: '100%' }}>
+                <CardHeader
+                  title="Recent Visits"
+                  titleTypographyProps={{ variant: 'h6' }}
+                  action={
+                    <IconButton 
+                      size="small"
+                      onClick={() => onNavigateToTab && onNavigateToTab(TAB_IDS.ENCOUNTERS)}
+                    >
+                      <ArrowIcon />
+                    </IconButton>
+                  }
+                />
+                <CardContent sx={{ pt: 0 }}>
+                  <List disablePadding>
+                    {recentEncounters.slice(0, density === 'compact' ? 3 : 4).map((encounter) => (
+                      <ListItem 
+                        key={encounter.id}
+                        sx={{ px: 0 }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 36 }}>
+                          <EncounterIcon color="action" fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary={encounter.type?.[0]?.text || 'Encounter'}
+                          secondary={
+                            encounter.period?.start ? 
+                              format(parseISO(encounter.period.start), 'MMM d, yyyy') : 
+                              'Date unknown'
+                          }
+                          primaryTypographyProps={{ variant: 'body2' }}
+                          secondaryTypographyProps={{ variant: 'caption' }}
+                        />
+                        <StatusChip 
+                          status={getEncounterStatus(encounter)}
+                          size="small"
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </CardContent>
+              </Card>
+          </Grid>
+
+          {/* Care Team Summary */}
+          <Grid item xs={12} md={6}>
+            <CareTeamSummary
+              patientId={patientId}
+              onViewFullTeam={() => onNavigateToTab && onNavigateToTab(TAB_IDS.CARE_PLAN)}
+            />
+          </Grid>
         </Grid>
-      </Grid>
+      </Box>
     </Box>
   );
 };
 
-export default SummaryTab;
+export default React.memo(SummaryTab);

@@ -8,6 +8,8 @@ from datetime import datetime
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
+from .connection_pool import connection_pool, ConnectionState
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,58 +53,39 @@ class WebSocketMessage(BaseModel):
 
 
 class ConnectionManager:
-    """Manages WebSocket connections and message routing."""
+    """Manages WebSocket connections and message routing using connection pool."""
     
     def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
         self.subscriptions: Dict[str, List[Subscription]] = {}
-        self.pending_messages: Dict[str, List[WebSocketMessage]] = {}
-        self.heartbeat_interval = 30  # seconds
-        self.heartbeat_tasks: Dict[str, asyncio.Task] = {}
+        self.pool = connection_pool  # Use the global connection pool
+        
+        # Legacy compatibility - redirect to pool
+        self._active_connections_redirect = True
+        
+    @property
+    def active_connections(self):
+        """Legacy property for backward compatibility."""
+        return self.pool.connections
         
     async def connect(self, client_id: str, websocket: WebSocket):
         """Register a new WebSocket connection (already accepted)."""
-        self.active_connections[client_id] = websocket
+        # Add connection to the pool
+        metadata = {"subscriptions": []}
+        success = await self.pool.add_connection(client_id, websocket, metadata=metadata)
         
-        # Send any pending messages
-        if client_id in self.pending_messages:
-            for message in self.pending_messages[client_id]:
-                await self._send_message(client_id, message)
-            self.pending_messages[client_id] = []
+        if not success:
+            await websocket.close(code=1008, reason="Connection pool full")
+            raise Exception("Connection pool full")
         
-        # Start heartbeat for this connection
-        self.heartbeat_tasks[client_id] = asyncio.create_task(
-            self._heartbeat_loop(client_id)
-        )
-        
-        logger.info(f"Client {client_id} connected")
+        logger.info(f"Client {client_id} connected via connection pool")
         
     def disconnect(self, client_id: str):
         """Handle WebSocket disconnection."""
-        if client_id in self.active_connections:
-            del self.active_connections[client_id]
-            
-        # Cancel heartbeat task
-        if client_id in self.heartbeat_tasks:
-            self.heartbeat_tasks[client_id].cancel()
-            del self.heartbeat_tasks[client_id]
-            
+        # Use async task to handle disconnection
+        asyncio.create_task(self.pool.remove_connection(client_id))
+        
         # Keep subscriptions for reconnection
         logger.info(f"Client {client_id} disconnected")
-        
-    async def _heartbeat_loop(self, client_id: str):
-        """Send periodic heartbeat messages to keep connection alive."""
-        try:
-            while client_id in self.active_connections:
-                await asyncio.sleep(self.heartbeat_interval)
-                await self._send_message(
-                    client_id,
-                    WebSocketMessage(type="ping")
-                )
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            logger.error(f"Heartbeat error for client {client_id}: {e}")
             
     async def subscribe(
         self,
@@ -129,6 +112,19 @@ class ConnectionManager:
         ]
         
         self.subscriptions[client_id].append(subscription)
+        
+        # Join appropriate rooms in the connection pool
+        if resource_types:
+            for resource_type in resource_types:
+                await self.pool.join_room(client_id, f"resource:{resource_type}")
+                
+        if patient_ids:
+            for patient_id in patient_ids:
+                await self.pool.join_room(client_id, f"patient:{patient_id}")
+                # Also join patient-resource specific rooms
+                if resource_types:
+                    for resource_type in resource_types:
+                        await self.pool.join_room(client_id, f"patient:{patient_id}:resource:{resource_type}")
         
         # Send confirmation
         await self._send_message(
@@ -177,48 +173,47 @@ class ConnectionManager:
         patient_id: Optional[str] = None
     ):
         """Broadcast a FHIR resource update to all matching subscriptions."""
-        message = WebSocketMessage(
-            type="update",
-            data={
+        message_data = {
+            "type": "update",
+            "data": {
                 "action": action,
                 "resource_type": resource_type,
                 "resource_id": resource_id,
                 "patient_id": patient_id,
                 "resource": resource_data
-            }
-        )
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
         
-        # Find all clients with matching subscriptions
+        # Create room keys for efficient broadcasting
+        rooms_to_broadcast = set()
+        
+        # Add resource type room
+        rooms_to_broadcast.add(f"resource:{resource_type}")
+        
+        # Add patient-specific room if applicable
+        if patient_id:
+            rooms_to_broadcast.add(f"patient:{patient_id}")
+            rooms_to_broadcast.add(f"patient:{patient_id}:resource:{resource_type}")
+        
+        # Broadcast to each room
+        for room in rooms_to_broadcast:
+            await self.pool.broadcast_to_room(room, message_data)
+        
+        # Also handle legacy subscriptions
         for client_id, client_subscriptions in self.subscriptions.items():
             for subscription in client_subscriptions:
                 if subscription.matches(resource_type, patient_id):
-                    await self._send_message(client_id, message)
+                    await self.pool.send_to_client(client_id, message_data)
                     break
                     
     async def _send_message(self, client_id: str, message: WebSocketMessage):
-        """Send a message to a specific client."""
-        if client_id in self.active_connections:
-            try:
-                websocket = self.active_connections[client_id]
-                # Use json() method to properly serialize datetime objects
-                await websocket.send_text(message.json())
-            except Exception as e:
-                logger.error(f"Error sending message to client {client_id}: {e}")
-                # Queue message for retry
-                if client_id not in self.pending_messages:
-                    self.pending_messages[client_id] = []
-                self.pending_messages[client_id].append(message)
-                # Disconnect the client
-                self.disconnect(client_id)
-        else:
-            # Queue message for when client reconnects
-            if client_id not in self.pending_messages:
-                self.pending_messages[client_id] = []
-            self.pending_messages[client_id].append(message)
-            
-            # Limit queue size to prevent memory issues
-            if len(self.pending_messages[client_id]) > 100:
-                self.pending_messages[client_id] = self.pending_messages[client_id][-100:]
+        """Send a message to a specific client using the connection pool."""
+        message_dict = json.loads(message.json())  # Convert to dict with datetime serialization
+        success = await self.pool.send_to_client(client_id, message_dict)
+        
+        if not success:
+            logger.warning(f"Failed to send message to client {client_id}")
                 
     async def handle_message(self, client_id: str, message: dict):
         """Handle incoming WebSocket messages."""
@@ -243,6 +238,10 @@ class ConnectionManager:
                 client_id,
                 data.get("subscription_id")
             )
+            
+        elif msg_type == "authenticate":
+            # Authentication is handled in the WebSocket endpoint, ignore here
+            logger.debug(f"Ignoring authenticate message from client {client_id} (handled by endpoint)")
             
         else:
             logger.warning(f"Unknown message type from client {client_id}: {msg_type}")

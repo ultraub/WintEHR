@@ -9,6 +9,7 @@ import { cdsHooksService } from '../services/cdsHooksService';
 import { cdsLogger } from '../config/logging';
 import { PRESENTATION_MODES } from '../components/clinical/cds/CDSPresentation';
 import { useStableCallback } from '../hooks/useStableReferences';
+import { v4 as uuidv4 } from 'uuid';
 
 // Context
 const CDSContext = createContext();
@@ -59,16 +60,13 @@ export const CDSProvider = ({ children }) => {
     
     try {
       markInitializing();
-      console.log('🔧 CDSContext: Loading hook configurations with display behavior support');
-      const hookResponse = await cdsHooksService.listCustomHooks();
-      console.log('🔍 CDSContext: Raw hook response:', hookResponse);
+      const hookResponse = await cdsHooksService.listCustomServices();
       
       // Handle response format - could be {success: true, data: hooks} or direct array
       const hooks = hookResponse.data || hookResponse;
-      console.log('🔍 CDSContext: Extracted hooks array:', hooks);
       
       if (!Array.isArray(hooks)) {
-        console.error('❌ CDSContext: Hook response is not an array:', hooks);
+        cdsLogger.error('CDSContext: Hook response is not an array:', hooks);
         return;
       }
       
@@ -79,7 +77,6 @@ export const CDSProvider = ({ children }) => {
       });
       
       setHookConfigurations(configMap);
-      console.log(`✅ CDSContext: Loaded ${hooks.length} hook configurations:`, Object.keys(configMap));
       cdsLogger.debug(`CDSContext: Loaded ${hooks.length} hook configurations:`, Object.keys(configMap));
       
       // Log each hook's display behavior for debugging
@@ -101,21 +98,21 @@ export const CDSProvider = ({ children }) => {
   useEffect(() => {
     const loadServices = async () => {
       if (servicesLoaded || isInitializing) {
-        console.log('🔍 CDSContext: Skipping service discovery:', { servicesLoaded, isInitializing });
+        cdsLogger.debug('CDSContext: Skipping service discovery', { servicesLoaded, isInitializing });
         return;
       }
       
       try {
-        console.log('🔍 CDSContext: Starting service discovery...');
         cdsLogger.info('CDSContext: Discovering CDS services');
         const discoveredServices = await cdsHooksClient.discoverServices();
-        console.log('📡 CDSContext: Service discovery result:', discoveredServices);
+        // [CDS Debug] Discovered services:', discoveredServices);
         setServices(discoveredServices);
         setServicesLoaded(true);
-        console.log(`✅ CDSContext: Successfully discovered ${discoveredServices.length} CDS services`);
         cdsLogger.info(`CDSContext: Discovered ${discoveredServices.length} CDS services`);
+        // [CDS Debug] Set ${discoveredServices.length} services in state`);
+        
+        // Don't execute hooks here - let the separate effect handle it
       } catch (err) {
-        console.error('❌ CDSContext: Service discovery failed:', err);
         cdsLogger.error('CDSContext: Failed to discover services', err);
         setError(err.message);
       }
@@ -123,23 +120,33 @@ export const CDSProvider = ({ children }) => {
     
     const loadHookConfigsWrapper = async () => {
       if (isInitializing) {
-        console.log('🔍 CDSContext: Skipping hook configuration loading - already initializing');
+        cdsLogger.debug('CDSContext: Skipping hook configuration loading - already initializing');
         return;
       }
       await loadHookConfigurations();
     };
     
     // Run initialization
-    console.log('🎛️ CDSContext: useEffect check:', { isInitialized, isInitializing, servicesLoaded });
     if (!isInitialized && !isInitializing) {
-      console.log('🚀 CDSContext: Starting initialization...');
       loadServices();
       loadHookConfigsWrapper();
     }
   }, []); // Run once on mount
   
+  // When services are loaded and we have a patient, execute patient-view hooks
+  useEffect(() => {
+    if (servicesLoaded && services.length > 0 && currentPatientId) {
+      // [CDS Debug] Services loaded with patient ${currentPatientId}, triggering patient-view hooks`);
+      // We'll execute hooks through the executePatientViewHooks function
+      // which will be called by usePatientCDSAlerts hook
+    }
+  }, [servicesLoaded, services.length, currentPatientId]);
+  
   // Execute CDS hooks with deduplication - using stable callback
   const executeCDSHooks = useStableCallback(async (hookType, context) => {
+    // [CDS Debug] executeCDSHooks called - hookType: ${hookType}, context:`, context);
+    // [CDS Debug] executeCDSHooks - servicesLoaded: ${servicesLoaded}, services.length: ${services.length}`);
+    
     // Check if we're already executing this hook with the same context
     const executionKey = `${hookType}-${JSON.stringify(context)}`;
     const now = Date.now();
@@ -148,12 +155,20 @@ export const CDSProvider = ({ children }) => {
     if (lastExecutionTime.current[executionKey] && 
         now - lastExecutionTime.current[executionKey] < 5000) {
       cdsLogger.debug(`CDSContext: Skipping duplicate execution of ${hookType}`);
+      // [CDS Debug] Skipping duplicate execution of ${hookType} - last execution was ${now - lastExecutionTime.current[executionKey]}ms ago`);
       return;
     }
     
     // Check if hook is currently executing
     if (executingHooks.current.has(executionKey)) {
       cdsLogger.debug(`CDSContext: Hook ${hookType} already executing`);
+      return;
+    }
+    
+    // If services haven't been loaded yet, wait for them
+    if (!servicesLoaded || services.length === 0) {
+      // [CDS Debug] Services not loaded yet - servicesLoaded: ${servicesLoaded}, services.length: ${services.length}`);
+      // [CDS Debug] Skipping hook execution until services are loaded');
       return;
     }
     
@@ -164,54 +179,56 @@ export const CDSProvider = ({ children }) => {
     setError(null);
     
     try {
-      console.log(`🎯 CDSContext: Executing ${hookType} hooks`, context);
       cdsLogger.info(`CDSContext: Executing ${hookType} hooks`, context);
+      // [CDS Debug] Executing ${hookType} hooks with context:`, context);
+      // [CDS Debug] Available services:', services);
       
       // Get services for this hook type
       const matchingServices = services.filter(s => s.hook === hookType);
-      console.log(`🔍 CDSContext: Available services (${services.length}):`, services.map(s => ({id: s.id, hook: s.hook})));
-      console.log(`✅ CDSContext: Found ${matchingServices.length} matching services for ${hookType}:`, matchingServices.map(s => s.id));
       cdsLogger.debug(`CDSContext: Found ${matchingServices.length} services for ${hookType}`);
+      // [CDS Debug] Found ${matchingServices.length} matching services for ${hookType}:`, matchingServices);
       
       const allAlerts = [];
       
       // Execute each matching service
       for (const service of matchingServices) {
         try {
-          console.log(`🔧 CDSContext: Executing service ${service.id}...`);
+          cdsLogger.debug(`CDSContext: Executing service ${service.id}`);
+          // Create hook request with proper format matching backend expectations
+          // CDS Hooks 2.0 requires hookInstance to be a valid UUID
           const hookRequest = {
-            hook: hookType,
-            hookInstance: `${service.id}-${Date.now()}`,
-            context
+            hook: hookType,  // This is required by the backend
+            hookInstance: uuidv4(),  // Generate proper UUID for CDS Hooks 2.0
+            context: context  // Just pass the context object directly
           };
-          console.log(`📋 CDSContext: Hook request for ${service.id}:`, hookRequest);
           
           const response = await cdsHooksClient.callService(service.id, hookRequest);
-          console.log(`📨 CDSContext: Response from ${service.id}:`, response);
+          cdsLogger.debug(`CDSContext: Response from ${service.id}`, response);
           
           if (response.cards && response.cards.length > 0) {
-            console.log(`🎯 CDSContext: Processing ${response.cards.length} cards from ${service.id}`);
             allAlerts.push(...response.cards.map(card => {
-              console.log(`🎴 CDSContext: Processing card:`, card);
               // Enhance alert with display behavior metadata
               let presentationMode = null;
               let acknowledgmentRequired = false;
+              let reasonRequired = false;
               let snoozeEnabled = false;
               
               // Check if this alert has a serviceId that matches a hook configuration
               if (service.id && hookConfigurations[service.id]) {
-                console.log(`🔧 CDSContext: Found hook configuration for ${service.id}`);
                 const hookConfig = hookConfigurations[service.id];
                 const displayBehavior = hookConfig.displayBehavior;
-                console.log(`🎨 CDSContext: Display behavior for ${service.id}:`, displayBehavior);
+                cdsLogger.debug(`CDSContext: Display behavior for ${service.id}`, displayBehavior);
                 
                 if (displayBehavior) {
                   // Map display behavior to presentation modes
                   const modeMapping = {
                     'hard-stop': PRESENTATION_MODES.MODAL,
+                    'modal': PRESENTATION_MODES.MODAL,
                     'popup': PRESENTATION_MODES.POPUP,
                     'sidebar': PRESENTATION_MODES.SIDEBAR,
-                    'inline': PRESENTATION_MODES.INLINE
+                    'inline': PRESENTATION_MODES.INLINE,
+                    'banner': PRESENTATION_MODES.BANNER,
+                    'toast': PRESENTATION_MODES.TOAST
                   };
                   
                   // Check for indicator-based overrides
@@ -221,6 +238,7 @@ export const CDSProvider = ({ children }) => {
                   
                   presentationMode = modeMapping[configuredMode] || PRESENTATION_MODES.POPUP;
                   acknowledgmentRequired = displayBehavior.acknowledgment?.required || false;
+                  reasonRequired = displayBehavior.acknowledgment?.reasonRequired || false;
                   snoozeEnabled = displayBehavior.snooze?.enabled || false;
                   
                   cdsLogger.debug(`CDSContext: Using configured display behavior for ${service.id}:`, {
@@ -241,7 +259,7 @@ export const CDSProvider = ({ children }) => {
 
               const enhancedAlert = {
                 ...card,
-                uuid: card.uuid || `${service.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                uuid: card.uuid || uuidv4(),  // Use proper UUID
                 serviceId: service.id,
                 serviceName: service.title || service.id,
                 hookType,
@@ -249,32 +267,34 @@ export const CDSProvider = ({ children }) => {
                 displayBehavior: {
                   presentationMode,
                   acknowledgmentRequired,
+                  reasonRequired,
                   snoozeEnabled
                 }
               };
-              console.log(`🎉 CDSContext: Enhanced alert:`, enhancedAlert);
               return enhancedAlert;
             }));
           }
         } catch (serviceError) {
-          console.error(`❌ CDSContext: Error calling service ${service.id}:`, serviceError);
           cdsLogger.warn(`CDSContext: Error calling service ${service.id}:`, serviceError);
         }
       }
       
-      console.log(`📊 CDSContext: Generated ${allAlerts.length} total alerts for ${hookType}:`, allAlerts);
       cdsLogger.info(`CDSContext: Received ${allAlerts.length} alerts for ${hookType}`);
+      // [CDS Debug] All alerts for ${hookType}:`, allAlerts);
       
       // Update alerts state
-      setAlerts(prev => ({
-        ...prev,
-        [hookType]: allAlerts
-      }));
-      console.log(`💾 CDSContext: Updated alerts state for ${hookType}`);
+      setAlerts(prev => {
+        const newAlerts = {
+          ...prev,
+          [hookType]: allAlerts
+        };
+        // [CDS Debug] Setting alerts state:', newAlerts);
+        return newAlerts;
+      });
       
       // Notify subscribers
       const subscribers = alertSubscribers.current.get(hookType) || [];
-      console.log(`📢 CDSContext: Notifying ${subscribers.length} subscribers for ${hookType}`);
+      cdsLogger.debug(`CDSContext: Notifying ${subscribers.length} subscribers for ${hookType}`);
       subscribers.forEach(callback => callback(allAlerts));
       
     } catch (err) {
@@ -288,21 +308,23 @@ export const CDSProvider = ({ children }) => {
   
   // Execute patient-view hooks when patient changes - using stable callback
   const executePatientViewHooks = useStableCallback(async (patientId) => {
+    // [CDS Debug] executePatientViewHooks called with patientId:', patientId);
+    // [CDS Debug] Current patientId:', currentPatientId);
+    
     if (!patientId || patientId === currentPatientId) {
-      console.log('🔍 CDSContext: executePatientViewHooks skipped:', { patientId, currentPatientId });
+      cdsLogger.debug('CDSContext: executePatientViewHooks skipped', { patientId, currentPatientId });
+      // [CDS Debug] Skipping execution - same patient or no patient');
       return;
     }
     
-    console.log(`🏥 CDSContext: Patient changed to ${patientId}`);
     cdsLogger.info(`CDSContext: Patient changed to ${patientId}`);
+    // [CDS Debug] Patient changed from ${currentPatientId} to ${patientId}`);
     setCurrentPatientId(patientId);
     
     // Clear existing alerts when patient changes
     setAlerts({});
-    console.log('🧹 CDSContext: Cleared existing alerts for new patient');
     
     // Execute patient-view hooks
-    console.log('🚀 CDSContext: Executing patient-view hooks for patient:', patientId);
     await executeCDSHooks(CDS_HOOK_TYPES.PATIENT_VIEW, {
       patientId,
       userId: 'current-user' // TODO: Get from auth context
@@ -380,21 +402,38 @@ export const useCDS = () => {
 
 // Hook for patient-view alerts
 export const usePatientCDSAlerts = (patientId) => {
-  const { executePatientViewHooks, loading, alerts: contextAlerts } = useCDS();
+  const { executePatientViewHooks, loading, alerts: contextAlerts, servicesLoaded, services } = useCDS();
   const prevPatientIdRef = useRef(null);
+  const hasExecutedRef = useRef(false);
+  
+  // [CDS Debug] usePatientCDSAlerts called with patientId:', patientId);
+  // [CDS Debug] Context alerts:', contextAlerts);
+  // [CDS Debug] Services loaded:', servicesLoaded, 'Services count:', services?.length);
   
   useEffect(() => {
+    // [CDS Debug] usePatientCDSAlerts effect - patientId:', patientId, 'prev:', prevPatientIdRef.current);
+    // [CDS Debug] usePatientCDSAlerts effect - servicesLoaded:', servicesLoaded, 'services:', services?.length);
+    
+    // Reset execution flag if patient changed
     if (patientId && patientId !== prevPatientIdRef.current) {
-      console.log(`🎣 usePatientCDSAlerts: Executing hooks for patient ${patientId}`);
+      hasExecutedRef.current = false;
       prevPatientIdRef.current = patientId;
+    }
+    
+    // Execute if we have a patient, services are loaded, and we haven't executed yet
+    const shouldExecute = patientId && servicesLoaded && services?.length > 0 && !hasExecutedRef.current;
+    
+    if (shouldExecute) {
+      cdsLogger.debug(`usePatientCDSAlerts: Executing hooks for patient ${patientId}`);
+      // [CDS Debug] Triggering executePatientViewHooks for patient ${patientId}`);
+      hasExecutedRef.current = true;
       executePatientViewHooks(patientId);
     }
-  }, [patientId, executePatientViewHooks]);
+  }, [patientId, executePatientViewHooks, servicesLoaded, services]);
   
   // Get patient-view alerts directly from context state, only re-compute when they actually change
   const alerts = useMemo(() => {
     const patientAlerts = contextAlerts[CDS_HOOK_TYPES.PATIENT_VIEW] || [];
-    console.log(`🔔 usePatientCDSAlerts: Computed ${patientAlerts.length} alerts for patient-view`);
     return patientAlerts;
   }, [contextAlerts[CDS_HOOK_TYPES.PATIENT_VIEW]]);
   

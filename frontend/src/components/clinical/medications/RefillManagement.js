@@ -341,7 +341,7 @@ const RefillHistory = ({ medicationRequestId }) => {
             }[event.type];
 
             return (
-              <ListItem key={index} sx={{ pl: 0 }}>
+              <ListItem key={`event-${event.type}-${event.date}-${index}`} sx={{ pl: 0 }}>
                 <ListItemIcon>
                   <Box sx={{ position: 'relative' }}>
                     {eventIcon}

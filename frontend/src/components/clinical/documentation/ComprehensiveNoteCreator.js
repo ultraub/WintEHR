@@ -30,17 +30,14 @@ import {
   Divider,
   Card,
   CardContent,
-  CardActions,
   IconButton,
   Tooltip,
   Collapse,
-  Badge,
   Grid
 } from '@mui/material';
 import {
   NoteAdd as CreateNoteIcon,
   Assignment as TemplateIcon,
-  Preview as PreviewIcon,
   Edit as EditIcon,
   Save as SaveIcon,
   Close as CloseIcon,
@@ -49,11 +46,10 @@ import {
   Assessment as AssessmentIcon,
   Science as LabIcon,
   Medication as MedicationIcon,
-  MonitorHeart as VitalIcon,
+  MonitorHeart,
   Warning as WarningIcon,
   Error as ErrorIcon,
   CheckCircle as CheckIcon,
-  Schedule as ClockIcon,
   TrendingUp as TrendIcon,
   Article as DocumentIcon
 } from '@mui/icons-material';

@@ -23,6 +23,11 @@ if ('serviceWorker' in navigator) {
         });
       });
       
+      // Load CDS test utilities
+      import('./test/loadCDSTests').catch(err => {
+        console.log('[Dev] CDS tests not available:', err.message);
+      });
+      
       // Clear all caches
       if ('caches' in window) {
         caches.keys().then(names => {

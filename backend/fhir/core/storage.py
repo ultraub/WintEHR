@@ -9,6 +9,7 @@ import json
 import uuid
 import re
 import logging
+import os
 from decimal import Decimal
 from datetime import datetime, timezone, date
 from typing import Dict, List, Optional, Tuple, Any
@@ -28,6 +29,8 @@ try:
     from api.websocket.fhir_notifications import notification_service
 except ImportError:
     notification_service = None
+
+logger = logging.getLogger(__name__)
 
 
 def safe_dict_conversion(obj: Any, exclude_none: bool = False) -> dict:
@@ -118,6 +121,15 @@ class FHIRStorageEngine:
         self.default_version = default_version
         self.version_negotiator = version_negotiator
         self.version_transformer = fhir_transformer
+        
+        # Initialize cache service
+        try:
+            from fhir.core.cache import FHIRCacheService
+            self.cache_service = FHIRCacheService()
+            logger.info("FHIR cache service initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize cache service: {e}")
+            self.cache_service = None
     
     def _get_search_parameter_definitions(self) -> Dict[str, Dict]:
         """Get search parameter definitions for all resource types."""
@@ -129,9 +141,13 @@ class FHIRStorageEngine:
                 'given': {'type': 'string'},
                 'gender': {'type': 'token'},
                 'birthdate': {'type': 'date'},
+                'death-date': {'type': 'date'},
+                'deceased': {'type': 'token'},
                 'address': {'type': 'string'},
                 'phone': {'type': 'token'},
                 'email': {'type': 'token'},
+                'language': {'type': 'token'},
+                'telecom': {'type': 'token'},
                 'general-practitioner': {'type': 'reference'},
                 'organization': {'type': 'reference'},
                 'managing-organization': {'type': 'reference'}
@@ -155,6 +171,7 @@ class FHIRStorageEngine:
                 'clinical-status': {'type': 'token'},
                 'severity': {'type': 'token'},
                 'onset-date': {'type': 'date'},
+                'recorded-date': {'type': 'date'},
                 'subject': {'type': 'reference'},
                 'patient': {'type': 'reference'},
                 'encounter': {'type': 'reference'}
@@ -667,17 +684,26 @@ class FHIRStorageEngine:
         except Exception as e:
             logging.error(f"ERROR: Failed to extract references for {resource_type} {fhir_id}: {e}")
         
+        # Extract compartments (e.g., patient compartment)
+        try:
+            await self._extract_compartments(resource_id, resource_type, resource_dict)
+        except Exception as e:
+            logging.error(f"ERROR: Failed to extract compartments for {resource_type} {fhir_id}: {e}")
+        
         # Auto-link Observations to ServiceRequests
         if resource_type == 'Observation' and not resource_dict.get('basedOn'):
             try:
-                print(f"\n\n=== AUTO-LINK: Attempting to auto-link Observation {fhir_id} ===\n")
                 logging.info(f"DEBUG: Attempting to auto-link Observation {fhir_id}")
                 await self._auto_link_observation_to_service_request(resource_id, resource_dict)
             except Exception as e:
-                print(f"\n\n=== AUTO-LINK ERROR: {e} ===\n")
                 logging.error(f"ERROR: Failed to auto-link Observation to ServiceRequest: {e}", exc_info=True)
         
         await self.session.commit()
+        
+        # Invalidate search cache for this resource type
+        if self.cache_service:
+            # For creates, we need to invalidate search results but not individual resources
+            await self.cache_service.clear_cache(resource_type)
         
         # Send WebSocket notification
         if notification_service:
@@ -706,9 +732,16 @@ class FHIRStorageEngine:
         Returns:
             Resource data or None if not found
         """
-        import logging
-        logger = logging.getLogger(__name__)
         logger.info(f"Reading resource: {resource_type}/{fhir_id} (version: {version_id})")
+        
+        # Check cache first (only for current version)
+        if self.cache_service and version_id is None:
+            cached_resource = await self.cache_service.get_cached_resource(
+                resource_type, fhir_id
+            )
+            if cached_resource is not None:
+                logger.info(f"Cache hit for {resource_type}/{fhir_id}")
+                return cached_resource
         if version_id:
             # Read specific version from history
             query = text("""
@@ -745,8 +778,47 @@ class FHIRStorageEngine:
         logger.info(f"Query result: {'Found' if row else 'Not found'}")
         
         if row:
-            return json.loads(row[0]) if isinstance(row[0], str) else row[0]
+            resource_data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+            
+            # Cache the resource (only for current version)
+            if self.cache_service and version_id is None:
+                await self.cache_service.cache_resource(resource_data)
+            
+            return resource_data
         return None
+    
+    async def check_resource_deleted(
+        self,
+        resource_type: str,
+        fhir_id: str
+    ) -> bool:
+        """
+        Check if a resource exists but is deleted (soft delete).
+        
+        Args:
+            resource_type: FHIR resource type
+            fhir_id: FHIR resource ID
+            
+        Returns:
+            True if resource exists but is deleted, False otherwise
+        """
+        query = text("""
+            SELECT deleted
+            FROM fhir.resources
+            WHERE resource_type = :resource_type
+            AND fhir_id = :fhir_id
+        """)
+        params = {
+            'resource_type': resource_type,
+            'fhir_id': fhir_id
+        }
+        
+        result = await self.session.execute(query, params)
+        row = result.first()
+        
+        if row and row[0]:  # If found and deleted is True
+            return True
+        return False
     
     async def update_resource(
         self,
@@ -936,6 +1008,11 @@ class FHIRStorageEngine:
             await self._extract_references(resource_id, resource_dict, "", resource_type)
             logging.debug(f"DEBUG: Successfully updated references for {resource_type} {fhir_id}")
             
+            # Update compartments
+            await self._delete_compartments(resource_id)
+            await self._extract_compartments(resource_id, resource_type, resource_dict)
+            logging.debug(f"DEBUG: Successfully updated compartments for {resource_type} {fhir_id}")
+            
             # Commit all changes atomically
             await self.session.commit()
             logging.debug(f"DEBUG: Successfully committed update for {resource_type} {fhir_id}")
@@ -945,6 +1022,10 @@ class FHIRStorageEngine:
             await self.session.rollback()
             logging.error(f"ERROR: Failed to update search parameters/references for {resource_type} {fhir_id}: {e}")
             raise ValueError(f"Failed to update resource indexing: {str(e)}")
+        
+        # Invalidate cache for this resource
+        if self.cache_service:
+            await self.cache_service.invalidate_resource(resource_type, fhir_id)
         
         # Send WebSocket notification
         if notification_service:
@@ -998,11 +1079,16 @@ class FHIRStorageEngine:
                 json.loads(resource_data) if isinstance(resource_data, str) else resource_data
             )
             
-            # Delete search parameters and references
+            # Delete search parameters, references, and compartments
             await self._delete_search_parameters(resource_id)
             await self._delete_references(resource_id)
+            await self._delete_compartments(resource_id)
             
             await self.session.commit()
+            
+            # Invalidate cache for this resource
+            if self.cache_service:
+                await self.cache_service.invalidate_resource(resource_type, fhir_id)
             
             # Send WebSocket notification
             if notification_service:
@@ -1034,55 +1120,165 @@ class FHIRStorageEngine:
         Returns:
             Tuple of (resources, total_count)
         """
-        from fhir.core.search.basic import SearchParameterHandler
+        # Check cache first
+        if self.cache_service:
+            cached_result = await self.cache_service.get_cached_search(
+                resource_type, search_params, offset, limit
+            )
+            if cached_result is not None:
+                logger.info(f"Cache hit for {resource_type} search")
+                return cached_result
         
-        # Initialize search handler
-        search_handler = SearchParameterHandler(self._get_search_parameter_definitions())
+        # Use optimized query builder if available
+        use_optimized = os.getenv('USE_OPTIMIZED_SEARCH', 'true').lower() == 'true'
         
-        # Build search query using the handler
-        join_clauses, where_clauses, sql_params = search_handler.build_search_query(
-            resource_type, search_params
-        )
+        if use_optimized:
+            try:
+                from fhir.core.search.optimized import OptimizedSearchBuilder
+                
+                # Use optimized query builder
+                optimized_builder = OptimizedSearchBuilder()
+                query, sql_params = optimized_builder.build_optimized_query(
+                    resource_type=resource_type,
+                    search_params=search_params,
+                    limit=limit,
+                    offset=offset,
+                    count_only=False
+                )
+                
+                # Also build count query
+                count_query, count_params = optimized_builder.build_optimized_query(
+                    resource_type=resource_type,
+                    search_params=search_params,
+                    limit=limit,
+                    offset=offset,
+                    count_only=True
+                )
+                
+                logger.info(f"Using OPTIMIZED search query for {resource_type}")
+                
+            except ImportError:
+                logger.warning("OptimizedSearchBuilder not available, falling back to basic search")
+                use_optimized = False
         
-        # Build base query
-        base_query = """
-            SELECT DISTINCT r.resource, r.fhir_id, r.version_id, r.last_updated
-            FROM fhir.resources r
-        """
+        if not use_optimized:
+            from fhir.core.search.basic import SearchParameterHandler
+            
+            # Initialize search handler
+            search_handler = SearchParameterHandler(self._get_search_parameter_definitions())
+            
+            # Build search query using the handler
+            join_clauses, where_clauses, sql_params = search_handler.build_search_query(
+                resource_type, search_params
+            )
+            
+            # Build base query
+            base_query = """
+                SELECT DISTINCT r.resource, r.fhir_id, r.version_id, r.last_updated
+                FROM fhir.resources r
+            """
+            
+            # Add base where clauses
+            base_where = [
+                "r.resource_type = :resource_type",
+                "r.deleted = false"
+            ]
+            sql_params['resource_type'] = resource_type
+            
+            # Combine clauses
+            all_where_clauses = base_where + where_clauses
+            
+            # Build final query
+            query = base_query
+            if join_clauses:
+                query += " " + " ".join(join_clauses)
+            query += " WHERE " + " AND ".join(all_where_clauses)
         
-        # Add base where clauses
-        base_where = [
-            "r.resource_type = :resource_type",
-            "r.deleted = false"
-        ]
-        sql_params['resource_type'] = resource_type
+        # Log the query for debugging
+        logger.info(f"Search query for {resource_type}: {query}")
+        # Convert datetime objects to strings for logging
+        safe_params = {}
+        for k, v in sql_params.items():
+            if isinstance(v, datetime):
+                safe_params[k] = v.isoformat()
+            else:
+                safe_params[k] = v
+        logger.info(f"Search params: {safe_params}")
         
-        # Combine clauses
-        all_where_clauses = base_where + where_clauses
+        # Also print for immediate debugging
+        print(f"\n=== SEARCH QUERY DEBUG ===")
+        print(f"Resource type: {resource_type}")
+        print(f"Query: {query}")
+        print(f"SQL params: {safe_params}")
+        print(f"========================\n")
         
-        # Build final query
-        query = base_query
-        if join_clauses:
-            query += " " + " ".join(join_clauses)
-        query += " WHERE " + " AND ".join(all_where_clauses)
-        
-        # Add ordering
-        query += " ORDER BY r.last_updated DESC"
-        
-        # Get total count
-        count_query = f"""
-            SELECT COUNT(DISTINCT r.id) 
-            FROM fhir.resources r
-            {" ".join(join_clauses) if join_clauses else ""}
-            WHERE {" AND ".join(all_where_clauses)}
-        """
-        count_result = await self.session.execute(text(count_query), sql_params)
-        total_count = count_result.scalar() or 0
-        
-        # Add pagination
-        query += " LIMIT :limit OFFSET :offset"
-        sql_params['limit'] = limit
-        sql_params['offset'] = offset
+        # Handle the optimized path differently
+        if use_optimized and 'count_query' in locals():
+            # Execute count query
+            count_result = await self.session.execute(text(count_query), count_params)
+            total_count = count_result.scalar() or 0
+        else:
+            # For basic search, continue with existing logic
+            logger.info(f"Where clauses: {where_clauses}")
+            print(f"FULL SEARCH QUERY: {query}")
+            print(f"SQL PARAMS: {safe_params}")
+            
+            # Add ordering based on _sort parameter
+            sort_clauses = []
+            
+            # Check if _sort parameter was provided
+            if '_sort' in search_params:
+                sort_params = search_params.get('_sort', [])
+                if isinstance(sort_params, str):
+                    sort_params = [sort_params]
+                
+                # Parse sort parameters using the handler
+                parsed_sorts = search_handler.parse_sort_params(sort_params)
+                
+                for sort_field, sort_order in parsed_sorts:
+                    # Map sort fields to database columns
+                    if sort_field == '_id':
+                        sort_clauses.append(f"r.fhir_id {sort_order}")
+                    elif sort_field == '_lastUpdated':
+                        sort_clauses.append(f"r.last_updated {sort_order}")
+                    elif sort_field == 'birthdate' and resource_type == 'Patient':
+                        sort_clauses.append(f"r.resource->>'birthDate' {sort_order}")
+                    elif sort_field == 'name' and resource_type == 'Patient':
+                        sort_clauses.append(f"r.resource->'name'->0->>'family' {sort_order}")
+                    elif sort_field == 'date' and resource_type == 'Observation':
+                        sort_clauses.append(f"r.resource->>'effectiveDateTime' {sort_order}")
+                    elif sort_field == 'date' and resource_type == 'Encounter':
+                        sort_clauses.append(f"r.resource->'period'->>'start' {sort_order}")
+                    elif sort_field == 'onset-date' and resource_type == 'Condition':
+                        sort_clauses.append(f"r.resource->>'onsetDateTime' {sort_order}")
+                    elif sort_field == 'authoredon' and resource_type == 'MedicationRequest':
+                        sort_clauses.append(f"r.resource->>'authoredOn' {sort_order}")
+                    elif sort_field == 'status':
+                        sort_clauses.append(f"r.resource->>'status' {sort_order}")
+                    elif sort_field == 'gender' and resource_type == 'Patient':
+                        sort_clauses.append(f"r.resource->>'gender' {sort_order}")
+                    # Add more field mappings as needed
+            
+            # Apply sorting or use default
+            if sort_clauses:
+                query += " ORDER BY " + ", ".join(sort_clauses)
+            else:
+                query += " ORDER BY r.last_updated DESC"
+            
+            # Get total count
+            count_query = f"""
+                SELECT COUNT(DISTINCT r.id) 
+                FROM fhir.resources r
+                {" ".join(join_clauses) if join_clauses else ""}
+                WHERE {" AND ".join(all_where_clauses)}
+            """
+            count_result = await self.session.execute(text(count_query), sql_params)
+            total_count = count_result.scalar() or 0
+            
+            # Add pagination
+            query += " LIMIT :limit OFFSET :offset"
+            sql_params['limit'] = limit
+            sql_params['offset'] = offset
         
         # Execute search
         result = await self.session.execute(text(query), sql_params)
@@ -1091,6 +1287,13 @@ class FHIRStorageEngine:
         for row in result:
             resource_data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
             resources.append(resource_data)
+        
+        # Cache the results
+        if self.cache_service and resources is not None:
+            await self.cache_service.cache_search_results(
+                resource_type, search_params, offset, limit,
+                resources, total_count
+            )
         
         return resources, total_count
     
@@ -1553,7 +1756,7 @@ class FHIRStorageEngine:
             # Read/Search
             if fhir_id:
                 # Read single resource
-                resource = await self.get_resource(resource_type, fhir_id)
+                resource = await self.read_resource(resource_type, fhir_id)
                 if resource:
                     response_entry['resource'] = resource
                     response_entry['response'] = {"status": "200"}
@@ -1809,23 +2012,138 @@ class FHIRStorageEngine:
         
         elif resource_type in ['Encounter', 'Observation', 'Condition', 'MedicationRequest', 
                               'MedicationAdministration', 'Procedure', 'DiagnosticReport', 
-                              'Immunization', 'AllergyIntolerance', 'ImagingStudy']:
+                              'Immunization', 'AllergyIntolerance', 'ImagingStudy', 'ServiceRequest',
+                              'CarePlan', 'CareTeam', 'DocumentReference']:
             # Patient reference (handle both Patient/ and urn:uuid: formats)
+            patient_ref = None
             if 'subject' in resource_data and isinstance(resource_data['subject'], dict):
-                ref = resource_data['subject'].get('reference', '')
+                patient_ref = resource_data['subject'].get('reference', '')
+            elif 'patient' in resource_data and isinstance(resource_data['patient'], dict):
+                patient_ref = resource_data['patient'].get('reference', '')
+            
+            if patient_ref:
                 patient_id = None
                 
-                if ref.startswith('Patient/'):
-                    patient_id = ref.replace('Patient/', '')
-                elif ref.startswith('urn:uuid:'):
+                if patient_ref.startswith('Patient/'):
+                    patient_id = patient_ref.replace('Patient/', '')
+                elif patient_ref.startswith('urn:uuid:'):
                     # Extract UUID from urn:uuid: format
-                    patient_id = ref.replace('urn:uuid:', '')
+                    patient_id = patient_ref.replace('urn:uuid:', '')
                 
                 if patient_id:
+                    # Store the full reference for patient search param
                     await self._add_search_param(
                         resource_id, resource_type, 'patient', 'reference',
-                        value_reference=patient_id
+                        value_reference=patient_ref  # Store full reference, not just ID
                     )
+            
+            # Add status parameter
+            if 'status' in resource_data:
+                await self._add_search_param(
+                    resource_id, resource_type, 'status', 'token',
+                    value_token_code=resource_data['status']
+                )
+            
+            # Add code parameter for resources that have it
+            if 'code' in resource_data and isinstance(resource_data['code'], dict):
+                if 'coding' in resource_data['code']:
+                    for coding in resource_data['code']['coding']:
+                        if 'code' in coding:
+                            await self._add_search_param(
+                                resource_id, resource_type, 'code', 'token',
+                                value_token_system=coding.get('system'),
+                                value_token_code=coding['code']
+                            )
+            
+            # Add date parameters
+            date_fields = {
+                'Observation': ['effectiveDateTime', 'issued'],
+                'Condition': ['recordedDate', 'onsetDateTime'],
+                'Procedure': ['performedDateTime'],
+                'DiagnosticReport': ['effectiveDateTime', 'issued'],
+                'MedicationRequest': ['authoredOn'],
+                'Encounter': ['period.start'],
+                'ServiceRequest': ['authoredOn', 'occurrenceDateTime']
+            }
+            
+            if resource_type in date_fields:
+                for date_field in date_fields[resource_type]:
+                    if '.' in date_field:
+                        # Handle nested fields like period.start
+                        parts = date_field.split('.')
+                        value = resource_data
+                        for part in parts:
+                            if isinstance(value, dict) and part in value:
+                                value = value[part]
+                            else:
+                                value = None
+                                break
+                        if value:
+                            await self._add_search_param(
+                                resource_id, resource_type, 'date', 'date',
+                                value_date=value
+                            )
+                    elif date_field in resource_data:
+                        await self._add_search_param(
+                            resource_id, resource_type, 'date', 'date',
+                            value_date=resource_data[date_field]
+                        )
+            
+            # Add category parameter
+            if 'category' in resource_data:
+                categories = resource_data['category']
+                if not isinstance(categories, list):
+                    categories = [categories]
+                
+                for category in categories:
+                    if isinstance(category, dict) and 'coding' in category:
+                        for coding in category['coding']:
+                            if 'code' in coding:
+                                await self._add_search_param(
+                                    resource_id, resource_type, 'category', 'token',
+                                    value_token_system=coding.get('system'),
+                                    value_token_code=coding['code']
+                                )
+    
+    async def _add_search_param_dict(self, resource_id: int, resource_type: str, param: Dict[str, Any]):
+        """Add a search parameter from dictionary format."""
+        query = text("""
+            INSERT INTO fhir.search_params (
+                resource_id, resource_type, param_name, param_type,
+                value_string, value_number, value_date,
+                value_quantity_value, value_quantity_unit,
+                value_token, value_token_system, value_token_code, value_reference
+            ) VALUES (
+                :resource_id, :resource_type, :param_name, :param_type,
+                :value_string, :value_number, :value_date,
+                :value_quantity_value, :value_quantity_unit,
+                :value_token, :value_token_system, :value_token_code, :value_reference
+            )
+        """)
+        
+        # For token types, populate value_token for searches
+        value_token = None
+        if param['param_type'] == 'token' and param.get('value_token_code'):
+            # The value_token column is used for simple token searches
+            value_token = param.get('value_token_code')
+        
+        params = {
+            'resource_id': resource_id,
+            'resource_type': resource_type,
+            'param_name': param['param_name'],
+            'param_type': param['param_type'],
+            'value_string': param.get('value_string'),
+            'value_number': param.get('value_number'),
+            'value_date': param.get('value_date'),
+            'value_quantity_value': param.get('value_quantity_value'),
+            'value_quantity_unit': param.get('value_quantity_unit'),
+            'value_token': value_token,
+            'value_token_system': param.get('value_token_system'),
+            'value_token_code': param.get('value_token_code'),
+            'value_reference': param.get('value_reference')
+        }
+        
+        await self.session.execute(query, params)
     
     async def _add_search_param(self, resource_id: int, resource_type: str, param_name: str, 
                                param_type: str, **values):
@@ -1834,13 +2152,19 @@ class FHIRStorageEngine:
             INSERT INTO fhir.search_params (
                 resource_id, resource_type, param_name, param_type,
                 value_string, value_number, value_date,
-                value_token_system, value_token_code, value_reference
+                value_token, value_token_system, value_token_code, value_reference
             ) VALUES (
                 :resource_id, :resource_type, :param_name, :param_type,
                 :value_string, :value_number, :value_date,
-                :value_token_system, :value_token_code, :value_reference
+                :value_token, :value_token_system, :value_token_code, :value_reference
             )
         """)
+        
+        # For token types, populate value_token for searches
+        value_token = None
+        if param_type == 'token' and values.get('value_token_code'):
+            # The value_token column is used for simple token searches
+            value_token = values.get('value_token_code')
         
         params = {
             'resource_id': resource_id,
@@ -1850,6 +2174,7 @@ class FHIRStorageEngine:
             'value_string': values.get('value_string'),
             'value_number': values.get('value_number'),
             'value_date': values.get('value_date'),
+            'value_token': value_token,
             'value_token_system': values.get('value_token_system'),
             'value_token_code': values.get('value_token_code'),
             'value_reference': values.get('value_reference')
@@ -1888,45 +2213,27 @@ class FHIRStorageEngine:
     ):
         """Extract and store search parameters from a resource."""
         logging.debug(f"DEBUG: Extracting search parameters for {resource_type} resource {resource_id}")
-        params_to_extract = []
         
-        # Extract common parameters
-        if 'id' in resource_data:
-            params_to_extract.append({
-                'param_name': '_id',
-                'param_type': 'token',
-                'value_string': resource_data['id']
-            })
+        # Use the shared extraction module
+        from .search_param_extraction import SearchParameterExtractor
+        extractor = SearchParameterExtractor()
+        params_to_extract = extractor.extract_parameters(resource_type, resource_data)
         
-        if 'meta' in resource_data and 'lastUpdated' in resource_data['meta']:
-            params_to_extract.append({
-                'param_name': '_lastUpdated',
-                'param_type': 'date',
-                'value_date': datetime.fromisoformat(
-                    resource_data['meta']['lastUpdated'].replace('Z', '+00:00')
-                )
-            })
+        # Store extracted parameters
+        for param in params_to_extract:
+            try:
+                await self._add_search_param_dict(resource_id, resource_type, param)
+            except Exception as e:
+                logging.error(f"Error storing search parameter {param.get('param_name')}: {e}")
         
-        # Resource-specific parameters
+        logging.debug(f"DEBUG: Extracted {len(params_to_extract)} search parameters for {resource_type}/{resource_id}")
+        
+        # The rest of the old extraction logic is now handled by the shared module
+        return  # Early return since we're using the shared module
+        
+        # Resource-specific parameters (REPLACED BY SHARED MODULE)
         if resource_type == 'Patient':
-            # Gender
-            if 'gender' in resource_data:
-                params_to_extract.append({
-                    'param_name': 'gender',
-                    'param_type': 'token',
-                    'value_token_code': resource_data['gender']
-                })
-            
-            # Birth date
-            if 'birthDate' in resource_data:
-                birth_date = datetime.strptime(resource_data['birthDate'], '%Y-%m-%d') if isinstance(resource_data['birthDate'], str) else resource_data['birthDate']
-                params_to_extract.append({
-                    'param_name': 'birthdate',
-                    'param_type': 'date',
-                    'value_date': birth_date
-                })
-            
-            # Identifiers
+            # 1. identifier
             if 'identifier' in resource_data:
                 for identifier in resource_data['identifier']:
                     if 'value' in identifier:
@@ -1937,22 +2244,208 @@ class FHIRStorageEngine:
                             'value_token_code': identifier['value']
                         })
             
-            # Names
+            # 2. name (composite search)
             if 'name' in resource_data:
                 for name in resource_data['name']:
+                    # Full name for general search
+                    name_parts = []
+                    if 'text' in name:
+                        params_to_extract.append({
+                            'param_name': 'name',
+                            'param_type': 'string',
+                            'value_string': name['text'].lower()
+                        })
+                    else:
+                        # Build from parts
+                        if 'given' in name:
+                            name_parts.extend(name['given'])
+                        if 'family' in name:
+                            name_parts.append(name['family'])
+                        if name_parts:
+                            full_name = ' '.join(name_parts)
+                            params_to_extract.append({
+                                'param_name': 'name',
+                                'param_type': 'string',
+                                'value_string': full_name.lower()
+                            })
+                    
+                    # Family name
                     if 'family' in name:
                         params_to_extract.append({
                             'param_name': 'family',
                             'param_type': 'string',
-                            'value_string': name['family']
+                            'value_string': name['family'].lower()
                         })
+                    
+                    # Given names
                     if 'given' in name:
                         for given in name['given']:
                             params_to_extract.append({
                                 'param_name': 'given',
                                 'param_type': 'string',
-                                'value_string': given
+                                'value_string': given.lower()
                             })
+                    
+                    # Phonetic search (simple lowercase for now)
+                    phonetic_parts = []
+                    if 'given' in name:
+                        phonetic_parts.extend([g.lower() for g in name['given']])
+                    if 'family' in name:
+                        phonetic_parts.append(name['family'].lower())
+                    if phonetic_parts:
+                        params_to_extract.append({
+                            'param_name': 'phonetic',
+                            'param_type': 'string',
+                            'value_string': ' '.join(phonetic_parts)
+                        })
+            
+            # 3. gender (token with system)
+            if 'gender' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'gender',
+                    'param_type': 'token',
+                    'value_token_system': 'http://hl7.org/fhir/administrative-gender',
+                    'value_token_code': resource_data['gender']
+                })
+            
+            # 4. birthdate (date)
+            if 'birthDate' in resource_data:
+                try:
+                    birth_date = datetime.strptime(resource_data['birthDate'], '%Y-%m-%d')
+                    params_to_extract.append({
+                        'param_name': 'birthdate',
+                        'param_type': 'date',
+                        'value_date': birth_date
+                    })
+                except Exception as e:
+                    logging.warning(f"Could not parse birthDate: {resource_data['birthDate']} - {e}")
+            
+            # 5. deceased (token - boolean or dateTime)
+            if 'deceasedBoolean' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'deceased',
+                    'param_type': 'token',
+                    'value_token_code': 'true' if resource_data['deceasedBoolean'] else 'false'
+                })
+            elif 'deceasedDateTime' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'deceased',
+                    'param_type': 'token',
+                    'value_token_code': 'true'
+                })
+                try:
+                    death_date = datetime.fromisoformat(resource_data['deceasedDateTime'].replace('Z', '+00:00'))
+                    params_to_extract.append({
+                        'param_name': 'death-date',
+                        'param_type': 'date',
+                        'value_date': death_date
+                    })
+                except Exception as e:
+                    logging.warning(f"Could not parse deceasedDateTime: {resource_data['deceasedDateTime']} - {e}")
+            
+            # 6. address (string - any part of address)
+            if 'address' in resource_data:
+                for address in resource_data['address']:
+                    # Full address text
+                    if 'text' in address:
+                        params_to_extract.append({
+                            'param_name': 'address',
+                            'param_type': 'string',
+                            'value_string': address['text'].lower()
+                        })
+                    else:
+                        # Build from parts
+                        addr_parts = []
+                        if 'line' in address and isinstance(address['line'], list):
+                            addr_parts.extend(address['line'])
+                        for field in ['city', 'state', 'postalCode', 'country']:
+                            if field in address:
+                                addr_parts.append(address[field])
+                        if addr_parts:
+                            params_to_extract.append({
+                                'param_name': 'address',
+                                'param_type': 'string',
+                                'value_string': ' '.join(addr_parts).lower()
+                            })
+                    
+                    # Specific address components
+                    if 'city' in address:
+                        params_to_extract.append({
+                            'param_name': 'address-city',
+                            'param_type': 'string',
+                            'value_string': address['city'].lower()
+                        })
+                    
+                    if 'state' in address:
+                        params_to_extract.append({
+                            'param_name': 'address-state',
+                            'param_type': 'string',
+                            'value_string': address['state'].lower()
+                        })
+                    
+                    if 'postalCode' in address:
+                        params_to_extract.append({
+                            'param_name': 'address-postalcode',
+                            'param_type': 'string',
+                            'value_string': address['postalCode']
+                        })
+                    
+                    if 'country' in address:
+                        params_to_extract.append({
+                            'param_name': 'address-country',
+                            'param_type': 'string',
+                            'value_string': address['country'].lower()
+                        })
+            
+            # 7. telecom (token)
+            if 'telecom' in resource_data:
+                for telecom in resource_data['telecom']:
+                    if 'value' in telecom:
+                        params_to_extract.append({
+                            'param_name': 'telecom',
+                            'param_type': 'token',
+                            'value_token_system': telecom.get('system'),
+                            'value_token_code': telecom['value']
+                        })
+                        
+                        # Also index phone specifically
+                        if telecom.get('system') == 'phone':
+                            params_to_extract.append({
+                                'param_name': 'phone',
+                                'param_type': 'token',
+                                'value_token_code': telecom['value']
+                            })
+            
+            # 8. language (token)
+            if 'communication' in resource_data:
+                for comm in resource_data['communication']:
+                    if 'language' in comm and 'coding' in comm['language']:
+                        for coding in comm['language']['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'language',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # 9. general-practitioner (reference)
+            if 'generalPractitioner' in resource_data:
+                for gp in resource_data['generalPractitioner']:
+                    if 'reference' in gp:
+                        params_to_extract.append({
+                            'param_name': 'general-practitioner',
+                            'param_type': 'reference',
+                            'value_reference': gp['reference']
+                        })
+            
+            # 10. organization (reference via managingOrganization)
+            if 'managingOrganization' in resource_data and 'reference' in resource_data['managingOrganization']:
+                params_to_extract.append({
+                    'param_name': 'organization',
+                    'param_type': 'reference',
+                    'value_reference': resource_data['managingOrganization']['reference']
+                })
         
         elif resource_type == 'Observation':
             # Code
@@ -1985,7 +2478,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -1996,7 +2489,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Date (effectiveDateTime or effectivePeriod)
@@ -2042,6 +2535,96 @@ class FHIRStorageEngine:
                     except (ValueError, TypeError) as e:
                         logging.warning(f"WARNING: Could not parse valueQuantity.value: {value_quantity.get('value')} - {e}")
         
+        
+            # Based on reference
+            if 'basedOn' in resource_data:
+                for based_on in resource_data.get('basedOn', []):
+                    if 'reference' in based_on:
+                        params_to_extract.append({
+                            'param_name': 'based-on',
+                            'param_type': 'reference',
+                            'value_reference': based_on['reference']
+                        })
+            
+            # Derived from references
+            if 'derivedFrom' in resource_data:
+                for derived in resource_data.get('derivedFrom', []):
+                    if 'reference' in derived:
+                        params_to_extract.append({
+                            'param_name': 'derived-from',
+                            'param_type': 'reference',
+                            'value_reference': derived['reference']
+                        })
+            
+            # Has member references
+            if 'hasMember' in resource_data:
+                for member in resource_data.get('hasMember', []):
+                    if 'reference' in member:
+                        params_to_extract.append({
+                            'param_name': 'has-member',
+                            'param_type': 'reference',
+                            'value_reference': member['reference']
+                        })
+            
+            # Part of reference
+            if 'partOf' in resource_data:
+                for part in resource_data.get('partOf', []):
+                    if 'reference' in part:
+                        params_to_extract.append({
+                            'param_name': 'part-of',
+                            'param_type': 'reference',
+                            'value_reference': part['reference']
+                        })
+            
+            # Specimen reference
+            if 'specimen' in resource_data and 'reference' in resource_data['specimen']:
+                params_to_extract.append({
+                    'param_name': 'specimen',
+                    'param_type': 'reference',
+                    'value_reference': resource_data['specimen']['reference']
+                })
+            
+            # Device reference
+            if 'device' in resource_data and 'reference' in resource_data['device']:
+                params_to_extract.append({
+                    'param_name': 'device',
+                    'param_type': 'reference',
+                    'value_reference': resource_data['device']['reference']
+                })
+            
+            # Focus references
+            if 'focus' in resource_data:
+                for focus in resource_data.get('focus', []):
+                    if 'reference' in focus:
+                        params_to_extract.append({
+                            'param_name': 'focus',
+                            'param_type': 'reference',
+                            'value_reference': focus['reference']
+                        })
+            
+            # Method
+            if 'method' in resource_data and 'coding' in resource_data['method']:
+                for coding in resource_data['method']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'method',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+            
+            # Data absent reason
+            if 'dataAbsentReason' in resource_data and 'coding' in resource_data['dataAbsentReason']:
+                for coding in resource_data['dataAbsentReason']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'data-absent-reason',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
+        
+        
         elif resource_type == 'Condition':
             # Code
             if 'code' in resource_data and 'coding' in resource_data['code']:
@@ -2071,7 +2654,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2080,7 +2663,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Onset date (CRIT-001-CON)
@@ -2108,6 +2691,28 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse onsetPeriod.start: {resource_data.get('onsetPeriod', {}).get('start')} - {e}")
+            
+            # Recorded date
+            if 'recordedDate' in resource_data:
+                try:
+                    # Handle both datetime and date formats
+                    recorded_date_str = resource_data['recordedDate']
+                    if 'T' in recorded_date_str:
+                        # Full datetime
+                        recorded_date = datetime.fromisoformat(
+                            recorded_date_str.replace('Z', '+00:00')
+                        )
+                    else:
+                        # Date only
+                        recorded_date = datetime.strptime(recorded_date_str, '%Y-%m-%d')
+                    
+                    params_to_extract.append({
+                        'param_name': 'recorded-date',
+                        'param_type': 'date',
+                        'value_date': recorded_date
+                    })
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"WARNING: Could not parse recordedDate: {resource_data.get('recordedDate')} - {e}")
         
         elif resource_type == 'MedicationRequest':
             # Medication code
@@ -2127,6 +2732,14 @@ class FHIRStorageEngine:
                             'value_token_code': coding['code']
                         })
             
+            # Medication reference
+            elif 'medicationReference' in resource_data and 'reference' in resource_data['medicationReference']:
+                params_to_extract.append({
+                    'param_name': 'medication',
+                    'param_type': 'reference',
+                    'value_reference': resource_data['medicationReference']['reference']
+                })
+            
             # Status
             if 'status' in resource_data:
                 params_to_extract.append({
@@ -2141,7 +2754,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2150,7 +2763,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Requester reference
@@ -2158,7 +2771,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'requester',
                     'param_type': 'reference',
-                    'value_string': resource_data['requester']['reference']
+                    'value_reference': resource_data['requester']['reference']
                 })
             
             # Authored on date
@@ -2185,6 +2798,71 @@ class FHIRStorageEngine:
                     })
                 except (ValueError, TypeError) as e:
                     logging.warning(f"WARNING: Could not parse authoredOn: {resource_data.get('authoredOn')} (type: {type(resource_data.get('authoredOn'))}) - {e}")
+            
+            # Intent
+            if 'intent' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'intent',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['intent']
+                })
+            
+            # Category
+            if 'category' in resource_data:
+                for category in resource_data['category']:
+                    if 'coding' in category:
+                        for coding in category['coding']:
+                            if 'code' in coding:
+                                params_to_extract.append({
+                                    'param_name': 'category',
+                                    'param_type': 'token',
+                                    'value_token_system': coding.get('system'),
+                                    'value_token_code': coding['code']
+                                })
+            
+            # Priority
+            if 'priority' in resource_data:
+                params_to_extract.append({
+                    'param_name': 'priority',
+                    'param_type': 'token',
+                    'value_token_code': resource_data['priority']
+                })
+            
+            # Encounter reference
+            if 'encounter' in resource_data and 'reference' in resource_data['encounter']:
+                params_to_extract.append({
+                    'param_name': 'encounter',
+                    'param_type': 'reference',
+                    'value_reference': resource_data['encounter']['reference']
+                })
+            
+            # Intended dispenser (pharmacy)
+            if 'dispenseRequest' in resource_data and 'performer' in resource_data['dispenseRequest']:
+                if 'reference' in resource_data['dispenseRequest']['performer']:
+                    params_to_extract.append({
+                        'param_name': 'intended-dispenser',
+                        'param_type': 'reference',
+                        'value_reference': resource_data['dispenseRequest']['performer']['reference']
+                    })
+            
+            # Intended performer
+            if 'performer' in resource_data and 'reference' in resource_data['performer']:
+                params_to_extract.append({
+                    'param_name': 'intended-performer',
+                    'param_type': 'reference',
+                    'value_reference': resource_data['performer']['reference']
+                })
+            
+            # Intended performer type
+            if 'performerType' in resource_data and 'coding' in resource_data['performerType']:
+                for coding in resource_data['performerType']['coding']:
+                    if 'code' in coding:
+                        params_to_extract.append({
+                            'param_name': 'intended-performertype',
+                            'param_type': 'token',
+                            'value_token_system': coding.get('system'),
+                            'value_token_code': coding['code']
+                        })
         
         elif resource_type == 'MedicationDispense':
             # Status
@@ -2215,7 +2893,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'medication',
                     'param_type': 'reference',
-                    'value_string': resource_data['medicationReference']['reference']
+                    'value_reference': resource_data['medicationReference']['reference']
                 })
             
             # Subject/Patient reference
@@ -2224,13 +2902,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Context/Encounter reference
@@ -2238,13 +2916,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'context',
                     'param_type': 'reference',
-                    'value_string': resource_data['context']['reference']
+                    'value_reference': resource_data['context']['reference']
                 })
                 if resource_data['context']['reference'].startswith('Encounter/'):
                     params_to_extract.append({
                         'param_name': 'encounter',
                         'param_type': 'reference',
-                        'value_string': resource_data['context']['reference']
+                        'value_reference': resource_data['context']['reference']
                     })
             
             # Performer reference
@@ -2254,7 +2932,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'performer',
                             'param_type': 'reference',
-                            'value_string': performer['actor']['reference']
+                            'value_reference': performer['actor']['reference']
                         })
             
             # Prescription reference
@@ -2264,7 +2942,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'prescription',
                             'param_type': 'reference',
-                            'value_string': prescription['reference']
+                            'value_reference': prescription['reference']
                         })
             
             # When handed over
@@ -2340,7 +3018,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'medication',
                     'param_type': 'reference',
-                    'value_string': resource_data['medicationReference']['reference']
+                    'value_reference': resource_data['medicationReference']['reference']
                 })
             
             # Subject/Patient reference
@@ -2349,13 +3027,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Context/Encounter reference
@@ -2363,13 +3041,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'context',
                     'param_type': 'reference',
-                    'value_string': resource_data['context']['reference']
+                    'value_reference': resource_data['context']['reference']
                 })
                 if resource_data['context']['reference'].startswith('Encounter/'):
                     params_to_extract.append({
                         'param_name': 'encounter',
                         'param_type': 'reference',
-                        'value_string': resource_data['context']['reference']
+                        'value_reference': resource_data['context']['reference']
                     })
             
             # Effective time
@@ -2411,7 +3089,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'performer',
                             'param_type': 'reference',
-                            'value_string': performer['actor']['reference']
+                            'value_reference': performer['actor']['reference']
                         })
             
             # Request reference
@@ -2419,7 +3097,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'request',
                     'param_type': 'reference',
-                    'value_string': resource_data['request']['reference']
+                    'value_reference': resource_data['request']['reference']
                 })
             
             # Device reference
@@ -2429,7 +3107,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'device',
                             'param_type': 'reference',
-                            'value_string': device['reference']
+                            'value_reference': device['reference']
                         })
         
         elif resource_type == 'Encounter':
@@ -2469,7 +3147,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2478,7 +3156,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Date/Period
@@ -2504,14 +3182,14 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'participant',
                             'param_type': 'reference',
-                            'value_string': ref
+                            'value_reference': ref
                         })
                         # Also extract as practitioner if reference is to Practitioner
                         if ref.startswith('Practitioner/'):
                             params_to_extract.append({
                                 'param_name': 'practitioner',
                                 'param_type': 'reference',
-                                'value_string': ref
+                                'value_reference': ref
                             })
         
         elif resource_type == 'Procedure':
@@ -2540,7 +3218,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2549,7 +3227,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Performed date
@@ -2586,7 +3264,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'performer',
                             'param_type': 'reference',
-                            'value_string': ref
+                            'value_reference': ref
                         })
         
         elif resource_type == 'Immunization':
@@ -2615,7 +3293,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
             
             # Date
@@ -2640,7 +3318,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'performer',
                             'param_type': 'reference',
-                            'value_string': ref
+                            'value_reference': ref
                         })
         
         elif resource_type == 'AllergyIntolerance':
@@ -2691,7 +3369,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
         
         elif resource_type == 'DiagnosticReport':
@@ -2720,7 +3398,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2729,7 +3407,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Date
@@ -2754,7 +3432,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'performer',
                             'param_type': 'reference',
-                            'value_string': ref
+                            'value_reference': ref
                         })
         
         elif resource_type == 'CarePlan':
@@ -2772,7 +3450,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2781,7 +3459,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Date
@@ -2813,7 +3491,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 
                 # Also extract patient-specific reference
@@ -2822,7 +3500,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Started date
@@ -2849,7 +3527,7 @@ class FHIRStorageEngine:
                                 params_to_extract.append({
                                     'param_name': 'performer',
                                     'param_type': 'reference',
-                                    'value_string': ref
+                                    'value_reference': ref
                                 })
         
         elif resource_type == 'Coverage':
@@ -2869,7 +3547,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'beneficiary',
                     'param_type': 'reference',
-                    'value_string': resource_data['beneficiary']['reference']
+                    'value_reference': resource_data['beneficiary']['reference']
                 })
             
             # Subscriber - the subscriber to the plan
@@ -2877,7 +3555,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subscriber',
                     'param_type': 'reference',
-                    'value_string': resource_data['subscriber']['reference']
+                    'value_reference': resource_data['subscriber']['reference']
                 })
             
             # PolicyHolder - owner of the policy
@@ -2885,7 +3563,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'policy-holder',
                     'param_type': 'reference',
-                    'value_string': resource_data['policyHolder']['reference']
+                    'value_reference': resource_data['policyHolder']['reference']
                 })
             
             # Payor - the insurer/payor
@@ -2895,7 +3573,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'payor',
                             'param_type': 'reference',
-                            'value_string': payor['reference']
+                            'value_reference': payor['reference']
                         })
             
             # Type - coverage category
@@ -2977,7 +3655,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': resource_data['patient']['reference']
+                    'value_reference': resource_data['patient']['reference']
                 })
             
             # Insurer (required) - the insurer organization
@@ -2985,7 +3663,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'insurer',
                     'param_type': 'reference',
-                    'value_string': resource_data['insurer']['reference']
+                    'value_reference': resource_data['insurer']['reference']
                 })
             
             # Provider (required) - the provider of services
@@ -2993,7 +3671,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'provider',
                     'param_type': 'reference',
-                    'value_string': resource_data['provider']['reference']
+                    'value_reference': resource_data['provider']['reference']
                 })
             
             # Created date (required)
@@ -3026,7 +3704,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'encounter',
                     'param_type': 'reference',
-                    'value_string': resource_data['encounter']['reference']
+                    'value_reference': resource_data['encounter']['reference']
                 })
             
             # Care team members
@@ -3036,7 +3714,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'care-team',
                             'param_type': 'reference',
-                            'value_string': care_team_member['provider']['reference']
+                            'value_reference': care_team_member['provider']['reference']
                         })
             
             # Insurance references
@@ -3046,7 +3724,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'coverage',
                             'param_type': 'reference',
-                            'value_string': insurance['coverage']['reference']
+                            'value_reference': insurance['coverage']['reference']
                         })
             
             # Identifiers
@@ -3077,7 +3755,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': resource_data['patient']['reference']
+                    'value_reference': resource_data['patient']['reference']
                 })
             
             # Insurer (required) - the insurer organization
@@ -3085,7 +3763,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'insurer',
                     'param_type': 'reference',
-                    'value_string': resource_data['insurer']['reference']
+                    'value_reference': resource_data['insurer']['reference']
                 })
             
             # Provider - the provider of services
@@ -3093,7 +3771,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'provider',
                     'param_type': 'reference',
-                    'value_string': resource_data['provider']['reference']
+                    'value_reference': resource_data['provider']['reference']
                 })
             
             # Created date (required)
@@ -3115,7 +3793,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'claim',
                     'param_type': 'reference',
-                    'value_string': resource_data['claim']['reference']
+                    'value_reference': resource_data['claim']['reference']
                 })
             
             # Coverage references
@@ -3125,7 +3803,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'coverage',
                             'param_type': 'reference',
-                            'value_string': insurance['coverage']['reference']
+                            'value_reference': insurance['coverage']['reference']
                         })
             
             # Disposition - claim disposition
@@ -3149,7 +3827,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'encounter',
                     'param_type': 'reference',
-                    'value_string': resource_data['encounter']['reference']
+                    'value_reference': resource_data['encounter']['reference']
                 })
             
             # Identifiers
@@ -3180,7 +3858,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': resource_data['patient']['reference']
+                    'value_reference': resource_data['patient']['reference']
                 })
             
             # Location reference - current location of device
@@ -3188,7 +3866,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'location',
                     'param_type': 'reference',
-                    'value_string': resource_data['location']['reference']
+                    'value_reference': resource_data['location']['reference']
                 })
             
             # Organization reference - owning organization
@@ -3196,7 +3874,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'organization',
                     'param_type': 'reference',
-                    'value_string': resource_data['owner']['reference']
+                    'value_reference': resource_data['owner']['reference']
                 })
             
             # Device type
@@ -3282,13 +3960,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': subject_ref
+                    'value_reference': subject_ref
                 })
                 # Also index as 'patient' for compatibility
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': subject_ref
+                    'value_reference': subject_ref
                 })
             
             # Category - goal category
@@ -3359,13 +4037,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': subject_ref
+                    'value_reference': subject_ref
                 })
                 # Also index as 'patient' for compatibility
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': subject_ref
+                    'value_reference': subject_ref
                 })
             
             # Type - photo, video, audio
@@ -3409,7 +4087,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'operator',
                     'param_type': 'reference',
-                    'value_string': resource_data['operator']['reference']
+                    'value_reference': resource_data['operator']['reference']
                 })
             
             # Encounter reference
@@ -3417,7 +4095,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'encounter',
                     'param_type': 'reference',
-                    'value_string': resource_data['encounter']['reference']
+                    'value_reference': resource_data['encounter']['reference']
                 })
             
             # BasedOn - what the media is based on (ServiceRequest, etc.)
@@ -3427,7 +4105,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'based-on',
                             'param_type': 'reference',
-                            'value_string': based_on['reference']
+                            'value_reference': based_on['reference']
                         })
             
             # Identifiers
@@ -3510,7 +4188,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'agent',
                             'param_type': 'reference',
-                            'value_string': agent['who']['reference']
+                            'value_reference': agent['who']['reference']
                         })
                     
                     # Agent name
@@ -3539,7 +4217,7 @@ class FHIRStorageEngine:
                     params_to_extract.append({
                         'param_name': 'source',
                         'param_type': 'reference',
-                        'value_string': source['observer']['reference']
+                        'value_reference': source['observer']['reference']
                     })
                 
                 # Source site
@@ -3557,7 +4235,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'entity',
                             'param_type': 'reference',
-                            'value_string': entity['what']['reference']
+                            'value_reference': entity['what']['reference']
                         })
                     
                     # Entity name
@@ -3748,7 +4426,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'partof',
                     'param_type': 'reference',
-                    'value_string': resource_data['partOf']['reference']
+                    'value_reference': resource_data['partOf']['reference']
                 })
             
             # Address
@@ -3784,7 +4462,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'endpoint',
                             'param_type': 'reference',
-                            'value_string': endpoint['reference']
+                            'value_reference': endpoint['reference']
                         })
         
         elif resource_type == 'PractitionerRole':
@@ -3804,7 +4482,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'practitioner',
                     'param_type': 'reference',
-                    'value_string': resource_data['practitioner']['reference']
+                    'value_reference': resource_data['practitioner']['reference']
                 })
             
             # Organization reference
@@ -3812,7 +4490,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'organization',
                     'param_type': 'reference',
-                    'value_string': resource_data['organization']['reference']
+                    'value_reference': resource_data['organization']['reference']
                 })
             
             # Location references
@@ -3822,7 +4500,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'location',
                             'param_type': 'reference',
-                            'value_string': location['reference']
+                            'value_reference': location['reference']
                         })
             
             # Specialty
@@ -3858,7 +4536,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'service',
                             'param_type': 'reference',
-                            'value_string': service['reference']
+                            'value_reference': service['reference']
                         })
             
             # Active status
@@ -3896,7 +4574,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'endpoint',
                             'param_type': 'reference',
-                            'value_string': endpoint['reference']
+                            'value_reference': endpoint['reference']
                         })
         
         elif resource_type == 'Location':
@@ -3993,7 +4671,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'organization',
                     'param_type': 'reference',
-                    'value_string': resource_data['managingOrganization']['reference']
+                    'value_reference': resource_data['managingOrganization']['reference']
                 })
             
             # Part of (location hierarchy)
@@ -4001,7 +4679,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'partof',
                     'param_type': 'reference',
-                    'value_string': resource_data['partOf']['reference']
+                    'value_reference': resource_data['partOf']['reference']
                 })
             
             # Endpoint references
@@ -4011,7 +4689,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'endpoint',
                             'param_type': 'reference',
-                            'value_string': endpoint['reference']
+                            'value_reference': endpoint['reference']
                         })
         
         elif resource_type == 'DocumentReference':
@@ -4061,13 +4739,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Author references
@@ -4077,7 +4755,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'author',
                             'param_type': 'reference',
-                            'value_string': author['reference']
+                            'value_reference': author['reference']
                         })
             
             # Date
@@ -4101,7 +4779,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'encounter',
                             'param_type': 'reference',
-                            'value_string': encounter['reference']
+                            'value_reference': encounter['reference']
                         })
             
             # Facility (from context.facilityType)
@@ -4152,7 +4830,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'relatesto',
                             'param_type': 'reference',
-                            'value_string': relates['target']['reference']
+                            'value_reference': relates['target']['reference']
                         })
             
             # Security label
@@ -4228,13 +4906,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Encounter reference
@@ -4242,7 +4920,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'encounter',
                     'param_type': 'reference',
-                    'value_string': resource_data['encounter']['reference']
+                    'value_reference': resource_data['encounter']['reference']
                 })
             
             # Sender reference
@@ -4250,7 +4928,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'sender',
                     'param_type': 'reference',
-                    'value_string': resource_data['sender']['reference']
+                    'value_reference': resource_data['sender']['reference']
                 })
             
             # Recipient references
@@ -4260,7 +4938,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'recipient',
                             'param_type': 'reference',
-                            'value_string': recipient['reference']
+                            'value_reference': recipient['reference']
                         })
             
             # Sent date
@@ -4322,7 +5000,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'based-on',
                             'param_type': 'reference',
-                            'value_string': based_on['reference']
+                            'value_reference': based_on['reference']
                         })
             
             # Part of references
@@ -4332,7 +5010,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'part-of',
                             'param_type': 'reference',
-                            'value_string': part_of['reference']
+                            'value_reference': part_of['reference']
                         })
             
             # Reason references
@@ -4342,7 +5020,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'reason-reference',
                             'param_type': 'reference',
-                            'value_string': reason['reference']
+                            'value_reference': reason['reference']
                         })
         
         elif resource_type == 'Task':
@@ -4398,18 +5076,18 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'for',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': ref
+                    'value_reference': ref
                 })
                 if ref.startswith('Patient/') or ref.startswith('urn:uuid:'):
                     params_to_extract.append({
                         'param_name': 'patient',
                         'param_type': 'reference',
-                        'value_string': ref
+                        'value_reference': ref
                     })
             
             # Owner reference
@@ -4417,7 +5095,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'owner',
                     'param_type': 'reference',
-                    'value_string': resource_data['owner']['reference']
+                    'value_reference': resource_data['owner']['reference']
                 })
             
             # Requester reference
@@ -4425,7 +5103,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'requester',
                     'param_type': 'reference',
-                    'value_string': resource_data['requester']['reference']
+                    'value_reference': resource_data['requester']['reference']
                 })
             
             # Focus reference
@@ -4433,7 +5111,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'focus',
                     'param_type': 'reference',
-                    'value_string': resource_data['focus']['reference']
+                    'value_reference': resource_data['focus']['reference']
                 })
             
             # Encounter reference
@@ -4441,7 +5119,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'encounter',
                     'param_type': 'reference',
-                    'value_string': resource_data['encounter']['reference']
+                    'value_reference': resource_data['encounter']['reference']
                 })
             
             # Authored on date
@@ -4490,7 +5168,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'part-of',
                             'param_type': 'reference',
-                            'value_string': part_of['reference']
+                            'value_reference': part_of['reference']
                         })
             
             # Based on references
@@ -4500,7 +5178,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'based-on',
                             'param_type': 'reference',
-                            'value_string': based_on['reference']
+                            'value_reference': based_on['reference']
                         })
             
             # Reason references
@@ -4510,7 +5188,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'reason-reference',
                             'param_type': 'reference',
-                            'value_string': reason['reference']
+                            'value_reference': reason['reference']
                         })
         
         elif resource_type == 'ServiceRequest':
@@ -4585,13 +5263,13 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'subject',
                     'param_type': 'reference',
-                    'value_string': subject_ref
+                    'value_reference': subject_ref
                 })
                 # Also index as 'patient' for compatibility
                 params_to_extract.append({
                     'param_name': 'patient',
                     'param_type': 'reference',
-                    'value_string': subject_ref
+                    'value_reference': subject_ref
                 })
             
             # Encounter reference - link to clinical encounter
@@ -4599,7 +5277,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'encounter',
                     'param_type': 'reference',
-                    'value_string': resource_data['encounter']['reference']
+                    'value_reference': resource_data['encounter']['reference']
                 })
             
             # Authored date - when the order was created
@@ -4657,7 +5335,7 @@ class FHIRStorageEngine:
                 params_to_extract.append({
                     'param_name': 'requester',
                     'param_type': 'reference',
-                    'value_string': resource_data['requester']['reference']
+                    'value_reference': resource_data['requester']['reference']
                 })
             
             # Performer - who should perform the service
@@ -4667,7 +5345,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'performer',
                             'param_type': 'reference',
-                            'value_string': performer['reference']
+                            'value_reference': performer['reference']
                         })
             
             # PerformerType - type of performer
@@ -4690,7 +5368,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'specimen',
                             'param_type': 'reference',
-                            'value_string': specimen['reference']
+                            'value_reference': specimen['reference']
                         })
             
             # BodySite - anatomical location
@@ -4732,7 +5410,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'reason-reference',
                             'param_type': 'reference',
-                            'value_string': reason_ref['reference']
+                            'value_reference': reason_ref['reference']
                         })
             
             # Insurance references
@@ -4742,7 +5420,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'insurance',
                             'param_type': 'reference',
-                            'value_string': insurance['reference']
+                            'value_reference': insurance['reference']
                         })
             
             # Supporting info references
@@ -4752,7 +5430,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'supporting-info',
                             'param_type': 'reference',
-                            'value_string': supporting_info['reference']
+                            'value_reference': supporting_info['reference']
                         })
             
             # BasedOn - references to other requests this is based on
@@ -4762,7 +5440,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'based-on',
                             'param_type': 'reference',
-                            'value_string': based_on['reference']
+                            'value_reference': based_on['reference']
                         })
             
             # Replaces - references to requests this replaces
@@ -4772,7 +5450,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'replaces',
                             'param_type': 'reference',
-                            'value_string': replaces['reference']
+                            'value_reference': replaces['reference']
                         })
             
             # Identifiers - external identifiers for the service request
@@ -4902,7 +5580,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'participant',
                             'param_type': 'reference',
-                            'value_string': actor_ref
+                            'value_reference': actor_ref
                         })
                         
                         # Specific participant type searches
@@ -4910,31 +5588,31 @@ class FHIRStorageEngine:
                             params_to_extract.append({
                                 'param_name': 'patient',
                                 'param_type': 'reference',
-                                'value_string': actor_ref
+                                'value_reference': actor_ref
                             })
                         elif actor_ref.startswith('Practitioner/'):
                             params_to_extract.append({
                                 'param_name': 'practitioner',
                                 'param_type': 'reference',
-                                'value_string': actor_ref
+                                'value_reference': actor_ref
                             })
                         elif actor_ref.startswith('Location/'):
                             params_to_extract.append({
                                 'param_name': 'location',
                                 'param_type': 'reference',
-                                'value_string': actor_ref
+                                'value_reference': actor_ref
                             })
                         elif actor_ref.startswith('Device/'):
                             params_to_extract.append({
                                 'param_name': 'device',
                                 'param_type': 'reference',
-                                'value_string': actor_ref
+                                'value_reference': actor_ref
                             })
                         elif actor_ref.startswith('HealthcareService/'):
                             params_to_extract.append({
                                 'param_name': 'healthcare-service',
                                 'param_type': 'reference',
-                                'value_string': actor_ref
+                                'value_reference': actor_ref
                             })
                     
                     # Participant status
@@ -4960,7 +5638,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'slot',
                             'param_type': 'reference',
-                            'value_string': slot['reference']
+                            'value_reference': slot['reference']
                         })
             
             # Reason codes
@@ -4983,7 +5661,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'reason-reference',
                             'param_type': 'reference',
-                            'value_string': reason_ref['reference']
+                            'value_reference': reason_ref['reference']
                         })
             
             # Supporting information
@@ -4993,7 +5671,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'supporting-information',
                             'param_type': 'reference',
-                            'value_string': supporting_info['reference']
+                            'value_reference': supporting_info['reference']
                         })
             
             # Identifiers
@@ -5154,7 +5832,7 @@ class FHIRStorageEngine:
                         params_to_extract.append({
                             'param_name': 'value-reference',
                             'param_type': 'reference',
-                            'value_string': param['valueReference']['reference']
+                            'value_reference': param['valueReference']['reference']
                         })
                     
                     # Quantity values
@@ -5258,11 +5936,11 @@ class FHIRStorageEngine:
                 INSERT INTO fhir.search_params (
                     resource_id, resource_type, param_name, param_type,
                     value_string, value_number, value_date,
-                    value_token_system, value_token_code, value_reference
+                    value_token, value_token_system, value_token_code, value_reference
                 ) VALUES (
                     :resource_id, :resource_type, :param_name, :param_type,
                     :value_string, :value_number, :value_date,
-                    :value_token_system, :value_token_code, :value_reference
+                    :value_token, :value_token_system, :value_token_code, :value_reference
                 )
             """)
             
@@ -5274,6 +5952,12 @@ class FHIRStorageEngine:
                 except (ValueError, TypeError):
                     value_number = None
             
+            # For token types, populate value_token for searches
+            value_token = None
+            if param['param_type'] == 'token' and param.get('value_token_code'):
+                # The value_token column is used for simple token searches
+                value_token = param.get('value_token_code')
+            
             params_dict = {
                 'resource_id': resource_id,
                 'resource_type': resource_type,
@@ -5282,6 +5966,7 @@ class FHIRStorageEngine:
                 'value_string': param.get('value_string'),
                 'value_number': value_number,
                 'value_date': param.get('value_date'),
+                'value_token': value_token,
                 'value_token_system': param.get('value_token_system'),
                 'value_token_code': param.get('value_token_code'),
                 'value_reference': param.get('value_reference')
@@ -5403,6 +6088,117 @@ class FHIRStorageEngine:
         # Return the mapped type or 'Resource' as a fallback
         return reference_mappings.get(path_element, 'Resource')
     
+    async def _extract_compartments(
+        self,
+        resource_id: int,
+        resource_type: str,
+        resource_data: Dict[str, Any]
+    ):
+        """Extract and store compartment information for a resource."""
+        # Define patient compartment reference fields by resource type
+        patient_reference_fields = {
+            # Core clinical resources with 'patient' reference
+            "AllergyIntolerance": ["patient"],
+            "CarePlan": ["patient"],
+            "CareTeam": ["patient"],
+            "ClinicalImpression": ["patient"],
+            "Condition": ["patient"],
+            "DiagnosticReport": ["patient"],
+            "DocumentReference": ["patient"],
+            "Encounter": ["patient"],
+            "Goal": ["patient"],
+            "ImagingStudy": ["patient"],
+            "Immunization": ["patient"],
+            "MedicationAdministration": ["patient"],
+            "MedicationDispense": ["patient"],
+            "MedicationRequest": ["patient"],
+            "MedicationStatement": ["patient"],
+            "Observation": ["patient"],
+            "Procedure": ["patient"],
+            "RiskAssessment": ["patient"],
+            "ServiceRequest": ["patient"],
+            
+            # Resources that use 'subject' as patient reference
+            "Basic": ["subject"],
+            "BodyStructure": ["subject"],
+            "Consent": ["subject"],
+            "DetectedIssue": ["subject"],
+            "Media": ["subject"],
+            "QuestionnaireResponse": ["subject"],
+            
+            # Administrative resources
+            "Account": ["patient"],
+            "AdverseEvent": ["patient"],
+            "Appointment": ["patient"],
+            "AppointmentResponse": ["patient"],
+            "ChargeItem": ["patient"],
+            "Claim": ["patient"],
+            "ClaimResponse": ["patient"],
+            "Communication": ["patient"],
+            "CommunicationRequest": ["patient"],
+            "Composition": ["patient"],
+            "Coverage": ["patient"],
+            "DeviceRequest": ["patient"],
+            "DeviceUseStatement": ["patient"],
+            "EpisodeOfCare": ["patient"],
+            "ExplanationOfBenefit": ["patient"],
+            "FamilyMemberHistory": ["patient"],
+            "Flag": ["patient"],
+            "Invoice": ["patient"],
+            "List": ["patient"],
+            "NutritionOrder": ["patient"],
+            "Person": ["patient"],
+            "Provenance": ["patient"],
+            "RelatedPerson": ["patient"],
+            "RequestGroup": ["patient"],
+            "ResearchSubject": ["patient"],
+            "Schedule": ["patient"],
+            "Specimen": ["patient"],
+            "SupplyDelivery": ["patient"],
+            "SupplyRequest": ["patient"],
+            "VisionPrescription": ["patient"]
+        }
+        
+        # Check if this resource type belongs to patient compartment
+        reference_fields = patient_reference_fields.get(resource_type, [])
+        if not reference_fields:
+            return
+        
+        # Extract patient references
+        patient_ids = set()
+        for field in reference_fields:
+            if field in resource_data:
+                ref_value = resource_data[field]
+                if isinstance(ref_value, dict) and 'reference' in ref_value:
+                    ref = ref_value['reference']
+                    # Handle different reference formats
+                    if ref.startswith('Patient/'):
+                        patient_id = ref.split('/', 1)[1]
+                        patient_ids.add(patient_id)
+                    elif ref.startswith('urn:uuid:'):
+                        # For urn:uuid references, extract the UUID
+                        patient_id = ref.replace('urn:uuid:', '')
+                        patient_ids.add(patient_id)
+        
+        # Store compartment entries
+        for patient_id in patient_ids:
+            query = text("""
+                INSERT INTO fhir.compartments (
+                    compartment_type, compartment_id, resource_id
+                ) VALUES (
+                    :compartment_type, :compartment_id, :resource_id
+                )
+                ON CONFLICT DO NOTHING
+            """)
+            
+            await self.session.execute(query, {
+                'compartment_type': 'Patient',
+                'compartment_id': patient_id,
+                'resource_id': resource_id
+            })
+            
+            logging.debug(f"Added {resource_type} resource {resource_id} to Patient/{patient_id} compartment")
+    
     async def _delete_search_parameters(self, resource_id: int):
         """Delete all search parameters for a resource."""
         query = text("""
@@ -5423,7 +6219,6 @@ class FHIRStorageEngine:
         """
         from datetime import timedelta
         
-        print(f"\n=== AUTO-LINK: Starting auto-link for Observation ID {observation_id} ===")
         logging.info(f"DEBUG: Starting auto-link for Observation ID {observation_id}")
         
         # Extract observation details
@@ -5485,7 +6280,6 @@ class FHIRStorageEngine:
         })
         
         rows = list(result)
-        print(f"=== AUTO-LINK: Found {len(rows)} ServiceRequests ===")
         logging.info(f"DEBUG: Found {len(rows)} ServiceRequests")
         
         best_match = None
@@ -5517,9 +6311,7 @@ class FHIRStorageEngine:
                         sr_codes.append(coding['code'])
             
             # Check for matching codes
-            print(f"=== AUTO-LINK: Comparing obs codes {obs_codes} with sr codes {sr_codes} ===")
             if not any(code in sr_codes for code in obs_codes):
-                print(f"=== AUTO-LINK: No matching codes, skipping ===")
                 continue
             
             # Calculate time difference
@@ -5980,6 +6772,14 @@ class FHIRStorageEngine:
         query = text("""
             DELETE FROM fhir.references
             WHERE source_id = :resource_id
+        """)
+        await self.session.execute(query, {'resource_id': resource_id})
+    
+    async def _delete_compartments(self, resource_id: int):
+        """Delete all compartment entries for a resource."""
+        query = text("""
+            DELETE FROM fhir.compartments
+            WHERE resource_id = :resource_id
         """)
         await self.session.execute(query, {'resource_id': resource_id})
     

@@ -2,7 +2,7 @@
  * Vitals Overview Component
  * Displays all vital signs in separate charts with abnormal indicators
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -12,7 +12,8 @@ import {
   Chip,
   ToggleButton,
   ToggleButtonGroup,
-  CircularProgress
+  CircularProgress,
+  useTheme
 } from '@mui/material';
 import {
   Warning as WarningIcon,
@@ -29,9 +30,14 @@ import {
   ReferenceLine
 } from 'recharts';
 import { format, subDays, parseISO } from 'date-fns';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
+import { getChartColors, getReferenceColors } from '../../../themes/chartColors';
 
 const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
+  const theme = useTheme();
+  const chartColors = getChartColors(theme);
+  const refColors = getReferenceColors(theme);
+  
   const [allVitalsData, setAllVitalsData] = useState([]);
   const [timeRange, setTimeRange] = useState(1095); // 3 years default
   const [loading, setLoading] = useState(true);
@@ -43,88 +49,88 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
       name: 'Blood Pressure',
       unit: 'mmHg',
       normalRanges: { systolic: [90, 140], diastolic: [60, 90] },
-      color: '#ff4444',
+      color: chartColors.vitals.bloodPressureSystolic,
       hasMultipleValues: true
     },
     'Heart rate': {
       name: 'Heart Rate',
       unit: 'bpm',
       normalRanges: { value: [60, 100] },
-      color: '#ff9800'
+      color: chartColors.vitals.heartRate
     },
     'Body temperature': {
       name: 'Temperature',
       unit: '°F',
       normalRanges: { value: [97.0, 99.5] },
-      color: '#4caf50'
+      color: chartColors.vitals.temperature
     },
     'Oxygen Saturation': {
       name: 'Oxygen Saturation',
       unit: '%',
       normalRanges: { value: [95, 100] },
-      color: '#2196f3'
+      color: chartColors.vitals.respiratoryRate
     },
     'Respiratory rate': {
       name: 'Respiratory Rate',
       unit: 'breaths/min',
       normalRanges: { value: [12, 20] },
-      color: '#9c27b0'
+      color: chartColors.vitals.oxygenSaturation
     },
     'Body Weight': {
       name: 'Body Weight',
       unit: 'kg',
       normalRanges: { value: [45, 100] },
-      color: '#607d8b'
+      color: chartColors.vitals.weight
     },
     'Body mass index (BMI) [Ratio]': {
       name: 'BMI',
       unit: 'kg/m²',
       normalRanges: { value: [18.5, 25] },
-      color: '#795548'
+      color: chartColors.vitals.height
     },
     'Body Height': {
       name: 'Height',
       unit: 'cm',
       normalRanges: { value: [150, 200] },
-      color: '#009688'
+      color: chartColors.vitals.bmi
     },
     'Pain severity - 0-10 verbal numeric rating [Score] - Reported': {
       name: 'Pain Score',
       unit: 'score',
       normalRanges: { value: [0, 3] },
-      color: '#e91e63'
+      color: theme.palette.secondary.main
     },
     // Common alternative names for vital signs
     'Blood Pressure': {
       name: 'Blood Pressure',
       unit: 'mmHg',
       normalRanges: { systolic: [90, 140], diastolic: [60, 90] },
-      color: '#ff4444',
+      color: chartColors.vitals.bloodPressureSystolic,
       hasMultipleValues: true
     },
     'Temperature': {
       name: 'Temperature',
       unit: '°F',
       normalRanges: { value: [97.0, 99.5] },
-      color: '#4caf50'
+      color: chartColors.vitals.temperature
     },
     'Body temperature': {
-      name: 'Temperature',
+      name: 'Temperature (Body)',
       unit: '°F',
       normalRanges: { value: [97.0, 99.5] },
-      color: '#4caf50'
+      color: chartColors.vitals.temperature
     },
     'Oxygen Saturation': {
-      name: 'Oxygen Saturation',
+      name: 'O2 Saturation',
       unit: '%',
       normalRanges: { value: [95, 100] },
-      color: '#2196f3'
+      color: chartColors.vitals.respiratoryRate
     },
     'Pulse Oximetry': {
-      name: 'Oxygen Saturation',
+      name: 'O2 Saturation (Pulse)',
       unit: '%',
       normalRanges: { value: [95, 100] },
-      color: '#2196f3'
+      color: chartColors.vitals.respiratoryRate
     }
   };
 
@@ -185,7 +191,7 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
     }
   }, [patientId, vitalsData, timeRange]);
 
-  const fetchVitalsData = async () => {
+  const fetchVitalsData = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -254,7 +260,7 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [patientId, timeRange]);
 
   const processVitalData = (vitalType) => {
     const cutoffDate = timeRange === 'all' ? new Date(0) : subDays(new Date(), timeRange);
@@ -403,12 +409,12 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
               <>
                 <ReferenceLine 
                   y={config.normalRanges.value[0]} 
-                  stroke="#ccc" 
+                  stroke={refColors.grid} 
                   strokeDasharray="3 3"
                 />
                 <ReferenceLine 
                   y={config.normalRanges.value[1]} 
-                  stroke="#ccc" 
+                  stroke={refColors.grid} 
                   strokeDasharray="3 3"
                 />
               </>
@@ -417,24 +423,24 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
             {/* Data lines */}
             {(vitalType === 'Blood pressure panel with all children optional' || vitalType === 'Blood Pressure') ? (
               <>
-                <ReferenceLine y={config.normalRanges.systolic[0]} stroke="#ccc" strokeDasharray="3 3" />
-                <ReferenceLine y={config.normalRanges.systolic[1]} stroke="#ccc" strokeDasharray="3 3" />
-                <ReferenceLine y={config.normalRanges.diastolic[0]} stroke="#ccc" strokeDasharray="3 3" />
-                <ReferenceLine y={config.normalRanges.diastolic[1]} stroke="#ccc" strokeDasharray="3 3" />
+                <ReferenceLine y={config.normalRanges.systolic[0]} stroke={refColors.grid} strokeDasharray="3 3" />
+                <ReferenceLine y={config.normalRanges.systolic[1]} stroke={refColors.grid} strokeDasharray="3 3" />
+                <ReferenceLine y={config.normalRanges.diastolic[0]} stroke={refColors.grid} strokeDasharray="3 3" />
+                <ReferenceLine y={config.normalRanges.diastolic[1]} stroke={refColors.grid} strokeDasharray="3 3" />
                 <Line
                   type="monotone"
                   dataKey="systolic"
-                  stroke="#ff4444"
+                  stroke={chartColors.vitals.bloodPressureSystolic}
                   strokeWidth={2}
-                  dot={{ fill: '#ff4444', r: 3 }}
+                  dot={{ fill: chartColors.vitals.bloodPressureSystolic, r: 3 }}
                   name="Systolic"
                 />
                 <Line
                   type="monotone"
                   dataKey="diastolic"
-                  stroke="#4444ff"
+                  stroke={chartColors.vitals.bloodPressureDiastolic}
                   strokeWidth={2}
-                  dot={{ fill: '#4444ff', r: 3 }}
+                  dot={{ fill: chartColors.vitals.bloodPressureDiastolic, r: 3 }}
                   name="Diastolic"
                 />
               </>

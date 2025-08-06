@@ -124,8 +124,9 @@ class ClinicalCanvasService:
             # Parse Claude's response
             try:
                 return json.loads(response.content[0].text)
-            except:
+            except (json.JSONDecodeError, IndexError, AttributeError) as e:
                 # Fallback to rule-based analysis
+                logging.warning(f"Failed to parse Claude response: {e}")
                 pass
         
         # Rule-based analysis fallback

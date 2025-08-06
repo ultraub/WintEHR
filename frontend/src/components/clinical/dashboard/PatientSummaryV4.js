@@ -52,10 +52,13 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
-import { cdsHooksClient } from '../../../services/cdsHooksClient';
 import { useInitializationGuard } from '../../../hooks/useStableReferences';
+import { getClinicalContext } from '../../../themes/clinicalThemeUtils';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
+import CDSPresentation, { PRESENTATION_MODES } from '../cds/CDSPresentation';
+import { useCDS } from '../../../contexts/CDSContext';
 
-const PatientSummaryV4 = ({ patientId }) => {
+const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
   
   const theme = useTheme();
   const navigate = useNavigate();
@@ -65,12 +68,19 @@ const PatientSummaryV4 = ({ patientId }) => {
     getPatientResources, 
     isLoading, 
     getError,
-    warmPatientCache
+    warmPatientCache,
+    refreshPatientResources,
+    fetchPatientEverything
   } = useFHIRResource();
+  const { subscribe } = useClinicalWorkflow();
   
-  const [cdsAlerts, setCdsAlerts] = useState([]);
-  const [cdsLoading, setCdsLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Get clinical context
+  const clinicalContext = useMemo(() => 
+    getClinicalContext(window.location.pathname, new Date().getHours(), department),
+    [department]
+  );
   
   // Initialization guard to prevent multiple loads
   const { isInitialized, isInitializing, markInitialized, markInitializing } = useInitializationGuard();
@@ -85,21 +95,31 @@ const PatientSummaryV4 = ({ patientId }) => {
         // Only set current patient if it's different
         if (!currentPatient || currentPatient.id !== patientId) {
           await setCurrentPatient(patientId);
-          // Try to warm cache but don't wait indefinitely
+          
+          // Use the optimized batch request for summary view
+          // $everything can return too many observations, limiting other important resources
           try {
-            await Promise.race([
-              warmPatientCache(patientId),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Cache warming timeout')), 5000))
-            ]);
+            // Use batch request to get exactly what we need for the summary
+            await warmPatientCache(patientId, 'summary');
           } catch (cacheError) {
-            // Cache warming failed or timed out, but continue anyway
-            console.warn('Cache warming failed or timed out, continuing with available data');
+            // If batch fails, try $everything with higher count
+            try {
+              await fetchPatientEverything(patientId, {
+                types: ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Observation', 'Encounter'],
+                count: 200, // Higher count to ensure we get all critical resources
+                autoSince: true, // Auto-calculate _since for 3 months
+                forceRefresh: false
+              });
+            } catch (everythingError) {
+              // Both methods failed, but continue anyway
+            }
           }
         }
         setIsInitialLoad(false);
         markInitialized();
       } catch (err) {
-        console.error('Error setting patient:', err);
+        // Error setting patient - continuing with initialization
+        // Error loading patient data
         setIsInitialLoad(false);
         markInitialized();
       }
@@ -111,75 +131,101 @@ const PatientSummaryV4 = ({ patientId }) => {
     }
   }, [patientId]); // Minimal dependencies - no functions
 
-  // Load CDS alerts for patient-view hooks
-  const loadCDSAlerts = async () => {
-    if (!patientId) return;
-    
-    setCdsLoading(true);
-    try {
-      // Get available services for patient-view hook
-      const services = await cdsHooksClient.discoverServices();
-      const patientViewServices = services.filter(s => s.hook === 'patient-view');
-      
-      const allAlerts = [];
-      
-      for (const service of patientViewServices) {
-        try {
-          const response = await cdsHooksClient.callService(service.id, {
-            hook: 'patient-view',
-            hookInstance: `dashboard-${Date.now()}`,
-            context: {
-              patientId: patientId
-            }
-          });
-          
-          if (response.cards) {
-            allAlerts.push(...response.cards.map(card => ({
-              ...card,
-              serviceId: service.id,
-              serviceName: service.title || service.id,
-              timestamp: new Date()
-            })));
-          }
-        } catch (serviceError) {
-          
-        }
-      }
-      
-      setCdsAlerts(allAlerts);
-    } catch (error) {
-      
-    } finally {
-      setCdsLoading(false);
-    }
-  };
 
-  // Load CDS alerts after patient data is loaded
+  // Subscribe to clinical workflow events for real-time updates
   useEffect(() => {
-    if (currentPatient && !isInitialLoad) {
-      loadCDSAlerts();
-    }
-  }, [currentPatient, isInitialLoad]);
+    if (!patientId) return;
+
+    const unsubscribers = [];
+
+    // Subscribe to condition changes
+    const unsubCondition = subscribe(CLINICAL_EVENTS.CONDITION_ADDED, (data) => {
+      if (data.patientId === patientId) {
+        refreshPatientResources(patientId, 'Condition');
+      }
+    });
+    unsubscribers.push(unsubCondition);
+
+    // Subscribe to medication changes
+    const unsubMedAdd = subscribe(CLINICAL_EVENTS.MEDICATION_PRESCRIBED, (data) => {
+      if (data.patientId === patientId) {
+        refreshPatientResources(patientId, 'MedicationRequest');
+      }
+    });
+    unsubscribers.push(unsubMedAdd);
+
+    const unsubMedDisc = subscribe(CLINICAL_EVENTS.MEDICATION_DISCONTINUED, (data) => {
+      if (data.patientId === patientId) {
+        refreshPatientResources(patientId, 'MedicationRequest');
+      }
+    });
+    unsubscribers.push(unsubMedDisc);
+
+    // Subscribe to allergy changes
+    const unsubAllergy = subscribe(CLINICAL_EVENTS.ALLERGY_ADDED, (data) => {
+      if (data.patientId === patientId) {
+        refreshPatientResources(patientId, 'AllergyIntolerance');
+      }
+    });
+    unsubscribers.push(unsubAllergy);
+
+    // Subscribe to observation changes
+    const unsubObs = subscribe(CLINICAL_EVENTS.RESULT_ADDED, (data) => {
+      if (data.patientId === patientId) {
+        refreshPatientResources(patientId, 'Observation');
+      }
+    });
+    unsubscribers.push(unsubObs);
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      unsubscribers.forEach(unsub => {
+        if (typeof unsub === 'function') {
+          unsub();
+        }
+      });
+    };
+  }, [patientId, subscribe, refreshPatientResources]);
 
   // Get patient resources using centralized context - try to get data even if cache isn't fully warm
   const conditions = useMemo(() => {
-    return getPatientResources(patientId, 'Condition') || [];
+    const resources = getPatientResources(patientId, 'Condition') || [];
+    return resources;
   }, [patientId, getPatientResources]);
   
   const medications = useMemo(() => {
-    return getPatientResources(patientId, 'MedicationRequest') || [];
+    const resources = getPatientResources(patientId, 'MedicationRequest') || [];
+    return resources;
   }, [patientId, getPatientResources]);
   
   const observations = useMemo(() => {
-    return getPatientResources(patientId, 'Observation') || [];
+    const resources = getPatientResources(patientId, 'Observation') || [];
+    return resources;
   }, [patientId, getPatientResources]);
   
   const encounters = useMemo(() => {
-    return getPatientResources(patientId, 'Encounter') || [];
+    const resources = getPatientResources(patientId, 'Encounter') || [];
+    return resources;
   }, [patientId, getPatientResources]);
   
   const allergies = useMemo(() => {
-    return getPatientResources(patientId, 'AllergyIntolerance') || [];
+    const resources = getPatientResources(patientId, 'AllergyIntolerance') || [];
+    return resources;
+  }, [patientId, getPatientResources]);
+  
+  const procedures = useMemo(() => {
+    const resources = getPatientResources(patientId, 'Procedure') || [];
+    return resources;
+  }, [patientId, getPatientResources]);
+  
+  const diagnosticReports = useMemo(() => {
+    const resources = getPatientResources(patientId, 'DiagnosticReport') || [];
+    return resources;
+  }, [patientId, getPatientResources]);
+  
+  const immunizations = useMemo(() => {
+    const resources = getPatientResources(patientId, 'Immunization') || [];
+    return resources;
   }, [patientId, getPatientResources]);
 
   // Processed patient info
@@ -250,6 +296,95 @@ const PatientSummaryV4 = ({ patientId }) => {
       .slice(0, 3);
   }, [allergies]);
 
+  // Recent procedures
+  const recentProcedures = useMemo(() => {
+    return procedures
+      .sort((a, b) => {
+        const dateA = new Date(a.performedDateTime || a.performedPeriod?.start || 0);
+        const dateB = new Date(b.performedDateTime || b.performedPeriod?.start || 0);
+        return dateB - dateA;
+      })
+      .slice(0, 5);
+  }, [procedures]);
+
+  // Recent lab results
+  const recentLabResults = useMemo(() => {
+    return diagnosticReports
+      .filter(report => 
+        report.category?.some(cat => 
+          cat.coding?.some(code => code.code === 'LAB')
+        )
+      )
+      .sort((a, b) => {
+        const dateA = new Date(a.effectiveDateTime || a.effectivePeriod?.start || 0);
+        const dateB = new Date(b.effectiveDateTime || b.effectivePeriod?.start || 0);
+        return dateB - dateA;
+      })
+      .slice(0, 5);
+  }, [diagnosticReports]);
+
+  // Recent immunizations
+  const recentImmunizations = useMemo(() => {
+    return immunizations
+      .sort((a, b) => {
+        const dateA = new Date(a.occurrenceDateTime || a.occurrenceString || 0);
+        const dateB = new Date(b.occurrenceDateTime || b.occurrenceString || 0);
+        return dateB - dateA;
+      })
+      .slice(0, 3);
+  }, [immunizations]);
+
+  // Most recent encounter
+  const lastEncounter = useMemo(() => {
+    if (encounters.length === 0) return null;
+    return encounters
+      .sort((a, b) => {
+        const dateA = new Date(a.period?.start || 0);
+        const dateB = new Date(b.period?.start || 0);
+        return dateB - dateA;
+      })[0];
+  }, [encounters]);
+
+  // Calculate clinical risk factors
+  const clinicalRiskFactors = useMemo(() => {
+    const risks = [];
+    
+    // Check for diabetes
+    const hasDiabetes = conditions.some(c => 
+      c.code?.coding?.some(code => 
+        code.code?.includes('44054006') || // Diabetes mellitus
+        code.display?.toLowerCase().includes('diabetes')
+      )
+    );
+    if (hasDiabetes) risks.push({ type: 'Diabetes', level: 'high' });
+    
+    // Check for hypertension
+    const hasHypertension = conditions.some(c => 
+      c.code?.coding?.some(code => 
+        code.code?.includes('38341003') || // Hypertension
+        code.display?.toLowerCase().includes('hypertension')
+      )
+    );
+    if (hasHypertension) risks.push({ type: 'Hypertension', level: 'medium' });
+    
+    // Check for cardiovascular disease
+    const hasCardiovascular = conditions.some(c => 
+      c.code?.coding?.some(code => 
+        code.display?.toLowerCase().includes('coronary') ||
+        code.display?.toLowerCase().includes('cardiac') ||
+        code.display?.toLowerCase().includes('heart')
+      )
+    );
+    if (hasCardiovascular) risks.push({ type: 'Cardiovascular Disease', level: 'high' });
+    
+    // Check age-related risks
+    if (patientInfo?.age >= 65) {
+      risks.push({ type: 'Age 65+', level: 'medium' });
+    }
+    
+    return risks;
+  }, [conditions, patientInfo]);
+
   const handleLaunchWorkspace = () => {
     navigate(`/patients/${patientId}/clinical`);
   };
@@ -273,29 +408,63 @@ const PatientSummaryV4 = ({ patientId }) => {
   }
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
-      {/* Patient Header */}
+    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
+      {/* Modern Layered Header */}
       <Paper
         elevation={0}
         sx={{
-          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-          color: 'white',
-          borderRadius: 3,
-          mb: 3,
-          overflow: 'hidden',
-          position: 'relative'
+          borderRadius: 0,
+          borderBottom: 1,
+          borderColor: 'divider',
+          backgroundColor: 'background.paper',
+          position: 'sticky',
+          top: 0,
+          zIndex: theme.zIndex.appBar - 1,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}
       >
-        <Box sx={{ p: 4 }}>
+        {/* Top Bar */}
+        <Box 
+          sx={{ 
+            backgroundColor: theme.palette.grey[50],
+            borderBottom: 1,
+            borderColor: 'divider',
+            px: 3,
+            py: 1
+          }}
+        >
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="overline" color="text.secondary">
+              Patient Summary
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              <Chip 
+                label="Patient View" 
+                size="small" 
+                sx={{ borderRadius: 0 }}
+              />
+              <Chip 
+                label={`ID: ${patientId}`} 
+                size="small" 
+                variant="outlined"
+                sx={{ borderRadius: 0 }}
+              />
+            </Stack>
+          </Stack>
+        </Box>
+
+        {/* Main Patient Information */}
+        <Box sx={{ p: 3 }}>
           <Grid container spacing={3} alignItems="center">
             <Grid item>
               <Avatar
                 sx={{
-                  width: 80,
-                  height: 80,
-                  fontSize: '2rem',
-                  bgcolor: alpha(theme.palette.common.white, 0.2),
-                  backdropFilter: 'blur(10px)'
+                  width: 64,
+                  height: 64,
+                  fontSize: '1.5rem',
+                  bgcolor: theme.palette.primary.main,
+                  borderRadius: 1,
+                  boxShadow: '0 3px 6px rgba(0,0,0,0.16)'
                 }}
               >
                 {patientInfo.firstName.charAt(0)}{patientInfo.lastName.charAt(0)}
@@ -303,62 +472,67 @@ const PatientSummaryV4 = ({ patientId }) => {
             </Grid>
             
             <Grid item xs>
-              <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
+              <Typography variant="h5" sx={{ fontWeight: 600, mb: 0.5 }}>
                 {patientInfo.fullName}
               </Typography>
-              <Stack direction="row" spacing={3} flexWrap="wrap">
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <PersonIcon fontSize="small" />
-                  <Typography variant="body1">
-                    {patientInfo.age ? `${patientInfo.age} years old` : 'Age unknown'} • {patientInfo.gender}
-                  </Typography>
-                </Stack>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <CalendarIcon fontSize="small" />
-                  <Typography variant="body1">
-                    {patientInfo.birthDate ? format(new Date(patientInfo.birthDate), 'MMM d, yyyy') : 'DOB unknown'}
-                  </Typography>
-                </Stack>
+              <Stack direction="row" spacing={2} flexWrap="wrap">
+                <Typography variant="body2" color="text.secondary">
+                  {patientInfo.age ? `${patientInfo.age} years` : 'Age unknown'} • {patientInfo.gender}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  DOB: {patientInfo.birthDate ? format(new Date(patientInfo.birthDate), 'MMM d, yyyy') : 'Unknown'}
+                </Typography>
                 {patientInfo.phone && (
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <PhoneIcon fontSize="small" />
-                    <Typography variant="body1">{patientInfo.phone}</Typography>
-                  </Stack>
+                  <Typography variant="body2" color="text.secondary">
+                    {patientInfo.phone}
+                  </Typography>
+                )}
+                {patientInfo.email && (
+                  <Typography variant="body2" color="text.secondary">
+                    {patientInfo.email}
+                  </Typography>
                 )}
               </Stack>
             </Grid>
 
             <Grid item>
-              <Stack spacing={2} alignItems="flex-end">
+              <Stack spacing={1} alignItems="flex-end">
                 <Button
                   variant="contained"
                   size="large"
                   startIcon={<WorkspaceIcon />}
                   onClick={handleLaunchWorkspace}
                   sx={{
-                    bgcolor: 'white',
-                    color: theme.palette.primary.main,
+                    borderRadius: 1,
                     fontWeight: 600,
                     px: 3,
-                    py: 1.5,
+                    textTransform: 'none',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                    transition: 'all 0.2s ease',
                     '&:hover': {
-                      bgcolor: alpha(theme.palette.common.white, 0.9)
+                      transform: 'translateY(-1px)',
+                      boxShadow: '0 4px 8px rgba(0,0,0,0.25)'
                     }
                   }}
                 >
-                  Launch Clinical Workspace
+                  Open Clinical Workspace
                 </Button>
                 <Stack direction="row" spacing={1}>
-                  <Tooltip title="Edit Patient">
-                    <IconButton sx={{ color: 'white' }}>
-                      <EditIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="View Timeline">
-                    <IconButton sx={{ color: 'white' }}>
-                      <TimelineIcon />
-                    </IconButton>
-                  </Tooltip>
+                  <Button
+                    size="small"
+                    startIcon={<EditIcon />}
+                    sx={{ borderRadius: 0.5 }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    size="small"
+                    startIcon={<TimelineIcon />}
+                    onClick={() => navigate(`/patients/${patientId}/timeline`)}
+                    sx={{ borderRadius: 0.5 }}
+                  >
+                    Timeline
+                  </Button>
                 </Stack>
               </Stack>
             </Grid>
@@ -366,267 +540,594 @@ const PatientSummaryV4 = ({ patientId }) => {
         </Box>
       </Paper>
 
-      {/* Quick Summary Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        {/* Active Problems */}
-        <Grid item xs={12} md={6} lg={3}>
-          <Card sx={{ height: '100%', borderRadius: 2 }}>
-            <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                <Badge badgeContent={activeConditions.length} color="error">
-                  <ConditionIcon color="error" />
-                </Badge>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Active Problems
-                </Typography>
+      {/* CDS Alerts - Inline dismissible cards */}
+      {currentPatient && (
+        <Box sx={{ p: 3, pb: 0, maxWidth: 1400, mx: 'auto' }}>
+          <CDSAlerts patientId={currentPatient.id} />
+        </Box>
+      )}
+
+      {/* Main Content */}
+      <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
+
+        {/* Quick Summary Cards */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          {/* Active Problems */}
+          <Grid item xs={12} lg={3}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                borderRadius: 1,
+                boxShadow: theme.palette.mode === 'dark' 
+                  ? '0 1px 3px rgba(0,0,0,0.3)'
+                  : '0 1px 3px rgba(0,0,0,0.12)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                background: theme.palette.mode === 'dark' 
+                  ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.warning.main, 0.08)} 100%)`
+                  : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.warning.main, 0.02)} 100%)`,
+                '&:hover': {
+                  boxShadow: theme.palette.mode === 'dark' 
+                    ? '0 4px 6px rgba(0,0,0,0.4)'
+                    : '0 4px 6px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)'
+                }
+              }}
+              onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart-review`)}
+            >
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                <Box>
+                  <Typography variant="overline" color="text.secondary" display="block">
+                    Active Problems
+                  </Typography>
+                  <Typography variant="h3" sx={{ fontWeight: 600, color: activeConditions.length > 0 ? theme.palette.warning.main : 'text.primary' }}>
+                    {activeConditions.length}
+                  </Typography>
+                </Box>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.warning.main, 0.1),
+                    width: 40,
+                    height: 40,
+                    borderRadius: 1,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  <ConditionIcon sx={{ color: theme.palette.warning.main }} />
+                </Avatar>
               </Stack>
               
               {activeConditions.length > 0 ? (
-                <List dense>
-                  {activeConditions.map((condition, index) => (
-                    <ListItem key={condition.id} disablePadding>
-                      <ListItemText
-                        primary={condition.code?.text || 'Unknown condition'}
-                        primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                        secondary={condition.onsetDateTime ? format(parseISO(condition.onsetDateTime), 'MMM yyyy') : 'Unknown onset'}
-                        secondaryTypographyProps={{ variant: 'caption' }}
-                      />
-                    </ListItem>
+                <Box>
+                  {activeConditions.slice(0, 3).map((condition, index) => (
+                    <Box key={condition.id} sx={{ py: 0.5 }}>
+                      <Typography variant="body2" noWrap>
+                        {condition.code?.text || 'Unknown condition'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {condition.onsetDateTime ? format(parseISO(condition.onsetDateTime), 'MMM yyyy') : 'Unknown onset'}
+                      </Typography>
+                    </Box>
                   ))}
-                </List>
+                  {activeConditions.length > 3 && (
+                    <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
+                      +{activeConditions.length - 3} more
+                    </Typography>
+                  )}
+                </Box>
               ) : (
                 <Typography variant="body2" color="text.secondary">
                   No active problems recorded
                 </Typography>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
+            </Paper>
+          </Grid>
 
-        {/* Current Medications */}
-        <Grid item xs={12} md={6} lg={3}>
-          <Card sx={{ height: '100%', borderRadius: 2 }}>
-            <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                <Badge badgeContent={currentMedications.length} color="primary">
-                  <MedicationIcon color="primary" />
-                </Badge>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Medications
-                </Typography>
+          {/* Current Medications */}
+          <Grid item xs={12} lg={3}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                borderRadius: 1,
+                boxShadow: theme.palette.mode === 'dark' 
+                  ? '0 1px 3px rgba(0,0,0,0.3)'
+                  : '0 1px 3px rgba(0,0,0,0.12)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                background: theme.palette.mode === 'dark' 
+                  ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.info.main, 0.08)} 100%)`
+                  : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.info.main, 0.02)} 100%)`,
+                '&:hover': {
+                  boxShadow: theme.palette.mode === 'dark' 
+                    ? '0 4px 6px rgba(0,0,0,0.4)'
+                    : '0 4px 6px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)'
+                }
+              }}
+              onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart-review`)}
+            >
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                <Box>
+                  <Typography variant="overline" color="text.secondary" display="block">
+                    Current Medications
+                  </Typography>
+                  <Typography variant="h3" sx={{ fontWeight: 600, color: currentMedications.length > 5 ? theme.palette.info.main : 'text.primary' }}>
+                    {currentMedications.length}
+                  </Typography>
+                </Box>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.info.main, 0.1),
+                    width: 40,
+                    height: 40,
+                    borderRadius: 1,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  <MedicationIcon sx={{ color: theme.palette.info.main }} />
+                </Avatar>
               </Stack>
               
               {currentMedications.length > 0 ? (
-                <List dense>
-                  {currentMedications.map((med, index) => (
-                    <ListItem key={med.id} disablePadding>
-                      <ListItemText
-                        primary={
-                          // Try direct medication concept first
-                          med.medicationCodeableConcept?.text ||
-                          med.medicationCodeableConcept?.coding?.[0]?.display ||
-                          // Handle FHIR R5 structure (medication.concept)
-                          med.medication?.concept?.text ||
-                          med.medication?.concept?.coding?.[0]?.display ||
-                          med.medication?.display ||
-                          // Try resolved medication reference
-                          med._resolvedMedication?.code?.text ||
-                          med._resolvedMedication?.code?.coding?.[0]?.display ||
-                          // Fallback for unresolved references
-                          (med.medication?.reference?.reference ? 'Medication (reference not resolved)' : 'Unknown medication')
-                        }
-                        primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                        secondary={med.dosageInstruction?.[0]?.text || 'See instructions'}
-                        secondaryTypographyProps={{ variant: 'caption' }}
-                      />
-                    </ListItem>
+                <Box>
+                  {currentMedications.slice(0, 3).map((med, index) => (
+                    <Box key={med.id} sx={{ py: 0.5 }}>
+                      <Typography variant="body2" noWrap>
+                        {med.medicationCodeableConcept?.text ||
+                         med.medicationCodeableConcept?.coding?.[0]?.display ||
+                         med.medication?.concept?.text ||
+                         med.medication?.concept?.coding?.[0]?.display ||
+                         med.medication?.display ||
+                         'Unknown medication'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {med.dosageInstruction?.[0]?.text || 'See instructions'}
+                      </Typography>
+                    </Box>
                   ))}
-                </List>
+                  {currentMedications.length > 3 && (
+                    <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
+                      +{currentMedications.length - 3} more
+                    </Typography>
+                  )}
+                </Box>
               ) : (
                 <Typography variant="body2" color="text.secondary">
                   No current medications
                 </Typography>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
+            </Paper>
+          </Grid>
 
-        {/* Recent Vitals */}
-        <Grid item xs={12} md={6} lg={3}>
-          <Card sx={{ height: '100%', borderRadius: 2 }}>
-            <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                <Badge badgeContent={recentVitals.length} color="success">
-                  <VitalsIcon color="success" />
-                </Badge>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Recent Vitals
-                </Typography>
+          {/* Recent Vitals */}
+          <Grid item xs={12} lg={3}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                borderRadius: 1,
+                boxShadow: theme.palette.mode === 'dark' 
+                  ? '0 1px 3px rgba(0,0,0,0.3)'
+                  : '0 1px 3px rgba(0,0,0,0.12)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.success.main, 0.02)} 100%)`,
+                '&:hover': {
+                  boxShadow: theme.palette.mode === 'dark' 
+                    ? '0 4px 6px rgba(0,0,0,0.4)'
+                    : '0 4px 6px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)'
+                }
+              }}
+              onClick={() => navigate(`/patients/${patientId}/clinical?tab=results`)}
+            >
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                <Box>
+                  <Typography variant="overline" color="text.secondary" display="block">
+                    Recent Vitals
+                  </Typography>
+                  <Typography variant="h3" sx={{ fontWeight: 600 }}>
+                    {recentVitals.length}
+                  </Typography>
+                </Box>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.success.main, 0.1),
+                    width: 40,
+                    height: 40,
+                    borderRadius: 1,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  <VitalsIcon sx={{ color: theme.palette.success.main }} />
+                </Avatar>
               </Stack>
               
               {recentVitals.length > 0 ? (
-                <List dense>
-                  {recentVitals.map((vital, index) => (
-                    <ListItem key={vital.id} disablePadding>
-                      <ListItemText
-                        primary={vital.code?.text || 'Unknown vital'}
-                        primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                        secondary={`${vital.valueQuantity?.value || '--'} ${vital.valueQuantity?.unit || ''}`}
-                        secondaryTypographyProps={{ variant: 'caption' }}
-                      />
-                    </ListItem>
+                <Box>
+                  {recentVitals.slice(0, 3).map((vital, index) => (
+                    <Box key={vital.id} sx={{ py: 0.5 }}>
+                      <Typography variant="body2" noWrap>
+                        {vital.code?.text || 'Unknown vital'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {vital.valueQuantity?.value || '--'} {vital.valueQuantity?.unit || ''}
+                      </Typography>
+                    </Box>
                   ))}
-                </List>
+                  {recentVitals.length > 3 && (
+                    <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
+                      +{recentVitals.length - 3} more
+                    </Typography>
+                  )}
+                </Box>
               ) : (
                 <Typography variant="body2" color="text.secondary">
                   No recent vitals
                 </Typography>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
+            </Paper>
+          </Grid>
 
-        {/* Allergies & Alerts */}
-        <Grid item xs={12} md={6} lg={3}>
-          <Card sx={{ height: '100%', borderRadius: 2 }}>
-            <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                <Badge badgeContent={activeAllergies.length} color="warning">
-                  <WarningIcon color="warning" />
-                </Badge>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Allergies
-                </Typography>
+          {/* Allergies */}
+          <Grid item xs={12} lg={3}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                borderRadius: 1,
+                boxShadow: activeAllergies.length > 0 ? '0 1px 3px rgba(244,67,54,0.3)' : '0 1px 3px rgba(0,0,0,0.12)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                background: activeAllergies.length > 0 
+                  ? theme.palette.mode === 'dark'
+                    ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.error.main, 0.08)} 100%)`
+                    : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.error.main, 0.03)} 100%)`
+                  : theme.palette.mode === 'dark'
+                    ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.grey[800], 0.3)} 100%)`
+                    : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.grey[200], 0.3)} 100%)`,
+                '&:hover': {
+                  boxShadow: activeAllergies.length > 0 ? '0 4px 6px rgba(244,67,54,0.4)' : '0 4px 6px rgba(0,0,0,0.15)',
+                  transform: 'translateY(-2px)'
+                }
+              }}
+              onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart-review`)}
+            >
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                <Box>
+                  <Typography variant="overline" color="text.secondary" display="block">
+                    Allergies
+                  </Typography>
+                  <Typography variant="h3" sx={{ fontWeight: 600, color: activeAllergies.length > 0 ? theme.palette.error.main : 'text.primary' }}>
+                    {activeAllergies.length}
+                  </Typography>
+                </Box>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.error.main, 0.1),
+                    width: 40,
+                    height: 40,
+                    borderRadius: 1,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  <WarningIcon sx={{ color: theme.palette.error.main }} />
+                </Avatar>
               </Stack>
               
               {activeAllergies.length > 0 ? (
+                <Box>
+                  {activeAllergies.slice(0, 3).map((allergy, index) => (
+                    <Box key={allergy.id} sx={{ py: 0.5 }}>
+                      <Typography variant="body2" noWrap>
+                        {allergy.code?.text || 'Unknown allergen'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {allergy.criticality || 'Unknown'} severity
+                      </Typography>
+                    </Box>
+                  ))}
+                  {activeAllergies.length > 3 && (
+                    <Typography variant="caption" color="primary" sx={{ mt: 1, display: 'block' }}>
+                      +{activeAllergies.length - 3} more
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  NKDA - No known allergies
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* Clinical Risk Factors */}
+        {clinicalRiskFactors.length > 0 && (
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: 3, 
+              borderRadius: 1, 
+              mb: 3,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.error.main, 0.02)} 100%)`
+            }}
+          >
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              Clinical Risk Factors
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              {clinicalRiskFactors.map((risk, index) => (
+                <Chip
+                  key={index}
+                  label={risk.type}
+                  color={risk.level === 'high' ? 'error' : 'warning'}
+                  size="small"
+                  sx={{ mb: 1 }}
+                />
+              ))}
+            </Stack>
+          </Paper>
+        )}
+
+        {/* Additional Clinical Data */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          {/* Recent Procedures */}
+          <Grid item xs={12} md={6}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                borderRadius: 1,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
+              }}
+            >
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                Recent Procedures
+              </Typography>
+              {recentProcedures.length > 0 ? (
                 <List dense>
-                  {activeAllergies.map((allergy, index) => (
-                    <ListItem key={allergy.id} disablePadding>
+                  {recentProcedures.slice(0, 3).map((procedure, index) => (
+                    <ListItem key={procedure.id} divider={index < recentProcedures.length - 1}>
                       <ListItemText
-                        primary={allergy.code?.text || 'Unknown allergen'}
-                        primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                        secondary={`${allergy.criticality || 'Unknown'} severity`}
-                        secondaryTypographyProps={{ variant: 'caption' }}
+                        primary={procedure.code?.text || procedure.code?.coding?.[0]?.display || 'Unknown procedure'}
+                        secondary={procedure.performedDateTime ? 
+                          format(parseISO(procedure.performedDateTime), 'MMM d, yyyy') : 
+                          'Date unknown'
+                        }
                       />
                     </ListItem>
                   ))}
                 </List>
               ) : (
                 <Typography variant="body2" color="text.secondary">
-                  NKDA - No known allergies
+                  No recent procedures
                 </Typography>
               )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            </Paper>
+          </Grid>
 
-      {/* CDS Alerts */}
-      {(cdsLoading || cdsAlerts.length > 0) && (
-        <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
-          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-            <CDSIcon color="warning" />
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Clinical Decision Support
-            </Typography>
-            {cdsLoading && <CircularProgress size={20} />}
-            {cdsAlerts.length > 0 && (
-              <Chip 
-                label={`${cdsAlerts.length} Alert${cdsAlerts.length > 1 ? 's' : ''}`}
-                color="warning"
-                size="small"
-              />
-            )}
-          </Stack>
-          
-          {cdsLoading && (
-            <Alert severity="info">
-              Evaluating clinical decision support rules...
-            </Alert>
-          )}
-          
-          {cdsAlerts.map((alert, index) => (
-            <Alert 
-              key={index}
-              severity={alert.indicator === 'critical' ? 'error' : alert.indicator === 'warning' ? 'warning' : 'info'}
-              sx={{ mb: index < cdsAlerts.length - 1 ? 1 : 0 }}
-              action={
-                <Button 
-                  size="small" 
-                  variant="outlined"
-                  onClick={() => window.open('/cds-studio', '_blank')}
-                >
-                  View Details
-                </Button>
-              }
+          {/* Recent Lab Results */}
+          <Grid item xs={12} md={6}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                borderRadius: 1,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
+              }}
             >
-              <Typography variant="subtitle2" gutterBottom>
-                {alert.summary}
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                Recent Lab Results
               </Typography>
-              <Typography variant="body2">
-                {alert.detail}
+              {recentLabResults.length > 0 ? (
+                <List dense>
+                  {recentLabResults.slice(0, 3).map((report, index) => (
+                    <ListItem key={report.id} divider={index < recentLabResults.length - 1}>
+                      <ListItemText
+                        primary={report.code?.text || report.code?.coding?.[0]?.display || 'Lab Report'}
+                        secondary={
+                          <Stack direction="row" spacing={1}>
+                            <Typography variant="caption">
+                              {report.effectiveDateTime ? 
+                                format(parseISO(report.effectiveDateTime), 'MMM d, yyyy') : 
+                                'Date unknown'
+                              }
+                            </Typography>
+                            {report.status && (
+                              <Chip 
+                                label={report.status} 
+                                size="small" 
+                                color={report.status === 'final' ? 'success' : 'default'}
+                                sx={{ height: 16, fontSize: '0.7rem' }}
+                              />
+                            )}
+                          </Stack>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No recent lab results
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Immunizations */}
+          <Grid item xs={12} md={6}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                borderRadius: 1,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
+              }}
+            >
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                Recent Immunizations
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                Source: {alert.serviceName}
+              {recentImmunizations.length > 0 ? (
+                <List dense>
+                  {recentImmunizations.map((immunization, index) => (
+                    <ListItem key={immunization.id} divider={index < recentImmunizations.length - 1}>
+                      <ListItemText
+                        primary={immunization.vaccineCode?.text || immunization.vaccineCode?.coding?.[0]?.display || 'Vaccine'}
+                        secondary={immunization.occurrenceDateTime ? 
+                          format(parseISO(immunization.occurrenceDateTime), 'MMM d, yyyy') : 
+                          'Date unknown'
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No recent immunizations recorded
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Last Encounter */}
+          <Grid item xs={12} md={6}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                height: '100%',
+                borderRadius: 1,
+                boxShadow: theme.palette.mode === 'dark' 
+                  ? '0 1px 3px rgba(0,0,0,0.3)'
+                  : '0 1px 3px rgba(0,0,0,0.12)',
+                background: lastEncounter ? 
+                  `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.info.main, 0.02)} 100%)` :
+                  theme.palette.background.paper
+              }}
+            >
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                Last Encounter
               </Typography>
-            </Alert>
-          ))}
+              {lastEncounter ? (
+                <Box>
+                  <Typography variant="body1" gutterBottom>
+                    {lastEncounter.type?.[0]?.text || lastEncounter.class?.display || 'Encounter'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {lastEncounter.period?.start ? 
+                      format(parseISO(lastEncounter.period.start), 'MMM d, yyyy h:mm a') : 
+                      'Date unknown'
+                    }
+                  </Typography>
+                  {lastEncounter.reasonCode?.[0] && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Reason: {lastEncounter.reasonCode[0].text || lastEncounter.reasonCode[0].coding?.[0]?.display}
+                    </Typography>
+                  )}
+                  <Chip 
+                    label={lastEncounter.status || 'unknown'} 
+                    size="small" 
+                    color={lastEncounter.status === 'finished' ? 'success' : 'default'}
+                    sx={{ mt: 1 }}
+                  />
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No recent encounters
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
+
+
+        {/* Quick Actions */}
+        <Paper 
+          elevation={0}
+          sx={{ 
+            p: 3, 
+            borderRadius: 1,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              boxShadow: '0 4px 6px rgba(0,0,0,0.15)'
+            }
+          }}
+        >
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+            Quick Actions
+          </Typography>
+          <Stack direction="row" spacing={2} flexWrap="wrap">
+            <Button 
+              variant="outlined" 
+              startIcon={<EncounterIcon />}
+              sx={{ borderRadius: 0 }}
+              onClick={() => navigate(`/patients/${patientId}/encounters`)}
+            >
+              View Encounters
+            </Button>
+            <Button 
+              variant="outlined" 
+              startIcon={<LabIcon />}
+              sx={{ borderRadius: 0 }}
+              onClick={() => navigate(`/patients/${patientId}/lab-results`)}
+            >
+              Lab Results
+            </Button>
+            <Button 
+              variant="outlined" 
+              startIcon={<MedicationIcon />}
+              sx={{ borderRadius: 0 }}
+              onClick={() => navigate(`/patients/${patientId}/medications`)}
+            >
+              Medication History
+            </Button>
+            <Button 
+              variant="outlined" 
+              startIcon={<TimelineIcon />}
+              sx={{ borderRadius: 0 }}
+              onClick={() => navigate(`/patients/${patientId}/timeline`)}
+            >
+              Clinical Timeline
+            </Button>
+          </Stack>
         </Paper>
-      )}
-
-      {/* Quick Actions */}
-      <Paper sx={{ p: 3, borderRadius: 2 }}>
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-          Quick Actions
-        </Typography>
-        <Stack direction="row" spacing={2} flexWrap="wrap">
-          <Button 
-            variant="outlined" 
-            startIcon={<EncounterIcon />}
-            onClick={() => navigate(`/patients/${patientId}/encounters`)}
-          >
-            View Encounters
-          </Button>
-          <Button 
-            variant="outlined" 
-            startIcon={<LabIcon />}
-            onClick={() => navigate(`/patients/${patientId}/lab-results`)}
-          >
-            Lab Results
-          </Button>
-          <Button 
-            variant="outlined" 
-            startIcon={<MedicationIcon />}
-            onClick={() => navigate(`/patients/${patientId}/medications`)}
-          >
-            Medication History
-          </Button>
-          <Button 
-            variant="outlined" 
-            startIcon={<TimelineIcon />}
-            onClick={() => navigate(`/patients/${patientId}/timeline`)}
-          >
-            Clinical Timeline
-          </Button>
-        </Stack>
-      </Paper>
-
-      {/* Floating Action Button */}
-      <Fab
-        color="primary"
-        aria-label="clinical workspace"
-        sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          zIndex: 1000
-        }}
-        onClick={handleLaunchWorkspace}
-      >
-        <LaunchIcon />
-      </Fab>
+      </Box>
     </Box>
+  );
+};
+
+// CDS Alerts Component - displays alerts inline as dismissible cards
+const CDSAlerts = ({ patientId }) => {
+  const { getAlerts } = useCDS();
+  
+  // Get alerts for patient-view hook
+  const alerts = getAlerts('patient-view') || [];
+  
+  if (alerts.length === 0) {
+    return null;
+  }
+  
+  return (
+    <CDSPresentation 
+      alerts={alerts}
+      mode={PRESENTATION_MODES.INLINE}
+      allowInteraction={true}
+      patientId={patientId}
+      maxAlerts={10}
+    />
   );
 };
 

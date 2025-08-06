@@ -8,7 +8,7 @@ import os
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, AsyncAdaptedQueuePool
 from contextlib import asynccontextmanager
 
 # Load environment variables from .env file
@@ -21,16 +21,25 @@ DATABASE_URL = os.getenv(
     "postgresql+asyncpg://emr_user:emr_password@localhost:5432/emr_db"
 )
 
-# Create async engine
+# Create async engine with proper connection pooling
+# Connection pooling dramatically improves performance by reusing connections
 engine = create_async_engine(
     DATABASE_URL,
     echo=os.getenv("SQL_ECHO", "false").lower() == "true",
-    poolclass=NullPool,  # Disable connection pooling for async
+    poolclass=AsyncAdaptedQueuePool,  # Proper async connection pooling
+    pool_size=20,                      # Number of connections to maintain
+    max_overflow=40,                   # Maximum overflow connections
+    pool_timeout=30,                   # Timeout waiting for connection
+    pool_recycle=3600,                 # Recycle connections after 1 hour
+    pool_pre_ping=True,                # Test connections before use
     future=True,
     connect_args={
         "server_settings": {
             "search_path": "fhir,cds_hooks,public"
-        }
+        },
+        "command_timeout": 60,
+        "prepared_statement_cache_size": 0,  # Disable prepared statements for pooling compatibility
+        "statement_cache_size": 0  # This is the correct parameter name for asyncpg
     }
 )
 

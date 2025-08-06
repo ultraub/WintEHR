@@ -2,7 +2,7 @@
  * OrderSigningDialog Component
  * Simple dialog for signing multiple orders with digital signature
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -19,7 +19,8 @@ import {
   ListItemIcon,
   Alert,
   CircularProgress,
-  Divider
+  Divider,
+  Chip
 } from '@mui/material';
 import {
   Draw as SignatureIcon,
@@ -27,8 +28,13 @@ import {
   Science as LabIcon,
   Image as ImagingIcon,
   Assignment as OrderIcon,
-  Security as SecurityIcon
+  Security as SecurityIcon,
+  Warning as WarningIcon,
+  Psychology as CDSIcon
 } from '@mui/icons-material';
+import { useCDSHooks } from '../../../../hooks/useCDSHooks';
+import { useClinical } from '../../../../contexts/ClinicalContext';
+import CDSCard from '../../cds/CDSCard';
 
 const getOrderIcon = (order) => {
   if (order.resourceType === 'MedicationRequest') {
@@ -59,11 +65,28 @@ const OrderSigningDialog = ({
   onClose, 
   orders = [], 
   onOrdersSigned,
-  loading = false 
+  loading = false,
+  patientId 
 }) => {
   const [pin, setPin] = useState('');
   const [reason, setReason] = useState('Provider authorization for order execution');
   const [validationError, setValidationError] = useState('');
+  
+  // CDS Hooks integration
+  const { cards, loading: cdsLoading, executeHook, sendCardFeedback } = useCDSHooks();
+  const { currentPatient } = useClinical();
+  const effectivePatientId = patientId || currentPatient?.id;
+  
+  // Execute order-sign hook when dialog opens with orders
+  useEffect(() => {
+    if (open && orders.length > 0 && effectivePatientId) {
+      executeHook('order-sign', {
+        patientId: effectivePatientId,
+        userId: 'current-user', // TODO: Get from auth context
+        draftOrders: orders
+      });
+    }
+  }, [open, orders, effectivePatientId, executeHook]);
 
   const handleSign = () => {
     if (!pin.trim()) {
@@ -129,6 +152,55 @@ const OrderSigningDialog = ({
             ))}
           </List>
         </Box>
+
+        {/* CDS Alerts */}
+        {(cdsLoading || cards.length > 0) && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Box sx={{ mb: 2 }}>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                <CDSIcon color="warning" />
+                <Typography variant="subtitle2">
+                  Clinical Decision Support
+                </Typography>
+                {cdsLoading && <CircularProgress size={16} />}
+                {cards.length > 0 && (
+                  <Chip 
+                    label={`${cards.length} Alert${cards.length > 1 ? 's' : ''}`}
+                    color="warning"
+                    size="small"
+                  />
+                )}
+              </Stack>
+              
+              {cdsLoading ? (
+                <Alert severity="info">
+                  Evaluating clinical decision support rules...
+                </Alert>
+              ) : (
+                <Stack spacing={1}>
+                  {cards.map((card) => (
+                    <CDSCard
+                      key={card.uuid}
+                      card={card}
+                      serviceId={card.serviceId}
+                      hookInstance={card.hookInstance}
+                      onAcceptSuggestion={(suggestion) => {
+                        // Handle accepting suggestion (e.g., modify order)
+                        console.log('Accepting suggestion:', suggestion);
+                      }}
+                      onDismiss={(card, reasonKey, comment) => {
+                        // Card dismissed
+                        console.log('Card dismissed:', card.uuid, reasonKey, comment);
+                      }}
+                      compact={true}
+                    />
+                  ))}
+                </Stack>
+              )}
+            </Box>
+          </>
+        )}
 
         <Divider sx={{ my: 2 }} />
 

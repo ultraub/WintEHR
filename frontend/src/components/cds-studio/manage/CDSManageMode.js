@@ -1,6 +1,6 @@
 /**
- * CDS Manage Mode - Comprehensive CDS hooks management, services, and history
- * Consolidated interface combining hook management, service discovery, and execution tracking
+ * CDS Manage Mode - Comprehensive CDS services management and execution history
+ * Consolidated interface for managing CDS services that respond to clinical hooks
  */
 
 import React, { useState, useEffect } from 'react';
@@ -85,17 +85,17 @@ function TabPanel({ children, value, index, ...other }) {
   );
 }
 
-const CDSManageMode = () => {
+const CDSManageMode = ({ onEditService, refreshTrigger }) => {
   const { actions } = useCDSStudio();
   const [tabValue, setTabValue] = useState(0);
-  const [hooks, setHooks] = useState([]);
-  const [services, setServices] = useState([]);
+  const [customServices, setCustomServices] = useState([]); // Our custom CDS services
+  const [discoveredServices, setDiscoveredServices] = useState([]); // All available services
   const [executionHistory, setExecutionHistory] = useState([]);
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [anchorEl, setAnchorEl] = useState(null);
-  const [selectedHook, setSelectedHook] = useState(null);
+  const [selectedService, setSelectedService] = useState(null);
   const [serviceSettings, setServiceSettings] = useState({});
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [testPatientId, setTestPatientId] = useState('test-patient-123');
@@ -111,21 +111,29 @@ const CDSManageMode = () => {
   });
 
   useEffect(() => {
-    loadHooks();
+    loadCustomServices();
     loadCDSServices();
     loadExecutionHistory();
   }, []);
 
-  const loadHooks = async () => {
+  // Reload services when refreshTrigger changes (e.g., after saving in build mode)
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      loadCustomServices();
+    }
+  }, [refreshTrigger]);
+
+  const loadCustomServices = async () => {
     try {
       setLoading(true);
-      const response = await cdsHooksService.listCustomHooks();
-      setHooks(response.data || []);
+      const response = await cdsHooksService.listCustomServices();
+      console.log('[CDSManageMode] Loaded custom services:', response.data);
+      setCustomServices(response.data || []);
     } catch (error) {
-      console.error('Failed to load hooks:', error);
+      console.error('Failed to load custom services:', error);
       setSnackbar({
         open: true,
-        message: `Failed to load hooks: ${error.message}`,
+        message: `Failed to load custom services: ${error.message}`,
         severity: 'error'
       });
     } finally {
@@ -136,7 +144,7 @@ const CDSManageMode = () => {
   const loadCDSServices = async () => {
     try {
       const response = await cdsHooksClient.discoverServices();
-      setServices(response || []);
+      setDiscoveredServices(response || []);
       
       // Initialize settings for each service
       const settings = {};
@@ -169,74 +177,71 @@ const CDSManageMode = () => {
     localStorage.setItem('cds_execution_history', JSON.stringify(newHistory));
   };
 
-  const handleEdit = (hook) => {
-    // The hook should already be in frontend format from listCustomHooks
-    // But ensure it has the required _meta structure for editing
-    const editableHook = {
-      ...hook,
-      _meta: {
-        created: hook._meta?.created || (hook.created_at ? new Date(hook.created_at) : new Date()),
-        modified: hook._meta?.modified || (hook.updated_at ? new Date(hook.updated_at) : new Date()),
-        version: hook._meta?.version || 1,
-        author: hook._meta?.author || 'Current User'
-      }
-    };
-    
-    actions.setCurrentHook(editableHook);
-    
-    // Switch to build mode
-    if (actions.switchMode) {
-      actions.switchMode('build');
+  // Removed duplicate handleEdit - using the one below
+
+  const handleEdit = (service) => {
+    // Call the parent handler to switch to build mode with this service
+    if (onEditService) {
+      onEditService(service);
     }
   };
 
-  const handleDelete = async (hookId) => {
-    if (window.confirm('Are you sure you want to delete this hook?')) {
+  const handleDelete = async (serviceId) => {
+    if (window.confirm('Are you sure you want to delete this service?')) {
       try {
-        await cdsHooksService.deleteHook(hookId);
-        await loadHooks();
+        await cdsHooksService.deleteService(serviceId);
+        await loadCustomServices();
+        setSnackbar({
+          open: true,
+          message: 'Service deleted successfully',
+          severity: 'success'
+        });
       } catch (error) {
-        
+        setSnackbar({
+          open: true,
+          message: `Delete failed: ${error.message}`,
+          severity: 'error'
+        });
       }
     }
   };
 
-  const handleDuplicate = async (hook) => {
+  const handleDuplicate = async (service) => {
     const duplicate = {
-      ...hook,
+      ...service,
       id: undefined,
-      title: `${hook.title} (Copy)`,
+      title: `${service.title} (Copy)`,
       _meta: {
-        ...hook._meta,
+        ...service._meta,
         created: new Date(),
         modified: new Date()
       }
     };
     
     try {
-      await cdsHooksService.createHook(duplicate);
-      await loadHooks();
+      await cdsHooksService.createService(duplicate);
+      await loadCustomServices();
       setSnackbar({
         open: true,
-        message: 'Hook duplicated successfully',
+        message: 'Service duplicated successfully',
         severity: 'success'
       });
     } catch (error) {
       setSnackbar({
         open: true,
-        message: `Failed to duplicate hook: ${error.message}`,
+        message: `Failed to duplicate service: ${error.message}`,
         severity: 'error'
       });
     }
   };
 
-  const executeTestHook = async (hookId) => {
+  const executeTestService = async (serviceId, hookType = 'patient-view') => {
     try {
       setLoading(true);
       const startTime = Date.now();
       
       const testRequest = {
-        hook: 'patient-view',
+        hook: hookType, // The hook that triggers this service
         hookInstance: `test-${Date.now()}`,
         context: {
           patientId: testPatientId,
@@ -245,13 +250,14 @@ const CDSManageMode = () => {
         }
       };
 
-      const response = await cdsHooksClient.callService(hookId, testRequest);
+      const response = await cdsHooksClient.callService(serviceId, testRequest);
       const executionTime = Date.now() - startTime;
 
       // Save execution history
       const execution = {
         id: Date.now(),
-        hookId,
+        serviceId,
+        hookType,
         timestamp: new Date().toISOString(),
         executionTime,
         success: true,
@@ -267,13 +273,14 @@ const CDSManageMode = () => {
 
       setSnackbar({
         open: true,
-        message: `Hook ${hookId} executed successfully (${executionTime}ms)`,
+        message: `Service ${serviceId} executed successfully (${executionTime}ms)`,
         severity: 'success'
       });
     } catch (error) {
       const execution = {
         id: Date.now(),
-        hookId,
+        serviceId,
+        hookType,
         timestamp: new Date().toISOString(),
         executionTime: 0,
         success: false,
@@ -284,7 +291,7 @@ const CDSManageMode = () => {
 
       setSnackbar({
         open: true,
-        message: `Hook execution failed: ${error.message}`,
+        message: `Service execution failed: ${error.message}`,
         severity: 'error'
       });
     } finally {
@@ -301,13 +308,13 @@ const CDSManageMode = () => {
     setCards([]);
   };
 
-  const exportHooksConfiguration = async () => {
+  const exportServicesConfiguration = async () => {
     try {
-      const response = await cdsHooksService.listCustomHooks();
+      const response = await cdsHooksService.listCustomServices();
       const config = {
         timestamp: new Date().toISOString(),
-        hooks: response.data || [],
-        services: services,
+        customServices: response.data || [],
+        availableServices: discoveredServices,
         settings: serviceSettings
       };
       
@@ -315,7 +322,7 @@ const CDSManageMode = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `cds-hooks-config-${format(new Date(), 'yyyy-MM-dd-HHmm')}.json`;
+      a.download = `cds-services-config-${format(new Date(), 'yyyy-MM-dd-HHmm')}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -335,22 +342,22 @@ const CDSManageMode = () => {
     }
   };
 
-  const filteredHooks = hooks.filter(hook => 
-    hook.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    hook.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredServices = customServices.filter(service => 
+    service.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    service.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const stats = {
-    total: hooks.length,
-    byType: hooks.reduce((acc, hook) => {
-      acc[hook.hook] = (acc[hook.hook] || 0) + 1;
+    total: customServices.length,
+    byHookType: customServices.reduce((acc, service) => {
+      acc[service.hook] = (acc[service.hook] || 0) + 1;
       return acc;
     }, {}),
-    active: hooks.filter(h => h.enabled !== false).length
+    active: customServices.filter(s => s.enabled !== false).length
   };
 
   // Helper functions for rendering tabs
-  const renderHooksTab = () => (
+  const renderServicesTab = () => (
     <Box>
       {/* Stats Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -358,7 +365,7 @@ const CDSManageMode = () => {
           <Card>
             <CardContent>
               <Typography color="text.secondary" gutterBottom>
-                Total Hooks
+                Total Custom Services
               </Typography>
               <Typography variant="h4">
                 {stats.total}
@@ -370,7 +377,7 @@ const CDSManageMode = () => {
           <Card>
             <CardContent>
               <Typography color="text.secondary" gutterBottom>
-                Active Hooks
+                Active Services
               </Typography>
               <Typography variant="h4">
                 {stats.active}
@@ -382,10 +389,10 @@ const CDSManageMode = () => {
           <Card>
             <CardContent>
               <Typography color="text.secondary" gutterBottom>
-                Hook Types
+                Hook Types Covered
               </Typography>
               <Typography variant="h4">
-                {Object.keys(stats.byType).length}
+                {Object.keys(stats.byHookType).length}
               </Typography>
             </CardContent>
           </Card>
@@ -397,7 +404,7 @@ const CDSManageMode = () => {
                 Services
               </Typography>
               <Typography variant="h4">
-                {services.length}
+                {discoveredServices.length}
               </Typography>
             </CardContent>
           </Card>
@@ -407,7 +414,7 @@ const CDSManageMode = () => {
       {/* Search and Actions */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <TextField
-          placeholder="Search hooks..."
+          placeholder="Search services..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           sx={{ width: 300 }}
@@ -423,7 +430,7 @@ const CDSManageMode = () => {
         <Stack direction="row" spacing={2}>
           <Button 
             startIcon={<ImportExportIcon />}
-            onClick={exportHooksConfiguration}
+            onClick={exportServicesConfiguration}
             variant="outlined"
           >
             Export Config
@@ -437,81 +444,97 @@ const CDSManageMode = () => {
                 title: '',
                 description: '',
                 hook: 'patient-view',
+                prefetch: {},
+                usageRequirements: '',
+                // Legacy fields for migration
                 conditions: [],
                 cards: [],
-                prefetch: {}
+                _meta: {
+                  created: null,
+                  modified: new Date(),
+                  version: 0,
+                  author: 'Current User'
+                }
               });
+              // Switch to Build mode
+              actions.switchMode('build');
             }}
           >
-            New Hook
+            New Service
           </Button>
         </Stack>
       </Box>
 
-      {/* Hooks Table */}
+      {/* Services Table */}
       {loading ? (
-        <Alert severity="info">Loading hooks...</Alert>
-      ) : filteredHooks.length === 0 ? (
+        <Alert severity="info">Loading services...</Alert>
+      ) : filteredServices.length === 0 ? (
         <Alert severity="warning">
-          {searchTerm ? `No hooks found matching "${searchTerm}"` : 'No hooks created yet'}
+          {searchTerm ? `No services found matching "${searchTerm}"` : 'No custom services created yet'}
         </Alert>
       ) : (
         <TableContainer component={Paper}>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Title</TableCell>
-                <TableCell>Hook Type</TableCell>
-                <TableCell>Conditions</TableCell>
-                <TableCell>Cards</TableCell>
+                <TableCell>Service Name</TableCell>
+                <TableCell>Responds to Hook</TableCell>
+                <TableCell>Prefetch Queries</TableCell>
+                <TableCell>Usage Requirements</TableCell>
                 <TableCell>Modified</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredHooks.map(hook => (
-                <TableRow key={hook.id}>
+              {filteredServices.map(service => (
+                <TableRow key={service.id}>
                   <TableCell>
-                    <Typography variant="subtitle2">{hook.title}</Typography>
+                    <Typography variant="subtitle2">{service.title || service.id}</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {hook.description}
+                      {service.description}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip label={hook.hook} size="small" />
+                    <Chip label={service.hook} size="small" />
                   </TableCell>
-                  <TableCell>{hook.conditions?.length || 0}</TableCell>
-                  <TableCell>{hook.cards?.length || 0}</TableCell>
                   <TableCell>
-                    {new Date(hook._meta?.modified || Date.now()).toLocaleDateString()}
+                    {service.prefetch ? Object.keys(service.prefetch).length : 0}
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption">
+                      {service.usageRequirements || 'None specified'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    {new Date(service._meta?.modified || Date.now()).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
                     <Chip 
-                      label={hook.enabled !== false ? 'Active' : 'Inactive'}
-                      color={hook.enabled !== false ? 'success' : 'default'}
+                      label={service.enabled !== false ? 'Active' : 'Inactive'}
+                      color={service.enabled !== false ? 'success' : 'default'}
                       size="small"
                     />
                   </TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={1} justifyContent="flex-end">
                       <Tooltip title="Test">
-                        <IconButton size="small" onClick={() => executeTestHook(hook.id)}>
+                        <IconButton size="small" onClick={() => executeTestService(service.id, service.hook)}>
                           <TestIcon />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Edit">
-                        <IconButton size="small" onClick={() => handleEdit(hook)}>
+                        <IconButton size="small" onClick={() => handleEdit(service)}>
                           <EditIcon />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Duplicate">
-                        <IconButton size="small" onClick={() => handleDuplicate(hook)}>
+                        <IconButton size="small" onClick={() => handleDuplicate(service)}>
                           <DuplicateIcon />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Delete">
-                        <IconButton size="small" onClick={() => handleDelete(hook.id)} color="error">
+                        <IconButton size="small" onClick={() => handleDelete(service.id)} color="error">
                           <DeleteIcon />
                         </IconButton>
                       </Tooltip>
@@ -526,7 +549,7 @@ const CDSManageMode = () => {
     </Box>
   );
 
-  const renderServicesTab = () => (
+  const renderDiscoveryTab = () => (
     <Stack spacing={3}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
         <Typography variant="h6">Available CDS Services</Typography>
@@ -551,7 +574,7 @@ const CDSManageMode = () => {
       {loading && <CircularProgress />}
 
       <Grid container spacing={2}>
-        {services.map((service) => (
+        {discoveredServices.map((service) => (
           <Grid item xs={12} md={6} lg={4} key={service.id}>
             <Card variant="outlined">
               <CardHeader
@@ -584,7 +607,7 @@ const CDSManageMode = () => {
                 <Button
                   size="small"
                   startIcon={<ExecuteIcon />}
-                  onClick={() => executeTestHook(service.id)}
+                  onClick={() => executeTestService(service.id, service.hook)}
                   disabled={loading || !serviceSettings[service.id]?.enabled}
                 >
                   Test
@@ -593,8 +616,11 @@ const CDSManageMode = () => {
                   size="small"
                   startIcon={<EditIcon />}
                   onClick={() => {
-                    setSelectedHook(service);
-                    // Switch to build mode would be handled by parent
+                    setSelectedService(service);
+                    // Switch to build mode by calling parent handler
+                    if (onEditService) {
+                      onEditService(service);
+                    }
                   }}
                 >
                   Edit
@@ -650,7 +676,7 @@ const CDSManageMode = () => {
 
       {executionHistory.length === 0 ? (
         <Alert severity="info">
-          No execution history yet. Test some hooks to see the execution details here.
+          No execution history yet. Test some services to see the execution details here.
         </Alert>
       ) : (
         <List>
@@ -665,7 +691,7 @@ const CDSManageMode = () => {
                   )}
                 </ListItemIcon>
                 <ListItemText
-                  primary={`${execution.hookId} - ${format(new Date(execution.timestamp), 'PPpp')}`}
+                  primary={`${execution.serviceId || execution.hookId} - ${format(new Date(execution.timestamp), 'PPpp')}`}
                   secondary={
                     execution.success
                       ? `Generated ${execution.cardsGenerated} cards in ${execution.executionTime}ms`
@@ -701,13 +727,13 @@ const CDSManageMode = () => {
         >
           <Tab
             icon={<AnalyticsIcon />}
-            label="Hooks"
+            label="Custom Services"
             id="manage-tab-0"
             aria-controls="manage-tabpanel-0"
           />
           <Tab
             icon={<WebhookIcon />}
-            label="Services"
+            label="Discovery"
             id="manage-tab-1"
             aria-controls="manage-tabpanel-1"
           />
@@ -720,11 +746,11 @@ const CDSManageMode = () => {
         </Tabs>
 
         <TabPanel value={tabValue} index={0}>
-          {renderHooksTab()}
+          {renderServicesTab()}
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          {renderServicesTab()}
+          {renderDiscoveryTab()}
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
@@ -739,7 +765,7 @@ const CDSManageMode = () => {
         onClose={() => setAnchorEl(null)}
       >
         <MenuItem onClick={() => setAnchorEl(null)}>View Analytics</MenuItem>
-        <MenuItem onClick={() => setAnchorEl(null)}>Export Hook</MenuItem>
+        <MenuItem onClick={() => setAnchorEl(null)}>Export Service</MenuItem>
         <MenuItem onClick={() => setAnchorEl(null)}>Share</MenuItem>
       </Menu>
 

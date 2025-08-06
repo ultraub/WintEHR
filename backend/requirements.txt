@@ -12,6 +12,9 @@ alembic>=1.12.1
 asyncpg>=0.30.0
 psycopg2-binary>=2.9.9
 
+# Cache
+redis[hiredis]>=5.0.0
+
 # HTTP/API
 httpx==0.25.2
 requests==2.31.0

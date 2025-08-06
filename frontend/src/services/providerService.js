@@ -3,7 +3,7 @@
  * Centralized service for resolving and managing provider information from FHIR resources
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 class ProviderService {
   constructor() {

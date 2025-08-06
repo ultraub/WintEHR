@@ -7,12 +7,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+import os
 
 # Import database lifecycle functions
 from database import init_db, close_db
 
 # Import all routers
 from api.routers import register_all_routers
+
+# Import performance monitoring
+from api.middleware.performance import setup_performance_monitoring
+
+# Import security middleware
+from api.middleware.security_middleware import setup_security_middleware
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -23,19 +30,22 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Set up security middleware (includes HTTPS enforcement, security headers, and secure CORS)
+# NOTE: In production, this will enforce HTTPS and add security headers
+setup_security_middleware(app)
 
-# Add FHIR content negotiation middleware
-from fhir.api.content_negotiation import content_negotiation_middleware
-from starlette.middleware.base import BaseHTTPMiddleware
-app.add_middleware(BaseHTTPMiddleware, dispatch=content_negotiation_middleware)
+# Set up performance monitoring
+setup_performance_monitoring(app)
+
+# Add default CORS for development if security middleware is disabled
+if os.getenv("DISABLE_SECURITY_MIDDLEWARE", "false").lower() == "true":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://localhost:5173"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Register all routers using centralized registration
 register_all_routers(app)
@@ -64,10 +74,13 @@ async def health_check():
 async def api_health_check():
     return {"status": "healthy", "service": "Teaching EMR API"}
 
+from api.websocket.connection_pool import connection_pool
+
 # Startup event
 @app.on_event("startup")
 async def startup_event():
     await init_db()
+    connection_pool.start_background_tasks()
 
 # Shutdown event
 @app.on_event("shutdown")

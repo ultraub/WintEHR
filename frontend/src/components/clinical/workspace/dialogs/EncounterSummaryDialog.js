@@ -177,11 +177,18 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
       ]
     };
 
-    if ((encounter.reasonCode && encounter.reasonCode.length > 0) || (encounter.reason && encounter.reason.length > 0)) {
-      const reasons = encounter.reasonCode || encounter.reason || [];
+    // Handle both array and non-array formats for reasons
+    const hasReasonCode = encounter.reasonCode && (Array.isArray(encounter.reasonCode) ? encounter.reasonCode.length > 0 : true);
+    const hasReason = encounter.reason && (Array.isArray(encounter.reason) ? encounter.reason.length > 0 : true);
+    
+    if (hasReasonCode || hasReason) {
+      const reasonsArray = Array.isArray(encounter.reasonCode) ? encounter.reasonCode : 
+                          Array.isArray(encounter.reason) ? encounter.reason :
+                          encounter.reasonCode ? [encounter.reasonCode] :
+                          encounter.reason ? [encounter.reason] : [];
       printContent.sections.push({
         title: 'Reason for Visit',
-        content: reasons.map(r => r.text || r.coding?.[0]?.display || r.use?.[0]?.coding?.[0]?.display).join(', ')
+        content: reasonsArray.map(r => r.text || r.coding?.[0]?.display || r.use?.[0]?.coding?.[0]?.display).join(', ')
       });
     }
 
@@ -269,7 +276,12 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
       maxWidth="lg"
       fullWidth
       PaperProps={{
-        sx: { height: '80vh' }
+        sx: { 
+          height: '80vh',
+          borderRadius: 0,
+          border: '1px solid',
+          borderColor: 'divider'
+        }
       }}
     >
       <DialogTitle sx={{ 
@@ -282,7 +294,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
           <Stack direction="row" spacing={2} alignItems="center">
             <Box sx={{ 
               p: 1.5, 
-              borderRadius: 2, 
+              borderRadius: 0, 
               bgcolor: theme.palette.background.paper,
               color: iconInfo.color === 'primary' ? theme.palette.primary.main : theme.palette[iconInfo.color].main,
               boxShadow: theme.shadows[1]
@@ -320,7 +332,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
               <Box sx={{ 
                 width: 6, 
                 height: 40, 
-                borderRadius: 1,
+                borderRadius: 0,
                 bgcolor: iconInfo.color === 'primary' ? theme.palette.primary.main : theme.palette[iconInfo.color].main 
               }} />
               <Typography variant="h6" fontWeight="600">
@@ -419,7 +431,12 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
               </Grid>
             </Grid>
 
-            {((encounter.reasonCode && encounter.reasonCode.length > 0) || (encounter.reason && encounter.reason.length > 0)) && (
+            {(() => {
+              // Check if there are any reasons to display (handling both array and non-array formats)
+              const hasReasonCode = encounter.reasonCode && (Array.isArray(encounter.reasonCode) ? encounter.reasonCode.length > 0 : true);
+              const hasReason = encounter.reason && (Array.isArray(encounter.reason) ? encounter.reason.length > 0 : true);
+              return hasReasonCode || hasReason;
+            })() && (
               <Box sx={{ 
                 mt: 3, 
                 pt: 3,
@@ -429,18 +446,26 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   Reason for Visit
                 </Typography>
                 <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
-                  {(encounter.reasonCode || encounter.reason || []).map((reason, idx) => (
-                    <Chip 
-                      key={idx}
-                      label={reason.text || reason.coding?.[0]?.display || reason.use?.[0]?.coding?.[0]?.display} 
-                      variant="filled"
-                      sx={{ 
-                        bgcolor: theme.palette.primary.main + '15',
-                        color: theme.palette.primary.main,
-                        fontWeight: 500
-                      }}
-                    />
-                  ))}
+                  {(() => {
+                    // Handle both array and non-array formats for FHIR data consistency
+                    const reasonsArray = Array.isArray(encounter.reasonCode) ? encounter.reasonCode : 
+                                        Array.isArray(encounter.reason) ? encounter.reason :
+                                        encounter.reasonCode ? [encounter.reasonCode] :
+                                        encounter.reason ? [encounter.reason] : [];
+                    
+                    return reasonsArray.map((reason, idx) => (
+                      <Chip 
+                        key={idx}
+                        label={reason.text || reason.coding?.[0]?.display || reason.use?.[0]?.coding?.[0]?.display} 
+                        variant="filled"
+                        sx={{ 
+                          bgcolor: theme.palette.primary.main + '15',
+                          color: theme.palette.primary.main,
+                          fontWeight: 500
+                        }}
+                      />
+                    ));
+                  })()}
                 </Stack>
               </Box>
             )}
@@ -459,7 +484,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
               <Box sx={{ 
                 width: 6, 
                 height: 40, 
-                borderRadius: 1,
+                borderRadius: 0,
                 bgcolor: theme.palette.secondary.main 
               }} />
               <Typography variant="h6" fontWeight="600">
@@ -470,7 +495,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
             {/* Observations */}
             <Card sx={{ 
               mb: 2,
-              borderRadius: 2,
+              borderRadius: 0,
               overflow: 'hidden',
               boxShadow: theme.shadows[2],
               '&:hover': {
@@ -489,7 +514,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   <Stack direction="row" spacing={2} alignItems="center">
                     <Box sx={{ 
                       p: 1, 
-                      borderRadius: 1.5,
+                      borderRadius: 0,
                       bgcolor: theme.palette.primary.main + '20',
                       color: theme.palette.primary.main,
                       display: 'flex',
@@ -598,7 +623,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
             {/* Procedures */}
             <Card sx={{ 
               mb: 2,
-              borderRadius: 2,
+              borderRadius: 0,
               overflow: 'hidden',
               boxShadow: theme.shadows[2],
               '&:hover': {
@@ -617,7 +642,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   <Stack direction="row" spacing={2} alignItems="center">
                     <Box sx={{ 
                       p: 1, 
-                      borderRadius: 1.5,
+                      borderRadius: 0,
                       bgcolor: theme.palette.secondary.main + '20',
                       color: theme.palette.secondary.main,
                       display: 'flex',
@@ -724,7 +749,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
             {/* Medications */}
             <Card sx={{ 
               mb: 2,
-              borderRadius: 2,
+              borderRadius: 0,
               overflow: 'hidden',
               boxShadow: theme.shadows[2],
               '&:hover': {
@@ -743,7 +768,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   <Stack direction="row" spacing={2} alignItems="center">
                     <Box sx={{ 
                       p: 1, 
-                      borderRadius: 1.5,
+                      borderRadius: 0,
                       bgcolor: theme.palette.success.main + '20',
                       color: theme.palette.success.main,
                       display: 'flex',
@@ -859,7 +884,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
 
             {/* Diagnoses */}
             <Card sx={{ 
-              borderRadius: 2,
+              borderRadius: 0,
               overflow: 'hidden',
               boxShadow: theme.shadows[2],
               '&:hover': {
@@ -878,7 +903,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                   <Stack direction="row" spacing={2} alignItems="center">
                     <Box sx={{ 
                       p: 1, 
-                      borderRadius: 1.5,
+                      borderRadius: 0,
                       bgcolor: theme.palette.warning.main + '20',
                       color: theme.palette.warning.main,
                       display: 'flex',
@@ -1012,7 +1037,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
                 <Stack direction="row" spacing={2} alignItems="center">
                   <Box sx={{ 
                     p: 1, 
-                    borderRadius: 1.5,
+                    borderRadius: 0,
                     bgcolor: theme.palette.info.main + '20',
                     color: theme.palette.info.main,
                     display: 'flex',

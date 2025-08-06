@@ -10,8 +10,7 @@ import {
   Alert,
   Stack,
   Card,
-  CardContent,
-  useTheme
+  CardContent
 } from '@mui/material';
 import {
   ErrorOutline as ErrorIcon,
@@ -30,7 +29,6 @@ const ErrorState = ({
   actionLabel = "Try Again",
   fullHeight = true
 }) => {
-  const theme = useTheme();
   const navigate = useNavigate();
 
   // Extract error message
@@ -110,7 +108,7 @@ const ErrorState = ({
             <ErrorIcon 
               sx={{ 
                 fontSize: 64, 
-                color: theme.palette.error.main,
+                color: 'error.main',
                 opacity: 0.8
               }} 
             />

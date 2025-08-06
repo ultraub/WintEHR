@@ -25,10 +25,12 @@ def register_all_routers(app: FastAPI) -> None:
     # 1. Core FHIR APIs
     try:
         from fhir.api.router import fhir_router
-        from api.notifications import router as notifications_router
+        from api.fhir_relationships_router import relationships_router
+        from api.fhir.search_values import router as search_values_router
         
         app.include_router(fhir_router, tags=["FHIR R4"])
-        app.include_router(notifications_router, prefix="/fhir/R4", tags=["FHIR Notifications"])
+        app.include_router(relationships_router, prefix="/api", tags=["FHIR Relationships"])
+        app.include_router(search_values_router, prefix="/api", tags=["FHIR Search Values"])
         logger.info("✓ FHIR routers registered")
     except Exception as e:
         logger.error(f"Failed to register FHIR routers: {e}")
@@ -50,10 +52,14 @@ def register_all_routers(app: FastAPI) -> None:
         from api.clinical.inbox.router import router as clinical_inbox_router
         from api.clinical.cds_clinical_data import router as cds_clinical_data_router
         from api.clinical.dynamic_catalog_router import router as dynamic_catalog_router
+        from api.clinical.medication_lists_router import router as medication_lists_router
+        from api.clinical.drug_safety_router import router as drug_safety_router
         
         app.include_router(catalogs_router, tags=["Clinical Catalogs"])
         app.include_router(dynamic_catalog_router, tags=["Dynamic Catalog (Legacy)"])
         app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
+        app.include_router(medication_lists_router, tags=["Medication Lists"])
+        app.include_router(drug_safety_router, prefix="/api/clinical", tags=["Drug Safety"])
         app.include_router(clinical_tasks_router, tags=["Clinical Tasks"])
         app.include_router(clinical_alerts_router, tags=["Clinical Alerts"])
         app.include_router(clinical_inbox_router, tags=["Clinical Inbox"])
@@ -76,16 +82,29 @@ def register_all_routers(app: FastAPI) -> None:
     # 5. Integration Services
     try:
         from api.cds_hooks.cds_hooks_router import router as cds_hooks_router
+        from api.cds_hooks.service_executor_router import router as cds_executor_router
         from api.ui_composer import router as ui_composer_router
         from api.websocket.websocket_router import router as websocket_router
+        from api.websocket.monitoring import router as websocket_monitoring_router
         from api.fhir_schema_router import router as fhir_schema_router
         from api.fhir_capability_schema_router import router as fhir_capability_schema_router
         
-        app.include_router(cds_hooks_router, prefix="/cds-hooks", tags=["CDS Hooks"])
+        app.include_router(cds_hooks_router, tags=["CDS Hooks"])
+        app.include_router(cds_executor_router, tags=["CDS Service Executor"])
         app.include_router(ui_composer_router, tags=["UI Composer"])
         app.include_router(websocket_router, prefix="/api", tags=["WebSocket"])
+        app.include_router(websocket_monitoring_router, tags=["WebSocket Monitoring"])
         app.include_router(fhir_schema_router, tags=["FHIR Schemas"])
         app.include_router(fhir_capability_schema_router, tags=["FHIR Schemas V2"])
+        
+        # CDS Hooks v2.0 Complete Implementation
+        try:
+            from api.cds_hooks.cds_hooks_v2_complete import router as cds_hooks_v2_router
+            app.include_router(cds_hooks_v2_router, tags=["CDS Hooks v2.0"])
+            logger.info("✓ CDS Hooks v2.0 router registered")
+        except Exception as v2_error:
+            logger.warning(f"CDS Hooks v2.0 router not available: {v2_error}")
+        
         logger.info("✓ Integration service routers registered")
     except Exception as e:
         logger.error(f"Failed to register integration routers: {e}")
@@ -123,7 +142,15 @@ def register_all_routers(app: FastAPI) -> None:
     except Exception as e:
         logger.error(f"Failed to register patient data/provider routers: {e}")
     
-    # 9. Debug Tools (development only)
+    # 9. Monitoring & Performance
+    try:
+        from api.monitoring import monitoring_router
+        app.include_router(monitoring_router, tags=["Monitoring"])
+        logger.info("✓ Monitoring router registered")
+    except Exception as e:
+        logger.error(f"Failed to register monitoring router: {e}")
+    
+    # 10. Debug Tools (development only)
     try:
         import os
         if os.getenv("DEBUG", "false").lower() == "true":

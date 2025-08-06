@@ -1,343 +1,368 @@
 /**
- * WebSocket client for real-time FHIR updates
- * Implements reconnection logic, message queuing, and subscription management
+ * WebSocket Service
+ * Manages real-time communication with the backend
+ * 
+ * Features:
+ * - Auto-reconnection with exponential backoff
+ * - Event subscription system
+ * - Connection state management
+ * - Heartbeat/ping-pong mechanism
+ * - Message queuing during disconnection
  */
 
-class FHIRWebSocketClient {
+class WebSocketService {
   constructor() {
     this.ws = null;
-    this.clientId = null;
-    this.subscriptions = new Map();
-    this.eventHandlers = new Map();
-    this.messageQueue = [];
-    this.isConnected = false;
+    this.url = null;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 10;
+    this.maxReconnectAttempts = 5;
     this.reconnectDelay = 1000; // Start with 1 second
     this.maxReconnectDelay = 30000; // Max 30 seconds
+    this.listeners = new Map();
+    this.messageQueue = [];
+    this.isConnected = false;
     this.heartbeatInterval = null;
-    this.connectionPromise = null;
+    this.connectionListeners = new Set();
+    
+    // Get WebSocket URL from environment or use default
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    
+    // In development, we need to connect directly to backend port
+    // In production, we use the same host as the frontend
+    let host;
+    if (process.env.NODE_ENV === 'development' && !process.env.REACT_APP_WS_URL) {
+      // Development: Connect directly to backend
+      host = 'localhost:8000';
+    } else {
+      // Production or custom URL
+      host = process.env.REACT_APP_WS_URL || window.location.host;
+    }
+    
+    this.baseUrl = `${protocol}//${host}/api/ws`;
   }
 
   /**
    * Connect to WebSocket server
    * @param {string} token - Optional authentication token
    */
-  async connect(token = null) {
-    if (this.connectionPromise) {
-      return this.connectionPromise;
+  connect(token = null) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      return;
     }
 
-    this.connectionPromise = this._doConnect(token);
-    return this.connectionPromise;
-  }
-
-  async _doConnect(token = null) {
-    try {
-      // Determine WebSocket URL based on current location
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      let host = window.location.host;
-      
-      // In development, use the backend port directly for WebSocket
-      if (process.env.NODE_ENV === 'development' && !process.env.REACT_APP_API_URL) {
-        // Extract port from package.json proxy or use default
-        host = window.location.hostname + ':8000';
-      } else if (process.env.REACT_APP_API_URL) {
-        // Extract host from API URL
-        const apiUrl = new URL(process.env.REACT_APP_API_URL);
-        host = apiUrl.host;
-      }
-      
-      const wsUrl = `${protocol}//${host}/api/ws${token ? `?token=${token}` : ''}`;
-
-      
-
-      this.ws = new WebSocket(wsUrl);
-
-      await new Promise((resolve, reject) => {
-        this.ws.onopen = () => {
-          
-          this.isConnected = true;
-          this.reconnectAttempts = 0;
-          this.reconnectDelay = 1000;
-          resolve();
-        };
-
-        this.ws.onerror = (error) => {
-          
-          reject(error);
-        };
-      });
-
-      // Set up message handler
-      this.ws.onmessage = (event) => {
-        this._handleMessage(JSON.parse(event.data));
-      };
-
-      // Set up close handler
-      this.ws.onclose = () => {
-        
-        this.isConnected = false;
-        this.clientId = null;
-        this._clearHeartbeat();
-        this._attemptReconnect(token);
-      };
-
-      // Send queued messages
-      this._flushMessageQueue();
-
-      return true;
-    } catch (error) {
-      
-      this.connectionPromise = null;
-      throw error;
-    }
-  }
-
-  /**
-   * Disconnect from WebSocket server
-   */
-  disconnect() {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    this.isConnected = false;
-    this.clientId = null;
-    this._clearHeartbeat();
-    this.connectionPromise = null;
-  }
-
-  /**
-   * Handle incoming WebSocket messages
-   */
-  _handleMessage(message) {
+    // Construct URL with token if provided
+    this.url = token ? `${this.baseUrl}?token=${encodeURIComponent(token)}` : this.baseUrl;
     
-
-    switch (message.type) {
-      case 'welcome':
-        this.clientId = message.data.client_id;
-        this._resubscribeAll();
-        break;
-
-      case 'ping':
-        this._sendMessage({ type: 'pong' });
-        break;
-
-      case 'update':
-        this._handleResourceUpdate(message.data);
-        break;
-
-      case 'subscription':
-        this._handleSubscriptionResponse(message.data);
-        break;
-
-      case 'error':
-        
-        break;
-
-      default:
-        
+    // Connecting to WebSocket
+    
+    try {
+      this.ws = new WebSocket(this.url);
+      this.setupEventHandlers();
+    } catch (error) {
+      // Connection error, will attempt reconnect
+      this.scheduleReconnect();
     }
   }
 
   /**
-   * Handle FHIR resource updates
+   * Setup WebSocket event handlers
    */
-  _handleResourceUpdate(data) {
-    const { action, resource_type, resource_id, patient_id, resource } = data;
-
-    // Notify all matching event handlers
-    this.eventHandlers.forEach((handler, key) => {
-      const [eventResourceType, eventPatientId] = key.split(':');
+  setupEventHandlers() {
+    this.ws.onopen = () => {
+      // WebSocket connected
+      this.isConnected = true;
+      this.reconnectAttempts = 0;
+      this.reconnectDelay = 1000;
       
-      if (
-        (eventResourceType === '*' || eventResourceType === resource_type) &&
-        (eventPatientId === '*' || eventPatientId === patient_id)
-      ) {
-        handler({
-          action,
-          resourceType: resource_type,
-          resourceId: resource_id,
-          patientId: patient_id,
-          resource
-        });
+      // Send any queued messages
+      this.flushMessageQueue();
+      
+      // Start heartbeat
+      this.startHeartbeat();
+      
+      // Notify connection listeners
+      this.notifyConnectionListeners('connected');
+    };
+
+    this.ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        this.handleMessage(data);
+      } catch (error) {
+        // Failed to parse message
       }
-    });
+    };
 
-    // Handle clinical events specially
-    if (action === 'clinical_event' && resource) {
-      const { event_type, details } = resource;
-      this._handleClinicalEvent(event_type, details, resource_type, patient_id);
+    this.ws.onerror = (error) => {
+      // WebSocket error
+      this.notifyConnectionListeners('error', error);
+    };
+
+    this.ws.onclose = (event) => {
+      // WebSocket disconnected
+      this.isConnected = false;
+      this.stopHeartbeat();
+      this.notifyConnectionListeners('disconnected', event);
+      
+      // Attempt to reconnect unless explicitly closed
+      if (event.code !== 1000) {
+        this.scheduleReconnect();
+      }
+    };
+  }
+
+  /**
+   * Handle incoming messages
+   */
+  handleMessage(data) {
+    const { type, payload, data: messageData } = data;
+    
+    // Handle system messages
+    switch (type) {
+      case 'welcome':
+        // Welcome message received
+        break;
+      case 'pong':
+        // Heartbeat response
+        break;
+      case 'error':
+        // Server error
+        break;
+      case 'subscription':
+        // Subscription confirmed
+        break;
+      case 'update':
+        // Handle FHIR resource updates from other users
+        if (messageData) {
+          // Resource update received
+          const { event_type, patient_id, resource_type, resource } = messageData;
+          
+          // Dispatch as a clinical event
+          if (event_type && resource) {
+            this.dispatch(event_type, {
+              patientId: patient_id,
+              resource: resource,
+              resourceType: resource_type,
+              fromWebSocket: true // Mark as coming from WebSocket
+            });
+          }
+        }
+        break;
+      default:
+        // Dispatch to listeners
+        this.dispatch(type, payload || data);
     }
   }
 
   /**
-   * Handle clinical events (e.g., critical lab results)
+   * Subscribe to a patient room for multi-user updates
+   * @param {string} patientId - Patient ID to subscribe to
+   * @param {Array<string>} resourceTypes - Optional resource types to filter
    */
-  _handleClinicalEvent(eventType, details, resourceType, patientId) {
-    const key = `clinical:${eventType}`;
-    const handler = this.eventHandlers.get(key);
-    if (handler) {
-      handler({
-        eventType,
-        details,
-        resourceType,
-        patientId
-      });
+  async subscribeToPatient(patientId, resourceTypes = []) {
+    if (!this.isConnected) {
+      // Cannot subscribe - not connected
+      return;
     }
-  }
-
-  /**
-   * Subscribe to resource updates
-   * @param {Object} options - Subscription options
-   * @param {string[]} options.resourceTypes - Resource types to subscribe to
-   * @param {string[]} options.patientIds - Patient IDs to subscribe to
-   * @param {Function} options.onUpdate - Callback for updates
-   * @returns {string} Subscription ID
-   */
-  subscribe({ resourceTypes = [], patientIds = [], onUpdate }) {
-    const subscriptionId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    // Store subscription locally
-    this.subscriptions.set(subscriptionId, {
-      resourceTypes,
-      patientIds,
-      onUpdate
-    });
-
-    // Register event handlers
-    if (resourceTypes.length === 0 || resourceTypes.includes('*')) {
-      // Subscribe to all resource types
-      const key = `*:${patientIds.length === 0 ? '*' : patientIds[0]}`;
-      this.eventHandlers.set(key, onUpdate);
-    } else {
-      // Subscribe to specific resource types
-      resourceTypes.forEach(resourceType => {
-        if (patientIds.length === 0) {
-          const key = `${resourceType}:*`;
-          this.eventHandlers.set(key, onUpdate);
-        } else {
-          patientIds.forEach(patientId => {
-            const key = `${resourceType}:${patientId}`;
-            this.eventHandlers.set(key, onUpdate);
-          });
-        }
-      });
-    }
-
-    // Send subscription to server if connected
-    if (this.isConnected) {
-      this._sendMessage({
-        type: 'subscribe',
-        data: {
-          subscription_id: subscriptionId,
-          resource_types: resourceTypes,
-          patient_ids: patientIds
-        }
-      });
-    }
-
+    
+    const subscriptionId = `patient-${patientId}-${Date.now()}`;
+    const message = {
+      type: 'subscription',
+      data: {
+        subscription_id: subscriptionId,
+        patient_ids: [patientId],
+        resource_types: resourceTypes
+      }
+    };
+    
+    // Subscribing to patient
+    this.send(message);
+    
+    // Store subscription info for reconnection
+    this.activeSubscriptions = this.activeSubscriptions || new Map();
+    this.activeSubscriptions.set(subscriptionId, { patientId, resourceTypes });
+    
     return subscriptionId;
   }
-
+  
   /**
-   * Unsubscribe from resource updates
-   * @param {string} subscriptionId - Subscription ID to remove
+   * Unsubscribe from a patient room
+   * @param {string} subscriptionId - Subscription ID to cancel
    */
-  unsubscribe(subscriptionId) {
-    const subscription = this.subscriptions.get(subscriptionId);
-    if (!subscription) return;
-
-    // Remove event handlers
-    const { resourceTypes, patientIds } = subscription;
-    if (resourceTypes.length === 0 || resourceTypes.includes('*')) {
-      const key = `*:${patientIds.length === 0 ? '*' : patientIds[0]}`;
-      this.eventHandlers.delete(key);
-    } else {
-      resourceTypes.forEach(resourceType => {
-        if (patientIds.length === 0) {
-          const key = `${resourceType}:*`;
-          this.eventHandlers.delete(key);
-        } else {
-          patientIds.forEach(patientId => {
-            const key = `${resourceType}:${patientId}`;
-            this.eventHandlers.delete(key);
-          });
-        }
-      });
+  async unsubscribeFromPatient(subscriptionId) {
+    if (!this.isConnected) {
+      return;
     }
-
-    // Remove subscription
-    this.subscriptions.delete(subscriptionId);
-
-    // Notify server if connected
-    if (this.isConnected) {
-      this._sendMessage({
-        type: 'unsubscribe',
-        data: {
-          subscription_id: subscriptionId
-        }
-      });
+    
+    const message = {
+      type: 'unsubscribe',
+      data: {
+        subscription_id: subscriptionId
+      }
+    };
+    
+    // Unsubscribing
+    this.send(message);
+    
+    // Remove from active subscriptions
+    if (this.activeSubscriptions) {
+      this.activeSubscriptions.delete(subscriptionId);
     }
   }
 
   /**
-   * Subscribe to clinical events
-   * @param {string} eventType - Type of clinical event
-   * @param {Function} onEvent - Callback for events
+   * Subscribe to a custom room (e.g., pharmacy:queue)
+   * @param {string} roomName - Room name to subscribe to
    * @returns {string} Subscription ID
    */
-  subscribeToClinicalEvents(eventType, onEvent) {
-    const key = `clinical:${eventType}`;
-    this.eventHandlers.set(key, onEvent);
-    return key;
+  async subscribeToRoom(roomName) {
+    if (!this.isConnected) {
+      // Cannot subscribe to room - not connected
+      return;
+    }
+    
+    const subscriptionId = `room-${roomName}-${Date.now()}`;
+    const message = {
+      type: 'subscription',
+      data: {
+        subscription_id: subscriptionId,
+        room: roomName
+      }
+    };
+    
+    // Subscribing to room
+    this.send(message);
+    
+    // Store subscription info for reconnection
+    this.activeSubscriptions = this.activeSubscriptions || new Map();
+    this.activeSubscriptions.set(subscriptionId, { room: roomName });
+    
+    return subscriptionId;
+  }
+  
+  /**
+   * Unsubscribe from a room
+   * @param {string} subscriptionId - Subscription ID to cancel
+   */
+  async unsubscribeFromRoom(subscriptionId) {
+    if (!this.isConnected) {
+      return;
+    }
+    
+    const message = {
+      type: 'unsubscribe',
+      data: {
+        subscription_id: subscriptionId
+      }
+    };
+    
+    // Unsubscribing from room
+    this.send(message);
+    
+    // Remove from active subscriptions
+    if (this.activeSubscriptions) {
+      this.activeSubscriptions.delete(subscriptionId);
+    }
   }
 
   /**
-   * Send a message to the server
+   * Subscribe to events
+   * @param {string} eventType - Event type to listen for
+   * @param {function} callback - Callback function
+   * @returns {function} Unsubscribe function
    */
-  _sendMessage(message) {
-    if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+  subscribe(eventType, callback) {
+    if (!this.listeners.has(eventType)) {
+      this.listeners.set(eventType, new Set());
+    }
+    
+    this.listeners.get(eventType).add(callback);
+    
+    // Return unsubscribe function
+    return () => {
+      const listeners = this.listeners.get(eventType);
+      if (listeners) {
+        listeners.delete(callback);
+        if (listeners.size === 0) {
+          this.listeners.delete(eventType);
+        }
+      }
+    };
+  }
+
+  /**
+   * Subscribe to connection state changes
+   */
+  onConnectionChange(callback) {
+    this.connectionListeners.add(callback);
+    return () => this.connectionListeners.delete(callback);
+  }
+
+  /**
+   * Dispatch event to listeners
+   */
+  dispatch(eventType, data) {
+    const listeners = this.listeners.get(eventType);
+    if (listeners) {
+      listeners.forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          // Error in listener
+        }
+      });
+    }
+  }
+
+  /**
+   * Publish event to server
+   * @param {string} eventType - Event type
+   * @param {object} data - Event data
+   */
+  publish(eventType, data) {
+    const message = {
+      type: eventType,
+      payload: data,
+      timestamp: new Date().toISOString()
+    };
+
+    if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
-      // Queue message for later
+      // Queue message if not connected
+      // Queuing message
       this.messageQueue.push(message);
+    }
+  }
+
+  /**
+   * Send raw message
+   */
+  send(message) {
+    if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(typeof message === 'string' ? message : JSON.stringify(message));
+    } else {
+      // Cannot send message - not connected
     }
   }
 
   /**
    * Flush queued messages
    */
-  _flushMessageQueue() {
+  flushMessageQueue() {
     while (this.messageQueue.length > 0 && this.isConnected) {
       const message = this.messageQueue.shift();
-      this._sendMessage(message);
+      this.ws.send(JSON.stringify(message));
     }
   }
 
   /**
-   * Resubscribe all active subscriptions
+   * Schedule reconnection attempt
    */
-  _resubscribeAll() {
-    this.subscriptions.forEach((subscription, subscriptionId) => {
-      this._sendMessage({
-        type: 'subscribe',
-        data: {
-          subscription_id: subscriptionId,
-          resource_types: subscription.resourceTypes,
-          patient_ids: subscription.patientIds
-        }
-      });
-    });
-  }
-
-  /**
-   * Attempt to reconnect after disconnection
-   */
-  _attemptReconnect(token) {
+  scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      
+      // Max reconnection attempts reached
+      this.notifyConnectionListeners('failed');
       return;
     }
 
@@ -348,19 +373,29 @@ class FHIRWebSocketClient {
     );
 
     // Scheduling reconnection
-
+    
     setTimeout(() => {
-      this.connectionPromise = null;
-      this.connect(token).catch(error => {
-        // Error during reconnection
-      });
+      this.connect();
     }, delay);
   }
 
   /**
-   * Clear heartbeat interval
+   * Start heartbeat mechanism
    */
-  _clearHeartbeat() {
+  startHeartbeat() {
+    this.stopHeartbeat();
+    
+    this.heartbeatInterval = setInterval(() => {
+      if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
+        this.send({ type: 'ping' });
+      }
+    }, 30000); // Send ping every 30 seconds
+  }
+
+  /**
+   * Stop heartbeat
+   */
+  stopHeartbeat() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
@@ -368,28 +403,59 @@ class FHIRWebSocketClient {
   }
 
   /**
-   * Handle subscription response
+   * Notify connection state listeners
    */
-  _handleSubscriptionResponse(data) {
+  notifyConnectionListeners(state, data = null) {
+    this.connectionListeners.forEach(callback => {
+      try {
+        callback(state, data);
+      } catch (error) {
+        // Error in connection listener
+      }
+    });
+  }
+
+  /**
+   * Manually reconnect
+   */
+  reconnect() {
+    this.disconnect();
+    this.reconnectAttempts = 0;
+    this.connect();
+  }
+
+  /**
+   * Disconnect from server
+   */
+  disconnect() {
+    this.stopHeartbeat();
     
+    if (this.ws) {
+      this.ws.close(1000, 'Client disconnect');
+      this.ws = null;
+    }
+    
+    this.isConnected = false;
+    this.messageQueue = [];
+    this.reconnectAttempts = 0;
   }
 
   /**
-   * Get connection status
+   * Get connection state
    */
-  get connected() {
-    return this.isConnected;
-  }
-
-  /**
-   * Get client ID
-   */
-  get id() {
-    return this.clientId;
+  getConnectionState() {
+    return {
+      isConnected: this.isConnected,
+      reconnectAttempts: this.reconnectAttempts,
+      queuedMessages: this.messageQueue.length
+    };
   }
 }
 
 // Create singleton instance
-const websocketClient = new FHIRWebSocketClient();
+const websocketService = new WebSocketService();
 
-export default websocketClient;
+// Export service and helper function
+export default websocketService;
+
+export const getWebSocketConnection = () => websocketService;

@@ -89,13 +89,13 @@ const ProviderAccountabilityPanel = ({
             performed: await providerAccountabilityService.getProviderResults(patientId, provider.reference, 'performed')
           };
         } catch (error) {
-          console.error(`Error loading results for provider ${provider.id}:`, error);
+          // Error loading results for provider - defaulting to empty results
           resultCounts[provider.id] = { total: 0, ordered: [], performed: [] };
         }
       }
       setProviderResults(resultCounts);
     } catch (error) {
-      console.error('Error loading patient providers:', error);
+      // Error loading patient providers - component will show empty state
     } finally {
       setLoading(false);
     }
@@ -128,7 +128,7 @@ const ProviderAccountabilityPanel = ({
         });
         onResultsUpdate(results);
       } catch (error) {
-        console.error('Error filtering by provider:', error);
+        // Error filtering by provider - keeping current results
       } finally {
         setLoading(false);
       }
@@ -151,7 +151,7 @@ const ProviderAccountabilityPanel = ({
       });
       onResultsUpdate(results);
     } catch (error) {
-      console.error('Error filtering by provider type:', error);
+      // Error filtering by provider type - keeping current results
     } finally {
       setLoading(false);
     }

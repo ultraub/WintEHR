@@ -636,7 +636,7 @@ const CDSAlertsPanel = ({
                   </Typography>
                   <List>
                     {selectedAlert.suggestions.map((suggestion, index) => (
-                      <ListItem key={index} sx={{ pl: 0 }}>
+                      <ListItem key={`suggestion-${suggestion.label?.substring(0, 20) || ''}-${index}`} sx={{ pl: 0 }}>
                         <ListItemIcon>
                           <SuggestionIcon color="primary" />
                         </ListItemIcon>

@@ -32,12 +32,14 @@ import {
   Assignment as AssignmentIcon
 } from '@mui/icons-material';
 import { debounce } from 'lodash';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { searchService } from '../services/searchService';
 import { getPatientDetailUrl } from '../core/navigation/navigationUtils';
+import { useTheme } from '@mui/material/styles';
 
 const SearchBar = ({ compact = false }) => {
   const navigate = useNavigate();
+  const theme = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState({
     patients: [],
@@ -283,14 +285,17 @@ const SearchBar = ({ compact = false }) => {
             p: '2px 4px',
             display: 'flex',
             alignItems: 'center',
-            backgroundColor: alpha('#000', 0.02),
+            backgroundColor: 'background.paper',
             border: 1,
             borderColor: 'divider',
+            transition: 'all 0.2s ease',
             '&:hover': {
-              backgroundColor: alpha('#000', 0.04),
+              backgroundColor: alpha(theme.palette.primary.main, 0.08),
+              borderColor: theme.palette.primary.main,
             },
             '&:focus-within': {
-              backgroundColor: 'background.paper',
+              backgroundColor: alpha(theme.palette.primary.main, 0.12),
+              borderColor: theme.palette.primary.main,
               boxShadow: 1,
             }
           }}

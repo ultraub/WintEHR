@@ -42,7 +42,13 @@ import {
   alpha,
   Tabs,
   Tab,
-  Snackbar
+  Snackbar,
+  ToggleButton,
+  ToggleButtonGroup,
+  Collapse,
+  Avatar,
+  AvatarGroup,
+  Skeleton
 } from '@mui/material';
 import {
   Medication as PharmacyIcon,
@@ -68,13 +74,16 @@ import {
   People as PeopleIcon,
   CheckCircle as ApprovedIcon,
   History as HistoryIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Timeline as TimelineIcon,
+  ViewModule as ViewModuleIcon,
+  ViewList as ViewListIcon
 } from '@mui/icons-material';
-import { format, parseISO, isWithinInterval, subDays, addDays } from 'date-fns';
+import { format, parseISO, isWithinInterval, subDays, addDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../core/export/printUtils';
 import { getMedicationDosageDisplay, getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
-import { fhirClient } from '../../../../services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { medicationListManagementService } from '../../../../services/medicationListManagementService';
 import { prescriptionRefillService } from '../../../../services/prescriptionRefillService';
 import { medicationDispenseService } from '../../../../services/medicationDispenseService';
@@ -85,6 +94,45 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 import EnhancedDispenseDialog from './components/EnhancedDispenseDialog';
 import AdministrationDialog from './components/AdministrationDialog';
 import MedicationAdministrationRecord from '../../pharmacy/MedicationAdministrationRecord';
+// Import shared clinical components
+import { 
+  ClinicalResourceCard,
+  ClinicalSummaryCard,
+  ClinicalFilterPanel,
+  ClinicalDataGrid,
+  ClinicalEmptyState,
+  ClinicalLoadingState
+} from '../../shared';
+import { MedicationCardTemplate } from '../../shared/templates';
+// Removed framer-motion for consistency with harmonized components
+
+// Custom hook for density - simplified version
+const useDensity = (defaultDensity = 'comfortable') => {
+  const [density, setDensity] = useState(defaultDensity);
+  return [density, setDensity];
+};
+
+// Helper function to get status color for chips
+const getStatusColor = (status) => {
+  const statusMap = {
+    'active': 'primary',
+    'pending': 'warning',
+    'completed': 'success',
+    'cancelled': 'error',
+    'on-hold': 'warning',
+    'draft': 'default'
+  };
+  return statusMap[status] || 'default';
+};
+
+// Helper function to format date consistently
+const formatDate = (dateString) => {
+  try {
+    return format(parseISO(dateString), 'MMM d, yyyy');
+  } catch {
+    return 'Unknown date';
+  }
+};
 
 // Medication status definitions
 const MEDICATION_STATUSES = {
@@ -107,14 +155,11 @@ const PHARMACY_STATUSES = {
   'completed': { label: 'Completed', color: 'success', priority: 5 }
 };
 
-// Medication Request Card Component
-const MedicationRequestCard = ({ medicationRequest, onStatusChange, onDispense, onViewDetails }) => {
+// Medication Request Card Component using shared clinical components
+const MedicationRequestCard = ({ medicationRequest, onStatusChange, onDispense, onViewDetails, isAlternate = false, relatedDispenses = [] }) => {
   const theme = useTheme();
-  const [anchorEl, setAnchorEl] = useState(null);
   
-  const getMedicationNameLocal = () => {
-    return getMedicationName(medicationRequest);
-  };
+  const medicationName = getMedicationName(medicationRequest);
 
   const getDosageInstruction = () => {
     const dosage = medicationRequest.dosageInstruction?.[0];
@@ -140,13 +185,13 @@ const MedicationRequestCard = ({ medicationRequest, onStatusChange, onDispense, 
   };
 
   const getPharmacyStatus = () => {
-    // This would typically come from a pharmacy system
-    // For demo, derive from medication status and dates
     const status = medicationRequest.status;
     const authoredDate = medicationRequest.authoredOn;
     
     if (status === 'completed') return 'completed';
     if (status === 'cancelled' || status === 'stopped') return 'completed';
+    if (relatedDispenses.some(d => d.status === 'completed')) return 'dispensed';
+    if (relatedDispenses.some(d => d.status === 'in-progress')) return 'verified';
     if (authoredDate && isWithinInterval(parseISO(authoredDate), {
       start: subDays(new Date(), 1),
       end: new Date()
@@ -155,165 +200,97 @@ const MedicationRequestCard = ({ medicationRequest, onStatusChange, onDispense, 
     return 'verified';
   };
 
+  const getSeverity = () => {
+    const status = medicationRequest.status;
+    if (status === 'cancelled' || status === 'stopped') return 'high';
+    if (status === 'on-hold') return 'moderate';
+    if (getPharmacyStatus() === 'pending') return 'moderate';
+    return 'normal';
+  };
+
+  const getRefillInfo = () => {
+    const totalRefills = medicationRequest.dispenseRequest?.numberOfRepeatsAllowed || 0;
+    const usedRefills = relatedDispenses.filter(d => d.status === 'completed').length;
+    const remainingRefills = Math.max(0, totalRefills - usedRefills + 1);
+    
+    return {
+      total: totalRefills,
+      used: usedRefills,
+      remaining: remainingRefills,
+      lastFilled: relatedDispenses.length > 0 ? 
+        relatedDispenses[0].whenHandedOver || relatedDispenses[0].whenPrepared : null
+    };
+  };
+
   const pharmacyStatus = getPharmacyStatus();
   const statusInfo = MEDICATION_STATUSES[medicationRequest.status] || MEDICATION_STATUSES.unknown;
   const pharmacyStatusInfo = PHARMACY_STATUSES[pharmacyStatus];
+  const refillInfo = getRefillInfo();
+
+  // Calculate metrics
+  // Actions for the card
+  const actions = [];
+  if (pharmacyStatus === 'pending') {
+    actions.push({
+      label: 'Verify',
+      onClick: () => onStatusChange(medicationRequest.id, 'verified')
+    });
+  }
+  if (pharmacyStatus === 'verified') {
+    actions.push({
+      label: 'Dispense',
+      onClick: () => onDispense(medicationRequest),
+      variant: 'contained',
+      color: 'primary'
+    });
+  }
+  
+  // Additional details
+  const details = [
+    { label: 'Prescriber', value: medicationRequest.requester?.display || 'Unknown Provider' },
+    { label: 'Date', value: medicationRequest.authoredOn ? format(parseISO(medicationRequest.authoredOn), 'MMM d, yyyy') : 'No date' },
+    { label: 'Refills', value: `${refillInfo.remaining}/${refillInfo.total}` },
+    { label: 'Status', value: pharmacyStatusInfo.label }
+  ];
 
   return (
-    <Card sx={{ mb: 2 }}>
-      <CardHeader
-        avatar={<PharmacyIcon color="primary" />}
-        title={
-          <Typography variant="h6" component="div">
-            {getMedicationNameLocal()}
-          </Typography>
-        }
-        subheader={
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Chip 
-              icon={statusInfo.icon}
-              label={statusInfo.label} 
-              size="small" 
-              color={statusInfo.color}
+    <ClinicalResourceCard
+      title={medicationName}
+      severity={getSeverity()}
+      status={statusInfo.label}
+      statusColor={statusInfo.color}
+      icon={<PharmacyIcon />}
+      details={details}
+      onEdit={() => onViewDetails(medicationRequest)}
+      actions={actions}
+      isAlternate={isAlternate}
+      metadata={
+        <Stack direction="row" spacing={1}>
+          <Chip
+            label={pharmacyStatusInfo.label}
+            size="small"
+            color={pharmacyStatusInfo.color}
+            sx={{ borderRadius: '4px' }}
+          />
+          {refillInfo.remaining === 0 && (
+            <Chip
+              label="No refills"
+              size="small"
+              color="error"
+              sx={{ borderRadius: '4px' }}
             />
-            <Chip 
-              label={pharmacyStatusInfo.label} 
-              size="small" 
-              color={pharmacyStatusInfo.color}
-              variant="outlined"
-            />
-          </Stack>
-        }
-        action={
-          <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
-            <MoreIcon />
-          </IconButton>
-        }
-      />
-      
-      <CardContent>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <Typography variant="caption" color="text.secondary">
-              Dosage Instructions
-            </Typography>
-            <Typography variant="body2">
-              {getDosageInstruction()}
-            </Typography>
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <Typography variant="caption" color="text.secondary">
-              Prescriber
-            </Typography>
-            <Typography variant="body2">
-              {medicationRequest.requester?.display || 'Unknown Provider'}
-            </Typography>
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <Typography variant="caption" color="text.secondary">
-              Date Prescribed
-            </Typography>
-            <Typography variant="body2">
-              {medicationRequest.authoredOn ? 
-                format(parseISO(medicationRequest.authoredOn), 'MMM d, yyyy h:mm a') : 
-                'No date'}
-            </Typography>
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <Typography variant="caption" color="text.secondary">
-              Quantity
-            </Typography>
-            <Typography variant="body2">
-              {medicationRequest.dispenseRequest?.quantity?.value || 'Not specified'} {medicationRequest.dispenseRequest?.quantity?.unit || ''}
-            </Typography>
-          </Grid>
-          
-          {medicationRequest.note && medicationRequest.note.length > 0 && (
-            <Grid item xs={12}>
-              <Typography variant="caption" color="text.secondary">
-                Notes
-              </Typography>
-              <Typography variant="body2">
-                {medicationRequest.note[0].text}
-              </Typography>
-            </Grid>
           )}
-        </Grid>
-      </CardContent>
-      
-      <CardActions>
-        {pharmacyStatus === 'pending' && (
-          <Button 
-            size="small" 
-            startIcon={<FilledIcon />}
-            onClick={() => onStatusChange(medicationRequest.id, 'verified')}
-            color="primary"
-          >
-            Verify
-          </Button>
-        )}
-        
-        {pharmacyStatus === 'verified' && (
-          <Button 
-            size="small" 
-            startIcon={<DispenseIcon />}
-            onClick={() => onDispense(medicationRequest)}
-            color="success"
-          >
-            Dispense
-          </Button>
-        )}
-        
-        <Button 
-          size="small" 
-          startIcon={<InfoIcon />}
-          onClick={() => onViewDetails(medicationRequest)}
-        >
-          Details
-        </Button>
-        
-        <Button 
-          size="small" 
-          startIcon={<PrintIcon />}
-        >
-          Print Label
-        </Button>
-      </CardActions>
-      
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={() => setAnchorEl(null)}
-      >
-        <MenuItem onClick={() => setAnchorEl(null)}>
-          <EditIcon sx={{ mr: 1 }} />
-          Edit Prescription
-        </MenuItem>
-        <MenuItem onClick={() => setAnchorEl(null)}>
-          <QrCodeIcon sx={{ mr: 1 }} />
-          Generate QR Code
-        </MenuItem>
-        <MenuItem onClick={() => setAnchorEl(null)}>
-          <InventoryIcon sx={{ mr: 1 }} />
-          Check Inventory
-        </MenuItem>
-      </Menu>
-    </Card>
+        </Stack>
+      }
+    />
   );
 };
 
 // Refill Request Card Component
-const RefillRequestCard = ({ refillRequest, onApprove, onReject, onViewDetails }) => {
-  const theme = useTheme();
-  const [anchorEl, setAnchorEl] = useState(null);
-
-  const getMedicationNameLocal = () => {
-    return getMedicationName(refillRequest);
-  };
-
+const RefillRequestCard = ({ refillRequest, onApprove, onReject, onViewDetails, isAlternate = false }) => {
+  const medicationName = getMedicationName(refillRequest);
+  const refillInfo = refillRequest.refillInfo || {};
+  
   const getPatientName = () => {
     if (refillRequest.patient) {
       const patient = refillRequest.patient;
@@ -322,145 +299,48 @@ const RefillRequestCard = ({ refillRequest, onApprove, onReject, onViewDetails }
     return 'Unknown Patient';
   };
 
-  const getRefillInfo = () => {
-    return refillRequest.refillInfo || {};
-  };
+  const details = [
+    { label: 'Patient', value: getPatientName() },
+    { label: 'Request Date', value: refillRequest.authoredOn ? format(parseISO(refillRequest.authoredOn), 'MMM d, yyyy') : 'Unknown' },
+    { label: 'Refill #', value: refillInfo.refillNumber || 'N/A' },
+    { label: 'Method', value: refillInfo.requestMethod || 'Unknown' }
+  ];
 
-  const refillInfo = getRefillInfo();
+  const actions = [
+    {
+      label: 'Approve',
+      onClick: () => onApprove(refillRequest.id),
+      color: 'success'
+    },
+    {
+      label: 'Reject',
+      onClick: () => onReject(refillRequest.id),
+      color: 'error'
+    }
+  ];
 
   return (
-    <Card sx={{ mb: 2, border: refillInfo.urgent ? `2px solid ${theme.palette.error.main}` : undefined }}>
-      <CardHeader
-        avatar={<RefreshIcon color="warning" />}
-        title={
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Typography variant="h6" component="div">
-              {getMedicationNameLocal()}
-            </Typography>
-            {refillInfo.urgent && (
-              <Chip label="URGENT" color="error" size="small" />
-            )}
-          </Stack>
-        }
-        subheader={
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Chip 
-              label={`Refill #${refillInfo.refillNumber || 'N/A'}`} 
-              size="small" 
-              color="info"
-            />
-            <Typography variant="caption" color="text.secondary">
-              via {refillInfo.requestMethod || 'unknown'}
-            </Typography>
-          </Stack>
-        }
-        action={
-          <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
-            <MoreIcon />
-          </IconButton>
-        }
-      />
-      
-      <CardContent>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <Typography variant="caption" color="text.secondary">
-              Patient
-            </Typography>
-            <Typography variant="body2">
-              {getPatientName()}
-            </Typography>
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <Typography variant="caption" color="text.secondary">
-              Original Prescription
-            </Typography>
-            <Typography variant="body2">
-              {refillRequest.originalPrescription ? 
-                format(parseISO(refillRequest.originalPrescription.authoredOn), 'MMM d, yyyy') : 
-                'Unknown'}
-            </Typography>
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <Typography variant="caption" color="text.secondary">
-              Request Date
-            </Typography>
-            <Typography variant="body2">
-              {format(parseISO(refillRequest.authoredOn), 'MMM d, yyyy h:mm a')}
-            </Typography>
-          </Grid>
-          
-          <Grid item xs={12} md={6}>
-            <Typography variant="caption" color="text.secondary">
-              Requested By
-            </Typography>
-            <Typography variant="body2">
-              {refillInfo.requestedBy || 'Unknown'}
-            </Typography>
-          </Grid>
-          
-          {refillRequest.note && refillRequest.note.some(note => note.text.includes('Patient notes:')) && (
-            <Grid item xs={12}>
-              <Typography variant="caption" color="text.secondary">
-                Patient Notes
-              </Typography>
-              <Typography variant="body2">
-                {refillRequest.note.find(note => note.text.includes('Patient notes:'))?.text.replace('Patient notes: ', '')}
-              </Typography>
-            </Grid>
-          )}
-        </Grid>
-      </CardContent>
-      
-      <CardActions>
-        <Button 
-          size="small" 
-          startIcon={<ApprovedIcon />}
-          onClick={() => onApprove(refillRequest.id)}
-          color="success"
-        >
-          Approve
-        </Button>
-        
-        <Button 
-          size="small" 
-          startIcon={<CancelIcon />}
-          onClick={() => onReject(refillRequest.id)}
-          color="error"
-        >
-          Reject
-        </Button>
-        
-        <Button 
-          size="small" 
-          startIcon={<InfoIcon />}
-          onClick={() => onViewDetails(refillRequest)}
-        >
-          Details
-        </Button>
-      </CardActions>
-      
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={() => setAnchorEl(null)}
-      >
-        <MenuItem onClick={() => setAnchorEl(null)}>
-          <EditIcon sx={{ mr: 1 }} />
-          Edit Request
-        </MenuItem>
-        <MenuItem onClick={() => setAnchorEl(null)}>
-          <HistoryIcon sx={{ mr: 1 }} />
-          View History
-        </MenuItem>
-        <MenuItem onClick={() => setAnchorEl(null)}>
-          <PrintIcon sx={{ mr: 1 }} />
-          Print Request
-        </MenuItem>
-      </Menu>
-    </Card>
+    <ClinicalResourceCard
+      title={medicationName}
+      severity={refillInfo.urgent ? 'critical' : 'moderate'}
+      status="Refill Request"
+      statusColor="warning"
+      icon={<RefreshIcon />}
+      details={details}
+      onEdit={() => onViewDetails(refillRequest)}
+      actions={actions}
+      isAlternate={isAlternate}
+      metadata={
+        refillInfo.urgent && (
+          <Chip
+            label="URGENT"
+            size="small"
+            color="error"
+            sx={{ borderRadius: 1 }}
+          />
+        )
+      }
+    />
   );
 };
 
@@ -506,18 +386,62 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
   if (!medicationRequest) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="sm" 
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 0 } }}
+    >
+      <DialogTitle sx={{ fontWeight: 600, borderBottom: 1, borderColor: 'divider' }}>
         Dispense Medication
       </DialogTitle>
       
-      <DialogContent>
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="h6" gutterBottom>
+      <DialogContent sx={{ p: 3 }}>
+        <Box>
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'primary.main' }}>
             {getMedicationName(medicationRequest)}
           </Typography>
           
-          <Grid container spacing={2}>
+          {/* Prescription Details */}
+          <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', border: 1, borderColor: 'divider', borderRadius: 0 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={6}>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  <strong>Prescriber</strong>
+                </Typography>
+                <Typography variant="body2">
+                  {medicationRequest.requester?.display || 'Unknown'}
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  <strong>Date Prescribed</strong>
+                </Typography>
+                <Typography variant="body2">
+                  {medicationRequest.authoredOn ? format(parseISO(medicationRequest.authoredOn), 'MMM d, yyyy') : 'Unknown'}
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  <strong>Dosage</strong>
+                </Typography>
+                <Typography variant="body2">
+                  {medicationRequest.dosageInstruction?.[0]?.text || 'See instructions'}
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  <strong>Quantity Prescribed</strong>
+                </Typography>
+                <Typography variant="body2">
+                  {medicationRequest.dispenseRequest?.quantity?.value || 'Not specified'} {medicationRequest.dispenseRequest?.quantity?.unit || ''}
+                </Typography>
+              </Grid>
+            </Grid>
+          </Box>
+          
+          <Grid container spacing={3}>
             <Grid item xs={12} sm={6}>
               <TextField
                 label="Quantity to Dispense"
@@ -531,8 +455,10 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
                     <InputAdornment position="end">
                       {medicationRequest.dispenseRequest?.quantity?.unit || 'units'}
                     </InputAdornment>
-                  )
+                  ),
+                  sx: { borderRadius: 0 }
                 }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
               />
             </Grid>
             
@@ -543,6 +469,7 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
                 onChange={(e) => setLotNumber(e.target.value)}
                 fullWidth
                 required
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
               />
             </Grid>
             
@@ -557,6 +484,7 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
                 InputLabelProps={{
                   shrink: true,
                 }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
               />
             </Grid>
             
@@ -569,6 +497,7 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
                 multiline
                 rows={3}
                 placeholder="Any additional notes or instructions..."
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
               />
             </Grid>
           </Grid>
@@ -576,11 +505,12 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
       </DialogContent>
       
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose} sx={{ borderRadius: 0 }}>Cancel</Button>
         <Button 
           onClick={handleDispense} 
           variant="contained"
           disabled={!quantity || !lotNumber || !expirationDate}
+          sx={{ borderRadius: 0 }}
         >
           Dispense Medication
         </Button>
@@ -589,9 +519,9 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
   );
 };
 
-const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
+const PharmacyTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
   const theme = useTheme();
-  const { getPatientResources, isLoading, currentPatient, refreshPatientResources } = useFHIRResource();
+  const { getPatientResources, isLoading, currentPatient, refreshPatientResources, resources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
   
   // Enhanced medication hooks
@@ -601,11 +531,15 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   const [administrationDialogOpen, setAdministrationDialogOpen] = useState(false);
   const [administrationMode, setAdministrationMode] = useState('administer');
   
+  const [viewMode, setViewMode] = useState('timeline'); // 'timeline', 'cards', 'table'
   const [tabValue, setTabValue] = useState(0);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPharmacyStatus, setFilterPharmacyStatus] = useState('all');
+  const [filterPeriod, setFilterPeriod] = useState('6m'); // all, 1m, 3m, 6m, 1y
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [expandedCards, setExpandedCards] = useState(new Set());
+  const [density, setDensity] = useDensity('comfortable');
   const [dispenseDialogOpen, setDispenseDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [patientFilter, setPatientFilter] = useState('current'); // 'all' or 'current'
@@ -653,6 +587,60 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
     return getPatientResources(patientId, 'MedicationRequest') || [];
   }, [getPatientResources, patientId, patientFilter]);
 
+  // Get all medication-related resources for timeline
+  const allMedicationResources = useMemo(() => {
+    const allResources = [];
+    
+    // Add medication requests
+    medicationRequests.forEach(req => {
+      allResources.push({
+        ...req,
+        resourceType: 'MedicationRequest',
+        date: req.authoredOn || req.meta?.lastUpdated
+      });
+    });
+    
+    // Add medication dispenses
+    dispenses.forEach(dispense => {
+      allResources.push({
+        ...dispense,
+        resourceType: 'MedicationDispense',
+        date: dispense.whenHandedOver || dispense.whenPrepared || dispense.meta?.lastUpdated
+      });
+    });
+    
+    // Add medication administrations
+    administrations.forEach(admin => {
+      allResources.push({
+        ...admin,
+        resourceType: 'MedicationAdministration',
+        date: admin.effectiveDateTime || admin.effectivePeriod?.start || admin.meta?.lastUpdated
+      });
+    });
+    
+    // Add medication-related observations (drug levels, etc.)
+    const observations = Object.values(resources.Observation || {}).filter(obs => 
+      (obs.subject?.reference === `Patient/${patientId}` ||
+       obs.patient?.reference === `Patient/${patientId}`) &&
+      obs.code?.coding?.some(c => 
+        c.system === 'http://loinc.org' && 
+        (c.code?.includes('drug') || c.code?.includes('medication'))
+      )
+    );
+    
+    observations.forEach(obs => {
+      allResources.push({
+        ...obs,
+        resourceType: 'Observation',
+        date: obs.effectiveDateTime || obs.issued || obs.meta?.lastUpdated
+      });
+    });
+    
+    return allResources.sort((a, b) => 
+      new Date(b.date || 0) - new Date(a.date || 0)
+    );
+  }, [medicationRequests, dispenses, administrations, resources, patientId]);
+
   // Enhanced categorization with dispense information
   const categorizedRequests = useMemo(() => {
     const pending = [];
@@ -693,7 +681,15 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
 
   // Filter requests based on current filters
   const filteredRequests = useMemo(() => {
-    let requests = medicationRequests;
+    let requests = medicationRequests.map(req => {
+      // Attach related dispenses to each request
+      const relatedDispenses = dispenses.filter(dispense => 
+        dispense.authorizingPrescription?.some(prescription => 
+          prescription.reference === `MedicationRequest/${req.id}`
+        )
+      );
+      return { ...req, relatedDispenses };
+    });
     
     // Filter by medication status
     if (filterStatus !== 'all') {
@@ -702,7 +698,6 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
     
     // Filter by pharmacy status
     if (filterPharmacyStatus !== 'all') {
-      // This would be more sophisticated with actual pharmacy status
       if (filterPharmacyStatus === 'pending') {
         requests = requests.filter(req => 
           req.authoredOn && isWithinInterval(parseISO(req.authoredOn), {
@@ -710,7 +705,25 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
             end: new Date()
           })
         );
+      } else if (filterPharmacyStatus === 'dispensed') {
+        requests = requests.filter(req => 
+          req.relatedDispenses.some(d => d.status === 'completed')
+        );
       }
+    }
+    
+    // Filter by period
+    if (filterPeriod !== 'all') {
+      const periodMap = {
+        '1m': subMonths(new Date(), 1),
+        '3m': subMonths(new Date(), 3),
+        '6m': subMonths(new Date(), 6),
+        '1y': subMonths(new Date(), 12)
+      };
+      const startDate = periodMap[filterPeriod];
+      requests = requests.filter(req => 
+        req.authoredOn && new Date(req.authoredOn) >= startDate
+      );
     }
     
     // Filter by search term
@@ -727,7 +740,60 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
       const dateB = new Date(b.authoredOn || 0);
       return dateB - dateA;
     });
-  }, [medicationRequests, filterStatus, filterPharmacyStatus, searchTerm]);
+  }, [medicationRequests, filterStatus, filterPharmacyStatus, filterPeriod, searchTerm, dispenses]);
+
+  // Prepare metrics for MetricsBar
+  const pharmacyMetrics = useMemo(() => [
+    {
+      label: 'Pending Review',
+      value: categorizedRequests.pending.length,
+      icon: <PendingIcon />,
+      color: 'warning',
+      severity: categorizedRequests.pending.length > 5 ? 'high' : 'normal'
+    },
+    {
+      label: 'Verified',
+      value: categorizedRequests.verified.length,
+      icon: <FilledIcon />,
+      color: 'info'
+    },
+    {
+      label: 'Ready for Pickup',
+      value: categorizedRequests.dispensed.length,
+      icon: <DispenseIcon />,
+      color: 'primary',
+      severity: categorizedRequests.dispensed.length > 10 ? 'moderate' : 'normal'
+    },
+    {
+      label: 'Completed',
+      value: categorizedRequests.completed.length,
+      icon: <DoneIcon />,
+      color: 'success',
+      progress: (categorizedRequests.completed.length / Math.max(medicationRequests.length, 1)) * 100
+    },
+    {
+      label: 'Refill Requests',
+      value: pendingRefills.length,
+      icon: <RefreshIcon />,
+      color: pendingRefills.length > 0 ? 'error' : 'default',
+      severity: pendingRefills.length > 3 ? 'high' : 'normal'
+    }
+  ], [categorizedRequests, medicationRequests.length, pendingRefills.length]);
+
+  // Handle card expansion toggle
+  const handleToggleCardExpand = useCallback((requestId, expanded) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (expanded) {
+        newSet.add(requestId);
+      } else {
+        newSet.delete(requestId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Import required icons that may be missing
 
   // Handle status changes
   const handleStatusChange = useCallback(async (requestId, newStatus) => {
@@ -1082,173 +1148,87 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
     });
   }, [tabValue, currentRequests, patientFilter, currentPatient]);
 
+  if (isLoading) {
+    return <ClinicalLoadingState type="pharmacy" />;
+  }
+
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Stack direction="row" alignItems="center" spacing={2}>
-          <Typography variant="h5" fontWeight="bold">
-            Pharmacy Management
+      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="caption" color="text.secondary">
+            {medicationRequests.length} prescriptions • {dispenses.length} dispenses
           </Typography>
-          {currentPatient && patientFilter === 'current' && (
-            <Chip
-              icon={<PatientIcon />}
-              label={`${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`}
-              color="primary"
-              variant="outlined"
-            />
-          )}
+          <Stack direction="row" spacing={1}>
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(e, newMode) => newMode && setViewMode(newMode)}
+              size="small"
+              sx={{ '& .MuiToggleButton-root': { borderRadius: 0 } }}
+            >
+              <ToggleButton value="timeline">
+                <TimelineIcon sx={{ fontSize: 20 }} />
+              </ToggleButton>
+              <ToggleButton value="cards">
+                <ViewModuleIcon sx={{ fontSize: 20 }} />
+              </ToggleButton>
+            </ToggleButtonGroup>
+            {currentPatient && patientFilter === 'current' && (
+              <Chip
+                icon={<PatientIcon />}
+                label={`${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`}
+                color="primary"
+                variant="outlined"
+                size="small"
+              />
+            )}
+          </Stack>
         </Stack>
-        <Stack direction="row" spacing={2}>
-          <Button
-            variant="outlined"
-            startIcon={<InventoryIcon />}
-          >
-            Check Inventory
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-          >
-            Manual Entry
-          </Button>
+
+        {/* Summary Cards */}
+        <Stack direction="row" spacing={2} sx={{ mb: 2, overflowX: 'auto' }}>
+          <ClinicalSummaryCard
+            title="Pending Review"
+            value={categorizedRequests.pending.length}
+            severity={categorizedRequests.pending.length > 5 ? 'high' : 'normal'}
+            icon={<PendingIcon />}
+            chips={categorizedRequests.pending.length > 0 ? [
+              { label: 'Action needed', color: 'warning' }
+            ] : []}
+          />
+          <ClinicalSummaryCard
+            title="Verified"
+            value={categorizedRequests.verified.length}
+            severity="normal"
+            icon={<FilledIcon />}
+          />
+          <ClinicalSummaryCard
+            title="Ready for Pickup"
+            value={categorizedRequests.dispensed.length}
+            severity={categorizedRequests.dispensed.length > 10 ? 'moderate' : 'normal'}
+            icon={<DispenseIcon />}
+          />
+          <ClinicalSummaryCard
+            title="Refill Requests"
+            value={pendingRefills.length}
+            severity={pendingRefills.length > 3 ? 'high' : 'normal'}
+            icon={<RefreshIcon />}
+            chips={pendingRefills.length > 0 ? [
+              { label: 'Pending', color: 'error' }
+            ] : []}
+          />
         </Stack>
-      </Stack>
 
-      {/* Pharmacy Queue Summary */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Pharmacy Queue Status
-        </Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={3}>
-            <Card sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1) }}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <Badge badgeContent={categorizedRequests.pending.length} color="warning">
-                  <PendingIcon color="warning" sx={{ fontSize: 40 }} />
-                </Badge>
-                <Typography variant="h6" color="warning.main">
-                  Pending Review
-                </Typography>
-                {patientFilter === 'current' && (
-                  <Typography variant="caption" color="text.secondary">
-                    Current patient
-                  </Typography>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-          
-          <Grid item xs={12} sm={3}>
-            <Card sx={{ bgcolor: alpha(theme.palette.info.main, 0.1) }}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <Badge badgeContent={categorizedRequests.verified.length} color="info">
-                  <FilledIcon color="info" sx={{ fontSize: 40 }} />
-                </Badge>
-                <Typography variant="h6" color="info.main">
-                  Verified
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          
-          <Grid item xs={12} sm={3}>
-            <Card sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <Badge badgeContent={categorizedRequests.dispensed.length} color="primary">
-                  <DispenseIcon color="primary" sx={{ fontSize: 40 }} />
-                </Badge>
-                <Typography variant="h6" color="primary.main">
-                  Ready for Pickup
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          
-          <Grid item xs={12} sm={3}>
-            <Card sx={{ bgcolor: alpha(theme.palette.success.main, 0.1) }}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <Badge badgeContent={categorizedRequests.completed.length} color="success">
-                  <DoneIcon color="success" sx={{ fontSize: 40 }} />
-                </Badge>
-                <Typography variant="h6" color="success.main">
-                  Completed
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </Paper>
-
-      {/* Pharmacy Workflow Tabs */}
-      <Paper sx={{ mb: 3 }}>
-        <Tabs 
-          value={tabValue} 
-          onChange={(e, newValue) => setTabValue(newValue)}
-          variant="fullWidth"
-        >
-          <Tab 
-            label="Pending Review" 
-            icon={
-              <Badge badgeContent={categorizedRequests.pending.length} color="warning">
-                <PendingIcon />
-              </Badge>
-            }
-            iconPosition="start"
-          />
-          <Tab 
-            label="Verified" 
-            icon={
-              <Badge badgeContent={categorizedRequests.verified.length} color="info">
-                <FilledIcon />
-              </Badge>
-            }
-            iconPosition="start"
-          />
-          <Tab 
-            label="Ready for Pickup" 
-            icon={
-              <Badge badgeContent={categorizedRequests.dispensed.length} color="primary">
-                <DispenseIcon />
-              </Badge>
-            }
-            iconPosition="start"
-          />
-          <Tab 
-            label="Completed" 
-            icon={
-              <Badge badgeContent={categorizedRequests.completed.length} color="success">
-                <DoneIcon />
-              </Badge>
-            }
-            iconPosition="start"
-          />
-          <Tab 
-            label="Refill Requests" 
-            icon={
-              <Badge badgeContent={pendingRefills.length} color="warning">
-                <RefreshIcon />
-              </Badge>
-            }
-            iconPosition="start"
-          />
-          <Tab 
-            label="Medication Administration (MAR)" 
-            icon={<PharmacyIcon />}
-            iconPosition="start"
-          />
-        </Tabs>
-      </Paper>
-
-      {/* Filters */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
+        {/* Quick Filters */}
+        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
           <TextField
             placeholder="Search medications..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             size="small"
-            sx={{ flex: 1 }}
+            sx={{ width: 300 }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -1258,101 +1238,405 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
             }}
           />
           
-          {/* Patient Filter Toggle */}
-          <Stack direction="row" spacing={1} alignItems="center">
-            <IconButton
-              size="small"
-              onClick={() => setPatientFilter('current')}
-              color={patientFilter === 'current' ? 'primary' : 'default'}
-            >
-              <Tooltip title="Current Patient">
-                <PatientIcon />
-              </Tooltip>
-            </IconButton>
-            <IconButton
-              size="small"
-              onClick={() => setPatientFilter('all')}
-              color={patientFilter === 'all' ? 'primary' : 'default'}
-            >
-              <Tooltip title="All Patients">
-                <PeopleIcon />
-              </Tooltip>
-            </IconButton>
-          </Stack>
-          
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Status</InputLabel>
+          <ToggleButtonGroup
+            value={filterPharmacyStatus}
+            exclusive
+            onChange={(e, value) => value && setFilterPharmacyStatus(value)}
+            size="small"
+            sx={{ '& .MuiToggleButton-root': { borderRadius: 0 } }}
+          >
+            <ToggleButton value="all">
+              All Status
+            </ToggleButton>
+            <ToggleButton value="pending">
+              <PendingIcon fontSize="small" sx={{ mr: 0.5 }} />
+              Pending
+            </ToggleButton>
+            <ToggleButton value="dispensed">
+              <DispenseIcon fontSize="small" sx={{ mr: 0.5 }} />
+              Dispensed
+            </ToggleButton>
+          </ToggleButtonGroup>
+
+          <ToggleButtonGroup
+            value={filterPeriod}
+            exclusive
+            onChange={(e, value) => value && setFilterPeriod(value)}
+            size="small"
+            sx={{ '& .MuiToggleButton-root': { borderRadius: 0 } }}
+          >
+            <ToggleButton value="1m">1M</ToggleButton>
+            <ToggleButton value="3m">3M</ToggleButton>
+            <ToggleButton value="6m">6M</ToggleButton>
+            <ToggleButton value="1y">1Y</ToggleButton>
+            <ToggleButton value="all">All</ToggleButton>
+          </ToggleButtonGroup>
+
+          <FormControl size="small" sx={{ minWidth: 120 }}>
             <Select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              label="Status"
+              value={patientFilter}
+              onChange={(e) => setPatientFilter(e.target.value)}
+              displayEmpty
+              sx={{ borderRadius: 0 }}
             >
-              <MenuItem value="all">All Statuses</MenuItem>
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="on-hold">On Hold</MenuItem>
-              <MenuItem value="completed">Completed</MenuItem>
-              <MenuItem value="cancelled">Cancelled</MenuItem>
+              <MenuItem value="current">
+                <PatientIcon fontSize="small" sx={{ mr: 0.5 }} />
+                Current Patient
+              </MenuItem>
+              <MenuItem value="all">
+                <PeopleIcon fontSize="small" sx={{ mr: 0.5 }} />
+                All Patients
+              </MenuItem>
             </Select>
           </FormControl>
 
           <Button
             variant="outlined"
+            size="small"
             startIcon={<PrintIcon />}
             onClick={handlePrintQueue}
+            sx={{ borderRadius: 0 }}
           >
-            Print Queue
+            Print
           </Button>
         </Stack>
-      </Paper>
+      </Box>
 
-      {/* Medication Requests List */}
-      {tabValue === 5 ? (
-        // Render MAR (Medication Administration Record)
-        <MedicationAdministrationRecord
-          patientId={patientId}
-          onAdministrationComplete={(type, medicationRequestId) => {
-            setSnackbar({
-              open: true,
-              message: `Medication ${type} recorded successfully`,
-              severity: type === 'administered' ? 'success' : 'info'
-            });
-          }}
-          currentUser={{ id: 'current-user', name: 'Current User' }} // In real app, get from auth context
-        />
-      ) : currentRequests.length === 0 ? (
-        <Alert severity="info">
-          {patientFilter === 'current' && currentPatient
-            ? `No ${tabValue === 4 ? 'refill requests' : 'medication requests'} in this category for ${currentPatient.name?.[0]?.given?.join(' ') || ''} ${currentPatient.name?.[0]?.family || ''}`
-            : `No ${tabValue === 4 ? 'refill requests' : 'medication requests'} in this category`
-          }
-        </Alert>
-      ) : (
-        <Box>
-          {tabValue === 4 ? (
-            // Render refill requests
-            currentRequests.map((refillRequest) => (
-              <RefillRequestCard
-                key={refillRequest.id}
-                refillRequest={refillRequest}
-                onApprove={handleApproveRefill}
-                onReject={handleRejectRefill}
-                onViewDetails={handleViewDetails}
-              />
-            ))
+      {/* Main Content Area */}
+      <Box sx={{ flex: 1, overflow: 'auto' }}>
+        {/* Workflow Tabs */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs 
+            value={tabValue} 
+            onChange={(e, newValue) => setTabValue(newValue)}
+            variant="scrollable"
+            scrollButtons="auto"
+          >
+            <Tab 
+              label="All Medications" 
+              icon={<PharmacyIcon />}
+              iconPosition="start"
+            />
+            <Tab 
+              label="Pending Review" 
+              icon={
+                <Badge badgeContent={categorizedRequests.pending.length} color="warning">
+                  <PendingIcon />
+                </Badge>
+              }
+              iconPosition="start"
+            />
+            <Tab 
+              label="Ready to Dispense" 
+              icon={
+                <Badge badgeContent={categorizedRequests.verified.length} color="info">
+                  <FilledIcon />
+                </Badge>
+              }
+              iconPosition="start"
+            />
+            <Tab 
+              label="Dispensed" 
+              icon={
+                <Badge badgeContent={categorizedRequests.dispensed.length} color="primary">
+                  <DispenseIcon />
+                </Badge>
+              }
+              iconPosition="start"
+            />
+            <Tab 
+              label="Refills" 
+              icon={
+                <Badge badgeContent={pendingRefills.length} color="error">
+                  <RefreshIcon />
+                </Badge>
+              }
+              iconPosition="start"
+            />
+            <Tab 
+              label="MAR" 
+              icon={<PrescriptionIcon />}
+              iconPosition="start"
+            />
+          </Tabs>
+        </Box>
+
+        {/* Content */}
+        <Box sx={{ p: 2 }}>
+          {tabValue === 5 ? (
+            // Render MAR (Medication Administration Record)
+            <MedicationAdministrationRecord
+              patientId={patientId}
+              onAdministrationComplete={(type, medicationRequestId) => {
+                setSnackbar({
+                  open: true,
+                  message: `Medication ${type} recorded successfully`,
+                  severity: type === 'administered' ? 'success' : 'info'
+                });
+              }}
+              currentUser={{ id: 'current-user', name: 'Current User' }}
+            />
+          ) : viewMode === 'timeline' ? (
+            // Timeline view - simplified without ResourceTimeline component
+            <Box>
+              <Typography variant="h6" gutterBottom sx={{ p: 2 }}>
+                Medication Timeline
+              </Typography>
+              <List>
+                {allMedicationResources
+                  .filter(r => {
+                    // Apply tab filters
+                    if (tabValue === 0) return true; // All medications
+                    
+                    if (r.resourceType === 'MedicationRequest') {
+                      switch (tabValue) {
+                        case 1: return categorizedRequests.pending.some(p => p.id === r.id);
+                        case 2: return categorizedRequests.verified.some(v => v.id === r.id);
+                        case 3: return categorizedRequests.dispensed.some(d => d.id === r.id);
+                        case 4: return pendingRefills.some(ref => ref.id === r.id);
+                        default: return true;
+                      }
+                    }
+                    return true; // Show all related resources
+                  })
+                  .map((resource, index) => {
+                    const resourceTypeConfig = {
+                      MedicationRequest: { icon: <PrescriptionIcon />, color: 'primary.main', label: 'Prescription' },
+                      MedicationDispense: { icon: <DispenseIcon />, color: 'success.main', label: 'Dispensed' },
+                      MedicationAdministration: { icon: <PharmacyIcon />, color: 'info.main', label: 'Administered' },
+                      Observation: { icon: <InfoIcon />, color: 'warning.main', label: 'Lab Result' }
+                    };
+                    const config = resourceTypeConfig[resource.resourceType] || { icon: <InfoIcon />, color: 'grey.500', label: resource.resourceType };
+                    
+                    return (
+                      <ListItem
+                        key={`${resource.resourceType}-${resource.id}`}
+                        button
+                        onClick={() => {
+                          if (resource.resourceType === 'MedicationRequest') {
+                            handleViewDetails(resource);
+                          }
+                        }}
+                        sx={{
+                          mb: 1,
+                          border: 1,
+                          borderColor: 'divider',
+                          borderRadius: 0,
+                          borderLeft: 4,
+                          borderLeftColor: config.color,
+                          backgroundColor: index % 2 === 0 ? 'grey.50' : 'background.paper',
+                          '&:hover': {
+                            backgroundColor: 'action.hover',
+                            transform: 'translateX(2px)',
+                            transition: 'all 0.2s'
+                          }
+                        }}
+                      >
+                        <ListItemIcon>
+                          {config.icon}
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={getMedicationName(resource)}
+                          secondary={
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Typography variant="caption">
+                                {config.label}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                • {resource.date ? format(parseISO(resource.date), 'MMM d, yyyy h:mm a') : 'No date'}
+                              </Typography>
+                            </Stack>
+                          }
+                        />
+                        <ListItemSecondaryAction>
+                          <Chip
+                            label={resource.status || 'Unknown'}
+                            size="small"
+                            sx={{ borderRadius: 1 }}
+                          />
+                        </ListItemSecondaryAction>
+                      </ListItem>
+                    );
+                  })}
+              </List>
+            </Box>
+          ) : viewMode === 'cards' ? (
+            // Cards view
+            <Box>
+              {(() => {
+                const requests = tabValue === 0 ? filteredRequests :
+                                 tabValue === 1 ? categorizedRequests.pending :
+                                 tabValue === 2 ? categorizedRequests.verified :
+                                 tabValue === 3 ? categorizedRequests.dispensed :
+                                 tabValue === 4 ? pendingRefills : [];
+                
+                if (requests.length === 0) {
+                  return (
+                    <ClinicalEmptyState
+                      message="No medications in this category"
+                      icon={<PharmacyIcon />}
+                    />
+                  );
+                }
+                
+                return (
+                  <Stack spacing={1}>
+                    {requests.map((request, index) => (
+                      <Box key={request.id}>
+                        {tabValue === 4 ? (
+                          <RefillRequestCard
+                            refillRequest={request}
+                            onApprove={handleApproveRefill}
+                            onReject={handleRejectRefill}
+                            onViewDetails={handleViewDetails}
+                            isAlternate={index % 2 === 1}
+                          />
+                        ) : (
+                          <MedicationRequestCard
+                            medicationRequest={request}
+                            onStatusChange={handleStatusChange}
+                            onDispense={handleOpenDispenseDialog}
+                            onViewDetails={handleViewDetails}
+                            density={density}
+                            expanded={expandedCards.has(request.id)}
+                            onToggleExpand={handleToggleCardExpand}
+                            relatedDispenses={request.relatedDispenses || []}
+                            isAlternate={index % 2 === 1}
+                          />
+                        )}
+                      </Box>
+                    ))}
+                  </Stack>
+                );
+              })()}
+            </Box>
           ) : (
-            // Render regular medication requests
-            currentRequests.map((request) => (
-              <MedicationRequestCard
-                key={request.id}
-                medicationRequest={request}
-                onStatusChange={handleStatusChange}
-                onDispense={handleOpenDispenseDialog}
-                onViewDetails={handleViewDetails}
-              />
-            ))
+            // Table view using ClinicalDataGrid
+            <ClinicalDataGrid
+              columns={[
+                {
+                  field: 'medication',
+                  headerName: 'Medication',
+                  flex: 2,
+                  renderCell: (params) => (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <PharmacyIcon fontSize="small" color="primary" />
+                      <Typography variant="body2">
+                        {getMedicationName(params.row)}
+                      </Typography>
+                    </Stack>
+                  )
+                },
+                {
+                  field: 'dosage',
+                  headerName: 'Dosage',
+                  flex: 1.5,
+                  valueGetter: (params) => getMedicationDosageDisplay(params.row)
+                },
+                {
+                  field: 'status',
+                  headerName: 'Status',
+                  flex: 1,
+                  renderCell: (params) => {
+                    const statusInfo = MEDICATION_STATUSES[params.row.status] || MEDICATION_STATUSES.unknown;
+                    return (
+                      <Chip
+                        icon={statusInfo.icon}
+                        label={statusInfo.label}
+                        size="small"
+                        color={statusInfo.color}
+                        sx={{ borderRadius: 1 }}
+                      />
+                    );
+                  }
+                },
+                {
+                  field: 'refills',
+                  headerName: 'Refills',
+                  flex: 0.8,
+                  renderCell: (params) => {
+                    const totalRefills = params.row.dispenseRequest?.numberOfRepeatsAllowed || 0;
+                    const usedRefills = params.row.relatedDispenses?.filter(d => d.status === 'completed').length || 0;
+                    const remaining = Math.max(0, totalRefills - usedRefills + 1);
+                    return (
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <Typography variant="body2">
+                          {remaining}/{totalRefills}
+                        </Typography>
+                        {remaining === 0 && (
+                          <AlertIcon fontSize="small" color="error" />
+                        )}
+                      </Stack>
+                    );
+                  }
+                },
+                {
+                  field: 'prescriber',
+                  headerName: 'Prescriber',
+                  flex: 1.5,
+                  valueGetter: (params) => params.row.requester?.display || 'Unknown'
+                },
+                {
+                  field: 'date',
+                  headerName: 'Date',
+                  flex: 1,
+                  valueGetter: (params) => params.row.authoredOn || '',
+                  valueFormatter: (params) => 
+                    params.value ? format(parseISO(params.value), 'MMM d, yyyy') : 'N/A'
+                },
+                {
+                  field: 'actions',
+                  headerName: 'Actions',
+                  flex: 1,
+                  sortable: false,
+                  align: 'right',
+                  renderCell: (params) => (
+                    <Stack direction="row" spacing={1}>
+                      {params.row.status === 'active' && 
+                       !params.row.relatedDispenses?.some(d => d.status === 'completed') && (
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDispenseDialog(params.row);
+                          }}
+                          title="Dispense"
+                        >
+                          <DispenseIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewDetails(params.row);
+                        }}
+                        title="View details"
+                      >
+                        <InfoIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  )
+                }
+              ]}
+              rows={(() => {
+                const requests = tabValue === 0 ? filteredRequests :
+                                 tabValue === 1 ? categorizedRequests.pending :
+                                 tabValue === 2 ? categorizedRequests.verified :
+                                 tabValue === 3 ? categorizedRequests.dispensed :
+                                 tabValue === 4 ? pendingRefills : [];
+                return requests.map(r => ({ ...r, id: r.id || `med-${Math.random()}` }));
+              })()}
+              onRowClick={(params) => handleViewDetails(params.row)}
+              pageSize={10}
+              initialSort={[{ field: 'date', sort: 'desc' }]}
+            />
           )}
         </Box>
-      )}
+      </Box>
+
+      {/* Removed Floating Action Button - functionality moved to header buttons */}
 
       {/* Enhanced Dispense Dialog */}
       <EnhancedDispenseDialog
@@ -1423,7 +1707,7 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDetailsDialogOpen(false)}>Close</Button>
+          <Button onClick={() => setDetailsDialogOpen(false)} sx={{ borderRadius: 0 }}>Close</Button>
         </DialogActions>
       </Dialog>
 
@@ -1458,4 +1742,4 @@ const PharmacyTab = ({ patientId, onNotificationUpdate }) => {
   );
 };
 
-export default PharmacyTab;
+export default React.memo(PharmacyTab);

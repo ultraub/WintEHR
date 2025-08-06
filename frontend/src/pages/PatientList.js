@@ -15,13 +15,13 @@ import {
   DialogContent,
   Tabs,
   Tab,
-  Badge,
   Tooltip,
   CircularProgress,
   TablePagination,
   LinearProgress,
   Stack
 } from '@mui/material';
+import SafeBadge from '../components/common/SafeBadge';
 import {
   Search as SearchIcon,
   Add as AddIcon,
@@ -32,7 +32,7 @@ import {
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { format } from 'date-fns';
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import PatientForm from '../components/PatientForm';
 import { getPatientDetailUrl } from '../core/navigation/navigationUtils';
 import { debounce } from 'lodash';
@@ -134,14 +134,20 @@ function PatientList() {
         fetchAllPatients(0, pageSize, '').finally(() => setInitialLoadComplete(true));
       }
     }
-  }, [activeTab]); // Keep minimal dependencies
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Missing deps: fetchAllPatients, fetchMyPatients, initialLoadComplete, pageSize
+  // Adding them would cause infinite loops since they trigger state updates
+  // activeTab is sufficient to track tab changes
   
   // Separate effect for handling page/pageSize changes (only for All Patients tab)
   useEffect(() => {
     if (activeTab === 1 && initialLoadComplete) {
       fetchAllPatients(page, pageSize, searchTerm);
     }
-  }, [page, pageSize, initialLoadComplete]); // Add initialLoadComplete guard
+  }, [page, pageSize, initialLoadComplete]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Missing deps: activeTab, fetchAllPatients, searchTerm
+  // This effect only runs for All Patients tab (activeTab === 1) after initial load
+  // Dependencies are carefully selected to prevent re-fetching loops
 
   const fetchMyPatients = async () => {
     try {
@@ -304,6 +310,7 @@ function PatientList() {
       setAllPatients(transformedPatients);
       setError(null);
     } catch (err) {
+      console.error('Error fetching patients:', err);
       setError('Failed to load patient directory');
     } finally {
       setLoading(false);
@@ -495,9 +502,9 @@ function PatientList() {
           <Tab 
             icon={<PeopleIcon />} 
             label={
-              <Badge badgeContent={myPatientsCount} color="primary">
+              <SafeBadge badgeContent={myPatientsCount} color="primary">
                 My Patients
-              </Badge>
+              </SafeBadge>
             }
             iconPosition="start"
           />
@@ -571,7 +578,7 @@ function PatientList() {
             sx={{
               '& .MuiDataGrid-row:hover': {
                 cursor: 'pointer',
-                backgroundColor: 'rgba(233, 30, 99, 0.04)',
+                backgroundColor: (theme) => theme.palette.action.hover,
               },
             }}
           />

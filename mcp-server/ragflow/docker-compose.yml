@@ -1,0 +1,115 @@
+version: '3.8'
+services:
+  ragflow:
+    image: ${RAGFLOW_IMAGE:-infiniflow/ragflow:v0.19.1-slim}
+    container_name: ragflow-server
+    ports:
+      - "${SVR_HTTP_PORT:-9380}:9380"
+      - "80:80"
+    env_file:
+      - .env
+    environment:
+      - TZ=${TIMEZONE:-UTC}
+    volumes:
+      - ./ragflow-logs:/ragflow/logs
+      - ./service_conf.yaml.template:/ragflow/conf/service_conf.yaml.template
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - ragflow
+
+  mysql:
+    image: mysql:8.0
+    container_name: ragflow-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-rag_flow}
+      MYSQL_USER: ${MYSQL_USER:-ragflow}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ragflow
+    restart: on-failure
+
+  minio:
+    image: minio/minio
+    container_name: ragflow-minio
+    command: server /data --console-address ":${MINIO_CONSOLE_PORT:-9001}"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - ragflow
+    restart: on-failure
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: ragflow-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ragflow
+    restart: on-failure
+
+  elasticsearch:
+    image: elasticsearch:${STACK_VERSION:-8.11.3}
+    container_name: ragflow-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "${ES_PORT:-1200}:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ragflow
+    restart: on-failure
+
+volumes:
+  mysql-data:
+  minio-data:
+  redis-data:
+  es-data:
+
+networks:
+  ragflow:
+    driver: bridge

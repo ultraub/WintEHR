@@ -3,7 +3,7 @@
  * Links documentation to active problems and medications with cross-referencing
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { noteTemplatesService } from './noteTemplatesService';
 
 export class ClinicalDocumentationLinkingService {

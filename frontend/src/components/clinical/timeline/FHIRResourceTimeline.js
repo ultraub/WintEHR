@@ -24,7 +24,8 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Grid
+  Grid,
+  useTheme
 } from '@mui/material';
 import {
   LocalHospital as EncounterIcon,
@@ -43,64 +44,69 @@ import {
   Timeline as TimelineViewIcon
 } from '@mui/icons-material';
 import { format, subMonths } from 'date-fns';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
+import { getChartColors } from '../../../themes/chartColors';
 
 // Resource configuration for icons and colors
-const RESOURCE_CONFIG = {
-  Encounter: {
-    icon: EncounterIcon,
-    color: '#1976d2',
-    label: 'Encounter',
-    description: 'Hospital visits and appointments'
-  },
-  Observation: {
-    icon: LabIcon,
-    color: '#388e3c',
-    label: 'Observation',
-    description: 'Lab results and vital signs'
-  },
-  MedicationRequest: {
-    icon: MedicationIcon,
-    color: '#f57c00',
-    label: 'Medication',
-    description: 'Medication orders and prescriptions'
-  },
-  Procedure: {
-    icon: ProcedureIcon,
-    color: '#7b1fa2',
-    label: 'Procedure',
-    description: 'Medical procedures performed'
-  },
-  AllergyIntolerance: {
-    icon: AllergyIcon,
-    color: '#d32f2f',
-    label: 'Allergy',
-    description: 'Allergies and intolerances'
-  },
-  Condition: {
-    icon: ConditionIcon,
-    color: '#e64a19',
-    label: 'Condition',
-    description: 'Diagnoses and conditions'
-  },
-  Immunization: {
-    icon: ImmunizationIcon,
-    color: '#00796b',
-    label: 'Immunization',
-    description: 'Vaccines and immunizations'
-  },
-  DocumentReference: {
-    icon: DocumentIcon,
-    color: '#5d4037',
-    label: 'Document',
-    description: 'Clinical documents and notes'
-  },
-  ImagingStudy: {
-    icon: ImagingIcon,
-    color: '#455a64',
-    label: 'Imaging',
-    description: 'Radiology and imaging studies'
-  }
+const RESOURCE_CONFIG = (theme) => {
+  const chartColors = getChartColors(theme);
+  
+  return {
+    Encounter: {
+      icon: EncounterIcon,
+      color: chartColors.timeline.Encounter,
+      label: 'Encounter',
+      description: 'Hospital visits and appointments'
+    },
+    Observation: {
+      icon: LabIcon,
+      color: chartColors.timeline.Observation,
+      label: 'Observation',
+      description: 'Lab results and vital signs'
+    },
+    MedicationRequest: {
+      icon: MedicationIcon,
+      color: chartColors.timeline.MedicationRequest,
+      label: 'Medication',
+      description: 'Medication orders and prescriptions'
+    },
+    Procedure: {
+      icon: ProcedureIcon,
+      color: chartColors.timeline.Procedure,
+      label: 'Procedure',
+      description: 'Medical procedures performed'
+    },
+    AllergyIntolerance: {
+      icon: AllergyIcon,
+      color: chartColors.timeline.AllergyIntolerance,
+      label: 'Allergy',
+      description: 'Allergies and intolerances'
+    },
+    Condition: {
+      icon: ConditionIcon,
+      color: chartColors.timeline.Condition,
+      label: 'Condition',
+      description: 'Diagnoses and conditions'
+    },
+    Immunization: {
+      icon: ImmunizationIcon,
+      color: chartColors.timeline.Immunization,
+      label: 'Immunization',
+      description: 'Vaccines and immunizations'
+    },
+    DocumentReference: {
+      icon: DocumentIcon,
+      color: chartColors.timeline.DiagnosticReport,
+      label: 'Document',
+      description: 'Clinical documents and notes'
+    },
+    ImagingStudy: {
+      icon: ImagingIcon,
+      color: chartColors.timeline.CarePlan,
+      label: 'Imaging',
+      description: 'Radiology and imaging studies'
+    }
+  };
 };
 
 // Helper functions - defined early for use in components
@@ -187,6 +193,7 @@ const getResourceSummary = (resource) => {
 
 // Custom Timeline Components
 const CustomTimelineItem = ({ resource, config, isLast, onToggleDetails, showDetails }) => {
+  const theme = useTheme();
   const resourceDate = getResourceDate(resource);
   const Icon = config.icon;
 
@@ -212,7 +219,7 @@ const CustomTimelineItem = ({ resource, config, isLast, onToggleDetails, showDet
             sx={{ 
               width: 2, 
               height: 60, 
-              bgcolor: 'grey.300', 
+              bgcolor: theme.palette.divider, 
               mt: 1 
             }} 
           />
@@ -250,7 +257,7 @@ const CustomTimelineItem = ({ resource, config, isLast, onToggleDetails, showDet
         </Card>
 
         <Collapse in={showDetails}>
-          <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+          <Paper sx={{ p: 2, bgcolor: theme.palette.action.hover }}>
             <Typography variant="caption" color="text.secondary" gutterBottom>
               FHIR Resource Details
             </Typography>
@@ -265,6 +272,7 @@ const CustomTimelineItem = ({ resource, config, isLast, onToggleDetails, showDet
 };
 
 const FHIRResourceTimeline = ({ patientId, height = '600px' }) => {
+  const theme = useTheme();
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -276,6 +284,9 @@ const FHIRResourceTimeline = ({ patientId, height = '600px' }) => {
   ]);
   const [expandedItems, setExpandedItems] = useState({});
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Get theme-aware resource config
+  const resourceConfig = RESOURCE_CONFIG(theme);
 
   // Fetch all FHIR resources for the patient
   useEffect(() => {
@@ -289,7 +300,7 @@ const FHIRResourceTimeline = ({ patientId, height = '600px' }) => {
         const allResources = [];
         
         // Resource types to fetch
-        const resourceTypes = Object.keys(RESOURCE_CONFIG);
+        const resourceTypes = Object.keys(resourceConfig);
         
         for (const resourceType of resourceTypes) {
           try {
@@ -350,7 +361,7 @@ const FHIRResourceTimeline = ({ patientId, height = '600px' }) => {
     };
 
     fetchResources();
-  }, [patientId]);
+  }, [patientId, resourceConfig]);
 
   // Filter resources based on settings
   const filteredResources = useMemo(() => {
@@ -463,7 +474,7 @@ const FHIRResourceTimeline = ({ patientId, height = '600px' }) => {
 
       {/* Filters */}
       <Collapse in={showFilters}>
-        <Box sx={{ p: 2, bgcolor: 'grey.50', borderBottom: 1, borderColor: 'divider' }}>
+        <Box sx={{ p: 2, bgcolor: theme.palette.action.hover, borderBottom: 1, borderColor: 'divider' }}>
           <Grid container spacing={2}>
             <Grid item xs={12} md={6}>
               <TextField
@@ -486,7 +497,7 @@ const FHIRResourceTimeline = ({ patientId, height = '600px' }) => {
                 Resource Types
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap">
-                {Object.entries(RESOURCE_CONFIG).map(([type, config]) => (
+                {Object.entries(resourceConfig).map(([type, config]) => (
                   <Chip
                     key={type}
                     label={config.label}
@@ -509,9 +520,9 @@ const FHIRResourceTimeline = ({ patientId, height = '600px' }) => {
           // Timeline View
           <Box>
             {filteredResources.map((resource, index) => {
-              const config = RESOURCE_CONFIG[resource._resourceType] || {
+              const config = resourceConfig[resource._resourceType] || {
                 icon: DocumentIcon,
-                color: '#666',
+                color: theme.palette.text.secondary,
                 label: resource._resourceType
               };
 
@@ -537,9 +548,9 @@ const FHIRResourceTimeline = ({ patientId, height = '600px' }) => {
                 </Typography>
                 <List>
                   {resources.map((resource) => {
-                    const config = RESOURCE_CONFIG[resource._resourceType] || {
+                    const config = resourceConfig[resource._resourceType] || {
                       icon: DocumentIcon,
-                      color: '#666',
+                      color: theme.palette.text.secondary,
                       label: resource._resourceType
                     };
                     const Icon = config.icon;

@@ -21,13 +21,8 @@ import {
   TableHead,
   TableRow,
   IconButton,
-  Tooltip,
   Button,
   Stack,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -54,25 +49,17 @@ import {
   CheckCircle as SuccessIcon,
   Info as InfoIcon,
   Refresh as RefreshIcon,
-  Timeline as TimelineIcon,
   ExpandMore as ExpandMoreIcon,
   Visibility as ViewIcon,
-  GetApp as ExportIcon,
-  Settings as SettingsIcon,
   Storage as StorageIcon,
   Security as SecurityIcon,
-  Speed as PerformanceIcon,
-  BugReport as BugIcon,
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   Link as LinkIcon,
-  Code as CodeIcon,
   Assessment as AssessmentIcon
 } from '@mui/icons-material';
-import { format, subHours, subDays, subMonths } from 'date-fns';
+import { format } from 'date-fns';
 import { useFHIRResource } from '../../contexts/FHIRResourceContext';
-import { validateResource } from '../../core/fhir/validators/fhirValidation';
-import { fhirClient } from '../../services/fhirClient';
 
 // Data integrity checks
 const integrityChecks = [

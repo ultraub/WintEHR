@@ -102,9 +102,17 @@ class MasterBuildOrchestrator:
                 "name": "generate_synthea_data",
                 "description": "Generate synthetic patient data with Synthea",
                 "script": "synthea_master.py",
-                "args": ["full", "--count", "20"],
+                "args": ["full", "--count", str(self.args.patient_count)],
                 "required": True,
                 "estimated_time": 600
+            },
+            {
+                "name": "index_search_parameters",
+                "description": "Index search parameters for all FHIR resources",
+                "script": "consolidated_search_indexing.py",
+                "args": ["--mode", "index"],
+                "required": True,
+                "estimated_time": 180
             },
             {
                 "name": "enhance_fhir_data",
@@ -131,6 +139,30 @@ class MasterBuildOrchestrator:
                 "estimated_time": 90
             },
             {
+                "name": "populate_compartments",
+                "description": "Populate patient compartments for efficient queries",
+                "script": "../setup/populate_compartments.py",
+                "args": [],
+                "required": True,
+                "estimated_time": 60
+            },
+            {
+                "name": "populate_references",
+                "description": "Populate FHIR resource references table",
+                "script": "../setup/populate_references_urn_uuid.py",
+                "args": [],
+                "required": True,
+                "estimated_time": 90
+            },
+            {
+                "name": "fix_cds_hooks_schema",
+                "description": "Fix CDS hooks schema if needed",
+                "script": "../migrations/fix_cds_hooks_enabled_column.py",
+                "args": [],
+                "required": False,
+                "estimated_time": 30
+            },
+            {
                 "name": "generate_dicom_images",
                 "description": "Generate DICOM images for imaging studies",
                 "script": "generate_dicom_for_studies.py",
@@ -154,7 +186,11 @@ class MasterBuildOrchestrator:
             "initialize_database", 
             "run_migrations",
             "generate_synthea_data",
+            "index_search_parameters",
             "enhance_fhir_data",
+            "populate_compartments",
+            "populate_references",
+            "fix_cds_hooks_schema",
             "final_validation"
         ]
 
@@ -273,12 +309,15 @@ class MasterBuildOrchestrator:
         try:
             logger.info(f"🔧 Executing: {' '.join(cmd)}")
             
-            # Execute the script
+            # Execute the script with proper environment
+            env = os.environ.copy()
+            env['PYTHONPATH'] = '/app'
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=script_path.parent
+                cwd=script_path.parent,
+                env=env
             )
             
             stdout, stderr = await process.communicate()

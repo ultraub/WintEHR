@@ -91,6 +91,8 @@ class DefinitiveDatabaseInitializer:
             logger.info("🧹 Cleaning up any existing schema...")
             await self.connection.execute("""
                 -- Drop all FHIR tables if they exist
+                DROP TABLE IF EXISTS fhir.audit_logs CASCADE;
+                DROP TABLE IF EXISTS fhir.compartments CASCADE;
                 DROP TABLE IF EXISTS fhir.references CASCADE;
                 DROP TABLE IF EXISTS fhir.resource_history CASCADE;
                 DROP TABLE IF EXISTS fhir.search_params CASCADE;
@@ -114,7 +116,7 @@ class DefinitiveDatabaseInitializer:
                 CREATE TABLE fhir.resources (
                     id BIGSERIAL PRIMARY KEY,
                     resource_type VARCHAR(255) NOT NULL,
-                fhir_id VARCHAR(255) NOT NULL,
+                fhir_id VARCHAR(255) NOT NULL UNIQUE,
                 version_id INTEGER NOT NULL DEFAULT 1,
                 last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 resource JSONB NOT NULL,
@@ -189,6 +191,113 @@ class DefinitiveDatabaseInitializer:
                     ON DELETE CASCADE
             );
             
+            -- Create compartments table for Patient/$everything operations
+            CREATE TABLE fhir.compartments (
+                id BIGSERIAL PRIMARY KEY,
+                compartment_type VARCHAR(50) NOT NULL,
+                compartment_id VARCHAR(255) NOT NULL,
+                resource_id BIGINT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Foreign key
+                CONSTRAINT fk_compartments_resource 
+                    FOREIGN KEY (resource_id) 
+                    REFERENCES fhir.resources(id) 
+                    ON DELETE CASCADE,
+                
+                -- Ensure uniqueness
+                CONSTRAINT compartments_unique 
+                    UNIQUE (compartment_type, compartment_id, resource_id)
+            );
+            
+            -- Create audit_logs table for FHIR operation auditing
+            CREATE TABLE fhir.audit_logs (
+                id BIGSERIAL PRIMARY KEY,
+                resource_type VARCHAR(50),
+                resource_id VARCHAR(255),
+                operation VARCHAR(20) NOT NULL,
+                user_id VARCHAR(255),
+                ip_address VARCHAR(45),
+                user_agent TEXT,
+                request_id VARCHAR(255),
+                http_method VARCHAR(10),
+                url_path TEXT,
+                query_params TEXT,
+                request_body TEXT,
+                response_status INTEGER,
+                response_body TEXT,
+                error_message TEXT,
+                duration_ms INTEGER,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- Create organizations table (referenced by providers)
+            CREATE TABLE IF NOT EXISTS auth.organizations (
+                id VARCHAR PRIMARY KEY,
+                synthea_id VARCHAR UNIQUE,
+                name VARCHAR NOT NULL,
+                type VARCHAR,
+                address VARCHAR,
+                city VARCHAR,
+                state VARCHAR,
+                zip_code VARCHAR,
+                phone VARCHAR,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            
+            -- Create providers table for authentication and clinical assignments
+            CREATE TABLE IF NOT EXISTS auth.providers (
+                id VARCHAR PRIMARY KEY,
+                synthea_id VARCHAR UNIQUE,
+                npi VARCHAR UNIQUE,
+                dea VARCHAR,
+                state_license VARCHAR,
+                prefix VARCHAR,
+                first_name VARCHAR NOT NULL,
+                middle_name VARCHAR,
+                last_name VARCHAR NOT NULL,
+                suffix VARCHAR,
+                address VARCHAR,
+                city VARCHAR,
+                state VARCHAR,
+                zip_code VARCHAR,
+                phone VARCHAR,
+                email VARCHAR,
+                specialty VARCHAR,
+                organization_id VARCHAR REFERENCES auth.organizations(id),
+                active BOOLEAN DEFAULT TRUE,
+                fhir_json JSONB,
+                fhir_meta JSONB,
+                extensions JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            
+            -- Create user_sessions table for authentication
+            CREATE TABLE IF NOT EXISTS auth.user_sessions (
+                id SERIAL PRIMARY KEY,
+                provider_id VARCHAR REFERENCES auth.providers(id),
+                session_token VARCHAR UNIQUE NOT NULL,
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                last_activity TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            
+            -- Create patient_provider_assignments table
+            CREATE TABLE IF NOT EXISTS auth.patient_provider_assignments (
+                id SERIAL PRIMARY KEY,
+                patient_id VARCHAR NOT NULL,
+                provider_id VARCHAR REFERENCES auth.providers(id),
+                assignment_type VARCHAR,
+                is_active BOOLEAN DEFAULT TRUE,
+                start_date TIMESTAMP WITH TIME ZONE,
+                end_date TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            
             -- Create CDS Hooks configuration table
             CREATE TABLE cds_hooks.hook_configurations (
                 id VARCHAR(255) PRIMARY KEY,
@@ -207,6 +316,79 @@ class DefinitiveDatabaseInitializer:
                 version INTEGER DEFAULT 1,
                 tags JSONB DEFAULT '[]'::jsonb
             );
+            
+            -- Create CDS Hooks feedback table for persistence
+            CREATE TABLE cds_hooks.feedback (
+                id BIGSERIAL PRIMARY KEY,
+                feedback_id UUID DEFAULT gen_random_uuid(),
+                hook_instance_id VARCHAR(255) NOT NULL,
+                service_id VARCHAR(255) NOT NULL,
+                card_uuid VARCHAR(255) NOT NULL,
+                outcome VARCHAR(50) NOT NULL CHECK (outcome IN ('accepted', 'overridden', 'ignored')),
+                override_reason JSONB,
+                accepted_suggestions JSONB,
+                user_id VARCHAR(255),
+                patient_id VARCHAR(255),
+                encounter_id VARCHAR(255),
+                context JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- Create indexes for feedback table
+            CREATE INDEX idx_feedback_service ON cds_hooks.feedback (service_id);
+            CREATE INDEX idx_feedback_patient ON cds_hooks.feedback (patient_id);
+            CREATE INDEX idx_feedback_user ON cds_hooks.feedback (user_id);
+            CREATE INDEX idx_feedback_created ON cds_hooks.feedback (created_at);
+            CREATE INDEX idx_feedback_outcome ON cds_hooks.feedback (outcome);
+            
+            -- Create CDS Hooks feedback analytics table
+            CREATE TABLE cds_hooks.feedback_analytics (
+                id BIGSERIAL PRIMARY KEY,
+                service_id VARCHAR(255) NOT NULL,
+                period_start TIMESTAMP WITH TIME ZONE NOT NULL,
+                period_end TIMESTAMP WITH TIME ZONE NOT NULL,
+                total_cards INT DEFAULT 0,
+                accepted_count INT DEFAULT 0,
+                overridden_count INT DEFAULT 0,
+                ignored_count INT DEFAULT 0,
+                acceptance_rate DECIMAL(5,2),
+                common_override_reasons JSONB,
+                user_patterns JSONB,
+                patient_patterns JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Ensure unique periods per service
+                CONSTRAINT unique_analytics_period UNIQUE (service_id, period_start, period_end)
+            );
+            
+            -- Create indexes for feedback_analytics table
+            CREATE INDEX idx_analytics_service ON cds_hooks.feedback_analytics (service_id);
+            CREATE INDEX idx_analytics_period ON cds_hooks.feedback_analytics (period_start, period_end);
+            CREATE INDEX idx_analytics_created ON cds_hooks.feedback_analytics (created_at);
+            
+            -- Create CDS Hooks execution log table
+            CREATE TABLE IF NOT EXISTS cds_hooks.execution_log (
+                id BIGSERIAL PRIMARY KEY,
+                service_id VARCHAR(255) NOT NULL,
+                hook_type VARCHAR(100) NOT NULL,
+                patient_id VARCHAR(255),
+                user_id VARCHAR(255),
+                context JSONB,
+                request_data JSONB,
+                response_data JSONB,
+                cards_returned INT DEFAULT 0,
+                execution_time_ms INT,
+                success BOOLEAN DEFAULT true,
+                error_message TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- Create indexes for execution_log table
+            CREATE INDEX idx_execution_service ON cds_hooks.execution_log (service_id);
+            CREATE INDEX idx_execution_patient ON cds_hooks.execution_log (patient_id);
+            CREATE INDEX idx_execution_created ON cds_hooks.execution_log (created_at);
+            CREATE INDEX idx_execution_success ON cds_hooks.execution_log (success);
         """)
         
             logger.info("✅ Tables created successfully")
@@ -240,11 +422,33 @@ class DefinitiveDatabaseInitializer:
             CREATE INDEX idx_references_target ON fhir.references(target_type, target_id);
             CREATE INDEX idx_references_path ON fhir.references(reference_path);
             
+            -- Compartments indexes
+            CREATE INDEX idx_compartments_compartment ON fhir.compartments(compartment_type, compartment_id);
+            CREATE INDEX idx_compartments_resource ON fhir.compartments(resource_id);
+            CREATE INDEX idx_compartments_type_id ON fhir.compartments(compartment_type, compartment_id, resource_id);
+            
+            -- Audit logs indexes
+            CREATE INDEX idx_audit_logs_resource ON fhir.audit_logs(resource_type, resource_id);
+            CREATE INDEX idx_audit_logs_operation ON fhir.audit_logs(operation);
+            CREATE INDEX idx_audit_logs_created_at ON fhir.audit_logs(created_at);
+            CREATE INDEX idx_audit_logs_user ON fhir.audit_logs(user_id);
+            
             -- CDS Hooks indexes
             CREATE INDEX idx_hook_configurations_type ON cds_hooks.hook_configurations(hook_type);
             CREATE INDEX idx_hook_configurations_enabled ON cds_hooks.hook_configurations(enabled);
             CREATE INDEX idx_hook_configurations_created_at ON cds_hooks.hook_configurations(created_at);
             CREATE INDEX idx_hook_configurations_updated_at ON cds_hooks.hook_configurations(updated_at);
+            
+            -- Provider and Auth indexes
+            CREATE INDEX idx_provider_name ON auth.providers(last_name, first_name);
+            CREATE INDEX idx_provider_specialty ON auth.providers(specialty);
+            CREATE INDEX idx_provider_org ON auth.providers(organization_id);
+            CREATE INDEX idx_provider_active ON auth.providers(active);
+            CREATE INDEX idx_patient_provider_assignment ON auth.patient_provider_assignments(patient_id, provider_id);
+            CREATE INDEX idx_patient_provider_active ON auth.patient_provider_assignments(is_active);
+            CREATE INDEX idx_user_sessions_token ON auth.user_sessions(session_token);
+            CREATE INDEX idx_user_sessions_active ON auth.user_sessions(is_active);
+            CREATE INDEX idx_user_sessions_expires ON auth.user_sessions(expires_at);
         """)
         
             logger.info("✅ Indexes created successfully")
@@ -262,8 +466,35 @@ class DefinitiveDatabaseInitializer:
             result = await self.connection.fetchval("SELECT COUNT(*) FROM fhir.references")
             logger.info(f"✅ References table accessible (count: {result})")
             
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM fhir.compartments")
+            logger.info(f"✅ Compartments table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM fhir.audit_logs")
+            logger.info(f"✅ Audit logs table accessible (count: {result})")
+            
             result = await self.connection.fetchval("SELECT COUNT(*) FROM cds_hooks.hook_configurations")
-            logger.info(f"✅ CDS Hooks table accessible (count: {result})")
+            logger.info(f"✅ CDS Hooks configurations table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM cds_hooks.feedback")
+            logger.info(f"✅ CDS Hooks feedback table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM cds_hooks.feedback_analytics")
+            logger.info(f"✅ CDS Hooks analytics table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM cds_hooks.execution_log")
+            logger.info(f"✅ CDS Hooks execution log table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM auth.organizations")
+            logger.info(f"✅ Organizations table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM auth.providers")
+            logger.info(f"✅ Providers table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM auth.user_sessions")
+            logger.info(f"✅ User sessions table accessible (count: {result})")
+            
+            result = await self.connection.fetchval("SELECT COUNT(*) FROM auth.patient_provider_assignments")
+            logger.info(f"✅ Patient-provider assignments table accessible (count: {result})")
             
             logger.info("🎉 Database initialization completed successfully!")
             return True
@@ -298,7 +529,7 @@ class DefinitiveDatabaseInitializer:
             """)
             
             existing_tables = [row['table_name'] for row in fhir_tables]
-            expected_tables = ['resources', 'search_params', 'resource_history', 'references']
+            expected_tables = ['resources', 'search_params', 'resource_history', 'references', 'compartments', 'audit_logs']
             missing_tables = set(expected_tables) - set(existing_tables)
             
             if missing_tables:
@@ -312,7 +543,7 @@ class DefinitiveDatabaseInitializer:
             """)
             
             existing_cds_tables = [row['table_name'] for row in cds_tables]
-            expected_cds_tables = ['hook_configurations']
+            expected_cds_tables = ['hook_configurations', 'feedback', 'feedback_analytics', 'execution_log']
             missing_cds_tables = set(expected_cds_tables) - set(existing_cds_tables)
             
             if missing_cds_tables:

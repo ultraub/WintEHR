@@ -3,7 +3,7 @@
  * Handles prescription refill requests, tracking, and workflow management
  */
 
-import { fhirClient } from './fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 import { parseISO, addDays, isAfter } from 'date-fns';
 
 class PrescriptionRefillService {

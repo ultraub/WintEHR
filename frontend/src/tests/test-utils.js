@@ -10,7 +10,6 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { AuthProvider } from '../contexts/AuthContext';
 import { FHIRResourceProvider } from '../contexts/FHIRResourceContext';
 import { ClinicalWorkflowProvider } from '../contexts/ClinicalWorkflowContext';
-import { WebSocketProvider } from '../contexts/WebSocketContext';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -18,31 +17,6 @@ import ErrorBoundary from '../components/ErrorBoundary';
 // Create a default theme for testing
 const theme = createTheme();
 
-// Mock WebSocket for testing
-class MockWebSocket {
-  constructor(url) {
-    this.url = url;
-    this.readyState = WebSocket.OPEN;
-    this.onopen = null;
-    this.onclose = null;
-    this.onerror = null;
-    this.onmessage = null;
-  }
-
-  send(data) {
-    // Mock send - could trigger onmessage with mock response
-  }
-
-  close() {
-    this.readyState = WebSocket.CLOSED;
-    if (this.onclose) {
-      this.onclose();
-    }
-  }
-}
-
-// Replace WebSocket with mock in test environment
-global.WebSocket = MockWebSocket;
 
 // All providers wrapper
 export const AppProviders = ({ children }) => {
@@ -52,13 +26,11 @@ export const AppProviders = ({ children }) => {
         <ThemeProvider theme={theme}>
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <AuthProvider>
-              <WebSocketProvider>
-                <FHIRResourceProvider>
+              <FHIRResourceProvider>
                   <ClinicalWorkflowProvider>
                     {children}
                   </ClinicalWorkflowProvider>
-                </FHIRResourceProvider>
-              </WebSocketProvider>
+              </FHIRResourceProvider>
             </AuthProvider>
           </LocalizationProvider>
         </ThemeProvider>

@@ -1,9 +1,11 @@
 /**
  * Clinical Theme Utilities
  * Advanced theming utilities for clinical contexts and enhanced user experience
+ * Enhanced with modern gradients, shadows, and animations
  */
 
-import { alpha, darken, lighten } from '@mui/material/styles';
+import { darken, lighten, alpha } from '@mui/material/styles';
+import { clinicalTokens } from './clinicalTheme';
 
 // Clinical context detection utilities
 export const getClinicalContext = (location, timeOfDay, department) => {
@@ -62,9 +64,13 @@ export const getClinicalColors = (theme, context) => {
   
   // Apply department-specific colors
   if (theme.clinical?.departments?.[department]) {
+    const deptColor = theme.clinical.departments[department].primary;
+    // Ensure we maintain the full color structure that MUI expects
     colors.primary = {
-      ...colors.primary,
-      main: theme.clinical.departments[department].primary
+      main: deptColor,
+      light: theme.palette.primary?.light || deptColor,
+      dark: theme.palette.primary?.dark || deptColor,
+      contrastText: theme.palette.primary?.contrastText || '#FFFFFF'
     };
     colors.clinical = {
       ...colors.clinical,
@@ -84,8 +90,10 @@ export const getClinicalColors = (theme, context) => {
   // Apply urgency adjustments
   if (urgency === 'urgent') {
     colors.error = {
-      ...colors.error,
-      main: lighten(colors.error.main, 0.1)
+      main: lighten(colors.error.main, 0.1),
+      light: colors.error.light ? lighten(colors.error.light, 0.1) : lighten(colors.error.main, 0.2),
+      dark: colors.error.dark ? lighten(colors.error.dark, 0.1) : colors.error.main,
+      contrastText: colors.error.contrastText || '#FFFFFF'
     };
   }
   
@@ -271,6 +279,279 @@ export const buildClinicalTheme = (baseTheme, clinicalContext) => {
   };
 };
 
+// Apply department-specific theme enhancements
+export const applyDepartmentTheme = (theme, department) => {
+  const deptContext = getDepartmentContext(department);
+  const deptColors = getClinicalColors(theme, { department });
+  
+  // getClinicalColors returns just the colors object, not { palette: colors }
+  // So we need to use deptColors directly
+  return {
+    ...theme,
+    palette: deptColors,
+    clinical: {
+      ...theme.clinical,
+      department: deptContext,
+      currentDepartment: department
+    }
+  };
+};
+
+// Apply shift-based theme adjustments
+export const applyShiftTheme = (theme, shift) => {
+  const shiftContext = getShiftContext(shift);
+  
+  // Adjust brightness and contrast based on shift
+  const adjustments = {
+    day: { brightness: 1, contrast: 1 },
+    night: { brightness: 0.85, contrast: 1.1 },
+    emergency: { brightness: 1.1, contrast: 1.2 }
+  };
+  
+  return {
+    ...theme,
+    clinical: {
+      ...theme.clinical,
+      shift: shiftContext,
+      currentShift: shift
+    }
+  };
+};
+
+// ========== MODERN THEME UTILITIES ==========
+
+/**
+ * Get gradient background for a severity level
+ */
+export const getSeverityGradient = (severity) => {
+  const gradientMap = {
+    critical: clinicalTokens.gradients.severityCritical,
+    high: clinicalTokens.gradients.severityHigh,
+    moderate: clinicalTokens.gradients.severityModerate,
+    low: clinicalTokens.gradients.severityLow,
+    normal: clinicalTokens.gradients.severityNormal
+  };
+  return gradientMap[severity] || gradientMap.normal;
+};
+
+/**
+ * Get modern shadow for elevation
+ */
+export const getElevationShadow = (elevation = 1) => {
+  const shadowMap = {
+    0: 'none',
+    1: clinicalTokens.modernShadows.elevation1,
+    2: clinicalTokens.modernShadows.elevation2,
+    3: clinicalTokens.modernShadows.elevation3,
+    4: clinicalTokens.modernShadows.elevation4
+  };
+  return shadowMap[elevation] || shadowMap[1];
+};
+
+/**
+ * Get colored shadow for theme variant
+ */
+export const getColoredShadow = (color) => {
+  return clinicalTokens.modernShadows[color] || clinicalTokens.modernShadows.xs;
+};
+
+/**
+ * Create a glass morphism effect
+ */
+export const getGlassMorphism = (bgAlpha = 0.7, blur = 10) => ({
+  backgroundColor: alpha('#ffffff', bgAlpha),
+  backdropFilter: `blur(${blur}px)`,
+  border: `1px solid ${alpha('#ffffff', 0.18)}`,
+  boxShadow: clinicalTokens.modernShadows.sm
+});
+
+/**
+ * Create a neumorphic effect
+ */
+export const getNeumorphism = (background = '#f0f0f0', isPressed = false) => ({
+  background,
+  boxShadow: isPressed 
+    ? `inset 2px 2px 5px ${alpha('#000000', 0.15)}, inset -2px -2px 5px ${alpha('#ffffff', 0.7)}`
+    : `5px 5px 10px ${alpha('#000000', 0.15)}, -5px -5px 10px ${alpha('#ffffff', 0.7)}`,
+  transition: 'all 0.2s ease'
+});
+
+/**
+ * Get animation properties
+ */
+export const getAnimation = (preset, customDuration) => {
+  const duration = customDuration || clinicalTokens.animations.duration.normal;
+  const easing = clinicalTokens.animations.easing.easeOut;
+  
+  if (clinicalTokens.animations.presets[preset]) {
+    return clinicalTokens.animations.presets[preset];
+  }
+  
+  return `${preset} ${duration}ms ${easing}`;
+};
+
+/**
+ * Create hover effect styles
+ */
+export const getHoverEffect = (type = 'lift', theme) => {
+  const effects = {
+    lift: {
+      transition: `all ${clinicalTokens.animations.duration.fast}ms ${clinicalTokens.animations.easing.easeOut}`,
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: clinicalTokens.modernShadows.lg
+      }
+    },
+    glow: {
+      transition: `all ${clinicalTokens.animations.duration.normal}ms ${clinicalTokens.animations.easing.easeOut}`,
+      '&:hover': {
+        boxShadow: getColoredShadow('primary')
+      }
+    },
+    scale: {
+      transition: `all ${clinicalTokens.animations.duration.fast}ms ${clinicalTokens.animations.easing.spring}`,
+      '&:hover': {
+        transform: 'scale(1.02)'
+      }
+    },
+    darken: {
+      transition: `all ${clinicalTokens.animations.duration.fast}ms ${clinicalTokens.animations.easing.easeOut}`,
+      '&:hover': {
+        filter: 'brightness(0.95)'
+      }
+    }
+  };
+  
+  return effects[type] || effects.lift;
+};
+
+/**
+ * Create clinical card styles with all enhancements
+ */
+export const getClinicalCardStyles = (severity = 'normal', elevation = 1, hoverable = true) => {
+  const severityConfig = clinicalTokens.severity[severity];
+  
+  return {
+    background: severityConfig.gradient || severityConfig.bg,
+    borderLeft: `4px solid ${severityConfig.borderColor}`,
+    boxShadow: getElevationShadow(elevation),
+    transition: `all ${clinicalTokens.animations.duration.normal}ms ${clinicalTokens.animations.easing.easeOut}`,
+    ...(hoverable && {
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: severityConfig.shadow || clinicalTokens.modernShadows.lg,
+        background: severityConfig.hoverBg
+      }
+    }),
+    ...(severity === 'critical' && {
+      animation: severityConfig.animation
+    })
+  };
+};
+
+/**
+ * Create gradient text effect
+ */
+export const getGradientText = (gradient = 'primary') => ({
+  background: clinicalTokens.gradients[gradient],
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  backgroundClip: 'text',
+  textFillColor: 'transparent'
+});
+
+/**
+ * Create loading skeleton effect
+ */
+export const getSkeletonEffect = () => ({
+  background: `linear-gradient(90deg, 
+    ${alpha('#e0e0e0', 0.8)} 0%, 
+    ${alpha('#f5f5f5', 0.8)} 50%, 
+    ${alpha('#e0e0e0', 0.8)} 100%)`,
+  backgroundSize: '200% 100%',
+  animation: clinicalTokens.animations.presets.shimmer
+});
+
+/**
+ * Get spacing value
+ */
+export const getSpacing = (size = 'md') => {
+  return clinicalTokens.spacing[size] || clinicalTokens.spacing.md;
+};
+
+/**
+ * Get border radius value
+ */
+export const getBorderRadius = (size = 'md') => {
+  return clinicalTokens.borderRadius[size] || clinicalTokens.borderRadius.md;
+};
+
+/**
+ * Create clinical button styles
+ */
+export const getClinicalButtonStyles = (variant = 'primary', size = 'medium') => {
+  const sizeConfig = {
+    small: { padding: '6px 16px', fontSize: '0.875rem' },
+    medium: { padding: '8px 22px', fontSize: '1rem' },
+    large: { padding: '12px 28px', fontSize: '1.125rem' }
+  };
+  
+  const variantConfig = {
+    primary: {
+      background: clinicalTokens.gradients.primary,
+      color: '#ffffff',
+      boxShadow: clinicalTokens.modernShadows.primary,
+      '&:hover': {
+        boxShadow: clinicalTokens.modernShadows.lg,
+        transform: 'translateY(-1px)'
+      }
+    },
+    success: {
+      background: clinicalTokens.gradients.success,
+      color: '#ffffff',
+      boxShadow: clinicalTokens.modernShadows.success,
+      '&:hover': {
+        boxShadow: clinicalTokens.modernShadows.lg,
+        transform: 'translateY(-1px)'
+      }
+    },
+    warning: {
+      background: clinicalTokens.gradients.warning,
+      color: '#ffffff',
+      boxShadow: clinicalTokens.modernShadows.warning,
+      '&:hover': {
+        boxShadow: clinicalTokens.modernShadows.lg,
+        transform: 'translateY(-1px)'
+      }
+    },
+    glass: getGlassMorphism(0.8, 8)
+  };
+  
+  return {
+    ...sizeConfig[size],
+    ...variantConfig[variant],
+    borderRadius: getBorderRadius('md'),
+    border: 'none',
+    fontWeight: 600,
+    textTransform: 'none',
+    transition: `all ${clinicalTokens.animations.duration.fast}ms ${clinicalTokens.animations.easing.easeOut}`,
+    cursor: 'pointer',
+    '&:disabled': {
+      opacity: 0.6,
+      cursor: 'not-allowed'
+    }
+  };
+};
+
+/**
+ * Create smooth transition for component
+ */
+export const getSmoothTransition = (properties = ['all'], duration = 'normal') => ({
+  transition: properties
+    .map(prop => `${prop} ${clinicalTokens.animations.duration[duration]}ms ${clinicalTokens.animations.easing.easeOut}`)
+    .join(', ')
+});
+
 export default {
   getClinicalContext,
   getShiftContext,
@@ -284,5 +565,22 @@ export default {
   getClinicalAnimation,
   getAccessibleColor,
   getContrastRatio,
-  buildClinicalTheme
+  buildClinicalTheme,
+  applyDepartmentTheme,
+  applyShiftTheme,
+  // Modern utilities
+  getSeverityGradient,
+  getElevationShadow,
+  getColoredShadow,
+  getGlassMorphism,
+  getNeumorphism,
+  getAnimation,
+  getHoverEffect,
+  getClinicalCardStyles,
+  getGradientText,
+  getSkeletonEffect,
+  getSpacing,
+  getBorderRadius,
+  getClinicalButtonStyles,
+  getSmoothTransition
 };

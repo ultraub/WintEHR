@@ -1,0 +1,29 @@
+server:
+  port: 9380
+  mode: dev
+  log_level: info
+  
+vector_store:
+  type: milvus
+  milvus_host: milvus
+  milvus_port: 19530
+  
+object_store:
+  type: minio
+  minio_endpoint: minio:9000
+  minio_access_key: ${MINIO_USER}
+  minio_secret_key: ${MINIO_PASSWORD}
+  minio_bucket: ragflow
+  
+knowledge_base:
+  default_chunk_size: 512
+  default_overlap_size: 50
+  default_vector_size: 1536
+  default_embedding_model: text-embedding-ada-002
+  
+llm:
+  default_model: gpt-3.5-turbo
+  openai_api_key: ${OPENAI_API_KEY}
+  
+security:
+  api_key: ${RAGFLOW_API_KEY}

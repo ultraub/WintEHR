@@ -2,25 +2,18 @@
  * Encounters Tab Component
  * Display and manage patient encounters
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
   Typography,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  ListItemSecondaryAction,
   Chip,
   Stack,
   Button,
   IconButton,
   Tooltip,
   Divider,
-  Card,
-  CardContent,
-  CardActions,
   TextField,
   InputAdornment,
   Menu,
@@ -32,39 +25,33 @@ import {
   Alert,
   useTheme,
   alpha,
-  Snackbar
+  Snackbar,
+  Badge,
+  Grid,
+  ToggleButton,
+  ToggleButtonGroup,
+  Collapse
 } from '@mui/material';
 import {
-  Timeline,
-  TimelineItem,
-  TimelineSeparator,
-  TimelineConnector,
-  TimelineContent,
-  TimelineDot,
-  TimelineOppositeContent
-} from '@mui/lab';
-import {
-  EventNote as EncounterIcon,
   LocalHospital as HospitalIcon,
   MedicalServices as ClinicIcon,
   LocalHospital as EmergencyIcon,
   Home as HomeIcon,
   Add as AddIcon,
   Search as SearchIcon,
-  FilterList as FilterIcon,
-  MoreVert as MoreIcon,
   Edit as EditIcon,
   Description as NotesIcon,
   Print as PrintIcon,
   CalendarMonth as CalendarIcon,
   AccessTime as TimeIcon,
-  Person as ProviderIcon,
-  Draw as SignIcon
+  Draw as SignIcon,
+  Assignment as AssignmentIcon,
+  Science as LabIcon,
+  CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useNavigate } from 'react-router-dom';
-import EncounterSummaryDialog from '../dialogs/EncounterSummaryDialog';
+import EncounterSummaryDialogEnhanced from '../dialogs/EncounterSummaryDialogEnhanced';
 import EncounterSigningDialog from '../dialogs/EncounterSigningDialog';
 import EncounterCreationDialog from '../dialogs/EncounterCreationDialog';
 import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
@@ -78,6 +65,15 @@ import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { getEncounterClass, getCodeableConceptDisplay, getEncounterStatus } from '../../../../core/fhir/utils/fhirFieldUtils';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
+import { ClinicalResourceCard } from '../../shared/cards';
+import { ResourceTimeline } from '../../shared/display';
+import { SmartTable } from '../../shared/tables';
+import { ContextualFAB } from '../../shared/layout';
+import { ViewControls, useDensity } from '../../shared/layout';
+import { MetricsBar } from '../../shared/display';
+import { motion, AnimatePresence } from 'framer-motion';
+import CollapsibleFilterPanel from '../CollapsibleFilterPanel';
+import EncounterCard from '../cards/EncounterCard';
 
 // Get encounter icon based on class
 const getEncounterIcon = (encounter) => {
@@ -117,149 +113,21 @@ const getEncounterTypeLabel = (encounter) => {
   }
 };
 
-// Encounter Card Component
-const EncounterCard = ({ encounter, onViewDetails, onEdit, onSign, onAddNote }) => {
-  const theme = useTheme();
-  const [anchorEl, setAnchorEl] = useState(null);
 
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'finished': return 'success';
-      case 'in-progress': return 'warning';
-      case 'cancelled': return 'error';
-      default: return 'default';
-    }
-  };
-
-  const period = encounter.actualPeriod || encounter.period || {};
-  const startDate = period.start ? parseISO(period.start) : null;
-  const endDate = period.end ? parseISO(period.end) : null;
-
-  return (
-    <Card sx={{ mb: 2 }}>
-      <CardContent>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-          <Box sx={{ flex: 1 }}>
-            <Stack direction="row" spacing={2} alignItems="center" mb={1}>
-              {getEncounterIcon(encounter)}
-              <Typography variant="h6">
-                {getEncounterTypeLabel(encounter)}
-              </Typography>
-              <Chip 
-                label={getEncounterStatus(encounter)} 
-                size="small" 
-                color={getStatusColor(getEncounterStatus(encounter))}
-              />
-            </Stack>
-
-            <Stack spacing={1}>
-              {startDate && (
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <CalendarIcon fontSize="small" color="action" />
-                  <Typography variant="body2">
-                    {format(startDate, 'MMM d, yyyy')}
-                  </Typography>
-                  <TimeIcon fontSize="small" color="action" />
-                  <Typography variant="body2">
-                    {format(startDate, 'h:mm a')}
-                    {endDate && ` - ${format(endDate, 'h:mm a')}`}
-                  </Typography>
-                </Stack>
-              )}
-
-              {encounter.participant && (
-                <EnhancedProviderDisplay
-                  participants={encounter.participant}
-                  encounter={encounter}
-                  mode="compact"
-                />
-              )}
-
-              {(encounter.reasonCode || encounter.reason) && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Reason for visit:
-                  </Typography>
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ mt: 0.5 }}>
-                    {(encounter.reasonCode || encounter.reason || []).map((reason, idx) => (
-                      <Chip 
-                        key={idx}
-                        label={reason.text || 
-                               reason.coding?.[0]?.display || 
-                               reason.use?.[0]?.coding?.[0]?.display ||
-                               'Encounter'} 
-                        size="small"
-                        variant="outlined"
-                      />
-                    ))}
-                  </Stack>
-                </Box>
-              )}
-            </Stack>
-          </Box>
-
-          <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
-            <MoreIcon />
-          </IconButton>
-        </Stack>
-      </CardContent>
-
-      <CardActions>
-        <Button 
-          size="small" 
-          startIcon={<NotesIcon />}
-          onClick={onViewDetails}
-        >
-          View Summary
-        </Button>
-        <Button 
-          size="small" 
-          startIcon={<EditIcon />}
-          onClick={onEdit}
-        >
-          Edit
-        </Button>
-        <Button 
-          size="small" 
-          startIcon={<NotesIcon />}
-          onClick={() => onAddNote && onAddNote(encounter)}
-          color="secondary"
-        >
-          Add Note
-        </Button>
-        {getEncounterStatus(encounter) === 'in-progress' && (
-          <Button 
-            size="small" 
-            variant="contained"
-            color="primary"
-            startIcon={<SignIcon />}
-            onClick={onSign}
-          >
-            Sign & Close
-          </Button>
-        )}
-      </CardActions>
-
-    </Card>
-  );
-};
-
-const EncountersTab = ({ patientId, onNotificationUpdate }) => {
-  const theme = useTheme();
-  const navigate = useNavigate();
-  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
+  const { getPatientResources, isLoading, currentPatient, resources, searchResources } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
+  const navigate = useNavigate();
   
-  const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'timeline'
+  const [viewMode, setViewMode] = useState('cards'); // 'cards', 'timeline', or 'table'
   const [filterType, setFilterType] = useState('all');
   const [filterPeriod, setFilterPeriod] = useState('all'); // all, 1m, 3m, 6m, 1y
   const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(true);
+  const scrollContainerRef = useRef(null);
   const [selectedEncounter, setSelectedEncounter] = useState(null);
+  const [expandedCards, setExpandedCards] = useState(new Set());
+  const [density, setDensity] = useDensity('comfortable');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
   const [signingDialogOpen, setSigningDialogOpen] = useState(false);
@@ -277,10 +145,6 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
     startDate: new Date().toISOString().split('T')[0],
     startTime: new Date().toTimeString().split(' ')[0].slice(0, 5)
   });
-
-  useEffect(() => {
-    setLoading(false);
-  }, []);
 
   // Subscribe to encounter-related events
   useEffect(() => {
@@ -419,8 +283,10 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
       formatForPrint: (data) => {
         let html = '<h2>Encounter History</h2>';
         data.forEach(encounter => {
-          const startDate = encounter.period?.start ? format(parseISO(encounter.period.start), 'MMM d, yyyy h:mm a') : 'Unknown';
-          const endDate = encounter.period?.end ? format(parseISO(encounter.period.end), 'MMM d, yyyy h:mm a') : 'Ongoing';
+          const startDate = encounter.actualPeriod?.start || encounter.period?.start ? 
+            format(parseISO(encounter.actualPeriod?.start || encounter.period.start), 'MMM d, yyyy h:mm a') : 'Unknown';
+          const endDate = encounter.actualPeriod?.end || encounter.period?.end ? 
+            format(parseISO(encounter.actualPeriod?.end || encounter.period.end), 'MMM d, yyyy h:mm a') : 'Ongoing';
           
           html += `
             <div class="section">
@@ -539,225 +405,512 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
     }
   };
 
-  // Get encounters
-  const encounters = getPatientResources(patientId, 'Encounter') || [];
+  // Get encounters - memoized to prevent dependency issues
+  const encounters = useMemo(() => {
+    return getPatientResources(patientId, 'Encounter') || [];
+  }, [patientId, getPatientResources]);
 
-  // Filter encounters
-  const filteredEncounters = encounters.filter(encounter => {
-    // Type filter - use resilient utility
-    const matchesType = filterType === 'all' || 
-      getEncounterClass(encounter) === filterType;
-
-    // Period filter
-    let matchesPeriod = true;
-    if (filterPeriod !== 'all' && encounter.period?.start) {
-      const startDate = parseISO(encounter.period.start);
-      const periodMap = {
-        '1m': subMonths(new Date(), 1),
-        '3m': subMonths(new Date(), 3),
-        '6m': subMonths(new Date(), 6),
-        '1y': subMonths(new Date(), 12)
-      };
-      matchesPeriod = isWithinInterval(startDate, {
-        start: periodMap[filterPeriod],
-        end: new Date()
-      });
+  // Load encounters function
+  const loadEncounters = useCallback(async () => {
+    if (patientId && !isLoading) {
+      try {
+        await searchResources('Encounter', {
+          patient: patientId,
+          _sort: '-date',
+          _count: 100
+        });
+      } catch (error) {
+        // Failed to load encounters
+      }
     }
+  }, [patientId, searchResources, isLoading]);
 
-    // Search filter
-    const matchesSearch = !searchTerm || 
-      getEncounterTypeLabel(encounter).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      encounter.reasonCode?.some(r => 
-        (r.text || r.coding?.[0]?.display || '').toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  // Load encounters if not available in relationships
+  useEffect(() => {
+    if (encounters.length === 0) {
+      loadEncounters();
+    }
+  }, [encounters.length, loadEncounters]);
 
-    return matchesType && matchesPeriod && matchesSearch;
-  });
+  // Get all clinical resources for timeline
+  const allClinicalResources = useMemo(() => {
+    const resourceTypes = ['Observation', 'MedicationRequest', 'Procedure', 'DiagnosticReport'];
+    const allResources = [];
+    
+    // Add encounters
+    encounters.forEach(enc => {
+      allResources.push({
+        ...enc,
+        resourceType: 'Encounter',
+        date: enc.actualPeriod?.start || enc.period?.start || enc.meta?.lastUpdated
+      });
+    });
+    
+    // Add other clinical resources that reference encounters
+    resourceTypes.forEach(type => {
+      const typeResources = getPatientResources(patientId, type) || [];
+      
+      typeResources.forEach(resource => {
+        if (resource.encounter?.reference || resource.context?.reference) {
+          allResources.push({
+            ...resource,
+            resourceType: type,
+            date: resource.effectiveDateTime || 
+                  resource.authoredOn || 
+                  resource.performedDateTime || 
+                  resource.issued ||
+                  resource.meta?.lastUpdated
+          });
+        }
+      });
+    });
+    
+    return allResources.sort((a, b) => 
+      new Date(b.date || 0) - new Date(a.date || 0)
+    );
+  }, [encounters, patientId, getPatientResources]);
 
-  // Sort by date descending
-  const sortedEncounters = [...filteredEncounters].sort((a, b) => {
-    const dateA = new Date(a.period?.start || 0);
-    const dateB = new Date(b.period?.start || 0);
-    return dateB - dateA;
-  });
+  // Filter encounters - memoized for performance
+  const filteredEncounters = useMemo(() => {
+    return encounters.filter(encounter => {
+      // Type filter - use resilient utility
+      const matchesType = filterType === 'all' || 
+        getEncounterClass(encounter) === filterType;
 
-  if (loading) {
+      // Period filter
+      let matchesPeriod = true;
+      if (filterPeriod !== 'all' && (encounter.actualPeriod?.start || encounter.period?.start)) {
+        const startDate = parseISO(encounter.actualPeriod?.start || encounter.period.start);
+        const periodMap = {
+          '1m': subMonths(new Date(), 1),
+          '3m': subMonths(new Date(), 3),
+          '6m': subMonths(new Date(), 6),
+          '1y': subMonths(new Date(), 12)
+        };
+        matchesPeriod = isWithinInterval(startDate, {
+          start: periodMap[filterPeriod],
+          end: new Date()
+        });
+      }
+
+      // Search filter
+      const matchesSearch = !searchTerm || 
+        getEncounterTypeLabel(encounter).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        encounter.reasonCode?.some(r => 
+          (r.text || r.coding?.[0]?.display || '').toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+      return matchesType && matchesPeriod && matchesSearch;
+    });
+  }, [encounters, filterType, filterPeriod, searchTerm]);
+
+  // Sort by date descending - memoized for performance
+  const sortedEncounters = useMemo(() => {
+    const sorted = [...filteredEncounters].sort((a, b) => {
+      const dateA = new Date(a.actualPeriod?.start || a.period?.start || 0);
+      const dateB = new Date(b.actualPeriod?.start || b.period?.start || 0);
+      return dateB - dateA;
+    });
+    
+    // Transform data to match SmartTable expectations
+    const transformed = sorted.map(encounter => ({
+      ...encounter,
+      // Add computed fields that SmartTable can access via column.field
+      date: encounter.actualPeriod?.start || encounter.period?.start || null,
+      reason: encounter.reasonCode?.[0]?.text || 
+              encounter.reasonCode?.[0]?.coding?.[0]?.display || 
+              encounter.type?.[0]?.text ||
+              encounter.type?.[0]?.coding?.[0]?.display ||
+              null,
+      type: getEncounterTypeLabel(encounter),
+      status: getEncounterStatus(encounter),
+      provider: encounter.participant || []
+    }));
+    
+    
+    return transformed;
+  }, [filteredEncounters]);
+
+  // Memoize encounter statistics to avoid recalculating on every render
+  const encounterStats = useMemo(() => {
+    const stats = {
+      total: sortedEncounters.length,
+      completed: encounters.filter(e => getEncounterStatus(e) === 'finished').length,
+      inProgress: encounters.filter(e => getEncounterStatus(e) === 'in-progress').length,
+      emergency: encounters.filter(e => getEncounterClass(e) === 'EMER').length,
+      inpatient: encounters.filter(e => getEncounterClass(e) === 'IMP').length,
+      ambulatory: encounters.filter(e => getEncounterClass(e) === 'AMB').length
+    };
+    return stats;
+  }, [encounters, sortedEncounters]);
+
+  // Prepare metrics for MetricsBar
+  const encounterMetrics = useMemo(() => [
+    {
+      label: 'Total Visits',
+      value: encounterStats.total,
+      icon: <CalendarIcon />,
+      color: 'primary',
+      severity: 'normal'
+    },
+    {
+      label: 'In Progress',
+      value: encounterStats.inProgress,
+      icon: <TimeIcon />,
+      color: encounterStats.inProgress > 0 ? 'warning' : 'default',
+      severity: encounterStats.inProgress > 0 ? 'moderate' : 'normal'
+    },
+    {
+      label: 'Emergency',
+      value: encounterStats.emergency,
+      icon: <EmergencyIcon />,
+      color: encounterStats.emergency > 0 ? 'error' : 'default',
+      severity: encounterStats.emergency > 0 ? 'high' : 'normal'
+    },
+    {
+      label: 'Completed',
+      value: encounterStats.completed,
+      icon: <CheckCircleIcon />,
+      color: 'success',
+      severity: 'normal',
+      progress: (encounterStats.completed / Math.max(encounterStats.total, 1)) * 100
+    }
+  ], [encounterStats]);
+
+  // Handle card expansion toggle
+  const handleToggleCardExpand = useCallback((encounterId, expanded) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (expanded) {
+        newSet.add(encounterId);
+      } else {
+        newSet.delete(encounterId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Use context's isLoading state - this properly reflects when data is actually loading
+  if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 4 }}>
         <CircularProgress />
+        <Typography sx={{ ml: 2 }} variant="body1" color="text.secondary">
+          Loading encounters...
+        </Typography>
       </Box>
     );
   }
 
-  return (
-    <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h5" fontWeight="bold">
-          Encounters
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleNewEncounter}
-        >
-          New Encounter
-        </Button>
-      </Stack>
-
-      {/* Filters */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-          <TextField
-            placeholder="Search encounters..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            size="small"
-            sx={{ flex: 1 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              )
-            }}
-          />
-          
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Type</InputLabel>
-            <Select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              label="Type"
-            >
-              <MenuItem value="all">All Types</MenuItem>
-              <MenuItem value="AMB">Ambulatory</MenuItem>
-              <MenuItem value="IMP">Inpatient</MenuItem>
-              <MenuItem value="EMER">Emergency</MenuItem>
-              <MenuItem value="HH">Home Health</MenuItem>
-            </Select>
-          </FormControl>
-
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Period</InputLabel>
-            <Select
-              value={filterPeriod}
-              onChange={(e) => setFilterPeriod(e.target.value)}
-              label="Period"
-            >
-              <MenuItem value="all">All Time</MenuItem>
-              <MenuItem value="1m">Last Month</MenuItem>
-              <MenuItem value="3m">Last 3 Months</MenuItem>
-              <MenuItem value="6m">Last 6 Months</MenuItem>
-              <MenuItem value="1y">Last Year</MenuItem>
-            </Select>
-          </FormControl>
-
-          <Button
-            variant={viewMode === 'cards' ? 'contained' : 'outlined'}
-            onClick={() => setViewMode('cards')}
-          >
-            Cards
-          </Button>
-          <Button
-            variant={viewMode === 'timeline' ? 'contained' : 'outlined'}
-            onClick={() => setViewMode('timeline')}
-          >
-            Timeline
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<PrintIcon />}
-            onClick={handlePrintEncounters}
-          >
-            Print
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<ExportIcon />}
-            onClick={(e) => setExportAnchorEl(e.currentTarget)}
-          >
-            Export
-          </Button>
-        </Stack>
-      </Paper>
-
-      {/* Summary Stats */}
-      <Stack direction="row" spacing={2} mb={3}>
-        <Chip 
-          label={`${sortedEncounters.length} Total Encounters`} 
-          color="primary" 
-        />
-        <Chip 
-          label={`${encounters.filter(e => getEncounterStatus(e) === 'finished').length} Completed`} 
-          color="success" 
-        />
-        <Chip 
-          label={`${encounters.filter(e => getEncounterStatus(e) === 'in-progress').length} In Progress`} 
-          color="warning" 
-        />
-      </Stack>
-
-      {/* Encounters List/Timeline */}
-      {sortedEncounters.length === 0 ? (
+  // Handle case where patient data might not be loaded yet
+  if (!currentPatient) {
+    return (
+      <Box sx={{ p: 4 }}>
         <Alert severity="info">
-          No encounters found matching your criteria
+          No patient selected. Please select a patient to view encounters.
         </Alert>
-      ) : viewMode === 'cards' ? (
-        <Box>
-          {sortedEncounters.map((encounter) => (
-            <EncounterCard
-              key={encounter.id}
-              encounter={encounter}
-              onViewDetails={() => handleViewEncounterDetails(encounter)}
-              onEdit={() => handleEditEncounter(encounter)}
-              onSign={() => handleSignEncounter(encounter)}
-              onAddNote={handleAddNoteToEncounter}
-            />
-          ))}
-        </Box>
-      ) : (
-        <Timeline position="alternate">
-          {sortedEncounters.map((encounter, index) => (
-            <TimelineItem key={encounter.id}>
-              <TimelineOppositeContent color="text.secondary">
-                {encounter.period?.start && 
-                  format(parseISO(encounter.period.start), 'MMM d, yyyy')
-                }
-              </TimelineOppositeContent>
-              <TimelineSeparator>
-                <TimelineDot color={getEncounterStatus(encounter) === 'finished' ? 'success' : 'warning'}>
-                  {getEncounterIcon(encounter)}
-                </TimelineDot>
-                {index < sortedEncounters.length - 1 && <TimelineConnector />}
-              </TimelineSeparator>
-              <TimelineContent>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6">
-                      {getEncounterTypeLabel(encounter)}
-                    </Typography>
-                    <EnhancedProviderDisplay
-                      participants={encounter.participant}
-                      encounter={encounter}
-                      mode="compact"
-                    />
-                    <Button 
-                      size="small" 
-                      onClick={() => handleViewEncounterDetails(encounter)}
-                      sx={{ mt: 1 }}
-                    >
-                      View Details
-                    </Button>
-                  </CardContent>
-                </Card>
-              </TimelineContent>
-            </TimelineItem>
-          ))}
-        </Timeline>
-      )}
+      </Box>
+    );
+  }
 
-      {/* Encounter Summary Dialog */}
+
+  return (
+    <>
+      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
+      {/* Compact Header */}
+      <Box sx={{ px: 2, pt: 1.5, pb: 0 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+          {/* Inline Statistics */}
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="body2" color="text.secondary">
+              {encounterStats.total} total visits
+            </Typography>
+            {encounterStats.inProgress > 0 && (
+              <Chip
+                label={`${encounterStats.inProgress} in progress`}
+                size="small"
+                color="warning"
+                icon={<TimeIcon fontSize="small" />}
+                sx={{ borderRadius: '4px' }}
+              />
+            )}
+            {encounterStats.emergency > 0 && (
+              <Chip
+                label={`${encounterStats.emergency} emergency`}
+                size="small"
+                color="error"
+                icon={<EmergencyIcon fontSize="small" />}
+                sx={{ borderRadius: '4px' }}
+              />
+            )}
+          </Stack>
+          
+          {/* Quick Actions */}
+          <Stack direction="row" spacing={1}>
+            <IconButton
+              size="small"
+              onClick={handleNewEncounter}
+              title="New Encounter"
+            >
+              <AddIcon />
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={handlePrintEncounters}
+              title="Print"
+            >
+              <PrintIcon />
+            </IconButton>
+          </Stack>
+        </Stack>
+
+        {/* Collapsible Filter Panel */}
+        <Box>
+          <CollapsibleFilterPanel
+            searchQuery={searchTerm}
+            onSearchChange={setSearchTerm}
+            dateRange={filterPeriod}
+            onDateRangeChange={setFilterPeriod}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            searchPlaceholder="Search encounters..."
+            dateRangeOptions={[
+              { value: 'all', label: 'All Time' },
+              { value: '1m', label: 'Last Month' },
+              { value: '3m', label: 'Last 3 Months' },
+              { value: '6m', label: 'Last 6 Months' },
+              { value: '1y', label: 'Last Year' }
+            ]}
+            viewModeOptions={[
+              { value: 'cards', label: 'Cards', icon: <CalendarIcon /> },
+              { value: 'timeline', label: 'Timeline', icon: <TimeIcon /> },
+              { value: 'table', label: 'Table', icon: <AssignmentIcon /> }
+            ]}
+            showCategories={false}
+            showInactiveToggle={false}
+            onRefresh={loadEncounters}
+            onExport={() => handleExportEncounters('csv')}
+            scrollContainerRef={scrollContainerRef}
+          >
+            {/* Custom filter for encounter type */}
+            <Stack direction="row" spacing={2} alignItems="center">
+              <ToggleButtonGroup
+                value={filterType}
+                exclusive
+                onChange={(e, value) => value && setFilterType(value)}
+                size="small"
+              >
+                <ToggleButton value="all">
+                  All Types
+                </ToggleButton>
+                <ToggleButton value="AMB">
+                  <ClinicIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  Ambulatory
+                </ToggleButton>
+                <ToggleButton value="IMP">
+                  <HospitalIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  Inpatient
+                </ToggleButton>
+                <ToggleButton value="EMER">
+                  <EmergencyIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  Emergency
+                </ToggleButton>
+              </ToggleButtonGroup>
+              
+              <ViewControls
+                density={density}
+                onDensityChange={setDensity}
+                showViewMode={false}
+                size="small"
+              />
+            </Stack>
+          </CollapsibleFilterPanel>
+        </Box>
+      </Box>
+
+      {/* Main Content Area */}
+      <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+        {sortedEncounters.length === 0 ? (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            No encounters found matching your criteria
+          </Alert>
+        ) : viewMode === 'timeline' ? (
+          <Box sx={{ p: 2, height: 'calc(100% - 16px)' }}>
+            <ResourceTimeline
+              resources={sortedEncounters.map(enc => ({
+                ...enc,
+                date: enc.actualPeriod?.start || enc.period?.start || enc.meta?.lastUpdated,
+                title: getEncounterTypeLabel(enc),
+                severity: getEncounterClass(enc) === 'EMER' ? 'critical' : 
+                         getEncounterClass(enc) === 'IMP' ? 'high' : 'normal'
+              }))}
+              onResourceClick={(resource) => handleViewEncounterDetails(resource)}
+              height="100%"
+              showLegend
+              showControls
+              enableZoom
+              groupByType={false}
+              colorByType={false}
+              colorBySeverity={true}
+              dateRange={filterPeriod !== 'all' ? {
+                start: filterPeriod === '1m' ? subMonths(new Date(), 1) :
+                       filterPeriod === '3m' ? subMonths(new Date(), 3) :
+                       filterPeriod === '6m' ? subMonths(new Date(), 6) :
+                       subMonths(new Date(), 12),
+                end: new Date()
+              } : undefined}
+            />
+          </Box>
+        ) : viewMode === 'cards' ? (
+          <Box>
+            <AnimatePresence>
+              {sortedEncounters.map((encounter, index) => (
+                <motion.div
+                  key={encounter.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                >
+                  <EncounterCard
+                    encounter={encounter}
+                    patientId={patientId}
+                    onViewDetails={handleViewEncounterDetails}
+                    elevation={0}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </Box>
+        ) : (
+          // Table view
+          <SmartTable
+            columns={[
+              {
+                field: 'type',
+                headerName: 'Type',
+                type: 'custom',
+                renderCell: (value, row) => (
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    {getEncounterIcon(row)}
+                    <Typography variant="body2">
+                      {getEncounterTypeLabel(row)}
+                    </Typography>
+                  </Stack>
+                )
+              },
+              {
+                field: 'date',
+                headerName: 'Date',
+                type: 'custom',
+                renderCell: (value, row) => (
+                  value ? 
+                    format(parseISO(value), 'MMM d, yyyy h:mm a') : 
+                    'N/A'
+                )
+              },
+              {
+                field: 'status',
+                headerName: 'Status',
+                type: 'custom',
+                renderCell: (value, row) => (
+                  <Chip
+                    label={getEncounterStatus(row)}
+                    size="small"
+                    color={
+                      getEncounterStatus(row) === 'finished' ? 'success' :
+                      getEncounterStatus(row) === 'in-progress' ? 'warning' :
+                      'default'
+                    }
+                  />
+                )
+              },
+              {
+                field: 'provider',
+                headerName: 'Provider',
+                type: 'custom',
+                renderCell: (value, row) => (
+                  <EnhancedProviderDisplay
+                    participants={row.participant}
+                    encounter={row}
+                    mode="compact"
+                    showIcon={false}
+                  />
+                )
+              },
+              {
+                field: 'reason',
+                headerName: 'Reason',
+                type: 'custom',
+                renderCell: (value, row) => (
+                  <Typography variant="body2" noWrap>
+                    {value || '-'}
+                  </Typography>
+                )
+              },
+              {
+                field: 'actions',
+                headerName: 'Actions',
+                align: 'right',
+                type: 'custom',
+                renderCell: (value, row) => (
+                  <Stack direction="row" spacing={1}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleViewEncounterDetails(row)}
+                      title="View details"
+                    >
+                      <NotesIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleEditEncounter(row)}
+                      title="Edit"
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
+                )
+              }
+            ]}
+            data={sortedEncounters}
+            density={density}
+            sortable
+            filterable
+            onRowClick={(row) => handleViewEncounterDetails(row)}
+            emptyMessage="No encounters found"
+          />
+        )}
+      </Box>
+
+      {/* Floating Action Button */}
+      <ContextualFAB
+        currentModule="encounters"
+        primaryAction={{
+          icon: <AddIcon />,
+          onClick: handleNewEncounter
+        }}
+        actions={[
+          {
+            icon: <CalendarIcon />,
+            name: 'Schedule Appointment',
+            onClick: handleNewEncounter
+          },
+          {
+            icon: <NotesIcon />,
+            name: 'Add Clinical Note',
+            onClick: () => selectedEncounter && handleAddNoteToEncounter(selectedEncounter)
+          },
+          {
+            icon: <PrintIcon />,
+            name: 'Print History',
+            onClick: handlePrintEncounters
+          }
+        ]}
+        position="bottom-right"
+        color="primary"
+      />
+
       {/* Export Menu */}
       <Menu
         anchorEl={exportAnchorEl}
@@ -775,7 +928,87 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
         </MenuItem>
       </Menu>
 
-      <EncounterSummaryDialog
+      {/* Enhanced Encounter Summary Dialog */}
+      <EncounterSummaryDialogEnhanced
+        open={summaryDialogOpen}
+        onClose={handleCloseSummaryDialog}
+        encounter={selectedEncounter}
+        patientId={patientId}
+      />
+
+      {/* Encounter Signing Dialog */}
+      <EncounterSigningDialog
+        open={signingDialogOpen}
+        onClose={handleCloseSigningDialog}
+        encounter={selectedEncounter}
+        onEncounterSigned={handleEncounterSigned}
+      />
+
+      {/* New Encounter Creation Dialog */}
+      <EncounterCreationDialog
+        open={encounterCreationDialogOpen}
+        onClose={() => setEncounterCreationDialogOpen(false)}
+        patientId={patientId}
+        onEncounterCreated={handleEncounterCreated}
+      />
+
+      {/* Note Editor Dialog */}
+      <EnhancedNoteEditor
+        open={noteEditorOpen}
+        onClose={handleCloseNoteEditor}
+        patientId={patientId}
+        encounterId={selectedEncounterForNote?.id}
+        encounterDisplay={selectedEncounterForNote ? getEncounterTypeLabel(selectedEncounterForNote) : ''}
+      />
+
+      {/* Edit Encounter Dialog */}
+      <Dialog
+        open={editEncounterDialogOpen}
+        onClose={handleCloseEditEncounter}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit Encounter</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Note: Encounter editing is currently limited. You can create a new encounter or update the status of existing encounters through the signing process.
+          </Typography>
+          {selectedEncounterForEdit && (
+            <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 0 }}>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                Current Encounter: {getEncounterTypeLabel(selectedEncounterForEdit)}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Status: {getEncounterStatus(selectedEncounterForEdit)}
+              </Typography>
+              {(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period?.start) && (
+                <Typography variant="body2" color="text.secondary">
+                  Date: {format(parseISO(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period.start), 'MMM d, yyyy h:mm a')}
+                </Typography>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseEditEncounter}>
+            Close
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={() => {
+              handleCloseEditEncounter();
+              setEncounterCreationDialogOpen(true);
+            }}
+          >
+            Create New Encounter
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      </Box>
+
+      {/* Dialogs */}
+      <EncounterSummaryDialogEnhanced
         open={summaryDialogOpen}
         onClose={handleCloseSummaryDialog}
         encounter={selectedEncounter}
@@ -897,9 +1130,9 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
               <Typography variant="body2" color="text.secondary">
                 Status: {getEncounterStatus(selectedEncounterForEdit)}
               </Typography>
-              {selectedEncounterForEdit.period?.start && (
+              {(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period?.start) && (
                 <Typography variant="body2" color="text.secondary">
-                  Date: {format(parseISO(selectedEncounterForEdit.period.start), 'MMM d, yyyy h:mm a')}
+                  Date: {format(parseISO(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period.start), 'MMM d, yyyy h:mm a')}
                 </Typography>
               )}
             </Box>
@@ -936,7 +1169,7 @@ const EncountersTab = ({ patientId, onNotificationUpdate }) => {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </>
   );
 };
 

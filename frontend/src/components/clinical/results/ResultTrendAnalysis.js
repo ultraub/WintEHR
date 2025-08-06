@@ -24,7 +24,7 @@ import {
   CardContent,
   Grid,
   Divider,
-  Button
+  useTheme
 } from '@mui/material';
 import {
   TrendingUp,
@@ -36,9 +36,7 @@ import {
   Print as PrintIcon,
   Info as InfoIcon,
   Warning as WarningIcon,
-  CheckCircle as NormalIcon,
-  ZoomIn,
-  ZoomOut
+  CheckCircle as NormalIcon
 } from '@mui/icons-material';
 import {
   LineChart,
@@ -59,6 +57,7 @@ import {
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { resultsManagementService } from '../../../services/resultsManagementService';
 import { REFERENCE_RANGES } from '../../../core/fhir/utils/labReferenceRanges';
+import { getChartColors } from '../../../themes/chartColors';
 
 // Common lab tests for trending
 const TRENDING_TESTS = [
@@ -77,6 +76,8 @@ const TRENDING_TESTS = [
 ];
 
 const ResultTrendAnalysis = ({ patientId, initialTestCode = null }) => {
+  const theme = useTheme();
+  const chartColors = getChartColors(theme);
   const [selectedTest, setSelectedTest] = useState(initialTestCode || '2339-0');
   const [timeRange, setTimeRange] = useState(12); // months
   const [viewMode, setViewMode] = useState('chart'); // chart or table
@@ -192,11 +193,11 @@ const ResultTrendAnalysis = ({ patientId, initialTestCode = null }) => {
     const { cx, cy, payload } = props;
     
     // Determine dot color based on interpretation
-    let fill = '#4caf50'; // Normal (green)
+    let fill = theme.palette.success.main; // Normal
     if (['H', 'HH'].includes(payload.interpretation)) {
-      fill = '#f44336'; // High (red)
+      fill = theme.palette.error.main; // High
     } else if (['L', 'LL'].includes(payload.interpretation)) {
-      fill = '#ff9800'; // Low (orange)
+      fill = theme.palette.warning.main; // Low
     }
 
     return (
@@ -405,17 +406,17 @@ const ResultTrendAnalysis = ({ patientId, initialTestCode = null }) => {
                     y2={referenceRange.high} 
                     strokeOpacity={0.3}
                     fillOpacity={0.1}
-                    fill="#4caf50"
+                    fill={theme.palette.success.main}
                   />
                   <ReferenceLine 
                     y={referenceRange.low} 
-                    stroke="#4caf50" 
+                    stroke={theme.palette.success.main} 
                     strokeDasharray="3 3"
                     label="Low Normal"
                   />
                   <ReferenceLine 
                     y={referenceRange.high} 
-                    stroke="#4caf50" 
+                    stroke={theme.palette.success.main} 
                     strokeDasharray="3 3"
                     label="High Normal"
                   />
@@ -425,13 +426,13 @@ const ResultTrendAnalysis = ({ patientId, initialTestCode = null }) => {
               <Line 
                 type="monotone" 
                 dataKey="value" 
-                stroke="#2196f3" 
+                stroke={chartColors.palette[0]} 
                 strokeWidth={2}
                 dot={<CustomDot />}
                 name={selectedTestInfo?.name}
               />
               
-              <Brush dataKey="date" height={30} stroke="#8884d8" />
+              <Brush dataKey="date" height={30} stroke={theme.palette.primary.main} />
             </LineChart>
           </ResponsiveContainer>
         </Box>
@@ -440,7 +441,7 @@ const ResultTrendAnalysis = ({ patientId, initialTestCode = null }) => {
         <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ backgroundColor: '#f5f5f5' }}>
+              <tr style={{ backgroundColor: theme.palette.action.hover }}>
                 <th style={{ padding: 8, textAlign: 'left' }}>Date</th>
                 <th style={{ padding: 8, textAlign: 'left' }}>Value</th>
                 <th style={{ padding: 8, textAlign: 'left' }}>Status</th>
@@ -449,7 +450,7 @@ const ResultTrendAnalysis = ({ patientId, initialTestCode = null }) => {
             </thead>
             <tbody>
               {trendData.map((row, index) => (
-                <tr key={index} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                <tr key={index} style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
                   <td style={{ padding: 8 }}>
                     {format(parseISO(row.fullDate), 'MMM dd, yyyy HH:mm')}
                   </td>

@@ -258,7 +258,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
               </Typography>
               <List dense>
                 {alerts.map((alert, index) => (
-                  <ListItem key={index}>
+                  <ListItem key={`alert-${alert.type}-${alert.message.substring(0, 20)}-${index}`}>
                     <ListItemIcon>
                       {alert.severity === 'high' ? 
                         <WarningIcon color="error" /> : 
@@ -269,7 +269,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
                       primary={alert.message}
                       secondary={
                         <span>
-                          <span style={{ fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)' }}>
+                          <span style={{ fontSize: '0.75rem', color: theme.palette.text.secondary }}>
                             {alert.type === 'effectiveness-assessment-overdue' && 
                               `${alert.daysOverdue} days overdue • ${alert.overdueActivities} activities`}
                             {alert.type === 'effectiveness-assessment-stale' && 
@@ -344,7 +344,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
                           }
                           secondary={
                             <span>
-                              <span style={{ fontSize: '0.875rem', color: 'rgba(0, 0, 0, 0.6)' }}>
+                              <span style={{ fontSize: '0.875rem', color: theme.palette.text.secondary }}>
                                 {prompts.daysSinceStart} days since start • 
                                 {nextAssessment && (
                                   isOverdue ? 
@@ -356,16 +356,16 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
                                 <span style={{ display: 'block', marginTop: '4px' }}>
                                   {prompts.targetConditions.map((condition, index) => (
                                     <span 
-                                      key={index}
+                                      key={`condition-${condition}-${index}`}
                                       style={{
                                         display: 'inline-block',
                                         fontSize: '0.7rem',
                                         padding: '2px 6px',
                                         margin: '0 2px',
-                                        border: '1px solid rgba(0, 0, 0, 0.23)',
+                                        border: `1px solid ${theme.palette.divider}`,
                                         borderRadius: '12px',
                                         backgroundColor: 'transparent',
-                                        color: 'rgba(0, 0, 0, 0.6)'
+                                        color: theme.palette.text.secondary
                                       }}
                                     >
                                       {condition}
@@ -404,7 +404,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
                             secondary={
                               <span>
                                 {prompts.recommendations.map((rec, index) => (
-                                  <span key={index} style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(0, 0, 0, 0.6)' }}>
+                                  <span key={`rec-${rec.substring(0, 20)}-${index}`} style={{ display: 'block', fontSize: '0.75rem', color: theme.palette.text.secondary }}>
                                     • {rec}
                                   </span>
                                 ))}

@@ -68,15 +68,28 @@ export function usePaginatedObservations(patientId, options = {}) {
     try {
       const result = await searchResources('Observation', searchParams, forceRefresh);
       
-      setObservations(result.resources || []);
-      setTotalCount(result.total || 0);
-      
-      // Check if there are more pages
-      const hasNextPage = result.bundle?.link?.some(link => link.relation === 'next') || false;
-      setHasMore(hasNextPage || (result.total > (currentPage + 1) * pageSize));
+      // Handle different response formats from searchResources
+      if (result) {
+        // The searchResources might return resources directly or in a nested structure
+        const resources = result.resources || result || [];
+        const total = result.total || result.totalCount || resources.length || 0;
+        
+        setObservations(Array.isArray(resources) ? resources : []);
+        setTotalCount(total);
+        
+        // Check if there are more pages
+        const hasNextPage = result.bundle?.link?.some(link => link.relation === 'next') || false;
+        setHasMore(hasNextPage || (total > (currentPage + 1) * pageSize));
+      } else {
+        // No result returned
+        setObservations([]);
+        setTotalCount(0);
+        setHasMore(false);
+      }
       
       return result;
     } catch (error) {
+      console.error('Error loading observations:', error);
       // Error is handled by setting empty state
       setObservations([]);
       setTotalCount(0);
@@ -177,14 +190,25 @@ export function usePaginatedDiagnosticReports(patientId, options = {}) {
     try {
       const result = await searchResources('DiagnosticReport', searchParams, forceRefresh);
       
-      setReports(result.resources || []);
-      setTotalCount(result.total || 0);
-      
-      const hasNextPage = result.bundle?.link?.some(link => link.relation === 'next') || false;
-      setHasMore(hasNextPage || (result.total > (currentPage + 1) * pageSize));
+      // Handle different response formats from searchResources
+      if (result) {
+        const resources = result.resources || result || [];
+        const total = result.total || result.totalCount || resources.length || 0;
+        
+        setReports(Array.isArray(resources) ? resources : []);
+        setTotalCount(total);
+        
+        const hasNextPage = result.bundle?.link?.some(link => link.relation === 'next') || false;
+        setHasMore(hasNextPage || (total > (currentPage + 1) * pageSize));
+      } else {
+        setReports([]);
+        setTotalCount(0);
+        setHasMore(false);
+      }
       
       return result;
     } catch (error) {
+      console.error('Error loading diagnostic reports:', error);
       // Error is handled by setting empty state
       setReports([]);
       setTotalCount(0);

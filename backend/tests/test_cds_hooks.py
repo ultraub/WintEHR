@@ -194,7 +194,7 @@ class TestCDSHooksDiscovery:
     
     def test_cds_hooks_discovery(self, test_client):
         """Test CDS Hooks discovery endpoint returns available services"""
-        response = test_client.get("/cds-hooks/")
+        response = test_client.get("/cds-services/")
         assert response.status_code == 200
         
         data = response.json()
@@ -232,7 +232,7 @@ class TestDiabetesManagementCDS:
             "prefetch": {}
         }
         
-        response = test_client.post("/cds-hooks/cds-services/diabetes-management", json=request_data)
+        response = test_client.post("/cds-services/diabetes-management", json=request_data)
         assert response.status_code == 200
         
         data = response.json()
@@ -263,7 +263,7 @@ class TestDiabetesManagementCDS:
             "prefetch": {}
         }
         
-        response = test_client.post("/cds-hooks/cds-services/diabetes-management", json=request_data)
+        response = test_client.post("/cds-services/diabetes-management", json=request_data)
         # Should handle gracefully - either return empty cards or 404
         assert response.status_code in [200, 404]
 
@@ -283,7 +283,7 @@ class TestHypertensionManagementCDS:
             "prefetch": {}
         }
         
-        response = test_client.post("/cds-hooks/cds-services/hypertension-management", json=request_data)
+        response = test_client.post("/cds-services/hypertension-management", json=request_data)
         assert response.status_code == 200
         
         data = response.json()
@@ -321,7 +321,7 @@ class TestDrugInteractionCDS:
             "prefetch": {}
         }
         
-        response = test_client.post("/cds-hooks/cds-services/drug-drug-interaction", json=request_data)
+        response = test_client.post("/cds-services/drug-drug-interaction", json=request_data)
         assert response.status_code == 200
         
         data = response.json()
@@ -346,7 +346,7 @@ class TestPreventiveCareReminders:
             "prefetch": {}
         }
         
-        response = test_client.post("/cds-hooks/cds-services/preventive-care-reminder", json=request_data)
+        response = test_client.post("/cds-services/preventive-care-reminder", json=request_data)
         assert response.status_code == 200
         
         data = response.json()
@@ -373,7 +373,7 @@ class TestCDSHooksErrorHandling:
             }
         }
         
-        response = test_client.post("/cds-hooks/cds-services/nonexistent-service", json=request_data)
+        response = test_client.post("/cds-services/nonexistent-service", json=request_data)
         assert response.status_code == 404
     
     def test_missing_patient_id(self, test_client):
@@ -383,7 +383,7 @@ class TestCDSHooksErrorHandling:
             "context": {}  # Missing patientId
         }
         
-        response = test_client.post("/cds-hooks/cds-services/diabetes-management", json=request_data)
+        response = test_client.post("/cds-services/diabetes-management", json=request_data)
         assert response.status_code == 400
     
     def test_cds_feedback_endpoint(self, test_client):
@@ -394,7 +394,7 @@ class TestCDSHooksErrorHandling:
             "outcomeTimestamp": "2023-12-01T10:00:00Z"
         }
         
-        response = test_client.post("/cds-hooks/cds-services/diabetes-management/feedback", json=feedback_data)
+        response = test_client.post("/cds-services/diabetes-management/feedback", json=feedback_data)
         assert response.status_code == 200
         
         data = response.json()

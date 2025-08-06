@@ -18,7 +18,6 @@ import {
   InputLabel,
   Card,
   CardContent,
-  Badge,
   Stack,
   Chip,
   Alert,
@@ -30,6 +29,7 @@ import {
   SpeedDialAction,
   SpeedDialIcon
 } from '@mui/material';
+import SafeBadge from '../components/common/SafeBadge';
 import {
   LocalPharmacy as PharmacyIcon,
   Search as SearchIcon,
@@ -44,8 +44,22 @@ import {
   CheckCircle as ReadyIcon,
   Assignment as OrderIcon,
   Timeline as AnalyticsIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Checkbox,
+  FormControlLabel,
+  Snackbar
+} from '@mui/material';
 import { format } from 'date-fns';
 
 // Import pharmacy components
@@ -53,16 +67,43 @@ import PharmacyQueue from '../components/pharmacy/PharmacyQueue';
 import PharmacyAnalytics from '../components/pharmacy/PharmacyAnalytics';
 
 // Services
-import { fhirClient } from '../services/fhirClient';
+import { fhirClient } from '../core/fhir/services/fhirClient';
+import { printBatchLabels } from '../services/prescriptionLabelService';
 
 // Context
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
-import { useClinicalWorkflow } from '../contexts/ClinicalWorkflowContext';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
+import websocketService from '../services/websocket';
+
+// Queue column configuration (should match PharmacyQueue.js)
+const QUEUE_COLUMNS = {
+  newOrders: {
+    id: 'newOrders',
+    title: 'New Orders',
+    color: 'warning'
+  },
+  verification: {
+    id: 'verification',
+    title: 'Verification',
+    color: 'info'
+  },
+  dispensing: {
+    id: 'dispensing',
+    title: 'Dispensing',
+    color: 'primary'
+  },
+  ready: {
+    id: 'ready',
+    title: 'Ready',
+    color: 'success'
+  }
+};
 
 const PharmacyPage = () => {
   const theme = useTheme();
   const { isLoading } = useFHIRResource();
-  const { subscribe, publish, CLINICAL_EVENTS } = useClinicalWorkflow();
+  const { subscribe, publish } = useClinicalWorkflow();
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   
   // State
   const [activeView, setActiveView] = useState('queue'); // 'queue' | 'analytics'
@@ -80,13 +121,26 @@ const PharmacyPage = () => {
     ready: 0,
     total: 0
   });
+  
+  // Batch print dialog state
+  const [batchPrintOpen, setBatchPrintOpen] = useState(false);
+  const [selectedForPrint, setSelectedForPrint] = useState([]);
+  const [selectAllCategories, setSelectAllCategories] = useState({
+    newOrders: false,
+    verification: false,
+    dispensing: false,
+    ready: true // Default to printing ready prescriptions
+  });
 
   // Fetch all medication requests on mount
   useEffect(() => {
     const fetchMedicationRequests = async () => {
       try {
         setDataLoading(true);
-        const result = await fhirClient.search('MedicationRequest', { _count: 1000 });
+        const result = await fhirClient.search('MedicationRequest', { 
+          _count: 50,
+          _summary: 'true'  // Only essential fields for list view
+        });
         const resources = result.resources || [];
         setMedicationRequests(resources);
       } catch (error) {
@@ -208,20 +262,6 @@ const PharmacyPage = () => {
     });
   }, [queueCategories, pharmacyQueue.length]);
 
-  // Subscribe to clinical workflow events
-  useEffect(() => {
-    const unsubscribeNewPrescription = subscribe(CLINICAL_EVENTS.ORDER_PLACED, (data) => {
-      if (data.category === 'medication') {
-        // Refresh the queue when new prescriptions arrive
-        handleRefresh();
-      }
-    });
-
-    return () => {
-      unsubscribeNewPrescription();
-    };
-  }, [subscribe]);
-
   // Handle queue refresh
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -234,6 +274,136 @@ const PharmacyPage = () => {
     } finally {
       setRefreshing(false);
     }
+  }, []);
+
+  // Handle pharmacy event updates
+  const handlePharmacyUpdate = useCallback((eventType, eventData) => {
+    console.log('[PharmacyPage] Handling pharmacy update:', eventType, eventData);
+    
+    // Extract medication request from event data
+    const medicationRequest = eventData.medication || eventData.prescription || eventData.resource;
+    
+    if (!medicationRequest) {
+      console.warn('[PharmacyPage] No medication request in event data');
+      return;
+    }
+
+    // Update local state incrementally
+    switch (eventType) {
+      case CLINICAL_EVENTS.MEDICATION_PRESCRIBED:
+        // Add new prescription to the queue
+        setMedicationRequests(prev => {
+          // Check if already exists
+          const exists = prev.some(req => req.id === medicationRequest.id);
+          if (!exists) {
+            // Show notification
+            setSnackbar({
+              open: true,
+              message: `New prescription: ${medicationRequest.medicationCodeableConcept?.text || 'Medication'}`,
+              severity: 'info'
+            });
+            return [medicationRequest, ...prev];
+          }
+          return prev;
+        });
+        break;
+        
+      case CLINICAL_EVENTS.PRESCRIPTION_VERIFIED:
+        // Update prescription status
+        setMedicationRequests(prev => 
+          prev.map(req => req.id === medicationRequest.id ? medicationRequest : req)
+        );
+        setSnackbar({
+          open: true,
+          message: 'Prescription verified',
+          severity: 'success'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.MEDICATION_DISPENSED:
+        // Update prescription status
+        setMedicationRequests(prev => 
+          prev.map(req => req.id === medicationRequest.id ? medicationRequest : req)
+        );
+        setSnackbar({
+          open: true,
+          message: 'Medication dispensed',
+          severity: 'success'
+        });
+        break;
+        
+      case CLINICAL_EVENTS.ORDER_PLACED:
+        // Only handle medication orders
+        if (eventData.category === 'medication') {
+          handleRefresh(); // Refresh to get the new order
+        }
+        break;
+    }
+  }, [handleRefresh]);
+
+  // Subscribe to clinical workflow events
+  useEffect(() => {
+    console.log('[PharmacyPage] Setting up pharmacy event subscriptions');
+    
+    const subscriptions = [];
+
+    // Subscribe to medication-related events
+    const pharmacyEvents = [
+      CLINICAL_EVENTS.MEDICATION_PRESCRIBED,
+      CLINICAL_EVENTS.PRESCRIPTION_VERIFIED,
+      CLINICAL_EVENTS.MEDICATION_DISPENSED,
+      CLINICAL_EVENTS.ORDER_PLACED
+    ];
+
+    pharmacyEvents.forEach(eventType => {
+      const unsubscribe = subscribe(eventType, (event) => {
+        console.log('[PharmacyPage] Pharmacy event received:', {
+          eventType,
+          event
+        });
+        
+        // Handle medication events regardless of patient
+        if (eventType === CLINICAL_EVENTS.ORDER_PLACED && event.category !== 'medication') {
+          return; // Skip non-medication orders
+        }
+        
+        handlePharmacyUpdate(eventType, event);
+      });
+      subscriptions.push(unsubscribe);
+    });
+
+    return () => {
+      console.log('[PharmacyPage] Cleaning up pharmacy subscriptions');
+      subscriptions.forEach(unsub => unsub());
+    };
+  }, [subscribe, handleRefresh, handlePharmacyUpdate]);
+
+  // WebSocket pharmacy room subscription
+  useEffect(() => {
+    if (!websocketService.isConnected) return;
+
+    console.log('[PharmacyPage] Setting up WebSocket pharmacy room subscription');
+
+    let subscriptionId = null;
+
+    const setupPharmacySubscription = async () => {
+      try {
+        // Subscribe to pharmacy room - all pharmacy staff see all prescriptions
+        subscriptionId = await websocketService.subscribeToRoom('pharmacy:queue');
+        console.log('[PharmacyPage] Successfully subscribed to pharmacy room:', subscriptionId);
+      } catch (error) {
+        console.error('[PharmacyPage] Failed to subscribe to pharmacy room:', error);
+      }
+    };
+
+    setupPharmacySubscription();
+
+    return () => {
+      if (subscriptionId) {
+        console.log('[PharmacyPage] Unsubscribing from pharmacy room:', subscriptionId);
+        websocketService.unsubscribeFromRoom(subscriptionId);
+      }
+    };
   }, []);
 
   // Handle status change for medication request
@@ -268,13 +438,81 @@ const PharmacyPage = () => {
     } catch (error) {
       
     }
-  }, [publish, handleRefresh]);
+  }, [publish, handleRefresh, CLINICAL_EVENTS.WORKFLOW_NOTIFICATION]);
+
+  // Handle batch print dialog
+  const handleOpenBatchPrint = () => {
+    // Pre-select prescriptions based on default categories
+    const preSelected = [];
+    Object.entries(selectAllCategories).forEach(([category, isSelected]) => {
+      if (isSelected && queueCategories[category]) {
+        preSelected.push(...queueCategories[category].map(rx => rx.id));
+      }
+    });
+    setSelectedForPrint(preSelected);
+    setBatchPrintOpen(true);
+  };
+
+  const handleCloseBatchPrint = () => {
+    setBatchPrintOpen(false);
+  };
+
+  const handleTogglePrescription = (prescriptionId) => {
+    setSelectedForPrint(prev => 
+      prev.includes(prescriptionId)
+        ? prev.filter(id => id !== prescriptionId)
+        : [...prev, prescriptionId]
+    );
+  };
+
+  const handleToggleCategory = (category) => {
+    const categoryPrescriptions = queueCategories[category] || [];
+    const categoryIds = categoryPrescriptions.map(rx => rx.id);
+    
+    if (selectAllCategories[category]) {
+      // Unselect all in category
+      setSelectedForPrint(prev => prev.filter(id => !categoryIds.includes(id)));
+    } else {
+      // Select all in category
+      setSelectedForPrint(prev => [...new Set([...prev, ...categoryIds])]);
+    }
+    
+    setSelectAllCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
+
+  const handlePrintBatch = () => {
+    const prescriptionsToPrint = pharmacyQueue.filter(rx => 
+      selectedForPrint.includes(rx.id)
+    );
+    
+    if (prescriptionsToPrint.length > 0) {
+      const labelOptions = {
+        template: 'standard',
+        includeBarcode: true,
+        pharmacyName: 'WintEHR PHARMACY',
+        pharmacyAddress: '123 Healthcare Blvd, Medical City, HC 12345',
+        pharmacyPhone: '(555) 123-4567',
+        pharmacistName: 'Licensed Pharmacist'
+      };
+      
+      printBatchLabels(prescriptionsToPrint, labelOptions);
+      handleCloseBatchPrint();
+    }
+  };
+
+  // Navigate to inventory management
+  const handleInventoryManagement = () => {
+    window.location.href = '/inventory';
+  };
 
   // Speed dial actions
   const speedDialActions = [
     { icon: <RefreshIcon />, name: 'Refresh Queue', onClick: handleRefresh },
-    { icon: <PrintIcon />, name: 'Print Labels', onClick: () => {} },
-    { icon: <InventoryIcon />, name: 'Check Inventory', onClick: () => {} },
+    { icon: <PrintIcon />, name: 'Print Labels', onClick: handleOpenBatchPrint },
+    { icon: <InventoryIcon />, name: 'Manage Inventory', onClick: handleInventoryManagement },
     { icon: <AnalyticsIcon />, name: 'View Analytics', onClick: () => setActiveView('analytics') },
     { icon: <AddIcon />, name: 'Manual Entry', onClick: () => {} }
   ];
@@ -315,9 +553,9 @@ const PharmacyPage = () => {
         <Grid item xs={12} sm={6} md={2.4}>
           <Card sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1), border: `1px solid ${theme.palette.warning.main}` }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Badge badgeContent={queueStats.newOrders} color="warning" max={99}>
+              <SafeBadge badgeContent={queueStats.newOrders} color="warning" max={99}>
                 <PendingIcon color="warning" sx={{ fontSize: 32 }} />
-              </Badge>
+              </SafeBadge>
               <Typography variant="h6" color="warning.main" mt={1}>
                 New Orders
               </Typography>
@@ -331,9 +569,9 @@ const PharmacyPage = () => {
         <Grid item xs={12} sm={6} md={2.4}>
           <Card sx={{ bgcolor: alpha(theme.palette.info.main, 0.1), border: `1px solid ${theme.palette.info.main}` }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Badge badgeContent={queueStats.verification} color="info" max={99}>
+              <SafeBadge badgeContent={queueStats.verification} color="info" max={99}>
                 <VerifyIcon color="info" sx={{ fontSize: 32 }} />
-              </Badge>
+              </SafeBadge>
               <Typography variant="h6" color="info.main" mt={1}>
                 Verification
               </Typography>
@@ -347,9 +585,9 @@ const PharmacyPage = () => {
         <Grid item xs={12} sm={6} md={2.4}>
           <Card sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), border: `1px solid ${theme.palette.primary.main}` }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Badge badgeContent={queueStats.dispensing} color="primary" max={99}>
+              <SafeBadge badgeContent={queueStats.dispensing} color="primary" max={99}>
                 <DispenseIcon color="primary" sx={{ fontSize: 32 }} />
-              </Badge>
+              </SafeBadge>
               <Typography variant="h6" color="primary.main" mt={1}>
                 Dispensing
               </Typography>
@@ -363,9 +601,9 @@ const PharmacyPage = () => {
         <Grid item xs={12} sm={6} md={2.4}>
           <Card sx={{ bgcolor: alpha(theme.palette.success.main, 0.1), border: `1px solid ${theme.palette.success.main}` }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Badge badgeContent={queueStats.ready} color="success" max={99}>
+              <SafeBadge badgeContent={queueStats.ready} color="success" max={99}>
                 <ReadyIcon color="success" sx={{ fontSize: 32 }} />
-              </Badge>
+              </SafeBadge>
               <Typography variant="h6" color="success.main" mt={1}>
                 Ready
               </Typography>
@@ -379,9 +617,9 @@ const PharmacyPage = () => {
         <Grid item xs={12} sm={6} md={2.4}>
           <Card sx={{ bgcolor: alpha(theme.palette.grey[500], 0.1), border: `1px solid ${theme.palette.grey[500]}` }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Badge badgeContent={queueStats.total} color="default" max={999}>
+              <SafeBadge badgeContent={queueStats.total} color="primary" max={999}>
                 <OrderIcon color="action" sx={{ fontSize: 32 }} />
-              </Badge>
+              </SafeBadge>
               <Typography variant="h6" color="text.primary" mt={1}>
                 Total
               </Typography>
@@ -518,6 +756,104 @@ const PharmacyPage = () => {
           />
         ))}
       </SpeedDial>
+
+      {/* Batch Print Dialog */}
+      <Dialog
+        open={batchPrintOpen}
+        onClose={handleCloseBatchPrint}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Print Prescription Labels</Typography>
+            <IconButton onClick={handleCloseBatchPrint} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        
+        <DialogContent dividers>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Select prescriptions to print labels. Labels will be printed in a batch with page breaks between each prescription.
+          </Alert>
+          
+          {Object.entries(queueCategories).map(([category, prescriptions]) => (
+            <Box key={category} mb={3}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={selectAllCategories[category]}
+                    onChange={() => handleToggleCategory(category)}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Typography variant="subtitle1" fontWeight="bold">
+                    {QUEUE_COLUMNS[category]?.title || category} ({prescriptions.length})
+                  </Typography>
+                }
+              />
+              
+              <List dense sx={{ ml: 3 }}>
+                {prescriptions.map((prescription) => {
+                  const medicationName = prescription.medicationCodeableConcept?.text || 
+                                       prescription.medicationCodeableConcept?.coding?.[0]?.display || 
+                                       'Unknown Medication';
+                  const patientDisplay = prescription.subject?.display || 'Unknown Patient';
+                  
+                  return (
+                    <ListItem key={prescription.id}>
+                      <ListItemIcon>
+                        <Checkbox
+                          edge="start"
+                          checked={selectedForPrint.includes(prescription.id)}
+                          onChange={() => handleTogglePrescription(prescription.id)}
+                        />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={medicationName}
+                        secondary={`${patientDisplay} - Rx #${prescription.id.substring(0, 8).toUpperCase()}`}
+                      />
+                    </ListItem>
+                  );
+                })}
+              </List>
+            </Box>
+          ))}
+        </DialogContent>
+        
+        <DialogActions>
+          <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1, ml: 2 }}>
+            {selectedForPrint.length} prescription{selectedForPrint.length !== 1 ? 's' : ''} selected
+          </Typography>
+          <Button onClick={handleCloseBatchPrint}>Cancel</Button>
+          <Button 
+            onClick={handlePrintBatch} 
+            variant="contained" 
+            startIcon={<PrintIcon />}
+            disabled={selectedForPrint.length === 0}
+          >
+            Print Labels ({selectedForPrint.length})
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

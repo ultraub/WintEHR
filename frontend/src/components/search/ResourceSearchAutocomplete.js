@@ -360,7 +360,13 @@ const ResourceSearchAutocomplete = ({
     <Box>
       <Autocomplete
         value={value}
-        onChange={onChange}
+        onChange={(event, newValue) => {
+          if (typeof onChange === 'function') {
+            onChange(event, newValue);
+          } else {
+            console.warn('ResourceSearchAutocomplete: onChange is not a function', { onChange, component: 'ResourceSearchAutocomplete' });
+          }
+        }}
         inputValue={inputValue}
         onInputChange={handleInputChange}
         options={options}

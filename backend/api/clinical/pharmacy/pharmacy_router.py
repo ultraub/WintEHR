@@ -3,7 +3,7 @@ Pharmacy Workflow API Router
 Handles medication dispensing, status tracking, and pharmacy queue management
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status as http_status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import List, Optional, Dict, Any
@@ -73,10 +73,10 @@ async def get_pharmacy_queue(
             search_params['status'] = status
             
         # Get medication requests
-        result = await storage.search_resources('MedicationRequest', search_params)
+        resources, total = await storage.search_resources('MedicationRequest', search_params)
         
         queue_items = []
-        for resource in result.get('resources', []):
+        for resource in resources:
             # Extract pharmacy queue information
             queue_item = _build_pharmacy_queue_item(resource)
             
@@ -87,13 +87,16 @@ async def get_pharmacy_queue(
             queue_items.append(queue_item)
         
         # Sort by priority and date
-        queue_items.sort(key=lambda x: (x.priority, x.prescribed_date or datetime.min))
+        queue_items.sort(key=lambda x: (
+            x.priority, 
+            x.prescribed_date or datetime.min.replace(tzinfo=timezone.utc)
+        ))
         
         return queue_items
         
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve pharmacy queue: {str(e)}"
         )
 
@@ -113,7 +116,7 @@ async def dispense_medication(
         med_request = await storage.read_resource('MedicationRequest', dispense_request.medication_request_id)
         if not med_request:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Medication request not found"
             )
         
@@ -199,7 +202,13 @@ async def dispense_medication(
             })
         
         # Create the dispense resource
-        created_dispense = await storage.create_resource(dispense_resource)
+        fhir_id, version_id, last_updated = await storage.create_resource(
+            'MedicationDispense',
+            dispense_resource
+        )
+        
+        # Get the created resource to return
+        created_dispense = await storage.read_resource('MedicationDispense', fhir_id)
         
         # Update medication request status to completed
         updated_request = med_request.copy()
@@ -225,7 +234,7 @@ async def dispense_medication(
         
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to dispense medication: {str(e)}"
         )
 
@@ -251,7 +260,7 @@ async def update_pharmacy_status(
         med_request = await storage.read_resource('MedicationRequest', medication_request_id)
         if not med_request:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Medication request not found"
             )
         
@@ -310,7 +319,7 @@ async def update_pharmacy_status(
         
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update pharmacy status: {str(e)}"
         )
 
@@ -335,8 +344,8 @@ async def get_pharmacy_metrics(
             'date': f"ge{start_date.strftime('%Y-%m-%d')}"
         }
         
-        result = await storage.search_resources('MedicationRequest', search_params)
-        requests = result.get('resources', [])
+        resources, total = await storage.search_resources('MedicationRequest', search_params)
+        requests = resources
         
         # Calculate metrics
         total_requests = len(requests)
@@ -345,6 +354,10 @@ async def get_pharmacy_metrics(
         pharmacy_status_counts = {}
         
         for request in requests:
+            # Skip if not a dict (shouldn't happen but defensive)
+            if not isinstance(request, dict):
+                continue
+                
             # Medication request status
             req_status = request.get('status', 'unknown')
             status_counts[req_status] = status_counts.get(req_status, 0) + 1
@@ -354,10 +367,10 @@ async def get_pharmacy_metrics(
             pharmacy_status_counts[pharmacy_status] = pharmacy_status_counts.get(pharmacy_status, 0) + 1
         
         # Get dispensed medications
-        dispense_result = await storage.search_resources('MedicationDispense', {
+        dispense_resources, dispense_total = await storage.search_resources('MedicationDispense', {
             'whenhandedover': f"ge{start_date.strftime('%Y-%m-%d')}"
         })
-        dispensed_count = len(dispense_result.get('resources', []))
+        dispensed_count = len(dispense_resources)
         
         return {
             "date_range": {
@@ -376,7 +389,7 @@ async def get_pharmacy_metrics(
         
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve pharmacy metrics: {str(e)}"
         )
 
@@ -487,7 +500,7 @@ def _get_pharmacy_status(medication_request: Dict[str, Any]) -> str:
     if authored_on:
         try:
             prescribed_date = datetime.fromisoformat(authored_on.replace('Z', '+00:00'))
-            if datetime.now() - prescribed_date < timedelta(hours=1):
+            if datetime.now(timezone.utc) - prescribed_date < timedelta(hours=1):
                 return 'pending'
             else:
                 return 'verified'
@@ -518,7 +531,7 @@ def _calculate_priority(medication_request: Dict[str, Any], pharmacy_status: str
     if authored_on:
         try:
             prescribed_date = datetime.fromisoformat(authored_on.replace('Z', '+00:00'))
-            hours_old = (datetime.now() - prescribed_date).total_seconds() / 3600
+            hours_old = (datetime.now(timezone.utc) - prescribed_date).total_seconds() / 3600
             
             if hours_old > 24:  # Over 24 hours old
                 priority = min(priority, 1)  # Highest priority

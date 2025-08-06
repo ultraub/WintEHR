@@ -2,9 +2,10 @@
  * Clinical Workflow Context
  * Manages cross-tab communication, workflow orchestration, and clinical context sharing
  */
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useFHIRResource } from './FHIRResourceContext';
 import { useAuth } from './AuthContext';
+import websocketService from '../services/websocket';
 
 const ClinicalWorkflowContext = createContext();
 
@@ -40,8 +41,8 @@ export const WORKFLOW_TYPES = {
 };
 
 export const ClinicalWorkflowProvider = ({ children }) => {
-  const { currentPatient, getPatientResources, refreshPatientResources } = useFHIRResource();
-  const { currentUser } = useAuth();
+  const { currentPatient, getPatientResources } = useFHIRResource();
+  const { user: currentUser } = useAuth();
   
   // Clinical context state
   const [clinicalContext, setClinicalContext] = useState({
@@ -59,6 +60,11 @@ export const ClinicalWorkflowProvider = ({ children }) => {
   const [eventListeners, setEventListeners] = useState(new Map());
   const [notifications, setNotifications] = useState([]);
   const [workflowStates, setWorkflowStates] = useState(new Map());
+  
+  // WebSocket connection state
+  const [wsConnected, setWsConnected] = useState(false);
+  const [wsReconnecting, setWsReconnecting] = useState(false);
+  const wsUnsubscribers = useRef([]);
 
   // Subscribe to clinical events
   const subscribe = useCallback((eventType, callback) => {
@@ -84,6 +90,21 @@ export const ClinicalWorkflowProvider = ({ children }) => {
 
   // Publish clinical events
   const publish = useCallback(async (eventType, data) => {
+    // Prepare event data with additional context
+    const eventData = {
+      ...data,
+      patientId: data.patientId || currentPatient?.id,  // Use provided patientId or current patient
+      userId: currentUser?.id,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Publishing event
+    
+    // Send event via WebSocket if connected
+    if (wsConnected) {
+      websocketService.publish(eventType, eventData);
+    }
+    
     // Get current listeners from state ref to avoid dependency
     setEventListeners(currentEventListeners => {
       const listeners = currentEventListeners.get(eventType) || [];
@@ -92,19 +113,20 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       (async () => {
         for (const listener of listeners) {
           try {
-            await listener(data);
+            await listener(eventData);  // Pass the complete eventData with patientId
           } catch (error) {
             // Error in event listener
           }
         }
         
         // Handle special event types with automated workflows
-        await handleAutomatedWorkflows(eventType, data);
+        await handleAutomatedWorkflows(eventType, eventData);
       })();
       
       return currentEventListeners; // Return unchanged state
     });
-  }, []); // Remove eventListeners dependency
+  }, [wsConnected, currentPatient?.id, currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Missing dep: handleAutomatedWorkflows. Not added as it's defined below and would cause circular dependency
 
   // Handle automated workflows
   const handleAutomatedWorkflows = async (eventType, data) => {
@@ -394,12 +416,83 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     }
   }, []);
 
+  // Initialize WebSocket connection
+  useEffect(() => {
+    // WebSocket initialization
+    const token = localStorage.getItem('auth_token');
+    
+    // Only connect if we have a user and token, and not already connected
+    if (currentUser && token && !wsConnected) {
+      // Check if WebSocket is already connected to prevent reconnection
+      const currentState = websocketService.getConnectionState();
+      if (currentState.isConnected) {
+        // WebSocket already connected, skipping reconnection
+        setWsConnected(true);
+        return;
+      }
+      
+      // Connecting WebSocket with token
+      websocketService.connect(token);
+      
+      // Monitor connection state
+      const unsubscribeConnection = websocketService.onConnectionChange((state) => {
+        setWsConnected(state === 'connected');
+        setWsReconnecting(state === 'reconnecting');
+      });
+      
+      // Subscribe to all clinical events via WebSocket
+      const eventTypes = Object.values(CLINICAL_EVENTS);
+      const unsubscribers = [];
+      
+      eventTypes.forEach(eventType => {
+        const unsubscribe = websocketService.subscribe(eventType, (data) => {
+          // Forward WebSocket events to local event listeners
+            const listeners = eventListeners.get(eventType) || [];
+            listeners.forEach(listener => {
+              try {
+                listener(data);
+              } catch (error) {
+                // Error in event listener
+              }
+            });
+            
+            // Handle automated workflows
+            handleAutomatedWorkflows(eventType, data);
+          });
+          unsubscribers.push(unsubscribe);
+        });
+        
+        wsUnsubscribers.current = [...unsubscribers, unsubscribeConnection];
+      
+      // Store cleanup function
+      return () => {
+        // Only cleanup if component is unmounting or user is logging out
+        // WebSocket cleanup triggered
+        wsUnsubscribers.current.forEach(unsubscribe => unsubscribe());
+        wsUnsubscribers.current = [];
+        // Don't disconnect here - let the WebSocket manage its own lifecycle
+      };
+    }
+    
+    // Return empty cleanup if conditions not met
+    return () => {};
+  }, [currentUser, wsConnected]); // eslint-disable-line react-hooks/exhaustive-deps
+  
+  // Cleanup WebSocket on component unmount
+  useEffect(() => {
+    return () => {
+      // Component unmounting, disconnecting WebSocket
+      websocketService.disconnect();
+    };
+  }, []); // Only run on unmount
+  
   // Load clinical context when patient changes
   useEffect(() => {
     if (currentPatient?.id) {
       loadClinicalContext();
     }
-  }, [currentPatient?.id]);
+  }, [currentPatient?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Missing dep: loadClinicalContext. Adding it would cause infinite loops since it's defined below
 
   const loadClinicalContext = async () => {
     try {
@@ -535,7 +628,11 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     
     // Workflow states
     workflowStates,
-    setWorkflowStates
+    setWorkflowStates,
+    
+    // WebSocket status
+    wsConnected,
+    wsReconnecting
   };
 
   return (

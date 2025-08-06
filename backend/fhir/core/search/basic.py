@@ -10,11 +10,15 @@ Implements comprehensive FHIR search functionality including:
 """
 
 import re
+import logging
 from typing import Dict, List, Tuple, Any, Optional, Set
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from fhir.core.reference_utils import ReferenceUtils
 from fhir.core.search.composite import CompositeSearchHandler
+from fastapi import HTTPException
+
+logger = logging.getLogger(__name__)
 
 
 class SearchParameterHandler:
@@ -22,7 +26,7 @@ class SearchParameterHandler:
     
     # Search parameter modifiers
     STRING_MODIFIERS = {':exact', ':contains', ':text'}
-    TOKEN_MODIFIERS = {':text', ':not', ':above', ':below', ':in', ':not-in'}
+    TOKEN_MODIFIERS = {':exact', ':text', ':not', ':above', ':below', ':in', ':not-in'}
     DATE_MODIFIERS = {':missing', ':exact', ':ne', ':lt', ':gt', ':ge', ':le', ':sa', ':eb', ':ap'}
     NUMBER_MODIFIERS = {':missing', ':exact', ':ne', ':lt', ':gt', ':ge', ':le', ':sa', ':eb', ':ap'}
     QUANTITY_MODIFIERS = {':missing', ':exact', ':ne', ':lt', ':gt', ':ge', ':le', ':sa', ':eb', ':ap'}
@@ -74,6 +78,10 @@ class SearchParameterHandler:
         Returns:
             Tuple of (search_params, result_params)
         """
+        # Debug log
+        if 'death-date:missing' in raw_params:
+            print(f"DEBUG: parse_search_params called with raw_params containing death-date:missing = {raw_params.get('death-date:missing')}")
+            
         search_params = {}
         result_params = {}
         
@@ -100,7 +108,8 @@ class SearchParameterHandler:
             # Parse search parameter
             parsed = self._parse_parameter(resource_type, param_name, param_value)
             if parsed:
-                search_params[param_name] = parsed
+                # Use the parsed base parameter name as the key, not the original with modifier
+                search_params[parsed['name']] = parsed
         
         return search_params, result_params
     
@@ -119,6 +128,10 @@ class SearchParameterHandler:
         Returns:
             Tuple of (join_clauses, where_clauses, sql_params)
         """
+        # Debug
+        if any('death-date' in k for k in search_params.keys()):
+            print(f"DEBUG: build_search_query called with search_params: {search_params}")
+            
         join_clauses = []
         where_clauses = []
         sql_params = {}
@@ -127,6 +140,15 @@ class SearchParameterHandler:
         for param_name, param_data in search_params.items():
             param_counter += 1
             alias = f"sp{param_counter}"
+            
+            # Skip _sort parameter - it's handled separately
+            if param_name == '_sort':
+                continue
+            
+            # Ensure param_data is a dictionary (not a list)
+            if isinstance(param_data, list):
+                # This shouldn't happen with properly parsed params
+                continue
             
             # Handle special parameters
             if param_name.startswith('_has:') or param_data.get('type') == '_has':
@@ -159,7 +181,8 @@ class SearchParameterHandler:
                 continue
             
             # Quantity searches don't use search_params table
-            if param_type != 'quantity':
+            # :missing searches also don't need a join - they use EXISTS/NOT EXISTS
+            if param_type != 'quantity' and modifier != 'missing':
                 # Regular search parameters
                 join_clauses.append(
                     f"LEFT JOIN fhir.search_params {alias} ON {alias}.resource_id = r.id"
@@ -173,7 +196,13 @@ class SearchParameterHandler:
                 where_clause = self._build_token_clause(
                     alias, param_data['name'], values, modifier, param_counter, sql_params
                 )
+                # Debug logging for token clause with modifier
+                if modifier:
+                    logger.info(f"Built token where clause with modifier '{modifier}': {where_clause}")
             elif param_type == 'date':
+                # Debug
+                if param_data['name'] == 'death-date':
+                    print(f"DEBUG: Building date clause for death-date with modifier={modifier}, values={values}")
                 where_clause = self._build_date_clause(
                     alias, param_data['name'], values, modifier, param_counter, sql_params
                 )
@@ -328,6 +357,10 @@ class SearchParameterHandler:
             base_param = param_name
             modifier = None
         
+        # Debug logging
+        if base_param == 'death-date':
+            logger.info(f"Parsing parameter: param_name={param_name}, base_param={base_param}, modifier={modifier}, values={param_values}")
+        
         # Check if this is a composite parameter
         if self.composite_handler.is_composite_parameter(resource_type, base_param):
             return {
@@ -339,6 +372,8 @@ class SearchParameterHandler:
         
         # Get parameter type
         param_type = self._get_parameter_type(resource_type, base_param)
+        if base_param == 'death-date':
+            print(f"DEBUG: death-date parameter type = {param_type}")
         if not param_type:
             return None
         
@@ -348,7 +383,22 @@ class SearchParameterHandler:
             # Keep it as the modifier for special handling in _build_reference_clause
             pass
         elif modifier and not self._is_valid_modifier(param_type, modifier):
-            return None
+            # Log error about unsupported modifier
+            logger.error(f"Unsupported modifier ':{modifier}' for parameter '{base_param}' of type '{param_type}'")
+            
+            # Get valid modifiers for this type
+            valid_modifiers = self._get_valid_modifiers_for_type(param_type)
+            if valid_modifiers:
+                valid_list = ', '.join(sorted(valid_modifiers))
+                error_msg = f"Invalid modifier ':{modifier}' for parameter '{base_param}'. Valid modifiers for {param_type} parameters are: {valid_list}"
+            else:
+                error_msg = f"Invalid modifier ':{modifier}' for parameter '{base_param}'. No modifiers are supported for {param_type} parameters."
+            
+            # Raise an exception that will be caught by the API layer
+            raise HTTPException(
+                status_code=400,
+                detail=error_msg
+            )
         
         # Parse values based on type
         parsed_values = []
@@ -360,12 +410,22 @@ class SearchParameterHandler:
         if not parsed_values:
             return None
         
-        return {
+        result = {
             'name': base_param,
             'type': param_type,
             'modifier': modifier,
             'values': parsed_values
         }
+        
+        # Debug logging for modifiers
+        if modifier:
+            logger.debug(f"Parsed parameter with modifier: {base_param}:{modifier} -> type={param_type}")
+        
+        # Debug logging
+        if base_param == 'death-date':
+            print(f"DEBUG: _parse_parameter returning: {result}")
+        
+        return result
     
     def _get_parameter_type(self, resource_type: str, param_name: str) -> Optional[str]:
         """Get the type of a search parameter."""
@@ -400,6 +460,23 @@ class SearchParameterHandler:
         
         return False
     
+    def _get_valid_modifiers_for_type(self, param_type: str) -> Set[str]:
+        """Get the set of valid modifiers for a parameter type."""
+        if param_type == 'string':
+            return self.STRING_MODIFIERS
+        elif param_type == 'token':
+            return self.TOKEN_MODIFIERS
+        elif param_type == 'date':
+            return self.DATE_MODIFIERS
+        elif param_type == 'number':
+            return self.NUMBER_MODIFIERS
+        elif param_type == 'quantity':
+            return self.QUANTITY_MODIFIERS
+        elif param_type == 'reference':
+            return self.REFERENCE_MODIFIERS
+        
+        return set()
+    
     def _parse_value(
         self,
         param_type: str,
@@ -407,6 +484,11 @@ class SearchParameterHandler:
         modifier: Optional[str]
     ) -> Optional[Dict[str, Any]]:
         """Parse a parameter value based on its type."""
+        # Special handling for :missing modifier
+        if modifier == 'missing':
+            # For :missing, the value should be 'true' or 'false'
+            return {'value': value.lower()}
+        
         if param_type == 'string':
             return {'value': value}
         
@@ -589,8 +671,12 @@ class SearchParameterHandler:
                     sql_params[code_key] = code
             elif code is not None:
                 # Only code specified - match any system
+                # Check both value_token and value_token_code for compatibility
                 code_key = f"token_code_{counter}_{i}"
-                conditions.append(f"{alias}.value_token_code = :{code_key}")
+                conditions.append(
+                    f"({alias}.value_token = :{code_key} OR "
+                    f"{alias}.value_token_code = :{code_key})"
+                )
                 sql_params[code_key] = code
             elif system is not None:
                 # Only system specified
@@ -606,7 +692,9 @@ class SearchParameterHandler:
         
         if conditions:
             if modifier == 'not':
-                return f"({alias}.param_name = :{param_name_key} AND NOT ({' OR '.join(conditions)}))"
+                result = f"({alias}.param_name = :{param_name_key} AND NOT ({' OR '.join(conditions)}))"
+                logger.debug(f"Built token clause with NOT modifier: {result}")
+                return result
             else:
                 return f"({alias}.param_name = :{param_name_key} AND ({' OR '.join(conditions)}))"
         return "1=1"
@@ -647,6 +735,14 @@ class SearchParameterHandler:
         sql_params: Dict[str, Any]
     ) -> str:
         """Build WHERE clause for date parameter."""
+        # Handle :missing modifier
+        if modifier == 'missing':
+            print(f"IMPORTANT: _build_date_clause handling :missing for {param_name}")
+            import sys
+            sys.stderr.write(f"IMPORTANT: _build_date_clause handling :missing for {param_name}\n")
+            sys.stderr.flush()
+            return self._build_missing_clause(alias, param_name, values, counter, sql_params)
+        
         conditions = []
         
         for i, value_dict in enumerate(values):
@@ -707,6 +803,10 @@ class SearchParameterHandler:
         sql_params: Dict[str, Any]
     ) -> str:
         """Build WHERE clause for number parameter."""
+        # Handle :missing modifier
+        if modifier == 'missing':
+            return self._build_missing_clause(alias, param_name, values, counter, sql_params)
+        
         conditions = []
         
         for i, value_dict in enumerate(values):
@@ -747,10 +847,14 @@ class SearchParameterHandler:
         sql_params: Dict[str, Any]
     ) -> str:
         """Build WHERE clause for reference parameter."""
+        # Handle :missing modifier
+        if modifier == 'missing':
+            return self._build_missing_clause(alias, param_name, values, counter, sql_params)
+        
         conditions = []
         
         # Handle resource type modifier (e.g., subject:Patient)
-        if modifier and ':' not in modifier and modifier != 'type':
+        if modifier and ':' not in modifier and modifier not in ['type', 'missing']:
             # The modifier is a resource type constraint
             for i, value_dict in enumerate(values):
                 ref_id = value_dict.get('id')
@@ -761,9 +865,27 @@ class SearchParameterHandler:
                     # Check both storage formats:
                     # 1. Just ID in value_reference (e.g., "patient-id")
                     # 2. Full reference in value_string (e.g., "Patient/patient-id")
-                    conditions.append(f"({alias}.value_reference = :{ref_key} OR {alias}.value_string = :{ref_full_key})")
+                    # 3. Numeric ID reference if this is a UUID
+                    condition_parts = [
+                        f"{alias}.value_reference = :{ref_key}",
+                        f"{alias}.value_string = :{ref_full_key}"
+                    ]
                     sql_params[ref_key] = ref_id
                     sql_params[ref_full_key] = f"{modifier}/{ref_id}"
+                    
+                    # If this looks like a UUID, also search for the numeric ID mapping
+                    if '-' in ref_id and len(ref_id) == 36:
+                        # This is likely a UUID - add subquery to find numeric ID
+                        numeric_id_key = f"ref_numeric_{counter}_{i}"
+                        condition_parts.append(
+                            f"{alias}.value_string IN ("
+                            f"SELECT '{modifier}/' || id::text FROM fhir.resources "
+                            f"WHERE resource_type = '{modifier}' AND fhir_id = :{numeric_id_key} AND deleted = false"
+                            f")"
+                        )
+                        sql_params[numeric_id_key] = ref_id
+                    
+                    conditions.append(f"({' OR '.join(condition_parts)})")
         else:
             # Standard reference handling
             for i, value_dict in enumerate(values):
@@ -781,8 +903,9 @@ class SearchParameterHandler:
                     condition_parts = [f"{alias}.value_reference = :{ref_key}"]
                     sql_params[ref_key] = ref_id
                     
-                    # Add URN format check
+                    # Add URN format check in both fields (data might be in either)
                     urn_key = f"ref_urn_{counter}_{i}"
+                    condition_parts.append(f"{alias}.value_reference = :{urn_key}")
                     condition_parts.append(f"{alias}.value_string = :{urn_key}")
                     sql_params[urn_key] = f"urn:uuid:{ref_id}"
                     
@@ -797,6 +920,28 @@ class SearchParameterHandler:
                         condition_parts.append(f"{alias}.value_reference = :{patient_full_key}")
                         condition_parts.append(f"{alias}.value_string = :{patient_full_key}")
                         sql_params[patient_full_key] = f"Patient/{ref_id}"
+                    
+                    # If this looks like a UUID, also search for the numeric ID mapping
+                    if '-' in ref_id and len(ref_id) == 36:
+                        # This is likely a UUID - add subquery to find numeric ID
+                        numeric_id_key = f"ref_numeric_{counter}_{i}"
+                        target_type = ref_type or 'Patient'  # Default to Patient if no type specified
+                        
+                        # Add conditions for numeric ID references
+                        condition_parts.append(
+                            f"{alias}.value_string IN ("
+                            f"SELECT '{target_type}/' || id::text FROM fhir.resources "
+                            f"WHERE resource_type = '{target_type}' AND fhir_id = :{numeric_id_key} AND deleted = false"
+                            f")"
+                        )
+                        # Also check just the numeric ID without resource type prefix
+                        condition_parts.append(
+                            f"{alias}.value_reference IN ("
+                            f"SELECT id::text FROM fhir.resources "
+                            f"WHERE resource_type = '{target_type}' AND fhir_id = :{numeric_id_key} AND deleted = false"
+                            f")"
+                        )
+                        sql_params[numeric_id_key] = ref_id
                     
                     conditions.append(f"({' OR '.join(condition_parts)})")
         
@@ -817,6 +962,25 @@ class SearchParameterHandler:
         sql_params: Dict[str, Any]
     ) -> str:
         """Build WHERE clause for quantity parameter."""
+        # Handle :missing modifier
+        if modifier == 'missing':
+            # For quantity, we check the JSONB path
+            if param_name == 'value-quantity':
+                jsonb_path = "r.resource->'valueQuantity'"
+            else:
+                jsonb_path = f"r.resource->'{param_name}'"
+            
+            # The value should be 'true' or 'false'
+            if values and isinstance(values[0], dict) and 'value' in values[0]:
+                missing_value = str(values[0]['value']).lower() == 'true'
+            else:
+                missing_value = True
+            
+            if missing_value:
+                return f"({jsonb_path} IS NULL)"
+            else:
+                return f"({jsonb_path} IS NOT NULL)"
+        
         # For value-quantity searches, we need to query the JSONB directly
         # since quantities have complex structure (value, unit, system, code)
         conditions = []
@@ -1637,3 +1801,72 @@ class SearchParameterHandler:
         else:
             # No valid composite parameters
             return "1=0"
+    
+    def _build_missing_clause(
+        self,
+        alias: str,
+        param_name: str,
+        values: List[Dict],
+        counter: int,
+        sql_params: Dict[str, Any]
+    ) -> str:
+        """Build WHERE clause for :missing modifier.
+        
+        The :missing modifier searches for resources that either have or don't have
+        a value for the specified parameter.
+        
+        Args:
+            alias: SQL table alias for search_params table
+            param_name: The search parameter name
+            values: List of value dicts, should contain 'true' or 'false'
+            counter: Counter for unique parameter naming
+            sql_params: Dictionary to add SQL parameters to
+            
+        Returns:
+            SQL WHERE clause string
+        """
+        # Extract the missing value - should be 'true' or 'false'
+        missing_value = True  # Default to true if not specified
+        
+        if values and len(values) > 0:
+            value = values[0]
+            if isinstance(value, dict):
+                # Value might be in 'value' or 'code' field
+                val_str = value.get('value') or value.get('code') or 'true'
+            else:
+                val_str = str(value)
+            
+            missing_value = val_str.lower() == 'true'
+        
+        logger.info(f"Building :missing clause for param_name={param_name}, missing_value={missing_value}, values={values}")
+        print(f"CRITICAL: _build_missing_clause called for {param_name}, missing_value={missing_value}")
+        import sys
+        sys.stderr.write(f"CRITICAL: _build_missing_clause called for {param_name}, missing_value={missing_value}\n")
+        sys.stderr.flush()
+        
+        param_name_key = f"param_name_{counter}"
+        sql_params[param_name_key] = param_name
+        
+        if missing_value:
+            # Looking for resources where the parameter is missing
+            # Use NOT EXISTS to find resources without this search parameter
+            clause = f"""NOT EXISTS (
+                SELECT 1 FROM fhir.search_params sp_missing_{counter}
+                WHERE sp_missing_{counter}.resource_id = r.id
+                AND sp_missing_{counter}.param_name = :{param_name_key}
+            )"""
+        else:
+            # Looking for resources where the parameter exists
+            # Use EXISTS to find resources with this search parameter
+            clause = f"""EXISTS (
+                SELECT 1 FROM fhir.search_params sp_exists_{counter}
+                WHERE sp_exists_{counter}.resource_id = r.id
+                AND sp_exists_{counter}.param_name = :{param_name_key}
+            )"""
+        
+        logger.info(f"Generated :missing clause: {clause}")
+        print(f"FINAL SQL CLAUSE: {clause}")
+        import sys
+        sys.stderr.write(f"FINAL SQL CLAUSE: {clause}\n")
+        sys.stderr.flush()
+        return clause

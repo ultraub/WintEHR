@@ -53,7 +53,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, differenceInDays, addDays } from 'date-fns';
 import { labToCareIntegrationService } from '../../../services/labToCareIntegrationService';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import { printDocument } from '../../../core/export/printUtils';
 
 const LabMonitoringDashboard = ({ patientId, patientConditions }) => {
@@ -266,13 +266,13 @@ const LabMonitoringDashboard = ({ patientId, patientConditions }) => {
       <h3>Monitoring Schedule</h3>
       <table style="width: 100%; border-collapse: collapse;">
         <thead>
-          <tr style="background-color: #f5f5f5;">
-            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Test</th>
-            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Frequency</th>
-            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Last Done</th>
-            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Last Value</th>
-            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Next Due</th>
-            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Status</th>
+          <tr style="background-color: ${theme.palette.action.hover};">
+            <th style="padding: 8px; text-align: left; border: 1px solid ${theme.palette.divider};">Test</th>
+            <th style="padding: 8px; text-align: left; border: 1px solid ${theme.palette.divider};">Frequency</th>
+            <th style="padding: 8px; text-align: left; border: 1px solid ${theme.palette.divider};">Last Done</th>
+            <th style="padding: 8px; text-align: left; border: 1px solid ${theme.palette.divider};">Last Value</th>
+            <th style="padding: 8px; text-align: left; border: 1px solid ${theme.palette.divider};">Next Due</th>
+            <th style="padding: 8px; text-align: left; border: 1px solid ${theme.palette.divider};">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -280,16 +280,16 @@ const LabMonitoringDashboard = ({ patientId, patientConditions }) => {
             const testStatus = status.tests[test.code];
             return `
               <tr>
-                <td style="padding: 8px; border: 1px solid #ddd;">${test.name}</td>
-                <td style="padding: 8px; border: 1px solid #ddd;">Every ${test.frequency} days</td>
-                <td style="padding: 8px; border: 1px solid #ddd;">
+                <td style="padding: 8px; border: 1px solid ${theme.palette.divider};">${test.name}</td>
+                <td style="padding: 8px; border: 1px solid ${theme.palette.divider};">Every ${test.frequency} days</td>
+                <td style="padding: 8px; border: 1px solid ${theme.palette.divider};">
                   ${testStatus?.lastDate ? format(testStatus.lastDate, 'MM/dd/yyyy') : 'Never'}
                 </td>
-                <td style="padding: 8px; border: 1px solid #ddd;">${testStatus?.lastValue || 'N/A'}</td>
-                <td style="padding: 8px; border: 1px solid #ddd;">
+                <td style="padding: 8px; border: 1px solid ${theme.palette.divider};">${testStatus?.lastValue || 'N/A'}</td>
+                <td style="padding: 8px; border: 1px solid ${theme.palette.divider};">
                   ${testStatus?.dueDate ? format(testStatus.dueDate, 'MM/dd/yyyy') : 'Now'}
                 </td>
-                <td style="padding: 8px; border: 1px solid #ddd;">${testStatus?.status || 'Unknown'}</td>
+                <td style="padding: 8px; border: 1px solid ${theme.palette.divider};">${testStatus?.status || 'Unknown'}</td>
               </tr>
             `;
           }).join('')}

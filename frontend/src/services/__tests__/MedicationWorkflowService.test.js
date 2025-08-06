@@ -4,47 +4,46 @@
  */
 
 import { medicationWorkflowService } from '../MedicationWorkflowService';
-import { fhirService } from '../fhirService';
+import { fhirClient } from '../../core/fhir/services/fhirClient';
 
 // Mock dependencies
-jest.mock('../fhirService');
+jest.mock('../../core/fhir/services/fhirClient');
 
 describe('MedicationWorkflowService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
     // Mock common FHIR responses
-    fhirService.searchResources.mockResolvedValue({
-      entry: [
+    fhirClient.search.mockResolvedValue({
+      resources: [
         {
-          resource: {
-            resourceType: 'MedicationRequest',
-            id: 'med-1',
-            status: 'active',
-            medicationCodeableConcept: {
-              text: 'Lisinopril 10mg'
-            },
-            dispenseRequest: {
-              numberOfRepeatsAllowed: 5,
-              quantity: { value: 30 }
-            }
+          resourceType: 'MedicationRequest',
+          id: 'med-1',
+          status: 'active',
+          medicationCodeableConcept: {
+            text: 'Lisinopril 10mg'
+          },
+          dispenseRequest: {
+            numberOfRepeatsAllowed: 5,
+            quantity: { value: 30 }
           }
         }
-      ]
+      ],
+      total: 1
     });
   });
 
   describe('getMedicationReconciliationData', () => {
     it('should retrieve reconciliation data for patient', async () => {
       // Mock multiple resource types
-      fhirService.searchResources
-        .mockResolvedValueOnce({ entry: [{ resource: { id: 'med-1', status: 'active' } }] })
-        .mockResolvedValueOnce({ entry: [{ resource: { id: 'disp-1' } }] })
-        .mockResolvedValueOnce({ entry: [{ resource: { id: 'admin-1' } }] });
+      fhirClient.search
+        .mockResolvedValueOnce({ resources: [{ id: 'med-1', status: 'active' }], total: 1 })
+        .mockResolvedValueOnce({ resources: [{ id: 'disp-1' }], total: 1 })
+        .mockResolvedValueOnce({ resources: [{ id: 'admin-1' }], total: 1 });
       
       const result = await medicationWorkflowService.getMedicationReconciliationData('patient-1');
       
-      expect(fhirService.searchResources).toHaveBeenCalledTimes(3);
+      expect(fhirClient.search).toHaveBeenCalledTimes(3);
       expect(result.currentMedications).toHaveLength(1);
       expect(result.reconciliationSummary).toBeDefined();
       expect(result.reconciliationSummary.totalActive).toBe(1);
@@ -53,7 +52,7 @@ describe('MedicationWorkflowService', () => {
     it('should include encounter-specific medications when encounter provided', async () => {
       await medicationWorkflowService.getMedicationReconciliationData('patient-1', 'encounter-1');
       
-      expect(fhirService.searchResources).toHaveBeenCalledWith(
+      expect(fhirClient.search).toHaveBeenCalledWith(
         'MedicationRequest',
         expect.objectContaining({
           encounter: 'Encounter/encounter-1'
@@ -62,19 +61,21 @@ describe('MedicationWorkflowService', () => {
     });
 
     it('should identify discrepancies in medication records', async () => {
-      fhirService.searchResources
+      fhirClient.search
         .mockResolvedValueOnce({ 
-          entry: [
-            { resource: { id: 'med-1', status: 'active', medicationCodeableConcept: { text: 'Med A' } } },
-            { resource: { id: 'med-2', status: 'active', medicationCodeableConcept: { text: 'Med B' } } }
-          ] 
+          resources: [
+            { id: 'med-1', status: 'active', medicationCodeableConcept: { text: 'Med A' } },
+            { id: 'med-2', status: 'active', medicationCodeableConcept: { text: 'Med B' } }
+          ],
+          total: 2
         })
         .mockResolvedValueOnce({ 
-          entry: [
-            { resource: { id: 'disp-1', medicationCodeableConcept: { text: 'Med A' } } }
-          ] 
+          resources: [
+            { id: 'disp-1', medicationCodeableConcept: { text: 'Med A' } }
+          ],
+          total: 1
         })
-        .mockResolvedValueOnce({ entry: [] });
+        .mockResolvedValueOnce({ resources: [], total: 0 });
       
       const result = await medicationWorkflowService.getMedicationReconciliationData('patient-1');
       
@@ -95,8 +96,8 @@ describe('MedicationWorkflowService', () => {
         ]
       };
       
-      fhirService.updateResource.mockResolvedValue({ id: 'med-1', status: 'stopped' });
-      fhirService.createResource.mockResolvedValue({ id: 'med-new' });
+      fhirClient.update.mockResolvedValue({ id: 'med-1', status: 'stopped' });
+      fhirClient.create.mockResolvedValue({ id: 'med-new' });
       
       const result = await medicationWorkflowService.executeReconciliation('patient-1', reconciliationData);
       
@@ -111,7 +112,7 @@ describe('MedicationWorkflowService', () => {
         medicationsToStop: ['invalid-id']
       };
       
-      fhirService.updateResource.mockRejectedValue(new Error('Not found'));
+      fhirClient.update.mockRejectedValue(new Error('Not found'));
       
       const result = await medicationWorkflowService.executeReconciliation('patient-1', reconciliationData);
       
@@ -128,18 +129,18 @@ describe('MedicationWorkflowService', () => {
         reason: 'Regular refill'
       };
       
-      fhirService.getResource.mockResolvedValue({
+      fhirClient.read.mockResolvedValue({
         id: 'med-1',
         status: 'active',
         dispenseRequest: { numberOfRepeatsAllowed: 5 }
       });
-      fhirService.createResource.mockResolvedValue({ id: 'refill-1' });
+      fhirClient.create.mockResolvedValue({ id: 'refill-1' });
       
       const result = await medicationWorkflowService.createRefillRequest('med-1', requestData);
       
       expect(result.success).toBe(true);
       expect(result.refillRequestId).toBe('refill-1');
-      expect(fhirService.createResource).toHaveBeenCalledWith(
+      expect(fhirClient.create).toHaveBeenCalledWith(
         'MedicationRequest',
         expect.objectContaining({
           status: 'draft',
@@ -149,7 +150,7 @@ describe('MedicationWorkflowService', () => {
     });
 
     it('should reject refill for medications with no repeats left', async () => {
-      fhirService.getResource.mockResolvedValue({
+      fhirClient.read.mockResolvedValue({
         id: 'med-1',
         status: 'active',
         dispenseRequest: { numberOfRepeatsAllowed: 0 }
@@ -171,18 +172,19 @@ describe('MedicationWorkflowService', () => {
 
   describe('getRefillHistory', () => {
     it('should retrieve refill history for medication', async () => {
-      fhirService.searchResources.mockResolvedValue({
-        entry: [
-          { resource: { id: 'refill-1', status: 'completed', authoredOn: '2024-01-01' } },
-          { resource: { id: 'refill-2', status: 'completed', authoredOn: '2024-02-01' } }
-        ]
+      fhirClient.search.mockResolvedValue({
+        resources: [
+          { id: 'refill-1', status: 'completed', authoredOn: '2024-01-01' },
+          { id: 'refill-2', status: 'completed', authoredOn: '2024-02-01' }
+        ],
+        total: 2
       });
       
       const history = await medicationWorkflowService.getRefillHistory('med-1');
       
       expect(history).toHaveLength(2);
       expect(history[0].status).toBe('completed');
-      expect(fhirService.searchResources).toHaveBeenCalledWith(
+      expect(fhirClient.search).toHaveBeenCalledWith(
         'MedicationRequest',
         expect.objectContaining({
           'based-on': 'MedicationRequest/med-1'
@@ -197,14 +199,13 @@ describe('MedicationWorkflowService', () => {
         '2024-01-01', '2024-01-31', '2024-03-02'
       ];
       
-      fhirService.searchResources.mockResolvedValue({
-        entry: dispenseDates.map((date, i) => ({
-          resource: {
-            id: `disp-${i}`,
-            whenHandedOver: date,
-            quantity: { value: 30 }
-          }
-        }))
+      fhirClient.search.mockResolvedValue({
+        resources: dispenseDates.map((date, i) => ({
+          id: `disp-${i}`,
+          whenHandedOver: date,
+          quantity: { value: 30 }
+        })),
+        total: dispenseDates.length
       });
       
       const adherence = await medicationWorkflowService.calculateMedicationAdherence('med-1');
@@ -215,7 +216,7 @@ describe('MedicationWorkflowService', () => {
     });
 
     it('should handle medications with no dispense history', async () => {
-      fhirService.searchResources.mockResolvedValue({ entry: [] });
+      fhirClient.search.mockResolvedValue({ resources: [], total: 0 });
       
       const adherence = await medicationWorkflowService.calculateMedicationAdherence('med-1');
       
@@ -232,7 +233,7 @@ describe('MedicationWorkflowService', () => {
         updatedBy: 'practitioner-1'
       };
       
-      fhirService.updateResource.mockResolvedValue({
+      fhirClient.update.mockResolvedValue({
         id: 'med-1',
         status: 'stopped'
       });
@@ -240,7 +241,7 @@ describe('MedicationWorkflowService', () => {
       const result = await medicationWorkflowService.updatePrescriptionStatus('med-1', 'stopped', metadata);
       
       expect(result.success).toBe(true);
-      expect(fhirService.updateResource).toHaveBeenCalledWith(
+      expect(fhirClient.update).toHaveBeenCalledWith(
         'MedicationRequest',
         'med-1',
         expect.objectContaining({
@@ -262,11 +263,12 @@ describe('MedicationWorkflowService', () => {
 
   describe('getPatientPrescriptionStatuses', () => {
     it('should retrieve all prescription statuses for patient', async () => {
-      fhirService.searchResources.mockResolvedValue({
-        entry: [
-          { resource: { id: 'med-1', status: 'active' } },
-          { resource: { id: 'med-2', status: 'stopped' } }
-        ]
+      fhirClient.search.mockResolvedValue({
+        resources: [
+          { id: 'med-1', status: 'active' },
+          { id: 'med-2', status: 'stopped' }
+        ],
+        total: 2
       });
       
       const statuses = await medicationWorkflowService.getPatientPrescriptionStatuses('patient-1');
@@ -284,10 +286,10 @@ describe('MedicationWorkflowService', () => {
   describe('validatePatientMedicationWorkflow', () => {
     it('should validate complete medication workflow', async () => {
       // Mock various resources for validation
-      fhirService.searchResources
-        .mockResolvedValueOnce({ entry: [{ resource: { id: 'med-1', status: 'active' } }] })
-        .mockResolvedValueOnce({ entry: [{ resource: { id: 'allergy-1' } }] })
-        .mockResolvedValueOnce({ entry: [{ resource: { id: 'condition-1' } }] });
+      fhirClient.search
+        .mockResolvedValueOnce({ resources: [{ id: 'med-1', status: 'active' }], total: 1 })
+        .mockResolvedValueOnce({ resources: [{ id: 'allergy-1' }], total: 1 })
+        .mockResolvedValueOnce({ resources: [{ id: 'condition-1' }], total: 1 });
       
       const validation = await medicationWorkflowService.validatePatientMedicationWorkflow('patient-1');
       
@@ -299,11 +301,12 @@ describe('MedicationWorkflowService', () => {
 
     it('should identify workflow issues', async () => {
       // Mock duplicate medications
-      fhirService.searchResources.mockResolvedValue({
-        entry: [
-          { resource: { id: 'med-1', medicationCodeableConcept: { text: 'Lisinopril' } } },
-          { resource: { id: 'med-2', medicationCodeableConcept: { text: 'Lisinopril' } } }
-        ]
+      fhirClient.search.mockResolvedValue({
+        resources: [
+          { id: 'med-1', medicationCodeableConcept: { text: 'Lisinopril' } },
+          { id: 'med-2', medicationCodeableConcept: { text: 'Lisinopril' } }
+        ],
+        total: 2
       });
       
       const validation = await medicationWorkflowService.validatePatientMedicationWorkflow('patient-1');
@@ -331,16 +334,16 @@ describe('MedicationWorkflowService', () => {
   describe('Integration workflow tests', () => {
     it('should handle complete medication reconciliation workflow', async () => {
       // Step 1: Get reconciliation data
-      fhirService.searchResources
-        .mockResolvedValueOnce({ entry: [{ resource: { id: 'med-1', status: 'active' } }] })
-        .mockResolvedValueOnce({ entry: [] })
-        .mockResolvedValueOnce({ entry: [] });
+      fhirClient.search
+        .mockResolvedValueOnce({ resources: [{ id: 'med-1', status: 'active' }], total: 1 })
+        .mockResolvedValueOnce({ resources: [], total: 0 })
+        .mockResolvedValueOnce({ resources: [], total: 0 });
       
       const reconciliationData = await medicationWorkflowService.getMedicationReconciliationData('patient-1');
       expect(reconciliationData.currentMedications).toHaveLength(1);
       
       // Step 2: Execute reconciliation
-      fhirService.updateResource.mockResolvedValue({ id: 'med-1', status: 'stopped' });
+      fhirClient.update.mockResolvedValue({ id: 'med-1', status: 'stopped' });
       
       const reconciliationResult = await medicationWorkflowService.executeReconciliation('patient-1', {
         medicationsToStop: ['med-1']
@@ -354,12 +357,12 @@ describe('MedicationWorkflowService', () => {
 
     it('should handle refill workflow with adherence tracking', async () => {
       // Mock medication with refills available
-      fhirService.getResource.mockResolvedValue({
+      fhirClient.read.mockResolvedValue({
         id: 'med-1',
         status: 'active',
         dispenseRequest: { numberOfRepeatsAllowed: 3 }
       });
-      fhirService.createResource.mockResolvedValue({ id: 'refill-1' });
+      fhirClient.create.mockResolvedValue({ id: 'refill-1' });
       
       // Create refill request
       const refillResult = await medicationWorkflowService.createRefillRequest('med-1', {
@@ -370,8 +373,9 @@ describe('MedicationWorkflowService', () => {
       expect(refillResult.success).toBe(true);
       
       // Check adherence
-      fhirService.searchResources.mockResolvedValue({
-        entry: [{ resource: { id: 'disp-1', quantity: { value: 30 } } }]
+      fhirClient.search.mockResolvedValue({
+        resources: [{ id: 'disp-1', quantity: { value: 30 } }],
+        total: 1
       });
       
       const adherence = await medicationWorkflowService.calculateMedicationAdherence('med-1');
