@@ -14,11 +14,10 @@ echo "✅ PostgreSQL is ready!"
 
 # Initialize database schemas and tables (once, definitively)
 echo "🔧 Initializing database..."
-export DATABASE_URL="postgresql://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}"
+export DATABASE_URL="postgresql+asyncpg://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}"
 
 # Run the definitive database initialization
-cd /app/scripts
-python setup/init_database_definitive.py --mode production || {
+python /app/scripts/setup/init_database_definitive.py --mode production || {
     echo "❌ Database initialization failed"
     exit 1
 }
@@ -162,6 +161,9 @@ mkdir -p /app/data/generated_dicoms /app/data/dicom_uploads /app/logs
 
 # Set permissions
 chmod -R 755 /app/data
+
+# Ensure we're in the correct directory for the application
+cd /app
 
 echo "🚀 Starting application..."
 exec "$@"
