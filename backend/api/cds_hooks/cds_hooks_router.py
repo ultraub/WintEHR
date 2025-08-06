@@ -1359,6 +1359,16 @@ async def list_services(
             hooks = [h for h in hooks if h.enabled]
         return hooks
 
+# Alias endpoint for CDS Builder compatibility
+@router.get("/cds-services/services", response_model=List[HookConfiguration])
+async def list_services_alias(
+    hook_type: Optional[str] = None,
+    enabled_only: bool = True,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """List all CDS services (alias for /services endpoint for CDS Builder compatibility)"""
+    return await list_services(hook_type=hook_type, enabled_only=enabled_only, db=db)
+
 
 @router.post("/services", response_model=HookConfiguration)
 async def create_service(
@@ -1383,6 +1393,14 @@ async def create_service(
         logger.error(f"Error creating hook: {e}")
         raise HTTPException(status_code=500, detail="Failed to create hook")
 
+# Alias endpoint for CDS Builder compatibility
+@router.post("/cds-services/services", response_model=HookConfiguration)
+async def create_service_alias(
+    hook_config: HookConfiguration,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Create a new CDS service (alias for CDS Builder compatibility)"""
+    return await create_service(hook_config=hook_config, db=db)
 
 # Service Management Endpoints (specific routes before parameterized routes)
 @router.get("/services/backup")
@@ -1451,6 +1469,11 @@ async def get_service(service_id: str, db: AsyncSession = Depends(get_db_session
         logger.error(f"Error retrieving service {service_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve service")
 
+# Alias endpoint for CDS Builder compatibility
+@router.get("/cds-services/services/{service_id}", response_model=HookConfiguration)
+async def get_service_alias(service_id: str, db: AsyncSession = Depends(get_db_session)):
+    """Get a specific CDS service (alias for CDS Builder compatibility)"""
+    return await get_service(service_id=service_id, db=db)
 
 @router.put("/services/{service_id}", response_model=HookConfiguration)
 async def update_service(
@@ -1479,6 +1502,15 @@ async def update_service(
         logger.error(f"Error updating service {service_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update service")
 
+# Alias endpoint for CDS Builder compatibility  
+@router.put("/cds-services/services/{service_id}", response_model=HookConfiguration)
+async def update_service_alias(
+    service_id: str,
+    hook_config: HookConfiguration,
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Update a CDS service (alias for CDS Builder compatibility)"""
+    return await update_service(service_id=service_id, hook_config=hook_config, db=db)
 
 @router.delete("/services/{service_id}")
 async def delete_service(service_id: str, db: AsyncSession = Depends(get_db_session)):

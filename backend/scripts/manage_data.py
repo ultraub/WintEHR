@@ -18,6 +18,9 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+
+# Add backend directory to Python path for imports
+sys.path.insert(0, '/app')
 from typing import Optional, Dict, Any
 import os
 
