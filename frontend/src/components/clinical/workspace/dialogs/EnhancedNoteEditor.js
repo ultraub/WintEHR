@@ -712,10 +712,11 @@ const EnhancedNoteEditor = ({
     try {
       let content = '';
       let contentType = 'text/plain';
+      let template = null;
 
       // Check if we have a template or it's a plain text note
       if (selectedTemplate) {
-        const template = NOTE_TEMPLATES[selectedTemplate];
+        template = NOTE_TEMPLATES[selectedTemplate];
         
         // Prepare content based on template structure
         if (template && template.structure === 'sections') {
@@ -736,9 +737,9 @@ const EnhancedNoteEditor = ({
         docStatus: status, // 'draft', 'preliminary', or 'final'
         type: {
           coding: [{
-            system: template.system,
-            code: template.code,
-            display: template.display
+            system: template?.system || 'http://loinc.org',
+            code: template?.code || '11506-3',
+            display: template?.display || 'Progress note'
           }]
         },
         category: [{
@@ -756,12 +757,12 @@ const EnhancedNoteEditor = ({
           reference: currentUser?.id ? `Practitioner/${currentUser.id}` : undefined,
           display: currentUser?.name || 'Current User'
         }].filter(author => author), // Remove undefined references
-        description: noteData.title || template.label,
+        description: noteData.title || template?.label || 'Clinical Note',
         content: [{
           attachment: {
-            contentType: template.structure === 'sections' ? 'application/json' : 'text/plain',
+            contentType: contentType,
             data: btoa(content),
-            title: noteData.title || template.label,
+            title: noteData.title || template?.label || 'Clinical Note',
             creation: new Date().toISOString()
           }
         }]
