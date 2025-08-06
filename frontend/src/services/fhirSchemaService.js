@@ -4,9 +4,22 @@
  * Uses capability statement to discover supported resources
  */
 
-// Use relative URL in production, localhost in development
-const API_BASE = process.env.REACT_APP_API_URL || 
-                 (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : '');
+// Determine API base URL based on environment
+// Use empty string for relative URLs in production (same origin)
+const getApiBase = () => {
+  // If explicit API URL is set, use it
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  // In development, use localhost
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:8000';
+  }
+  // In production, use relative URLs (empty string means same origin)
+  return '';
+};
+
+const API_BASE = getApiBase();
 
 class FHIRSchemaService {
   constructor() {

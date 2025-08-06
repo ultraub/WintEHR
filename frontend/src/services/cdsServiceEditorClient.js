@@ -7,8 +7,18 @@ import axios from 'axios';
 
 class CDSServiceEditorClient {
   constructor() {
-    this.baseUrl = process.env.REACT_APP_API_URL || 
-                   (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : '');
+    // Determine API base URL based on environment
+    const getBaseUrl = () => {
+      if (process.env.REACT_APP_API_URL) {
+        return process.env.REACT_APP_API_URL;
+      }
+      if (process.env.NODE_ENV === 'development') {
+        return 'http://localhost:8000';
+      }
+      return '';
+    };
+    
+    this.baseUrl = getBaseUrl();
     
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
