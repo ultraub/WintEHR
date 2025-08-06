@@ -72,10 +72,10 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: emr-frontend
     ports:
-      - "80:80"
+      - "3000:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -83,6 +83,7 @@ services:
       - REACT_APP_FHIR_ENDPOINT=http://localhost:8000/fhir/R4
       - REACT_APP_EMR_API=http://localhost:8000/api/emr
       - REACT_APP_CLINICAL_CANVAS_API=http://localhost:8000/api/clinical-canvas
+      - REACT_APP_API_URL=http://localhost:8000
     networks:
       - emr-network
     depends_on:

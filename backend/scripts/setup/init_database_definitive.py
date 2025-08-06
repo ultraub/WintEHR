@@ -314,7 +314,7 @@ class DefinitiveDatabaseInitializer:
             );
             
             -- Create CDS Hooks configuration table
-            CREATE TABLE cds_hooks.hook_configurations (
+            CREATE TABLE IF NOT EXISTS cds_hooks.hook_configurations (
                 id VARCHAR(255) PRIMARY KEY,
                 hook_type VARCHAR(100) NOT NULL,
                 title VARCHAR(255),
@@ -333,7 +333,7 @@ class DefinitiveDatabaseInitializer:
             );
             
             -- Create CDS Hooks feedback table for persistence
-            CREATE TABLE cds_hooks.feedback (
+            CREATE TABLE IF NOT EXISTS cds_hooks.feedback (
                 id BIGSERIAL PRIMARY KEY,
                 feedback_id UUID DEFAULT gen_random_uuid(),
                 hook_instance_id VARCHAR(255) NOT NULL,
@@ -350,14 +350,14 @@ class DefinitiveDatabaseInitializer:
             );
             
             -- Create indexes for feedback table
-            CREATE INDEX idx_feedback_service ON cds_hooks.feedback (service_id);
-            CREATE INDEX idx_feedback_patient ON cds_hooks.feedback (patient_id);
-            CREATE INDEX idx_feedback_user ON cds_hooks.feedback (user_id);
-            CREATE INDEX idx_feedback_created ON cds_hooks.feedback (created_at);
-            CREATE INDEX idx_feedback_outcome ON cds_hooks.feedback (outcome);
+            CREATE INDEX IF NOT EXISTS idx_feedback_service ON cds_hooks.feedback (service_id);
+            CREATE INDEX IF NOT EXISTS idx_feedback_patient ON cds_hooks.feedback (patient_id);
+            CREATE INDEX IF NOT EXISTS idx_feedback_user ON cds_hooks.feedback (user_id);
+            CREATE INDEX IF NOT EXISTS idx_feedback_created ON cds_hooks.feedback (created_at);
+            CREATE INDEX IF NOT EXISTS idx_feedback_outcome ON cds_hooks.feedback (outcome);
             
             -- Create CDS Hooks feedback analytics table
-            CREATE TABLE cds_hooks.feedback_analytics (
+            CREATE TABLE IF NOT EXISTS cds_hooks.feedback_analytics (
                 id BIGSERIAL PRIMARY KEY,
                 service_id VARCHAR(255) NOT NULL,
                 period_start TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -378,9 +378,9 @@ class DefinitiveDatabaseInitializer:
             );
             
             -- Create indexes for feedback_analytics table
-            CREATE INDEX idx_analytics_service ON cds_hooks.feedback_analytics (service_id);
-            CREATE INDEX idx_analytics_period ON cds_hooks.feedback_analytics (period_start, period_end);
-            CREATE INDEX idx_analytics_created ON cds_hooks.feedback_analytics (created_at);
+            CREATE INDEX IF NOT EXISTS idx_analytics_service ON cds_hooks.feedback_analytics (service_id);
+            CREATE INDEX IF NOT EXISTS idx_analytics_period ON cds_hooks.feedback_analytics (period_start, period_end);
+            CREATE INDEX IF NOT EXISTS idx_analytics_created ON cds_hooks.feedback_analytics (created_at);
             
             -- Create CDS Hooks execution log table
             CREATE TABLE IF NOT EXISTS cds_hooks.execution_log (
@@ -400,10 +400,10 @@ class DefinitiveDatabaseInitializer:
             );
             
             -- Create indexes for execution_log table
-            CREATE INDEX idx_execution_service ON cds_hooks.execution_log (service_id);
-            CREATE INDEX idx_execution_patient ON cds_hooks.execution_log (patient_id);
-            CREATE INDEX idx_execution_created ON cds_hooks.execution_log (created_at);
-            CREATE INDEX idx_execution_success ON cds_hooks.execution_log (success);
+            CREATE INDEX IF NOT EXISTS idx_execution_service ON cds_hooks.execution_log (service_id);
+            CREATE INDEX IF NOT EXISTS idx_execution_patient ON cds_hooks.execution_log (patient_id);
+            CREATE INDEX IF NOT EXISTS idx_execution_created ON cds_hooks.execution_log (created_at);
+            CREATE INDEX IF NOT EXISTS idx_execution_success ON cds_hooks.execution_log (success);
         """)
         
             logger.info("✅ Tables created successfully")
@@ -411,59 +411,59 @@ class DefinitiveDatabaseInitializer:
             logger.info("📊 Creating performance indexes...")
             await self.connection.execute("""
             -- Resources table indexes
-            CREATE INDEX idx_resources_type ON fhir.resources(resource_type);
-            CREATE INDEX idx_resources_type_id ON fhir.resources(resource_type, fhir_id);
-            CREATE INDEX idx_resources_updated ON fhir.resources(last_updated);
-            CREATE INDEX idx_resources_deleted ON fhir.resources(deleted) WHERE deleted = false;
+            CREATE INDEX IF NOT EXISTS idx_resources_type ON fhir.resources(resource_type);
+            CREATE INDEX IF NOT EXISTS idx_resources_type_id ON fhir.resources(resource_type, fhir_id);
+            CREATE INDEX IF NOT EXISTS idx_resources_updated ON fhir.resources(last_updated);
+            CREATE INDEX IF NOT EXISTS idx_resources_deleted ON fhir.resources(deleted) WHERE deleted = false;
             
             -- Search params indexes for performance
-            CREATE INDEX idx_search_params_resource ON fhir.search_params(resource_id, resource_type);
-            CREATE INDEX idx_search_params_param_name ON fhir.search_params(param_name);
-            CREATE INDEX idx_search_params_param_type ON fhir.search_params(param_type);
-            CREATE INDEX idx_search_params_string ON fhir.search_params(param_name, value_string) WHERE value_string IS NOT NULL;
-            CREATE INDEX idx_search_params_number ON fhir.search_params(param_name, value_number) WHERE value_number IS NOT NULL;
-            CREATE INDEX idx_search_params_date ON fhir.search_params(param_name, value_date) WHERE value_date IS NOT NULL;
-            CREATE INDEX idx_search_params_token ON fhir.search_params(param_name, value_token) WHERE value_token IS NOT NULL;
-            CREATE INDEX idx_search_params_token_code ON fhir.search_params(param_name, value_token_code) WHERE value_token_code IS NOT NULL;
-            CREATE INDEX idx_search_params_reference ON fhir.search_params(param_name, value_reference) WHERE value_reference IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_search_params_resource ON fhir.search_params(resource_id, resource_type);
+            CREATE INDEX IF NOT EXISTS idx_search_params_param_name ON fhir.search_params(param_name);
+            CREATE INDEX IF NOT EXISTS idx_search_params_param_type ON fhir.search_params(param_type);
+            CREATE INDEX IF NOT EXISTS idx_search_params_string ON fhir.search_params(param_name, value_string) WHERE value_string IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_search_params_number ON fhir.search_params(param_name, value_number) WHERE value_number IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_search_params_date ON fhir.search_params(param_name, value_date) WHERE value_date IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_search_params_token ON fhir.search_params(param_name, value_token) WHERE value_token IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_search_params_token_code ON fhir.search_params(param_name, value_token_code) WHERE value_token_code IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_search_params_reference ON fhir.search_params(param_name, value_reference) WHERE value_reference IS NOT NULL;
             
             -- Resource history indexes
-            CREATE INDEX idx_resource_history_resource_id ON fhir.resource_history(resource_id);
-            CREATE INDEX idx_resource_history_created_at ON fhir.resource_history(created_at);
-            CREATE INDEX idx_resource_history_operation ON fhir.resource_history(operation);
+            CREATE INDEX IF NOT EXISTS idx_resource_history_resource_id ON fhir.resource_history(resource_id);
+            CREATE INDEX IF NOT EXISTS idx_resource_history_created_at ON fhir.resource_history(created_at);
+            CREATE INDEX IF NOT EXISTS idx_resource_history_operation ON fhir.resource_history(operation);
             
             -- References indexes
-            CREATE INDEX idx_references_source ON fhir.references(source_id, source_type);
-            CREATE INDEX idx_references_target ON fhir.references(target_type, target_id);
-            CREATE INDEX idx_references_path ON fhir.references(reference_path);
+            CREATE INDEX IF NOT EXISTS idx_references_source ON fhir.references(source_id, source_type);
+            CREATE INDEX IF NOT EXISTS idx_references_target ON fhir.references(target_type, target_id);
+            CREATE INDEX IF NOT EXISTS idx_references_path ON fhir.references(reference_path);
             
             -- Compartments indexes
-            CREATE INDEX idx_compartments_compartment ON fhir.compartments(compartment_type, compartment_id);
-            CREATE INDEX idx_compartments_resource ON fhir.compartments(resource_id);
-            CREATE INDEX idx_compartments_type_id ON fhir.compartments(compartment_type, compartment_id, resource_id);
+            CREATE INDEX IF NOT EXISTS idx_compartments_compartment ON fhir.compartments(compartment_type, compartment_id);
+            CREATE INDEX IF NOT EXISTS idx_compartments_resource ON fhir.compartments(resource_id);
+            CREATE INDEX IF NOT EXISTS idx_compartments_type_id ON fhir.compartments(compartment_type, compartment_id, resource_id);
             
             -- Audit logs indexes
-            CREATE INDEX idx_audit_logs_resource ON fhir.audit_logs(resource_type, resource_id);
-            CREATE INDEX idx_audit_logs_operation ON fhir.audit_logs(operation);
-            CREATE INDEX idx_audit_logs_created_at ON fhir.audit_logs(created_at);
-            CREATE INDEX idx_audit_logs_user ON fhir.audit_logs(user_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON fhir.audit_logs(resource_type, resource_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_operation ON fhir.audit_logs(operation);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON fhir.audit_logs(created_at);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON fhir.audit_logs(user_id);
             
             -- CDS Hooks indexes
-            CREATE INDEX idx_hook_configurations_type ON cds_hooks.hook_configurations(hook_type);
-            CREATE INDEX idx_hook_configurations_enabled ON cds_hooks.hook_configurations(enabled);
-            CREATE INDEX idx_hook_configurations_created_at ON cds_hooks.hook_configurations(created_at);
-            CREATE INDEX idx_hook_configurations_updated_at ON cds_hooks.hook_configurations(updated_at);
+            CREATE INDEX IF NOT EXISTS idx_hook_configurations_type ON cds_hooks.hook_configurations(hook_type);
+            CREATE INDEX IF NOT EXISTS idx_hook_configurations_enabled ON cds_hooks.hook_configurations(enabled);
+            CREATE INDEX IF NOT EXISTS idx_hook_configurations_created_at ON cds_hooks.hook_configurations(created_at);
+            CREATE INDEX IF NOT EXISTS idx_hook_configurations_updated_at ON cds_hooks.hook_configurations(updated_at);
             
             -- Provider and Auth indexes
-            CREATE INDEX idx_provider_name ON auth.providers(last_name, first_name);
-            CREATE INDEX idx_provider_specialty ON auth.providers(specialty);
-            CREATE INDEX idx_provider_org ON auth.providers(organization_id);
-            CREATE INDEX idx_provider_active ON auth.providers(active);
-            CREATE INDEX idx_patient_provider_assignment ON auth.patient_provider_assignments(patient_id, provider_id);
-            CREATE INDEX idx_patient_provider_active ON auth.patient_provider_assignments(is_active);
-            CREATE INDEX idx_user_sessions_token ON auth.user_sessions(session_token);
-            CREATE INDEX idx_user_sessions_active ON auth.user_sessions(is_active);
-            CREATE INDEX idx_user_sessions_expires ON auth.user_sessions(expires_at);
+            CREATE INDEX IF NOT EXISTS idx_provider_name ON auth.providers(last_name, first_name);
+            CREATE INDEX IF NOT EXISTS idx_provider_specialty ON auth.providers(specialty);
+            CREATE INDEX IF NOT EXISTS idx_provider_org ON auth.providers(organization_id);
+            CREATE INDEX IF NOT EXISTS idx_provider_active ON auth.providers(active);
+            CREATE INDEX IF NOT EXISTS idx_patient_provider_assignment ON auth.patient_provider_assignments(patient_id, provider_id);
+            CREATE INDEX IF NOT EXISTS idx_patient_provider_active ON auth.patient_provider_assignments(is_active);
+            CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON auth.user_sessions(session_token);
+            CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON auth.user_sessions(is_active);
+            CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON auth.user_sessions(expires_at);
         """)
         
             logger.info("✅ Indexes created successfully")
