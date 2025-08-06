@@ -315,14 +315,18 @@ class DefinitiveDatabaseInitializer:
             
             -- Create CDS Hooks configuration table
             CREATE TABLE IF NOT EXISTS cds_hooks.hook_configurations (
-                id VARCHAR(255) PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
+                hook_id VARCHAR(255) UNIQUE NOT NULL,
                 hook_type VARCHAR(100) NOT NULL,
-                title VARCHAR(255),
+                title VARCHAR(500),
                 description TEXT,
                 enabled BOOLEAN DEFAULT true,
+                is_active BOOLEAN DEFAULT true,
                 conditions JSONB DEFAULT '[]'::jsonb,
                 actions JSONB DEFAULT '[]'::jsonb,
-                prefetch JSONB DEFAULT '{{}}'::jsonb,
+                configuration JSONB NOT NULL DEFAULT '{}'::jsonb,
+                prefetch JSONB DEFAULT '{}'::jsonb,
+                display_behavior JSONB DEFAULT NULL,
                 usage_requirements TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
