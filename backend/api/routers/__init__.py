@@ -94,8 +94,8 @@ def register_all_routers(app: FastAPI) -> None:
         app.include_router(ui_composer_router, tags=["UI Composer"])
         app.include_router(websocket_router, prefix="/api", tags=["WebSocket"])
         app.include_router(websocket_monitoring_router, tags=["WebSocket Monitoring"])
-        app.include_router(fhir_schema_router, prefix="/api", tags=["FHIR Schemas"])
-        app.include_router(fhir_capability_schema_router, prefix="/api", tags=["FHIR Schemas V2"])
+        app.include_router(fhir_schema_router, tags=["FHIR Schemas"])
+        app.include_router(fhir_capability_schema_router, tags=["FHIR Schemas V2"])
         
         # CDS Hooks v2.0 Complete Implementation
         try:

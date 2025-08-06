@@ -131,11 +131,18 @@ class FHIRSchemaService {
           });
           return data;
         }
+        // Check for 404 specifically
+        if (response.status === 404) {
+          throw new Error(`404: No data found for resource type ${resourceType}`);
+        }
       }
       
       // Fall back to original endpoint
       const response = await fetch(`${API_BASE}/api/fhir-schemas/resource/${resourceType}`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        // Include status code in error message for better handling
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       
       const data = await response.json();
       this.schemaCache.set(cacheKey, {

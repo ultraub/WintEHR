@@ -150,7 +150,10 @@ if [ "$ENVIRONMENT" == "prod" ] || is_aws; then
     echo -e "${GREEN}Building for production...${NC}"
     
     # Use production Dockerfile for frontend
+    # First fix any corrupted entries, then set to production
+    sed -i.bak 's|dockerfile: Dockerfile.dev.dev|dockerfile: Dockerfile|g' docker-compose.yml
     sed -i.bak 's|dockerfile: Dockerfile.dev|dockerfile: Dockerfile|g' docker-compose.yml
+    sed -i.bak 's|dockerfile: Dockerfile.production|dockerfile: Dockerfile|g' docker-compose.yml
     sed -i.bak 's|- "3000:3000"|- "80:80"|g' docker-compose.yml
     
     # Build images
@@ -160,7 +163,10 @@ elif [ "$ENVIRONMENT" == "dev" ]; then
     echo -e "${GREEN}Building for development...${NC}"
     
     # Use development Dockerfile for frontend
-    sed -i.bak 's|dockerfile: Dockerfile|dockerfile: Dockerfile.dev|g' docker-compose.yml
+    # First restore to base Dockerfile, then set to dev
+    sed -i.bak 's|dockerfile: Dockerfile.dev.dev|dockerfile: Dockerfile.dev|g' docker-compose.yml
+    sed -i.bak 's|dockerfile: Dockerfile.production|dockerfile: Dockerfile.dev|g' docker-compose.yml
+    sed -i.bak 's|dockerfile: Dockerfile$|dockerfile: Dockerfile.dev|g' docker-compose.yml
     sed -i.bak 's|- "80:80"|- "3000:3000"|g' docker-compose.yml
     
     # Build images

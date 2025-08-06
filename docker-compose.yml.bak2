@@ -42,7 +42,7 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile.dev.dev
     container_name: emr-backend
     ports:
       - "8000:8000"
@@ -72,7 +72,7 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile.dev.dev
     container_name: emr-frontend
     ports:
       - "3000:3000"
