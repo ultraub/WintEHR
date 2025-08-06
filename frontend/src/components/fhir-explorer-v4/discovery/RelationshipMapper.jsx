@@ -954,10 +954,25 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
           initializeVisualizationRef.current(filteredData);
         }
       } else {
-        // Update existing visualization
-        simulationRef.current.nodes(filteredData.nodes);
-        simulationRef.current.force('link').links(filteredData.links);
-        simulationRef.current.alpha(0.3).restart();
+        // Update existing visualization with error handling
+        try {
+          if (simulationRef.current && filteredData.nodes && filteredData.nodes.length > 0) {
+            simulationRef.current.stop();
+            simulationRef.current.nodes(filteredData.nodes);
+            if (filteredData.links && filteredData.links.length > 0) {
+              const linkForce = d3.forceLink(filteredData.links).id(d => d.id).distance(100).strength(0.5);
+              simulationRef.current.force("link", linkForce);
+            } else {
+              simulationRef.current.force("link", null);
+            }
+            simulationRef.current.alpha(0.3).restart();
+          }
+        } catch (err) {
+          console.error("Error updating visualization:", err);
+          if (initializeVisualizationRef.current) {
+            initializeVisualizationRef.current(filteredData);
+          }
+        }
         
         // Update visual elements
         const nodesGroup = g.select('.nodes');
