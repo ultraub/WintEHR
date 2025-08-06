@@ -322,7 +322,7 @@ class DefinitiveDatabaseInitializer:
                 enabled BOOLEAN DEFAULT true,
                 conditions JSONB DEFAULT '[]'::jsonb,
                 actions JSONB DEFAULT '[]'::jsonb,
-                prefetch JSONB DEFAULT '{}'::jsonb,
+                prefetch JSONB DEFAULT '{{}}'::jsonb,
                 usage_requirements TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
