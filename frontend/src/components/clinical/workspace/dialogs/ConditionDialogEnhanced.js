@@ -143,20 +143,18 @@ const useConditionSearch = (searchTerm) => {
   const [cache] = useState(new Map());
 
   const searchConditions = useCallback(async (term) => {
-    if (!term || term.length < 2) {
-      setOptions([]);
-      return;
-    }
-
     // Check cache first
-    if (cache.has(term)) {
-      setOptions(cache.get(term));
+    const cacheKey = term || '__all__';
+    if (cache.has(cacheKey)) {
+      setOptions(cache.get(cacheKey));
       return;
     }
 
     setLoading(true);
     try {
-      const results = await cdsClinicalDataService.getDynamicConditionCatalog(term, 20);
+      // If no term or very short, load all/popular conditions
+      const searchTerm = (!term || term.length < 2) ? null : term;
+      const results = await cdsClinicalDataService.getDynamicConditionCatalog(searchTerm, 20);
       const formattedResults = results.map(condition => ({
         ...condition,
         code: condition.icd10_code || condition.code || condition.id,
@@ -165,7 +163,7 @@ const useConditionSearch = (searchTerm) => {
         subLabel: `ICD-10: ${condition.icd10_code || condition.code || condition.id} • ${condition.usage_count ? `Used ${condition.usage_count} times` : 'New'}`
       }));
       
-      cache.set(term, formattedResults);
+      cache.set(cacheKey, formattedResults);
       setOptions(formattedResults);
     } catch (error) {
       console.error('Error searching conditions:', error);
@@ -176,11 +174,15 @@ const useConditionSearch = (searchTerm) => {
   }, [cache]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    // Load immediately if empty or after debounce for search
+    if (!searchTerm) {
       searchConditions(searchTerm);
-    }, 300);
-
-    return () => clearTimeout(timer);
+    } else {
+      const timer = setTimeout(() => {
+        searchConditions(searchTerm);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
   }, [searchTerm, searchConditions]);
 
   return { loading, options };

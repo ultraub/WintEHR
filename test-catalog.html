@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Catalog</title>
+</head>
+<body>
+    <h1>Test Catalog API</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Test medication catalog
+        fetch('http://localhost:8000/api/catalogs/medications?limit=5')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('results').innerHTML = '<h2>Medications:</h2><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                console.log('Medications:', data);
+            })
+            .catch(error => {
+                document.getElementById('results').innerHTML = '<h2>Error:</h2><pre>' + error + '</pre>';
+                console.error('Error:', error);
+            });
+            
+        // Test condition catalog
+        fetch('http://localhost:8000/api/catalogs/conditions?limit=5')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('results').innerHTML += '<h2>Conditions:</h2><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                console.log('Conditions:', data);
+            })
+            .catch(error => {
+                document.getElementById('results').innerHTML += '<h2>Error:</h2><pre>' + error + '</pre>';
+                console.error('Error:', error);
+            });
+    </script>
+</body>
+</html>

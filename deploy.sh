@@ -100,6 +100,12 @@ if [ "$PATIENT_COUNT" -gt 0 ]; then
         echo -e "${YELLOW}Note: Some minor errors during data load are normal${NC}"
     }
     
+    # Ensure catalog population (critical for search functionality)
+    echo -e "${YELLOW}Populating clinical catalogs...${NC}"
+    docker exec emr-backend python scripts/active/consolidated_catalog_setup.py --extract-from-fhir || {
+        echo -e "${YELLOW}Note: Catalog extraction completed with some warnings${NC}"
+    }
+    
     # Check data status
     echo -e "${YELLOW}Checking data status...${NC}"
     docker exec emr-backend python -c "
