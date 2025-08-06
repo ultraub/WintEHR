@@ -53,14 +53,22 @@ esac
 
 # Configuration
 ENVIRONMENT=${1:-dev}
-PATIENT_COUNT=${2:-10}
+PATIENT_COUNT=10  # Default patient count
+
+# Store environment and shift it off
+shift  # Remove environment argument
 
 # Parse additional arguments
-while [[ $# -gt 2 ]]; do
-    case $3 in
+while [[ $# -gt 0 ]]; do
+    case "$1" in
         --patients)
-            PATIENT_COUNT="$4"
-            shift 2
+            if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
+                PATIENT_COUNT="$2"
+                shift 2
+            else
+                echo "Error: --patients requires a numeric argument"
+                exit 1
+            fi
             ;;
         *)
             shift
