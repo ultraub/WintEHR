@@ -44,9 +44,10 @@ logger = logging.getLogger(__name__)
 class DefinitiveDatabaseInitializer:
     """Definitive, comprehensive database initialization."""
     
-    def __init__(self, mode="development", verify_only=False):
+    def __init__(self, mode="development", verify_only=False, skip_drop=False):
         self.mode = mode
         self.verify_only = verify_only
+        self.skip_drop = skip_drop
         self.connection = None
         
         # Database connection configuration with Docker detection
@@ -87,33 +88,47 @@ class DefinitiveDatabaseInitializer:
             return await self.verify_schema_only()
         
         try:
-            # Drop and recreate everything to ensure consistency
-            logger.info("🧹 Cleaning up any existing schema...")
-            await self.connection.execute("""
-                -- Drop all FHIR tables if they exist
-                DROP TABLE IF EXISTS fhir.audit_logs CASCADE;
-                DROP TABLE IF EXISTS fhir.compartments CASCADE;
-                DROP TABLE IF EXISTS fhir.references CASCADE;
-                DROP TABLE IF EXISTS fhir.resource_history CASCADE;
-                DROP TABLE IF EXISTS fhir.search_params CASCADE;
-                DROP TABLE IF EXISTS fhir.resources CASCADE;
+            if not self.skip_drop:
+                # Drop and recreate everything to ensure consistency
+                logger.info("🧹 Cleaning up any existing schema...")
+                await self.connection.execute("""
+                    -- Drop all FHIR tables if they exist
+                    DROP TABLE IF EXISTS fhir.audit_logs CASCADE;
+                    DROP TABLE IF EXISTS fhir.compartments CASCADE;
+                    DROP TABLE IF EXISTS fhir.references CASCADE;
+                    DROP TABLE IF EXISTS fhir.resource_history CASCADE;
+                    DROP TABLE IF EXISTS fhir.search_params CASCADE;
+                    DROP TABLE IF EXISTS fhir.resources CASCADE;
+                    
+                    -- Drop and recreate schemas
+                    DROP SCHEMA IF EXISTS fhir CASCADE;
+                    DROP SCHEMA IF EXISTS cds_hooks CASCADE;
+                    DROP SCHEMA IF EXISTS auth CASCADE;
+                    
+                    CREATE SCHEMA fhir;
+                    CREATE SCHEMA cds_hooks;
+                    CREATE SCHEMA auth;
+                """)
                 
-                -- Drop and recreate schemas
-                DROP SCHEMA IF EXISTS fhir CASCADE;
-                DROP SCHEMA IF EXISTS cds_hooks CASCADE;
-                DROP SCHEMA IF EXISTS auth CASCADE;
-                
-                CREATE SCHEMA fhir;
-                CREATE SCHEMA cds_hooks;
-                CREATE SCHEMA auth;
-            """)
-            
-            logger.info("✅ Schemas cleaned and recreated")
+                logger.info("✅ Schemas cleaned and recreated")
+            else:
+                logger.info("⏭️ Skipping schema drop (--skip-drop flag set)")
+                # Ensure schemas exist
+                await self.connection.execute("""
+                    CREATE SCHEMA IF NOT EXISTS fhir;
+                    CREATE SCHEMA IF NOT EXISTS cds_hooks;
+                    CREATE SCHEMA IF NOT EXISTS auth;
+                """)
+                logger.info("✅ Schemas verified/created")
             # Create the definitive schema
             logger.info("🏗️  Creating definitive database schema...")
-            await self.connection.execute("""
+            
+            # Determine whether to use IF NOT EXISTS based on skip_drop flag
+            table_prefix = "CREATE TABLE IF NOT EXISTS" if self.skip_drop else "CREATE TABLE"
+            
+            await self.connection.execute(f"""
                 -- Create resources table (the foundation)
-                CREATE TABLE fhir.resources (
+                {table_prefix} fhir.resources (
                     id BIGSERIAL PRIMARY KEY,
                     resource_type VARCHAR(255) NOT NULL,
                 fhir_id VARCHAR(255) NOT NULL UNIQUE,
@@ -127,7 +142,7 @@ class DefinitiveDatabaseInitializer:
             );
             
             -- Create search_params table with ALL required columns
-            CREATE TABLE fhir.search_params (
+            {table_prefix} fhir.search_params (
                 id BIGSERIAL PRIMARY KEY,
                 resource_id BIGINT NOT NULL,
                 resource_type VARCHAR(50) NOT NULL,
@@ -156,7 +171,7 @@ class DefinitiveDatabaseInitializer:
             );
             
             -- Create resource_history table for versioning
-            CREATE TABLE fhir.resource_history (
+            {table_prefix} fhir.resource_history (
                 id BIGSERIAL PRIMARY KEY,
                 resource_id BIGINT NOT NULL,
                 version_id INTEGER NOT NULL,
@@ -174,7 +189,7 @@ class DefinitiveDatabaseInitializer:
             );
             
             -- Create references table for FHIR reference tracking
-            CREATE TABLE fhir.references (
+            {table_prefix} fhir.references (
                 id BIGSERIAL PRIMARY KEY,
                 source_id BIGINT NOT NULL,
                 source_type VARCHAR(50) NOT NULL,
@@ -192,7 +207,7 @@ class DefinitiveDatabaseInitializer:
             );
             
             -- Create compartments table for Patient/$everything operations
-            CREATE TABLE fhir.compartments (
+            {table_prefix} fhir.compartments (
                 id BIGSERIAL PRIMARY KEY,
                 compartment_type VARCHAR(50) NOT NULL,
                 compartment_id VARCHAR(255) NOT NULL,
@@ -211,7 +226,7 @@ class DefinitiveDatabaseInitializer:
             );
             
             -- Create audit_logs table for FHIR operation auditing
-            CREATE TABLE fhir.audit_logs (
+            {table_prefix} fhir.audit_logs (
                 id BIGSERIAL PRIMARY KEY,
                 resource_type VARCHAR(50),
                 resource_id VARCHAR(255),
@@ -574,12 +589,18 @@ async def main():
         action='store_true',
         help='Only verify existing schema without making changes'
     )
+    parser.add_argument(
+        '--skip-drop',
+        action='store_true',
+        help='Skip dropping existing schema (only create missing tables)'
+    )
     
     args = parser.parse_args()
     
     initializer = DefinitiveDatabaseInitializer(
         mode=args.mode,
-        verify_only=args.verify_only
+        verify_only=args.verify_only,
+        skip_drop=args.skip_drop
     )
     
     try:

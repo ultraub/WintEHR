@@ -12,15 +12,35 @@ done
 
 echo "✅ PostgreSQL is ready!"
 
-# Initialize database schemas and tables (once, definitively)
-echo "🔧 Initializing database..."
+# Initialize database schemas and tables (only if needed)
+echo "🔧 Checking database..."
 export DATABASE_URL="postgresql+asyncpg://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}"
 
-# Run the definitive database initialization
-python /app/scripts/setup/init_database_definitive.py --mode production || {
-    echo "❌ Database initialization failed"
-    exit 1
-}
+# Check if database schema already exists
+SCHEMA_EXISTS=$(PGPASSWORD=emr_password psql -h ${DB_HOST:-postgres} -U emr_user -d ${DB_NAME:-emr_db} -tAc "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'fhir');")
+
+if [ "$SCHEMA_EXISTS" = "t" ]; then
+    echo "✅ Database schema already exists, checking tables..."
+    
+    # Check if tables have data
+    RESOURCE_COUNT=$(PGPASSWORD=emr_password psql -h ${DB_HOST:-postgres} -U emr_user -d ${DB_NAME:-emr_db} -tAc "SELECT COUNT(*) FROM fhir.resources;" 2>/dev/null || echo "0")
+    
+    if [ "$RESOURCE_COUNT" -gt "0" ]; then
+        echo "✅ Database contains $RESOURCE_COUNT resources, skipping initialization"
+    else
+        echo "⚠️ Database schema exists but no data found, will initialize tables only"
+        python /app/scripts/setup/init_database_definitive.py --mode production --skip-drop || {
+            echo "❌ Database initialization failed"
+            exit 1
+        }
+    fi
+else
+    echo "🔧 Database schema not found, initializing..."
+    python /app/scripts/setup/init_database_definitive.py --mode production || {
+        echo "❌ Database initialization failed"
+        exit 1
+    }
+fi
 
 # Verify database schema is ready
 echo "🔍 Verifying database schema..."
