@@ -28,7 +28,7 @@ class HttpClientFactory {
     const factory = new HttpClientFactory();
     return factory.createClient('api', {
       baseURL: config.baseURL || process.env.REACT_APP_API_URL || 
-              (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : ''),
+              (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : '/api'),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
