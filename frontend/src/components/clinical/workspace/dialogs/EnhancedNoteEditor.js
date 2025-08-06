@@ -813,7 +813,7 @@ const EnhancedNoteEditor = ({
       // Publish events
       await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
         ...savedNote,
-        noteType: template.label,
+        noteType: template?.label || 'Clinical Note',
         isUpdate: !!(note?.id),
         isSigned: status === 'final',
         docStatus: status,

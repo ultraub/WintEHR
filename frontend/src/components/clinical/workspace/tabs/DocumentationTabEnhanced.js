@@ -408,7 +408,14 @@ const CollapsibleCategory = memo(({ category, categoryKey, documents, selectedCa
                   bgcolor: isTypeSelected ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.04) : 'transparent'
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 32, color: typeData.color === 'inherit' || !typeData.color ? 'inherit' : theme.palette[typeData.color].main }}>
+                <ListItemIcon sx={{ minWidth: 32, color: (() => {
+                  if (!typeData.color || typeData.color === 'inherit' || typeData.color === 'default') {
+                    return 'inherit';
+                  }
+                  // Safely access the color, fallback to primary if not found
+                  const paletteColor = theme.palette[typeData.color];
+                  return paletteColor?.main || theme.palette.primary.main;
+                })() }}>
                   {typeData.icon}
                 </ListItemIcon>
                 <ListItemText 
@@ -885,7 +892,13 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
         const typeConfig = noteTypes[noteType] || noteTypes.other;
         return (
           <Stack direction="row" spacing={1} alignItems="center">
-            <Box sx={{ color: (theme) => typeConfig.color === 'default' ? theme.palette.text.secondary : theme.palette[typeConfig.color].main }}>
+            <Box sx={{ color: (theme) => {
+              if (!typeConfig.color || typeConfig.color === 'default' || typeConfig.color === 'inherit') {
+                return theme.palette.text.secondary;
+              }
+              const paletteColor = theme.palette[typeConfig.color];
+              return paletteColor?.main || theme.palette.primary.main;
+            }}}>
               {typeConfig.icon}
             </Box>
             <Typography variant="body2">{typeConfig.label}</Typography>
@@ -1457,7 +1470,13 @@ const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDial
                               <Box sx={{ 
                                 display: 'flex',
                                 alignItems: 'center',
-                                color: typeConfig.color === 'default' ? 'text.secondary' : theme.palette[typeConfig.color].main
+                                color: (() => {
+                                  if (!typeConfig.color || typeConfig.color === 'default' || typeConfig.color === 'inherit') {
+                                    return 'text.secondary';
+                                  }
+                                  const paletteColor = theme.palette[typeConfig.color];
+                                  return paletteColor?.main || theme.palette.primary.main;
+                                })()
                               }}>
                                 {React.cloneElement(typeConfig.icon, { sx: { fontSize: 18 } })}
                               </Box>
