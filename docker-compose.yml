@@ -32,11 +32,49 @@ services:
     networks:
       - emr-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U emr_user -d emr_db && psql -U emr_user -d emr_db -c 'SELECT 1 FROM fhir.resources LIMIT 1;' > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "pg_isready -U emr_user -d emr_db"]
       interval: 15s
       timeout: 10s
       retries: 10
       start_period: 30s
+
+  # HAPI FHIR JPA Server
+  hapi-fhir:
+    image: hapiproject/hapi:latest
+    container_name: emr-hapi-fhir
+    ports:
+      - "8888:8080"
+    environment:
+      # Database Configuration
+      spring.datasource.url: jdbc:postgresql://postgres:5432/emr_db
+      spring.datasource.username: emr_user
+      spring.datasource.password: emr_password
+      spring.datasource.driverClassName: org.postgresql.Driver
+      spring.jpa.properties.hibernate.dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgres94Dialect
+
+      # HAPI FHIR Configuration
+      hapi.fhir.fhir_version: R4
+      hapi.fhir.server_address: http://localhost:8080/fhir
+      hapi.fhir.allow_external_references: true
+      hapi.fhir.allow_multiple_delete: true
+      hapi.fhir.allow_cascading_deletes: true
+      hapi.fhir.cors.allowed_origin: "*"
+
+      # Performance settings
+      hapi.fhir.reuse_cached_search_results_millis: 60000
+      hapi.fhir.default_page_size: 20
+      hapi.fhir.max_page_size: 500
+    networks:
+      - emr-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/fhir/metadata || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   # Backend API
   backend:
