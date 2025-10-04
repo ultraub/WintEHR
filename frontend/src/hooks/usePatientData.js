@@ -44,6 +44,7 @@ export const usePatientData = (patientId, options = {}) => {
   const loadingRef = useRef(false);
   const abortControllerRef = useRef(null);
   const lastRequestedPatientId = useRef(null);
+  const requestIdCounter = useRef(0); // Incremental request ID for race condition prevention
 
   // Load patient if needed
   useEffect(() => {
@@ -60,19 +61,18 @@ export const usePatientData = (patientId, options = {}) => {
       // Normalize IDs for comparison - handle potential case or format differences
       const normalizedPatientId = patientId?.trim();
       const normalizedCurrentId = currentPatient?.id?.trim();
-      
+
       // Check if we need to load this patient
       if (normalizedPatientId && (!currentPatient || normalizedCurrentId !== normalizedPatientId)) {
-        // Prevent multiple simultaneous loads of the same patient
-        if (loadingRef.current && lastRequestedPatientId.current === normalizedPatientId) {
-          return;
-        }
+        // Increment request ID for race condition prevention
+        requestIdCounter.current += 1;
+        const currentRequestId = requestIdCounter.current;
 
         loadingRef.current = true;
         lastRequestedPatientId.current = normalizedPatientId;
         setLocalLoading(true);
         setError(null);
-        
+
         try {
           // Check if request was aborted before starting
           if (currentAbortController.signal.aborted) {
@@ -80,16 +80,16 @@ export const usePatientData = (patientId, options = {}) => {
           }
 
           await setCurrentPatient(patientId);
-          
-          // Check if request was aborted after completion
-          if (!currentAbortController.signal.aborted) {
+
+          // Check if this request is still current (not superseded by newer request)
+          if (!currentAbortController.signal.aborted && currentRequestId === requestIdCounter.current) {
             setIsInitialLoad(false);
             setLocalLoading(false);
             loadingRef.current = false;
           }
         } catch (err) {
-          // Only handle error if request wasn't aborted
-          if (!currentAbortController.signal.aborted) {
+          // Only handle error if request wasn't aborted and is still current
+          if (!currentAbortController.signal.aborted && currentRequestId === requestIdCounter.current) {
             console.error('Failed to load patient:', err);
             setError(err.message || 'Failed to load patient data');
             setIsInitialLoad(false);
@@ -215,21 +215,37 @@ export const usePatientData = (patientId, options = {}) => {
     };
   }, [patientData]);
 
-  // Debounce timer ref for refresh function
+  // Debounce timer ref and promise tracking for refresh function
   const refreshDebounceRef = useRef(null);
+  const pendingRefreshPromise = useRef(null);
 
   // Refresh function with debouncing to prevent rapid consecutive calls
   const refreshPatientData = useCallback(async () => {
     if (!patientId) return;
 
-    // Clear any pending refresh
+    // Reject previous pending promise if it exists
+    if (pendingRefreshPromise.current) {
+      pendingRefreshPromise.current.reject(new Error('Superseded by new refresh request'));
+      pendingRefreshPromise.current = null;
+    }
+
+    // Clear any pending refresh timer
     if (refreshDebounceRef.current) {
       clearTimeout(refreshDebounceRef.current);
+      refreshDebounceRef.current = null;
     }
 
     // Debounce the refresh to prevent rapid consecutive calls
     return new Promise((resolve, reject) => {
+      // Store promise handlers for cleanup
+      pendingRefreshPromise.current = { resolve, reject };
+
       refreshDebounceRef.current = setTimeout(async () => {
+        // Clear the promise ref since we're executing now
+        const promiseHandlers = pendingRefreshPromise.current;
+        pendingRefreshPromise.current = null;
+        refreshDebounceRef.current = null;
+
         // Abort any ongoing load operation
         if (abortControllerRef.current) {
           abortControllerRef.current.abort();
@@ -241,16 +257,34 @@ export const usePatientData = (patientId, options = {}) => {
         try {
           // Trigger refresh through context
           await setCurrentPatient(patientId);
-          resolve();
+          if (promiseHandlers) {
+            promiseHandlers.resolve();
+          }
         } catch (err) {
           setError(err);
-          reject(err);
+          if (promiseHandlers) {
+            promiseHandlers.reject(err);
+          }
         } finally {
           setLocalLoading(false);
         }
       }, 300); // 300ms debounce delay
     });
   }, [patientId, setCurrentPatient]);
+
+  // Cleanup pending refresh promises on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingRefreshPromise.current) {
+        pendingRefreshPromise.current.reject(new Error('Component unmounted'));
+        pendingRefreshPromise.current = null;
+      }
+      if (refreshDebounceRef.current) {
+        clearTimeout(refreshDebounceRef.current);
+        refreshDebounceRef.current = null;
+      }
+    };
+  }, []);
 
   // Load specific resource type if not available
   const loadResourceType = useCallback(

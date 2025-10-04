@@ -110,30 +110,33 @@ export const ClinicalWorkflowProvider = ({ children }) => {
 
   // Publish clinical events with deduplication
   const publish = useCallback(async (eventType, data) => {
-    // Create event key for deduplication
+    // Use consistent patient ID source: prefer data.patientId, fallback to currentPatient?.id, then 'unknown'
+    const patientId = data.patientId || currentPatient?.id || 'unknown';
+
+    // Create event key for deduplication with consistent patient ID handling
     const eventKey = `${eventType}-${JSON.stringify({
-      patientId: data.patientId || currentPatient?.id,
-      resourceId: data.resourceId,
-      orderId: data.orderId,
-      medicationId: data.medicationId
+      patientId: patientId,
+      resourceId: data.resourceId || '',
+      orderId: data.orderId || '',
+      medicationId: data.medicationId || ''
     })}`;
-    
+
     // Check for duplicate event within 1 second window
     const lastEventTime = eventDedupeCache.current.get(eventKey);
     const now = Date.now();
-    
+
     if (lastEventTime && (now - lastEventTime) < 1000) {
       // Duplicate event suppressed
       return; // Skip duplicate event
     }
-    
+
     // Store event timestamp for deduplication
     eventDedupeCache.current.set(eventKey, now);
-    
+
     // Prepare event data with additional context
     const eventData = {
       ...data,
-      patientId: data.patientId || currentPatient?.id,  // Use provided patientId or current patient
+      patientId: patientId !== 'unknown' ? patientId : undefined,  // Only include if valid
       userId: currentUser?.id,
       timestamp: new Date().toISOString(),
       eventId: `${eventType}-${now}-${Math.random().toString(36).substr(2, 9)}` // Unique event ID
@@ -149,21 +152,31 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     // Get current listeners from state ref to avoid dependency
     setEventListeners(currentEventListeners => {
       const listeners = currentEventListeners.get(eventType) || [];
-      
-      // Execute all listeners asynchronously
+
+      // Execute all listeners asynchronously with proper awaiting
       (async () => {
-        for (const listener of listeners) {
-          try {
-            await listener(eventData);  // Pass the complete eventData with patientId
-          } catch (error) {
-            // Error in event listener
+        try {
+          // Execute all listeners in sequence
+          for (const listener of listeners) {
+            try {
+              await listener(eventData);  // Pass the complete eventData with patientId
+            } catch (error) {
+              // Error in event listener - log but continue with other listeners
+              console.error(`Error in event listener for ${eventType}:`, error);
+            }
           }
+
+          // Handle special event types with automated workflows AFTER all listeners complete
+          try {
+            await handleAutomatedWorkflows(eventType, eventData);
+          } catch (error) {
+            console.error(`Error in automated workflow for ${eventType}:`, error);
+          }
+        } catch (error) {
+          console.error(`Critical error in event processing for ${eventType}:`, error);
         }
-        
-        // Handle special event types with automated workflows
-        await handleAutomatedWorkflows(eventType, eventData);
       })();
-      
+
       return currentEventListeners; // Return unchanged state
     });
   }, [wsConnected, currentPatient?.id, currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -537,8 +550,8 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     
     // Store all unsubscribers
     wsUnsubscribers.current = [...unsubscribers, unsubscribeConnection];
-    
-    // Cleanup function
+
+    // Cleanup function - handles both dependency changes and unmount
     return () => {
       // Cleanup all WebSocket subscriptions
       if (wsUnsubscribers.current && wsUnsubscribers.current.length > 0) {
@@ -549,25 +562,10 @@ export const ClinicalWorkflowProvider = ({ children }) => {
         });
         wsUnsubscribers.current = [];
       }
-    };
-  }, [currentUser]); // Only depend on currentUser to avoid reconnections
-  
-  // Cleanup WebSocket on component unmount only
-  useEffect(() => {
-    return () => {
-      // Component unmounting - cleanup all subscriptions first
-      if (wsUnsubscribers.current && wsUnsubscribers.current.length > 0) {
-        wsUnsubscribers.current.forEach(unsubscribe => {
-          if (typeof unsubscribe === 'function') {
-            unsubscribe();
-          }
-        });
-        wsUnsubscribers.current = [];
-      }
-      // Then disconnect WebSocket
+      // Disconnect WebSocket on cleanup
       websocketService.disconnect();
     };
-  }, []); // Only run on unmount
+  }, [currentUser]); // Only depend on currentUser to avoid reconnections
   
   // Load clinical context when patient changes
   useEffect(() => {

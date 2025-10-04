@@ -309,13 +309,14 @@ const ResultsTabOptimized = ({ patientId }) => {
     };
   }, [patientId, subscribe]);
 
+  // Ref to track WebSocket subscription ID for proper cleanup
+  const wsSubscriptionIdRef = useRef(null);
+
   // WebSocket patient room subscription for multi-user sync
   useEffect(() => {
     if (!patientId || !websocketService.isConnected) return;
 
     // Setting up WebSocket patient room subscription
-
-    let subscriptionId = null;
 
     const setupPatientSubscription = async () => {
       try {
@@ -325,7 +326,8 @@ const ResultsTabOptimized = ({ patientId }) => {
           'DiagnosticReport'
         ];
 
-        subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
+        const subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
+        wsSubscriptionIdRef.current = subscriptionId;
         // Successfully subscribed to patient room
       } catch (error) {
         // Failed to subscribe to patient room
@@ -335,9 +337,10 @@ const ResultsTabOptimized = ({ patientId }) => {
     setupPatientSubscription();
 
     return () => {
-      if (subscriptionId) {
+      if (wsSubscriptionIdRef.current) {
         // Unsubscribing from patient room
-        websocketService.unsubscribeFromPatient(subscriptionId);
+        websocketService.unsubscribeFromPatient(wsSubscriptionIdRef.current);
+        wsSubscriptionIdRef.current = null;
       }
     };
   }, [patientId]);
