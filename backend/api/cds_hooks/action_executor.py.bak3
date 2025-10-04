@@ -208,8 +208,8 @@ class ActionExecutor:
         }
         
         # Update the resource
-        updated_result = update_resource(resource_type, resource_id, updated_resource)
-
+        version_id, last_updated = await self.storage.update_resource(resource_type, resource_id, updated_resource)
+        
         return ActionExecutionResult(
             execution_id="",  # Will be set by caller
             success=True,
@@ -237,7 +237,7 @@ class ActionExecutor:
         resource_type, resource_id = resource_ref.split("/", 1)
         
         # Soft delete the resource
-        delete_resource(resource_type, resource_id)
+        await self.storage.delete_resource(resource_type, resource_id)
         
         return ActionExecutionResult(
             execution_id="",  # Will be set by caller

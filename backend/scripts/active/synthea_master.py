@@ -54,7 +54,6 @@ if '/app' not in sys.path:
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from database import DATABASE_URL
-from fhir.core.storage import FHIRStorageEngine
 from fhir.core.converters.profile_transformer import ProfileAwareFHIRTransformer
 
 # Configure logging
@@ -606,12 +605,10 @@ generate.demographics.default_state = Massachusetts
                     
                     # Process in batches
                     async with AsyncSession(self.engine) as session:
-                        storage = FHIRStorageEngine(session)
-                        
                         for i in range(0, len(entries), batch_size):
                             batch = entries[i:i + batch_size]
                             await self._process_batch(
-                                session, storage, transformer, batch, 
+                                session, transformer, batch,
                                 validation_mode, stats
                             )
                         
@@ -651,7 +648,7 @@ generate.demographics.default_state = Massachusetts
             self.log(f"Import failed: {e}", "ERROR")
             return False
     
-    async def _process_batch(self, session, _, transformer, batch, 
+    async def _process_batch(self, session, transformer, batch,
                            validation_mode, stats):
         """Process a batch of resources with specified validation."""
         for entry in batch:

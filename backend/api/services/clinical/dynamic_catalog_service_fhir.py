@@ -16,7 +16,7 @@ from services.fhir_client_config import (
 logger = logging.getLogger(__name__)
 
 
-class DynamicCatalogService:
+class DynamicCatalogServiceFHIR:
     """
     Service to extract and build catalogs from actual patient FHIR data using fhirclient.
 

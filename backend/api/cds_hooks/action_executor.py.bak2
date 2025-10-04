@@ -165,9 +165,8 @@ class ActionExecutor:
             resource_data["requester"] = {"reference": f"Practitioner/{request.user_id}"}
         
         # Create the resource
-        created_resource = create_resource(resource_data)
-        resource_id = created_resource.get("id")
-
+        resource_id, version_id, last_updated = await self.storage.create_resource(resource_type, resource_data)
+        
         return ActionExecutionResult(
             execution_id="",  # Will be set by caller
             success=True,
@@ -208,8 +207,8 @@ class ActionExecutor:
         }
         
         # Update the resource
-        updated_result = update_resource(resource_type, resource_id, updated_resource)
-
+        version_id, last_updated = await self.storage.update_resource(resource_type, resource_id, updated_resource)
+        
         return ActionExecutionResult(
             execution_id="",  # Will be set by caller
             success=True,
@@ -237,7 +236,7 @@ class ActionExecutor:
         resource_type, resource_id = resource_ref.split("/", 1)
         
         # Soft delete the resource
-        delete_resource(resource_type, resource_id)
+        await self.storage.delete_resource(resource_type, resource_id)
         
         return ActionExecutionResult(
             execution_id="",  # Will be set by caller
@@ -389,7 +388,7 @@ class ActionExecutor:
                 })
             
             # Store audit log
-            create_resource("AuditEvent", log_entry)
+            await self.storage.create_resource("AuditEvent", log_entry)
             
         except Exception as e:
             logger.warning(f"Failed to log action execution: {str(e)}")

@@ -237,7 +237,7 @@ class ActionExecutor:
         resource_type, resource_id = resource_ref.split("/", 1)
         
         # Soft delete the resource
-        delete_resource(resource_type, resource_id)
+        await self.storage.delete_resource(resource_type, resource_id)
         
         return ActionExecutionResult(
             execution_id="",  # Will be set by caller

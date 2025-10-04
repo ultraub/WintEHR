@@ -14,8 +14,8 @@ import requests
 from typing import List, Dict
 import time
 
-# HAPI FHIR server endpoint
-HAPI_FHIR_BASE = os.getenv('HAPI_FHIR_URL', 'http://localhost:8080/fhir')
+# HAPI FHIR server endpoint (updated to match FHIR router configuration)
+HAPI_FHIR_BASE = os.getenv('HAPI_FHIR_URL', 'http://localhost:8888/fhir')
 
 def load_synthea_bundles(synthea_dir: str) -> List[Dict]:
     """Load all FHIR bundles from Synthea output directory"""

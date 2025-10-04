@@ -16,24 +16,18 @@ import logging
 from datetime import datetime
 
 from database import get_db_session
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import search_resources
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
-async def get_storage(db: AsyncSession = Depends(get_db_session)) -> FHIRStorageEngine:
-    """Get FHIR storage engine instance"""
-    return FHIRStorageEngine(db)
-
 
 @router.get("/demographics")
-async def get_patient_demographics(
-    storage: FHIRStorageEngine = Depends(get_storage)
-):
+async def get_patient_demographics():
     """
     Get patient demographics analytics.
-    
+
     Returns:
     - Gender distribution
     - Age distribution
@@ -41,7 +35,9 @@ async def get_patient_demographics(
     """
     try:
         # Search for all patients
-        patients, total = await storage.search_resources("Patient", {}, limit=1000)
+        response = search_resources("Patient", {"_count": 1000})
+        entries = response.get('entry', []) if isinstance(response, dict) else []
+        patients = [entry.get('resource', entry) for entry in entries]
         
         # Initialize counters
         gender_dist = {}
@@ -108,22 +104,18 @@ async def get_patient_demographics(
 
 
 @router.get("/disease-prevalence")
-async def get_disease_prevalence(
-    limit: int = 20,
-    storage: FHIRStorageEngine = Depends(get_storage)
-):
+async def get_disease_prevalence(limit: int = 20):
     """
     Get disease prevalence analytics.
-    
+
     Returns top conditions by frequency.
     """
     try:
         # Search for all active conditions
-        conditions, total = await storage.search_resources(
-            "Condition", 
-            {"clinical-status": "active"},
-            limit=5000
-        )
+        response = search_resources("Condition", {"clinical-status": "active", "_count": 5000})
+        entries = response.get('entry', []) if isinstance(response, dict) else []
+        conditions = [entry.get('resource', entry) for entry in entries]
+        total = len(conditions)
         
         # Count condition frequencies
         condition_counts = {}
@@ -163,24 +155,20 @@ async def get_disease_prevalence(
 
 
 @router.get("/medication-patterns")
-async def get_medication_patterns(
-    limit: int = 20,
-    storage: FHIRStorageEngine = Depends(get_storage)
-):
+async def get_medication_patterns(limit: int = 20):
     """
     Get medication prescription patterns.
-    
+
     Returns:
     - Most prescribed medications
     - Medication class distribution
     """
     try:
         # Search for all medication requests
-        med_requests, total = await storage.search_resources(
-            "MedicationRequest",
-            {"status": "active"},
-            limit=5000
-        )
+        response = search_resources("MedicationRequest", {"status": "active", "_count": 5000})
+        entries = response.get('entry', []) if isinstance(response, dict) else []
+        med_requests = [entry.get('resource', entry) for entry in entries]
+        total = len(med_requests)
         
         # Count medication frequencies
         med_counts = {}
@@ -250,12 +238,10 @@ async def get_medication_patterns(
 
 
 @router.get("/comprehensive-dashboard")
-async def get_comprehensive_dashboard(
-    storage: FHIRStorageEngine = Depends(get_storage)
-):
+async def get_comprehensive_dashboard():
     """
     Get comprehensive analytics dashboard data.
-    
+
     Returns:
     - Quality measures
     - Utilization patterns
@@ -264,11 +250,25 @@ async def get_comprehensive_dashboard(
     """
     try:
         # Get comprehensive analytics data
-        patients, _ = await storage.search_resources("Patient", {}, limit=1000)
-        conditions, _ = await storage.search_resources("Condition", {"clinical-status": "active"}, limit=5000)
-        medications, _ = await storage.search_resources("MedicationRequest", {"status": "active"}, limit=5000)
-        encounters, _ = await storage.search_resources("Encounter", {}, limit=5000)
-        observations, _ = await storage.search_resources("Observation", {}, limit=5000)
+        patient_response = search_resources("Patient", {"_count": 1000})
+        patient_entries = patient_response.get('entry', []) if isinstance(patient_response, dict) else []
+        patients = [entry.get('resource', entry) for entry in patient_entries]
+
+        condition_response = search_resources("Condition", {"clinical-status": "active", "_count": 5000})
+        condition_entries = condition_response.get('entry', []) if isinstance(condition_response, dict) else []
+        conditions = [entry.get('resource', entry) for entry in condition_entries]
+
+        med_response = search_resources("MedicationRequest", {"status": "active", "_count": 5000})
+        med_entries = med_response.get('entry', []) if isinstance(med_response, dict) else []
+        medications = [entry.get('resource', entry) for entry in med_entries]
+
+        encounter_response = search_resources("Encounter", {"_count": 5000})
+        encounter_entries = encounter_response.get('entry', []) if isinstance(encounter_response, dict) else []
+        encounters = [entry.get('resource', entry) for entry in encounter_entries]
+
+        obs_response = search_resources("Observation", {"_count": 5000})
+        obs_entries = obs_response.get('entry', []) if isinstance(obs_response, dict) else []
+        observations = [entry.get('resource', entry) for entry in obs_entries]
         
         # Calculate quality measures
         total_patients = len(patients)
@@ -391,12 +391,10 @@ async def get_comprehensive_dashboard(
 
 
 @router.get("/clinical-outcomes")
-async def get_clinical_outcomes(
-    storage: FHIRStorageEngine = Depends(get_storage)
-):
+async def get_clinical_outcomes():
     """
     Get clinical outcomes analytics.
-    
+
     Returns:
     - Lab result trends
     - Vital sign statistics
@@ -404,9 +402,20 @@ async def get_clinical_outcomes(
     """
     try:
         # Get observations for lab results and vital signs
-        observations, obs_total = await storage.search_resources("Observation", {}, limit=5000)
-        procedures, proc_total = await storage.search_resources("Procedure", {}, limit=2000)
-        encounters, enc_total = await storage.search_resources("Encounter", {}, limit=3000)
+        obs_response = search_resources("Observation", {"_count": 5000})
+        obs_entries = obs_response.get('entry', []) if isinstance(obs_response, dict) else []
+        observations = [entry.get('resource', entry) for entry in obs_entries]
+        obs_total = len(observations)
+
+        proc_response = search_resources("Procedure", {"_count": 2000})
+        proc_entries = proc_response.get('entry', []) if isinstance(proc_response, dict) else []
+        procedures = [entry.get('resource', entry) for entry in proc_entries]
+        proc_total = len(procedures)
+
+        enc_response = search_resources("Encounter", {"_count": 3000})
+        enc_entries = enc_response.get('entry', []) if isinstance(enc_response, dict) else []
+        encounters = [entry.get('resource', entry) for entry in enc_entries]
+        enc_total = len(encounters)
         
         # Lab result trends (common lab tests)
         lab_tests = {

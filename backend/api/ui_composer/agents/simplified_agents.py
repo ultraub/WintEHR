@@ -84,41 +84,38 @@ class FHIRDataAgent:
         
     async def _fetch_resources(self, resource_types: List[str], context: Dict[str, Any]) -> Dict[str, Any]:
         """Fetch FHIR resources from database"""
-        from fhir.core.storage import FHIRStorageEngine
-        storage = FHIRStorageEngine(self.db_session)
-        
+        from services.fhir_client_config import search_resources
+
         data = {}
         patient_id = context.get("patient_id")
-        
+
         for resource_type in resource_types:
             try:
                 # Build search params based on resource type
                 params = {}
                 if patient_id:
                     params["patient"] = patient_id
-                    
+
                 # Add specific params based on resource type
                 if resource_type == "Observation":
                     # Limit to recent observations
                     params["_sort"] = "-date"
                     params["_count"] = "100"
-                    
-                resources = await storage.search_resources(resource_type, params)
-                
-                # Handle tuple response format
-                if isinstance(resources, tuple):
-                    actual_resources = []
-                    for item in resources:
-                        if isinstance(item, list):
-                            actual_resources.extend(item)
-                    data[resource_type] = actual_resources
+
+                bundle = search_resources(resource_type, params)
+
+                # Handle bundle response format from HAPI FHIR
+                if isinstance(bundle, dict) and bundle.get("entry"):
+                    data[resource_type] = [
+                        entry.get("resource", entry) for entry in bundle["entry"]
+                    ]
                 else:
-                    data[resource_type] = resources
-                    
+                    data[resource_type] = []
+
             except Exception as e:
                 logger.error(f"Error fetching {resource_type}: {e}")
                 data[resource_type] = []
-                
+
         return data
         
     def _format_data_context(self, data: Dict[str, Any], request: str) -> str:

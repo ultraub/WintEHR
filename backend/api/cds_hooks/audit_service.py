@@ -9,9 +9,9 @@ import logging
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import search_resources, get_resource
 from .audit_models import (
-    AuditEventDetail, AuditHistoryResponse, AuditAnalytics, 
+    AuditEventDetail, AuditHistoryResponse, AuditAnalytics,
     DetailedAuditQuery, AuditEventEnriched, AuditTrailSummary,
     AuditOutcome, ActionType
 )
@@ -20,10 +20,9 @@ logger = logging.getLogger(__name__)
 
 class AuditService:
     """Enhanced audit service for CDS action tracking"""
-    
+
     def __init__(self, db: AsyncSession):
-        self.db = db
-        self.storage = FHIRStorageEngine(db)
+        self.db = db  # Keep for potential SQL queries
     
     async def get_detailed_audit_history(self, query: DetailedAuditQuery) -> AuditHistoryResponse:
         """Get detailed audit history with advanced filtering and enrichment"""
@@ -51,8 +50,11 @@ class AuditService:
                 search_params["patient"] = f"Patient/{query.patient_id}"
                 
             # Get audit events
-            audit_events, total = await self.storage.search_resources("AuditEvent", search_params)
-            
+            response = search_resources("AuditEvent", search_params)
+            entries = response.get('entry', []) if isinstance(response, dict) else []
+            audit_events = [entry.get('resource', entry) for entry in entries]
+            total = len(audit_events)
+
             # Filter and enrich CDS-related events
             enriched_events = []
             for event in audit_events:
@@ -110,8 +112,10 @@ class AuditService:
             if patient_id:
                 search_params["patient"] = f"Patient/{patient_id}"
             
-            audit_events, _ = await self.storage.search_resources("AuditEvent", search_params)
-            
+            response = search_resources("AuditEvent", search_params)
+            entries = response.get('entry', []) if isinstance(response, dict) else []
+            audit_events = [entry.get('resource', entry) for entry in entries]
+
             # Filter CDS events
             cds_events = []
             for event in audit_events:
@@ -129,7 +133,7 @@ class AuditService:
     async def get_enriched_audit_event(self, audit_event_id: str) -> Optional[AuditEventEnriched]:
         """Get a single audit event with full enrichment"""
         try:
-            event = await self.storage.read_resource("AuditEvent", audit_event_id)
+            event = get_resource("AuditEvent", audit_event_id)
             if not event or not await self._is_cds_action_event(event):
                 return None
             
@@ -175,8 +179,10 @@ class AuditService:
             elif context_type == "user":
                 search_params["agent"] = f"Practitioner/{context_id}"
             
-            audit_events, _ = await self.storage.search_resources("AuditEvent", search_params)
-            
+            response = search_resources("AuditEvent", search_params)
+            entries = response.get('entry', []) if isinstance(response, dict) else []
+            audit_events = [entry.get('resource', entry) for entry in entries]
+
             # Filter CDS events
             cds_events = [event for event in audit_events if await self._is_cds_action_event(event)]
             
@@ -393,7 +399,7 @@ class AuditService:
     async def _get_patient_info(self, patient_id: str) -> Optional[Dict[str, Any]]:
         """Get basic patient information for enrichment"""
         try:
-            patient = await self.storage.read_resource("Patient", patient_id)
+            patient = get_resource("Patient", patient_id)
             if not patient:
                 return None
             
@@ -410,7 +416,7 @@ class AuditService:
     async def _get_user_info(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get basic user information for enrichment"""
         try:
-            practitioner = await self.storage.read_resource("Practitioner", user_id)
+            practitioner = get_resource("Practitioner", user_id)
             if not practitioner:
                 return {"id": user_id, "name": "Unknown User"}
             
@@ -440,7 +446,7 @@ class AuditService:
         # Add created resources
         for resource in event.created_resources:
             try:
-                resource_data = await self.storage.read_resource(
+                resource_data = get_resource(
                     resource["resourceType"], 
                     resource["id"]
                 )

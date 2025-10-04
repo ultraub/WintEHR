@@ -14,7 +14,7 @@ import logging
 from collections import defaultdict
 
 from database import get_db_session
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import get_resource
 
 logger = logging.getLogger(__name__)
 
@@ -136,24 +136,22 @@ async def discover_relationships(
     Discover actual relationships for a specific resource instance.
     Returns connected resources with relationship metadata.
     """
-    storage = FHIRStorageEngine(db)
-    
     try:
         # Get the source resource
         logger.info(f"Attempting to read resource: {resource_type}/{resource_id}")
         try:
-            source_resource = await storage.read_resource(resource_type, resource_id)
+            source_resource = get_resource(resource_type, resource_id)
         except AttributeError as ae:
             logger.error(f"AttributeError when reading resource: {ae}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Storage engine error: {str(ae)}")
+            raise HTTPException(status_code=500, detail=f"FHIR client error: {str(ae)}")
         except Exception as e:
             logger.error(f"Unexpected error reading resource: {e}", exc_info=True)
             raise
-            
+
         if not source_resource:
             logger.warning(f"Resource not found: {resource_type}/{resource_id}")
             raise HTTPException(status_code=404, detail=f"{resource_type}/{resource_id} not found")
-        
+
         # Initialize result structure
         result = {
             "source": {
@@ -165,20 +163,20 @@ async def discover_relationships(
             "nodes": [],
             "links": []
         }
-        
+
         # Track visited resources to avoid cycles
         visited = set()
         visited.add(f"{resource_type}/{resource_id}")
-        
+
         # Discover relationships recursively
         await _discover_relationships_recursive(
-            storage, 
-            source_resource, 
+            db,
+            source_resource,
             resource_type,
             resource_id,
-            depth, 
-            1, 
-            visited, 
+            depth,
+            1,
+            visited,
             result,
             include_counts
         )
@@ -305,19 +303,17 @@ async def find_relationship_paths(
     Find all paths between two resources.
     Useful for understanding how resources are connected.
     """
-    storage = FHIRStorageEngine(db)
-    
     try:
         # Verify both resources exist
-        source = await storage.read_resource(source_type, source_id)
-        target = await storage.read_resource(target_type, target_id)
-        
+        source = get_resource(source_type, source_id)
+        target = get_resource(target_type, target_id)
+
         if not source or not target:
             raise HTTPException(status_code=404, detail="Source or target resource not found")
-        
+
         # Find paths using breadth-first search
         paths = await _find_paths_bfs(
-            storage,
+            db,
             f"{source_type}/{source_id}",
             f"{target_type}/{target_id}",
             max_depth
@@ -369,7 +365,7 @@ def _get_resource_display(resource: Dict[str, Any]) -> str:
     return f"{resource.get('resourceType', 'Resource')} {resource.get('id', '')}"
 
 async def _discover_relationships_recursive(
-    storage: FHIRStorageEngine,
+    db: AsyncSession,
     resource: Dict[str, Any],
     resource_type: str,
     resource_id: str,
@@ -382,7 +378,7 @@ async def _discover_relationships_recursive(
     """Recursively discover relationships from a resource."""
     if current_depth > max_depth:
         return
-    
+
     # Add current resource as a node
     node_id = f"{resource_type}/{resource_id}"
     result["nodes"].append({
@@ -391,25 +387,25 @@ async def _discover_relationships_recursive(
         "display": _get_resource_display(resource),
         "depth": current_depth - 1
     })
-    
+
     # Get reference fields for this resource type
     reference_fields = REFERENCE_FIELDS.get(resource_type, {})
-    
+
     # Check each reference field
     for field_name, field_config in reference_fields.items():
         if field_name in resource:
             references = resource[field_name]
             if not isinstance(references, list):
                 references = [references]
-            
+
             logger.info(f"Found field {field_name} with {len(references)} references in {resource_type}/{resource_id}")
-            
+
             for ref in references:
                 if isinstance(ref, dict) and "reference" in ref:
                     ref_string = ref["reference"]
                     target_type = None
                     target_id = None
-                    
+
                     # Handle both standard and URN format references
                     if ref_string.startswith("urn:uuid:"):
                         # URN format - need to determine resource type from context
@@ -421,7 +417,7 @@ async def _discover_relationships_recursive(
                             # Try to resolve the actual resource type
                             for possible_type in field_config["target"]:
                                 try:
-                                    test_resource = await storage.read_resource(possible_type, target_id)
+                                    test_resource = get_resource(possible_type, target_id)
                                     if test_resource:
                                         target_type = possible_type
                                         logger.info(f"Resolved URN {ref_string} to {possible_type}/{target_id}")
@@ -433,10 +429,10 @@ async def _discover_relationships_recursive(
                         ref_parts = ref_string.split("/")
                         if len(ref_parts) == 2:
                             target_type, target_id = ref_parts
-                    
+
                     if target_type and target_id:
                         target_node_id = f"{target_type}/{target_id}"
-                        
+
                         # Add link
                         result["links"].append({
                             "source": node_id,
@@ -444,15 +440,15 @@ async def _discover_relationships_recursive(
                             "field": field_name,
                             "type": field_config["type"]
                         })
-                        
+
                         # Recursively explore if not visited
                         if target_node_id not in visited and current_depth < max_depth:
                             visited.add(target_node_id)
                             try:
-                                target_resource = await storage.read_resource(target_type, target_id)
+                                target_resource = get_resource(target_type, target_id)
                                 if target_resource:
                                     await _discover_relationships_recursive(
-                                        storage,
+                                        db,
                                         target_resource,
                                         target_type,
                                         target_id,
@@ -464,7 +460,7 @@ async def _discover_relationships_recursive(
                                     )
                             except Exception as e:
                                 logger.warning(f"Could not fetch {target_type}/{target_id}: {str(e)}")
-    
+
     # Also check for reverse relationships (resources that reference this one)
     if include_counts and current_depth < max_depth:
         reverse_refs_query = """
@@ -475,15 +471,15 @@ async def _discover_relationships_recursive(
             AND (r.deleted = false OR r.deleted IS NULL)
             LIMIT 50
         """
-        
-        result_refs = await storage.session.execute(
+
+        result_refs = await db.execute(
             text(reverse_refs_query),
             {"target_type": resource_type, "target_id": resource_id}
         )
-        
+
         for row in result_refs:
             source_node_id = f"{row.source_type}/{row.source_id}"
-            
+
             # Add link
             result["links"].append({
                 "source": source_node_id,
@@ -491,15 +487,15 @@ async def _discover_relationships_recursive(
                 "field": row.field_path,
                 "type": "reverse"
             })
-            
+
             # Recursively explore if not visited
             if source_node_id not in visited:
                 visited.add(source_node_id)
                 try:
-                    source_resource = await storage.read_resource(row.source_type, row.source_id)
+                    source_resource = get_resource(row.source_type, row.source_id)
                     if source_resource:
                         await _discover_relationships_recursive(
-                            storage,
+                            db,
                             source_resource,
                             row.source_type,
                             row.source_id,
@@ -513,7 +509,7 @@ async def _discover_relationships_recursive(
                     logger.warning(f"Could not fetch {row.source_type}/{row.source_id}: {str(e)}")
 
 async def _find_paths_bfs(
-    storage: FHIRStorageEngine,
+    db: AsyncSession,
     source: str,
     target: str,
     max_depth: int
@@ -522,13 +518,13 @@ async def _find_paths_bfs(
     paths = []
     queue = [(source, [source])]
     visited = set()
-    
+
     while queue and len(paths) < 10:  # Limit to 10 paths
         current, path = queue.pop(0)
-        
+
         if len(path) > max_depth:
             continue
-            
+
         if current == target:
             # Found a path
             path_details = []
@@ -540,17 +536,17 @@ async def _find_paths_bfs(
                 })
             paths.append(path_details)
             continue
-        
+
         if current in visited:
             continue
-            
+
         visited.add(current)
-        
+
         # Get all connected resources
         current_type, current_id = current.split("/")
-        
+
         # Check forward references
-        resource = await storage.read_resource(current_type, current_id)
+        resource = get_resource(current_type, current_id)
         if resource:
             reference_fields = REFERENCE_FIELDS.get(current_type, {})
             for field_name, field_config in reference_fields.items():
@@ -558,11 +554,11 @@ async def _find_paths_bfs(
                     references = resource[field_name]
                     if not isinstance(references, list):
                         references = [references]
-                    
+
                     for ref in references:
                         if isinstance(ref, dict) and "reference" in ref:
                             ref_string = ref["reference"]
-                            
+
                             # Handle URN format references
                             if ref_string.startswith("urn:uuid:"):
                                 # For URN references, try to resolve the resource type
@@ -570,7 +566,7 @@ async def _find_paths_bfs(
                                 if field_config.get("target"):
                                     for possible_type in field_config["target"]:
                                         try:
-                                            test_resource = await storage.read_resource(possible_type, target_id)
+                                            test_resource = get_resource(possible_type, target_id)
                                             if test_resource:
                                                 next_node = f"{possible_type}/{target_id}"
                                                 if next_node not in path:
@@ -583,7 +579,7 @@ async def _find_paths_bfs(
                                 next_node = ref_string
                                 if next_node not in path:  # Avoid cycles
                                     queue.append((next_node, path + [next_node]))
-        
+
         # Check reverse references
         reverse_refs_query = """
             SELECT r.resource_type || '/' || r.fhir_id as source
@@ -593,15 +589,15 @@ async def _find_paths_bfs(
             AND (r.deleted = false OR r.deleted IS NULL)
             LIMIT 20
         """
-        
-        result_refs = await storage.session.execute(
+
+        result_refs = await db.execute(
             text(reverse_refs_query),
             {"target_type": current_type, "target_id": current_id}
         )
-        
+
         for row in result_refs:
             next_node = row.source
             if next_node not in path:  # Avoid cycles
                 queue.append((next_node, path + [next_node]))
-    
+
     return paths

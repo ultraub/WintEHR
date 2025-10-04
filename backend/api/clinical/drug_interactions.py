@@ -3,7 +3,7 @@ Drug Interaction Service
 Provides comprehensive drug interaction and safety checking functionality
 """
 
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Set, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -11,7 +11,7 @@ from datetime import datetime
 import logging
 
 from database import get_db_session as get_db
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import search_resources
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -255,22 +255,17 @@ DOSAGE_RANGES = {
     "warfarin": {"min_daily": 1, "max_daily": 15, "unit": "mg", "frequency": "once daily", "note": "Highly variable"}
 }
 
-async def get_patient_current_medications(patient_id: str, db: AsyncSession) -> List[Dict[str, any]]:
-    """Get patient's current active medications from FHIR storage"""
+async def get_patient_current_medications(patient_id: str, db: AsyncSession = None) -> List[Dict[str, Any]]:
+    """Get patient's current active medications from HAPI FHIR"""
     try:
-        storage = FHIRStorageEngine(db)
-        
         # Search for active MedicationRequests for the patient
         search_params = {
             "patient": f"Patient/{patient_id}",
             "status": "active"
         }
-        
-        resources, total = await storage.search_resources(
-            "MedicationRequest",
-            search_params
-        )
-        
+
+        resources = search_resources("MedicationRequest", search_params)
+
         # Extract medication information
         medications = []
         for resource in resources:
@@ -332,22 +327,17 @@ async def get_patient_current_medications(patient_id: str, db: AsyncSession) -> 
         logger.error(f"Error fetching patient medications: {str(e)}")
         return []
 
-async def get_patient_allergies(patient_id: str, db: AsyncSession) -> List[Dict[str, any]]:
-    """Get patient's allergies from FHIR storage"""
+async def get_patient_allergies(patient_id: str, db: AsyncSession = None) -> List[Dict[str, Any]]:
+    """Get patient's allergies from HAPI FHIR"""
     try:
-        storage = FHIRStorageEngine(db)
-        
         # Search for AllergyIntolerance resources for the patient
         search_params = {
             "patient": f"Patient/{patient_id}",
             "clinical-status": "active"
         }
-        
-        resources, total = await storage.search_resources(
-            "AllergyIntolerance",
-            search_params
-        )
-        
+
+        resources = search_resources("AllergyIntolerance", search_params)
+
         # Extract allergy information
         allergies = []
         for resource in resources:
@@ -389,22 +379,17 @@ async def get_patient_allergies(patient_id: str, db: AsyncSession) -> List[Dict[
         logger.error(f"Error fetching patient allergies: {str(e)}")
         return []
 
-async def get_patient_conditions(patient_id: str, db: AsyncSession) -> List[Dict[str, any]]:
-    """Get patient's active conditions from FHIR storage"""
+async def get_patient_conditions(patient_id: str, db: AsyncSession = None) -> List[Dict[str, Any]]:
+    """Get patient's active conditions from HAPI FHIR"""
     try:
-        storage = FHIRStorageEngine(db)
-        
         # Search for active Conditions for the patient
         search_params = {
             "patient": f"Patient/{patient_id}",
             "clinical-status": "active"
         }
-        
-        resources, total = await storage.search_resources(
-            "Condition",
-            search_params
-        )
-        
+
+        resources = search_resources("Condition", search_params)
+
         # Extract condition information
         conditions = []
         for resource in resources:

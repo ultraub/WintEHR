@@ -18,7 +18,7 @@ import json
 
 from database import get_db_session
 from api.auth import get_current_user
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import get_resource
 
 # Import drug interactions functionality
 from api.clinical.drug_interactions import router as drug_interactions_router, check_drug_interactions
@@ -352,13 +352,11 @@ async def get_clinical_reminders(
 ):
     """
     Get clinical reminders for a patient.
-    
+
     Based on age, conditions, and care gaps.
     """
-    storage = FHIRStorageEngine(db)
-    
     # Get patient data
-    patient = await storage.read_resource("Patient", patient_id)
+    patient = get_resource("Patient", patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     

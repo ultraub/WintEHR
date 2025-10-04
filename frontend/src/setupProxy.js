@@ -53,12 +53,12 @@ module.exports = function(app) {
     })
   );
   
-  // CDS Hooks routes - need to add the path back
+  // CDS Services routes - need to add the path back
   app.use(
-    '/cds-hooks',
+    '/cds-services',
     createProxy('CDS', (path, req) => {
-      // Add /cds-hooks back to the path
-      return '/cds-hooks' + path;
+      // Add /api/cds-services back to the path
+      return '/api/cds-services' + path;
     })
   );
   

@@ -12,7 +12,6 @@ import uuid
 import logging
 
 from database import get_db_session
-from fhir.core.storage import FHIRStorageEngine, get_storage_engine
 from .models import (
     CDSHookRequest,
     CDSHookResponse,
@@ -79,8 +78,7 @@ async def discover_services(
 async def invoke_service(
     service_id: str,
     request: CDSHookRequest,
-    db: AsyncSession = Depends(get_db_session),
-    storage: FHIRStorageEngine = Depends(get_storage_engine)
+    db: AsyncSession = Depends(get_db_session)
 ) -> CDSHookResponse:
     """
     Invoke a specific CDS service
@@ -134,7 +132,7 @@ async def invoke_service(
         # Process system actions if any
         system_actions = None
         if hasattr(implementation, 'get_system_actions'):
-            system_actions_handler = SystemActionsHandler(storage)
+            system_actions_handler = SystemActionsHandler()
             system_actions_list = await implementation.get_system_actions(request.context, prefetch)
             if system_actions_list:
                 # Validate but don't apply in dry run mode
@@ -195,8 +193,7 @@ async def invoke_service(
 async def apply_system_actions(
     service_id: str,
     request: Request,
-    db: AsyncSession = Depends(get_db_session),
-    storage: FHIRStorageEngine = Depends(get_storage_engine)
+    db: AsyncSession = Depends(get_db_session)
 ) -> dict:
     """
     Apply system actions from a CDS service response
@@ -220,7 +217,7 @@ async def apply_system_actions(
         system_actions = [SystemAction(**action) for action in system_actions_data]
         
         # Process system actions
-        handler = SystemActionsHandler(storage)
+        handler = SystemActionsHandler()
         results = await handler.process_system_actions(
             system_actions,
             {

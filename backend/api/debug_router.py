@@ -93,26 +93,24 @@ async def debug_patient_lookup(
             ]
         }
 
-@debug_router.get("/test-storage/{patient_id}")
-async def test_storage_engine(
+@debug_router.get("/test-fhir-client/{patient_id}")
+async def test_fhir_client(
     patient_id: str,
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Test the storage engine directly."""
-    from fhir.core.storage import FHIRStorageEngine
-    
-    storage = FHIRStorageEngine(db)
-    
+    """Test HAPI FHIR client connectivity."""
+    from services.fhir_client_config import get_resource
+
     # Try to read the patient
     try:
-        resource = await storage.read_resource("Patient", patient_id)
+        resource = get_resource("Patient", patient_id)
         return {
-            "storage_engine_result": "Found" if resource else "Not found",
+            "fhir_client_result": "Found" if resource else "Not found",
             "resource": resource if resource else None
         }
     except Exception as e:
         return {
-            "storage_engine_result": "Error",
+            "fhir_client_result": "Error",
             "error": str(e),
             "error_type": type(e).__name__
         }

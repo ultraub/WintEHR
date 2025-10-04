@@ -8,8 +8,7 @@ from datetime import datetime
 import json
 
 from database import get_db_session as get_db
-# from models.models import FHIRResource  # Not used in this file
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import search_resources, get_resource, update_resource, create_resource
 from fhir.core.resources_r4b import Communication, Reference, Extension
 from pydantic import BaseModel
 import logging
@@ -35,40 +34,30 @@ async def get_notification_count(
     current_user_id: str = "demo-user"  # For now, hardcoded
 ):
     """Get count of unread notifications for the current user"""
-    
-    storage = FHIRStorageEngine(db)
-    
+
     # Search for Communication resources where:
     # 1. Recipient is the current user (Practitioner)
     # 2. Status is not 'completed' (unread)
     # 3. Has extension marking it as unread
-    
+
     search_params = {
         'recipient': f'Practitioner/{current_user_id}',
         'status:not': 'completed',
-        '_sort': '-sent'
+        '_sort': '-sent',
+        '_count': 1000  # Fetch all to count properly
     }
-    
-    resources, total = await storage.search_resources(
-        'Communication',
-        search_params,
-        offset=0,
-        limit=1  # We only need the count
-    )
-    
+
+    response = search_resources('Communication', search_params)
+
     # Filter for unread notifications
     unread_count = 0
-    if total > 0:
-        # Fetch all to count properly
-        all_resources, _ = await storage.search_resources(
-            'Communication',
-            search_params,
-            offset=0,
-            limit=total
-        )
-        
-        for resource in all_resources:
-            comm = Communication.parse_obj(resource.resource_data)
+    all_resources = response.get('entry', []) if isinstance(response, dict) else []
+
+    if all_resources:
+
+        for entry in all_resources:
+            resource = entry.get('resource', entry)
+            comm = Communication.parse_obj(resource)
             
             # Check if marked as read
             is_read = False
@@ -93,25 +82,22 @@ async def get_notifications(
     current_user_id: str = "demo-user"
 ):
     """Get notifications for the current user"""
-    
-    storage = FHIRStorageEngine(db)
-    
+
     # Search for Communication resources for the current user
     search_params = {
         'recipient': f'Practitioner/{current_user_id}',
-        '_sort': '-sent'
+        '_sort': '-sent',
+        '_count': limit
     }
-    
-    resources, total = await storage.search_resources(
-        'Communication',
-        search_params,
-        offset=offset,
-        limit=limit
-    )
-    
+
+    response = search_resources('Communication', search_params)
+
     notifications = []
-    for resource in resources:
-        comm = Communication.parse_obj(resource.resource_data)
+    entries = response.get('entry', []) if isinstance(response, dict) else []
+
+    for entry in entries:
+        resource = entry.get('resource', entry)
+        comm = Communication.parse_obj(resource)
         
         # Check if marked as read
         is_read = False
@@ -127,7 +113,7 @@ async def get_notifications(
         
         # Convert to dict for response
         notif_dict = comm.dict(exclude_none=True)
-        notif_dict['id'] = resource.id
+        notif_dict['id'] = resource.get('id', '')
         notif_dict['_isRead'] = is_read  # Add convenience field
         
         notifications.append(notif_dict)
@@ -148,13 +134,11 @@ async def mark_notification_read(
     current_user_id: str = "demo-user"
 ):
     """Mark a notification as read"""
-    
-    storage = FHIRStorageEngine(db)
-    
+
     # Get the notification
     try:
-        resource = await storage.read_resource('Communication', notification_id)
-        comm = Communication.parse_obj(resource.resource_data)
+        resource = get_resource('Communication', notification_id)
+        comm = Communication.parse_obj(resource)
         
         # Verify this notification is for the current user
         is_recipient = False
@@ -188,8 +172,8 @@ async def mark_notification_read(
         if comm.status == "in-progress":
             comm.status = "completed"
         
-        # Save the updated resource
-        await storage.update_resource(
+        # Save the updated resource via HAPI FHIR
+        update_resource(
             'Communication',
             notification_id,
             comm.dict(exclude_none=True)
@@ -207,27 +191,23 @@ async def mark_all_notifications_read(
     current_user_id: str = "demo-user"
 ):
     """Mark all notifications as read for the current user"""
-    
-    storage = FHIRStorageEngine(db)
-    
+
     # Get all unread notifications
     search_params = {
         'recipient': f'Practitioner/{current_user_id}',
-        'status:not': 'completed'
+        'status:not': 'completed',
+        '_count': 1000  # Process in batches if needed
     }
-    
-    resources, total = await storage.search_resources(
-        'Communication',
-        search_params,
-        offset=0,
-        limit=1000  # Process in batches if needed
-    )
-    
+
+    response = search_resources('Communication', search_params)
+
     updated_count = 0
-    
-    for resource in resources:
+    entries = response.get('entry', []) if isinstance(response, dict) else []
+
+    for entry in entries:
         try:
-            comm = Communication.parse_obj(resource.resource_data)
+            resource = entry.get('resource', entry)
+            comm = Communication.parse_obj(resource)
             
             # Check if already read
             is_read = False
@@ -259,17 +239,17 @@ async def mark_all_notifications_read(
                 if comm.status == "in-progress":
                     comm.status = "completed"
                 
-                # Save
-                await storage.update_resource(
+                # Save via HAPI FHIR
+                update_resource(
                     'Communication',
-                    resource.id,
+                    resource.get('id'),
                     comm.dict(exclude_none=True)
                 )
                 
                 updated_count += 1
                 
         except Exception as e:
-            logging.error(f"Error updating notification {resource.id}: {e}")
+            logging.error(f"Error updating notification {resource.get('id')}: {e}")
             continue
     
     return {
@@ -285,8 +265,6 @@ async def create_notification(
     current_user_id: str = "demo-user"
 ):
     """Create a new notification (Communication resource)"""
-    
-    storage = FHIRStorageEngine(db)
     
     # Build Communication resource
     comm_data = {
@@ -327,13 +305,13 @@ async def create_notification(
     # Validate and create
     try:
         comm = Communication.parse_obj(comm_data)
-        result = await storage.create_resource('Communication', comm.dict(exclude_none=True))
-        
+        result = create_resource(comm.dict(exclude_none=True))
+
         # TODO: Send WebSocket notification to recipients
-        
+
         return {
             "success": True,
-            "id": result['id'],
+            "id": result.get('id'),
             "message": "Notification created successfully"
         }
         
