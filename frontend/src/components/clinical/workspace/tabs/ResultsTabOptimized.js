@@ -277,7 +277,7 @@ const ResultsTabOptimized = ({ patientId }) => {
   useEffect(() => {
     if (!patientId) return;
 
-    console.log('[ResultsTabOptimized] Setting up real-time subscriptions for patient:', patientId);
+    // Setting up real-time subscriptions for patient
 
     const subscriptions = [];
 
@@ -292,16 +292,11 @@ const ResultsTabOptimized = ({ patientId }) => {
 
     resultEvents.forEach(eventType => {
       const unsubscribe = subscribe(eventType, (event) => {
-        console.log('[ResultsTabOptimized] Result event received:', {
-          eventType,
-          eventPatientId: event.patientId,
-          currentPatientId: patientId,
-          event
-        });
+        // Result event received
         
         // Handle update if the event is for the current patient
         if (event.patientId === patientId) {
-          console.log('[ResultsTabOptimized] Updating results for event:', eventType);
+          // Updating results for event
           handleResultUpdate(eventType, event);
         }
       });
@@ -309,7 +304,7 @@ const ResultsTabOptimized = ({ patientId }) => {
     });
 
     return () => {
-      console.log('[ResultsTabOptimized] Cleaning up subscriptions');
+      // Cleaning up subscriptions
       subscriptions.forEach(unsub => unsub());
     };
   }, [patientId, subscribe]);
@@ -318,7 +313,7 @@ const ResultsTabOptimized = ({ patientId }) => {
   useEffect(() => {
     if (!patientId || !websocketService.isConnected) return;
 
-    console.log('[ResultsTabOptimized] Setting up WebSocket patient room subscription for:', patientId);
+    // Setting up WebSocket patient room subscription
 
     let subscriptionId = null;
 
@@ -331,9 +326,9 @@ const ResultsTabOptimized = ({ patientId }) => {
         ];
 
         subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
-        console.log('[ResultsTabOptimized] Successfully subscribed to patient room:', subscriptionId);
+        // Successfully subscribed to patient room
       } catch (error) {
-        console.error('[ResultsTabOptimized] Failed to subscribe to patient room:', error);
+        // Failed to subscribe to patient room
       }
     };
 
@@ -341,7 +336,7 @@ const ResultsTabOptimized = ({ patientId }) => {
 
     return () => {
       if (subscriptionId) {
-        console.log('[ResultsTabOptimized] Unsubscribing from patient room:', subscriptionId);
+        // Unsubscribing from patient room
         websocketService.unsubscribeFromPatient(subscriptionId);
       }
     };
@@ -349,13 +344,13 @@ const ResultsTabOptimized = ({ patientId }) => {
 
   // Handle incremental result updates
   const handleResultUpdate = useCallback((eventType, eventData) => {
-    console.log('[ResultsTabOptimized] Handling result update:', eventType, eventData);
+    // Handling result update
     
     // Extract the result from the event data
     const result = eventData.result || eventData.observation || eventData.resource;
     
     if (!result) {
-      console.warn('[ResultsTabOptimized] No result in event data');
+      // No result in event data
       return;
     }
 
@@ -388,7 +383,7 @@ const ResultsTabOptimized = ({ patientId }) => {
         diagnosticReports: updateResultsList(prev.diagnosticReports, result, eventType)
       }));
     }
-  }, [getObservationCategory]);
+  }, []);
 
   // Helper function to update results list
   const updateResultsList = (list, newResult, eventType) => {

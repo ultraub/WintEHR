@@ -88,14 +88,55 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     };
   }, []); // Remove eventListeners dependency to prevent infinite loops
 
-  // Publish clinical events
+  // Event deduplication
+  const eventDedupeCache = useRef(new Map());
+  const eventDedupeTimeout = useRef(null);
+  
+  // Clear deduplication cache periodically
+  useEffect(() => {
+    const clearCache = () => {
+      const now = Date.now();
+      eventDedupeCache.current.forEach((timestamp, key) => {
+        // Clear entries older than 2 seconds
+        if (now - timestamp > 2000) {
+          eventDedupeCache.current.delete(key);
+        }
+      });
+    };
+    
+    const interval = setInterval(clearCache, 5000); // Clean every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  // Publish clinical events with deduplication
   const publish = useCallback(async (eventType, data) => {
+    // Create event key for deduplication
+    const eventKey = `${eventType}-${JSON.stringify({
+      patientId: data.patientId || currentPatient?.id,
+      resourceId: data.resourceId,
+      orderId: data.orderId,
+      medicationId: data.medicationId
+    })}`;
+    
+    // Check for duplicate event within 1 second window
+    const lastEventTime = eventDedupeCache.current.get(eventKey);
+    const now = Date.now();
+    
+    if (lastEventTime && (now - lastEventTime) < 1000) {
+      // Duplicate event suppressed
+      return; // Skip duplicate event
+    }
+    
+    // Store event timestamp for deduplication
+    eventDedupeCache.current.set(eventKey, now);
+    
     // Prepare event data with additional context
     const eventData = {
       ...data,
       patientId: data.patientId || currentPatient?.id,  // Use provided patientId or current patient
       userId: currentUser?.id,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      eventId: `${eventType}-${now}-${Math.random().toString(36).substr(2, 9)}` // Unique event ID
     };
     
     // Publishing event
@@ -416,72 +457,114 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     }
   }, []);
 
+  // Store event listeners in a ref to avoid stale closures
+  const eventListenersRef = useRef(new Map());
+  
+  // Update ref when eventListeners change
+  useEffect(() => {
+    eventListenersRef.current = eventListeners;
+  }, [eventListeners]);
+
   // Initialize WebSocket connection
   useEffect(() => {
     // WebSocket initialization
     const token = localStorage.getItem('auth_token');
     
-    // Only connect if we have a user and token, and not already connected
-    if (currentUser && token && !wsConnected) {
-      // Check if WebSocket is already connected to prevent reconnection
-      const currentState = websocketService.getConnectionState();
-      if (currentState.isConnected) {
-        // WebSocket already connected, skipping reconnection
-        setWsConnected(true);
-        return;
-      }
-      
-      // Connecting WebSocket with token
-      websocketService.connect(token);
-      
-      // Monitor connection state
-      const unsubscribeConnection = websocketService.onConnectionChange((state) => {
-        setWsConnected(state === 'connected');
-        setWsReconnecting(state === 'reconnecting');
-      });
-      
-      // Subscribe to all clinical events via WebSocket
-      const eventTypes = Object.values(CLINICAL_EVENTS);
-      const unsubscribers = [];
-      
-      eventTypes.forEach(eventType => {
-        const unsubscribe = websocketService.subscribe(eventType, (data) => {
-          // Forward WebSocket events to local event listeners
-            const listeners = eventListeners.get(eventType) || [];
-            listeners.forEach(listener => {
-              try {
-                listener(data);
-              } catch (error) {
-                // Error in event listener
-              }
-            });
-            
-            // Handle automated workflows
-            handleAutomatedWorkflows(eventType, data);
-          });
-          unsubscribers.push(unsubscribe);
-        });
-        
-        wsUnsubscribers.current = [...unsubscribers, unsubscribeConnection];
-      
-      // Store cleanup function
-      return () => {
-        // Only cleanup if component is unmounting or user is logging out
-        // WebSocket cleanup triggered
-        wsUnsubscribers.current.forEach(unsubscribe => unsubscribe());
-        wsUnsubscribers.current = [];
-        // Don't disconnect here - let the WebSocket manage its own lifecycle
-      };
+    // Only connect if we have a user and token
+    if (!currentUser || !token) {
+      return;
     }
     
-    // Return empty cleanup if conditions not met
-    return () => {};
-  }, [currentUser, wsConnected]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Set up token refresh callback
+    websocketService.setTokenRefreshCallback(async () => {
+      try {
+        // Try to get fresh token from localStorage first
+        const freshToken = localStorage.getItem('auth_token');
+        if (freshToken && freshToken !== token) {
+          return freshToken;
+        }
+        
+        // If we have a refresh token mechanism, use it here
+        // For now, just return the current token
+        // In production, this should call your auth service to refresh the token
+        // Example: const newToken = await authService.refreshToken();
+        
+        return freshToken || token;
+      } catch (error) {
+        console.error('Failed to refresh token:', error);
+        return null;
+      }
+    });
+    
+    // Check if WebSocket is already connected to prevent reconnection
+    const currentState = websocketService.getConnectionState();
+    if (currentState.isConnected) {
+      // WebSocket already connected, skipping reconnection
+      setWsConnected(true);
+      return;
+    }
+    
+    // Connecting WebSocket with token
+    websocketService.connect(token);
+    
+    // Monitor connection state
+    const unsubscribeConnection = websocketService.onConnectionChange((state) => {
+      setWsConnected(state === 'connected');
+      setWsReconnecting(state === 'reconnecting');
+    });
+    
+    // Subscribe to all clinical events via WebSocket
+    const eventTypes = Object.values(CLINICAL_EVENTS);
+    const unsubscribers = [];
+    
+    eventTypes.forEach(eventType => {
+      const unsubscribe = websocketService.subscribe(eventType, (data) => {
+        // Forward WebSocket events to local event listeners using ref to avoid stale closures
+        const listeners = eventListenersRef.current.get(eventType) || [];
+        listeners.forEach(listener => {
+          try {
+            listener(data);
+          } catch (error) {
+            console.error(`Error in event listener for ${eventType}:`, error);
+          }
+        });
+        
+        // Handle automated workflows
+        handleAutomatedWorkflows(eventType, data);
+      });
+      unsubscribers.push(unsubscribe);
+    });
+    
+    // Store all unsubscribers
+    wsUnsubscribers.current = [...unsubscribers, unsubscribeConnection];
+    
+    // Cleanup function
+    return () => {
+      // Cleanup all WebSocket subscriptions
+      if (wsUnsubscribers.current && wsUnsubscribers.current.length > 0) {
+        wsUnsubscribers.current.forEach(unsubscribe => {
+          if (typeof unsubscribe === 'function') {
+            unsubscribe();
+          }
+        });
+        wsUnsubscribers.current = [];
+      }
+    };
+  }, [currentUser]); // Only depend on currentUser to avoid reconnections
   
-  // Cleanup WebSocket on component unmount
+  // Cleanup WebSocket on component unmount only
   useEffect(() => {
     return () => {
-      // Component unmounting, disconnecting WebSocket
+      // Component unmounting - cleanup all subscriptions first
+      if (wsUnsubscribers.current && wsUnsubscribers.current.length > 0) {
+        wsUnsubscribers.current.forEach(unsubscribe => {
+          if (typeof unsubscribe === 'function') {
+            unsubscribe();
+          }
+        });
+        wsUnsubscribers.current = [];
+      }
+      // Then disconnect WebSocket
       websocketService.disconnect();
     };
   }, []); // Only run on unmount

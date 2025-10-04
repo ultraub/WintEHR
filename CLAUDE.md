@@ -21,6 +21,21 @@
 - Modern React 18 frontend with Material-UI
 - FastAPI backend with async Python and PostgreSQL
 
+## 📚 Module Documentation
+
+**Each major functional area has its own detailed CLAUDE.md for focused development:**
+
+| Module | Location | Purpose |
+|--------|----------|---------|
+| **Backend API** | [`backend/api/CLAUDE.md`](backend/api/CLAUDE.md) | FastAPI endpoints, routers, services, middleware |
+| **Frontend Clinical UI** | [`frontend/src/CLAUDE.md`](frontend/src/CLAUDE.md) | React components, state management, FHIR client |
+| **FHIR Engine** | [`backend/fhir/CLAUDE.md`](backend/fhir/CLAUDE.md) | Core FHIR storage, search, validation, compartments |
+| **Data Management** | [`backend/scripts/CLAUDE.md`](backend/scripts/CLAUDE.md) | Deployment scripts, data import, validation |
+| **Clinical Workflows** | [`backend/api/clinical/CLAUDE.md`](backend/api/clinical/CLAUDE.md) | CDS Hooks, orders, pharmacy, results, imaging |
+| **Security/Auth** | [`backend/api/auth/CLAUDE.md`](backend/api/auth/CLAUDE.md) | Authentication, authorization, audit, compliance |
+
+> **🎯 Pro Tip**: Start with the module-specific CLAUDE.md when working on a particular area. Each provides deep context, patterns, and troubleshooting specific to that module.
+
 ## 🚀 Quick Start (Simplified!)
 
 ### Development Environment (Recommended)
@@ -707,6 +722,27 @@ WintEHR now includes a comprehensive Clinical Design System:
 5. **Follow Patterns**: Use existing patterns, don't reinvent wheels
 6. **Think Integration**: Consider how modules interact, use event system
 7. **Prioritize Safety**: Patient data integrity is paramount
+
+## 📖 Documentation Navigation Guide
+
+### How to Use the Documentation Hierarchy
+
+1. **Start Here (CLAUDE.md)**: Quick reference for overall project context and critical rules
+2. **Module-Specific CLAUDE.md**: Deep dive into specific functional areas when working on them
+3. **CLAUDE-REFERENCE.md**: Detailed patterns, troubleshooting, and architecture reference
+4. **docs/ Directory**: Technical specifications, API docs, and deployment guides
+
+### When to Use Each Documentation Level
+
+| Working On | Primary Reference | Secondary Reference |
+|------------|------------------|-------------------|
+| New Feature | Module CLAUDE.md | CLAUDE-REFERENCE.md |
+| Bug Fix | Module CLAUDE.md | Troubleshooting sections |
+| API Endpoint | backend/api/CLAUDE.md | API_ENDPOINTS.md |
+| FHIR Query | backend/fhir/CLAUDE.md | FHIR_API_TEST_SUMMARY.md |
+| UI Component | frontend/src/CLAUDE.md | Clinical Design System |
+| Deployment | backend/scripts/CLAUDE.md | DEPLOYMENT_CHECKLIST.md |
+| Security | backend/api/auth/CLAUDE.md | CRITICAL_FIXES_*.md |
 
 ---
 

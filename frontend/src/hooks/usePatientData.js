@@ -2,10 +2,16 @@
  * usePatientData Hook
  * Centralized patient data management for clinical workspace
  */
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
+import { useProgressiveLoading } from './useProgressiveLoading';
 
-export const usePatientData = (patientId) => {
+export const usePatientData = (patientId, options = {}) => {
+  const {
+    useProgressive = true, // Enable progressive loading by default
+    ...progressiveOptions
+  } = options;
+
   const {
     currentPatient,
     setCurrentPatient,
@@ -15,44 +21,103 @@ export const usePatientData = (patientId) => {
     searchResources,
   } = useFHIRResource();
 
+  // Progressive loading hook
+  const {
+    loadingState: progressiveLoadingState,
+    isCriticalDataLoaded,
+    isMinimalDataLoaded,
+    isFullyLoaded,
+    progress: loadProgress,
+    refresh: refreshProgressive
+  } = useProgressiveLoading(patientId, {
+    ...progressiveOptions,
+    enabled: useProgressive
+  });
+
   // Initialize loading state based on whether we need to load a patient
   const needsPatientLoad = patientId && (!currentPatient || currentPatient.id !== patientId);
   const [localLoading, setLocalLoading] = useState(needsPatientLoad);
   const [error, setError] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Track the current load operation to prevent race conditions
+  const loadingRef = useRef(false);
+  const abortControllerRef = useRef(null);
+  const lastRequestedPatientId = useRef(null);
 
   // Load patient if needed
   useEffect(() => {
+    // Abort any previous load operation
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
+    const currentAbortController = abortControllerRef.current;
+
     const loadPatient = async () => {
       // Normalize IDs for comparison - handle potential case or format differences
       const normalizedPatientId = patientId?.trim();
       const normalizedCurrentId = currentPatient?.id?.trim();
       
+      // Check if we need to load this patient
       if (normalizedPatientId && (!currentPatient || normalizedCurrentId !== normalizedPatientId)) {
+        // Prevent multiple simultaneous loads of the same patient
+        if (loadingRef.current && lastRequestedPatientId.current === normalizedPatientId) {
+          return;
+        }
+
+        loadingRef.current = true;
+        lastRequestedPatientId.current = normalizedPatientId;
         setLocalLoading(true);
         setError(null);
+        
         try {
+          // Check if request was aborted before starting
+          if (currentAbortController.signal.aborted) {
+            return;
+          }
+
           await setCurrentPatient(patientId);
-          setIsInitialLoad(false);
-          setLocalLoading(false);
+          
+          // Check if request was aborted after completion
+          if (!currentAbortController.signal.aborted) {
+            setIsInitialLoad(false);
+            setLocalLoading(false);
+            loadingRef.current = false;
+          }
         } catch (err) {
-          console.error('Failed to load patient:', err);
-          setError(err.message || 'Failed to load patient data');
-          setIsInitialLoad(false);
-          setLocalLoading(false);
+          // Only handle error if request wasn't aborted
+          if (!currentAbortController.signal.aborted) {
+            console.error('Failed to load patient:', err);
+            setError(err.message || 'Failed to load patient data');
+            setIsInitialLoad(false);
+            setLocalLoading(false);
+            loadingRef.current = false;
+          }
         }
       } else if (currentPatient && normalizedCurrentId === normalizedPatientId) {
         // Patient already loaded
         setIsInitialLoad(false);
         setLocalLoading(false);
+        loadingRef.current = false;
       } else if (!normalizedPatientId) {
         // No patient ID provided
         setIsInitialLoad(false);
         setLocalLoading(false);
+        loadingRef.current = false;
       }
     };
     
     loadPatient();
+
+    // Cleanup function to abort on unmount or dependency change
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [patientId, currentPatient, setCurrentPatient]);
 
   // Remove the automatic syncing of loading states after initial load
@@ -150,21 +215,41 @@ export const usePatientData = (patientId) => {
     };
   }, [patientData]);
 
-  // Refresh function
+  // Debounce timer ref for refresh function
+  const refreshDebounceRef = useRef(null);
+
+  // Refresh function with debouncing to prevent rapid consecutive calls
   const refreshPatientData = useCallback(async () => {
     if (!patientId) return;
 
-    setLocalLoading(true);
-    setError(null);
-
-    try {
-      // Trigger refresh through context
-      await setCurrentPatient(patientId);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setLocalLoading(false);
+    // Clear any pending refresh
+    if (refreshDebounceRef.current) {
+      clearTimeout(refreshDebounceRef.current);
     }
+
+    // Debounce the refresh to prevent rapid consecutive calls
+    return new Promise((resolve, reject) => {
+      refreshDebounceRef.current = setTimeout(async () => {
+        // Abort any ongoing load operation
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+
+        setLocalLoading(true);
+        setError(null);
+
+        try {
+          // Trigger refresh through context
+          await setCurrentPatient(patientId);
+          resolve();
+        } catch (err) {
+          setError(err);
+          reject(err);
+        } finally {
+          setLocalLoading(false);
+        }
+      }, 300); // 300ms debounce delay
+    });
   }, [patientId, setCurrentPatient]);
 
   // Load specific resource type if not available
@@ -205,8 +290,18 @@ export const usePatientData = (patientId) => {
     loading: localLoading,
     error,
     
+    // Progressive loading state
+    progressiveLoading: {
+      enabled: useProgressive,
+      state: progressiveLoadingState,
+      isCriticalDataLoaded,
+      isMinimalDataLoaded,
+      isFullyLoaded,
+      progress: loadProgress
+    },
+    
     // Actions
-    refreshPatientData,
+    refreshPatientData: useProgressive ? refreshProgressive : refreshPatientData,
     loadResourceType,
   };
 };

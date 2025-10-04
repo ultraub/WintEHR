@@ -23,6 +23,10 @@ class WebSocketService {
     this.isConnected = false;
     this.heartbeatInterval = null;
     this.connectionListeners = new Set();
+    this.currentToken = null;
+    this.tokenRefreshCallback = null;
+    this.authFailureCount = 0;
+    this.maxAuthRetries = 3;
     
     // Get WebSocket URL from environment or use default
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -42,6 +46,14 @@ class WebSocketService {
   }
 
   /**
+   * Set token refresh callback
+   * @param {function} callback - Function that returns a Promise with new token
+   */
+  setTokenRefreshCallback(callback) {
+    this.tokenRefreshCallback = callback;
+  }
+
+  /**
    * Connect to WebSocket server
    * @param {string} token - Optional authentication token
    */
@@ -50,8 +62,13 @@ class WebSocketService {
       return;
     }
 
+    // Store token for reconnection
+    if (token) {
+      this.currentToken = token;
+    }
+
     // Construct URL with token if provided
-    this.url = token ? `${this.baseUrl}?token=${encodeURIComponent(token)}` : this.baseUrl;
+    this.url = this.currentToken ? `${this.baseUrl}?token=${encodeURIComponent(this.currentToken)}` : this.baseUrl;
     
     // Connecting to WebSocket
     
@@ -62,6 +79,28 @@ class WebSocketService {
       // Connection error, will attempt reconnect
       this.scheduleReconnect();
     }
+  }
+
+  /**
+   * Refresh authentication token
+   */
+  async refreshToken() {
+    if (!this.tokenRefreshCallback) {
+      console.error('Token refresh callback not set');
+      return false;
+    }
+
+    try {
+      const newToken = await this.tokenRefreshCallback();
+      if (newToken) {
+        this.currentToken = newToken;
+        this.authFailureCount = 0; // Reset auth failure count on successful refresh
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to refresh token:', error);
+    }
+    return false;
   }
 
   /**
@@ -115,18 +154,22 @@ class WebSocketService {
    * Handle incoming messages
    */
   handleMessage(data) {
-    const { type, payload, data: messageData } = data;
+    const { type, payload, data: messageData, error } = data;
     
     // Handle system messages
     switch (type) {
       case 'welcome':
         // Welcome message received
+        this.authFailureCount = 0; // Reset auth failures on successful connection
         break;
       case 'pong':
         // Heartbeat response
         break;
       case 'error':
         // Server error
+        if (error === 'AUTH_FAILED' || error === 'TOKEN_EXPIRED') {
+          this.handleAuthError();
+        }
         break;
       case 'subscription':
         // Subscription confirmed
@@ -357,6 +400,38 @@ class WebSocketService {
   }
 
   /**
+   * Handle authentication errors
+   */
+  async handleAuthError() {
+    this.authFailureCount++;
+    
+    if (this.authFailureCount >= this.maxAuthRetries) {
+      console.error('Max auth retries exceeded');
+      this.notifyConnectionListeners('auth_failed');
+      this.disconnect();
+      return;
+    }
+
+    console.log('Authentication failed, attempting to refresh token...');
+    
+    // Try to refresh token
+    const refreshed = await this.refreshToken();
+    
+    if (refreshed) {
+      console.log('Token refreshed successfully, reconnecting...');
+      // Disconnect current connection and reconnect with new token
+      if (this.ws) {
+        this.ws.close();
+      }
+      this.connect();
+    } else {
+      console.error('Failed to refresh token');
+      this.notifyConnectionListeners('auth_failed');
+      this.disconnect();
+    }
+  }
+
+  /**
    * Schedule reconnection attempt
    */
   scheduleReconnect() {
@@ -374,7 +449,11 @@ class WebSocketService {
 
     // Scheduling reconnection
     
-    setTimeout(() => {
+    setTimeout(async () => {
+      // Try to refresh token before reconnecting if we had auth issues
+      if (this.authFailureCount > 0 && this.tokenRefreshCallback) {
+        await this.refreshToken();
+      }
       this.connect();
     }, delay);
   }

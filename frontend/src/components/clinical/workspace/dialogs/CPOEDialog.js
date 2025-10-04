@@ -82,16 +82,16 @@ const CPOEDialog = ({
         savedResource = updateServiceRequestResource(
           formData, 
           serviceRequest, 
-          user?.username || 'current-user',
-          user?.display_name || 'Dr. Current User'
+          user?.id || user?.username || `Practitioner/${Date.now()}`,
+          user?.display_name || user?.name || 'Unknown Provider'
         );
       } else {
         // Create new ServiceRequest
         savedResource = createServiceRequestResource(
           formData, 
           patientId,
-          user?.username || 'current-user',
-          user?.display_name || 'Dr. Current User'
+          user?.id || user?.username || `Practitioner/${Date.now()}`,
+          user?.display_name || user?.name || 'Unknown Provider'
         );
       }
       

@@ -1256,7 +1256,7 @@ generate.demographics.default_state = Massachusetts
         self.log("=" * 60)
         
         # Use the active DICOM generation script
-        dicom_script = self.scripts_dir / "generate_dicom_for_studies.py"
+        dicom_script = self.script_dir / "generate_dicom_for_studies.py"
         if not dicom_script.exists():
             self.log(f"DICOM generation script not found at {dicom_script}", "ERROR")
             return False
@@ -1378,10 +1378,10 @@ generate.demographics.default_state = Massachusetts
         try:
             # Run consolidated search indexing to ensure all parameters are indexed
             result = subprocess.run(
-                ["python", str(self.scripts_dir / "consolidated_search_indexing.py"), "--mode", "fix"],
+                ["python", str(self.script_dir / "consolidated_search_indexing.py"), "--mode", "fix"],
                 capture_output=True,
                 text=True,
-                cwd=str(self.scripts_dir)
+                cwd=str(self.script_dir)
             )
             if result.returncode == 0:
                 self.log("  ✅ Search parameter re-indexing completed", "SUCCESS")

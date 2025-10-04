@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import EnhancedClinicalLayout from './layouts/EnhancedClinicalLayout';
 import ClinicalWorkspaceEnhanced from './ClinicalWorkspaceEnhanced';
+import WorkspaceErrorBoundary from './workspace/WorkspaceErrorBoundary';
 import { parseNavigationParams } from './utils/navigationHelper';
 
 const ClinicalWorkspaceWrapper = () => {
@@ -42,26 +43,56 @@ const ClinicalWorkspaceWrapper = () => {
   };
   
   // Sync with URL changes (e.g., browser back/forward)
+  // URL is the single source of truth
   useEffect(() => {
     const newContext = parseNavigationParams(searchParams);
-    if (newContext.tab !== activeModule) {
-      setActiveModule(newContext.tab);
-    }
-    setNavigationParams(newContext);
-  }, [searchParams, activeModule]);
+    
+    // Only update state if actually changed to prevent loops
+    setActiveModule(prevModule => {
+      if (prevModule !== newContext.tab) {
+        return newContext.tab;
+      }
+      return prevModule;
+    });
+    
+    setNavigationParams(prevParams => {
+      // Deep compare to avoid unnecessary updates
+      const hasChanged = 
+        prevParams.tab !== newContext.tab ||
+        prevParams.resourceId !== newContext.resourceId ||
+        prevParams.resourceType !== newContext.resourceType ||
+        prevParams.action !== newContext.action;
+      
+      if (hasChanged) {
+        return newContext;
+      }
+      return prevParams;
+    });
+  }, [searchParams]); // Remove activeModule from deps to prevent loops
 
   return (
-    <EnhancedClinicalLayout 
-      activeModule={activeModule}
-      onModuleChange={handleModuleChange}
-      navigationContext={navigationParams}
+    <WorkspaceErrorBoundary
+      onReset={() => {
+        // Reset to default tab on error recovery
+        handleModuleChange('summary');
+      }}
+      onReportBug={(error, errorInfo) => {
+        // Log error for bug reporting
+        console.error('Bug report:', { error, errorInfo });
+      }}
     >
-      <ClinicalWorkspaceEnhanced 
+      <EnhancedClinicalLayout 
         activeModule={activeModule}
+        onModuleChange={handleModuleChange}
         navigationContext={navigationParams}
-        onNavigateToTab={handleModuleChange}
-      />
-    </EnhancedClinicalLayout>
+      >
+        <ClinicalWorkspaceEnhanced 
+          activeModule={activeModule}
+          navigationContext={navigationParams}
+          onNavigateToTab={handleModuleChange}
+        />
+      </EnhancedClinicalLayout>
+    </WorkspaceErrorBoundary>
   );
 };
 
