@@ -94,12 +94,13 @@ import {
   Description as DescriptionIcon,
   PictureAsPdf as PictureAsPdfIcon,
   Image as ImageIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  LocalPharmacy as PharmacyIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, subDays, isWithinInterval } from 'date-fns';
 import { useSnackbar } from 'notistack';
-import { useNavigate } from 'react-router-dom';
 import useChartReviewResources from '../../../../hooks/useChartReviewResources';
+import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
@@ -125,9 +126,12 @@ import {
 import { clinicalTokens } from '../../../../themes/clinicalTheme';
 import { cdsAlertPersistence } from '../../../../services/cdsAlertPersistenceService';
 
-const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
+const ChartReviewTabOptimized = ({
+  patient,
+  scrollContainerRef,
+  onNavigateToTab // Cross-tab navigation support
+}) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const { currentPatient } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
@@ -972,6 +976,7 @@ const ChartReviewTabOptimized = ({ patient, scrollContainerRef }) => {
                                 medication={medication}
                                 onEdit={() => handleOpenDialog('medication', medication)}
                                 isAlternate={index % 2 === 1}  // For alternating rows
+                                onNavigateToTab={onNavigateToTab}
                               />
                             ))}
                           </StaggeredFadeIn>
@@ -1855,7 +1860,7 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
   );
 };
 
-const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => {
+const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNavigateToTab }) => {
   const theme = useTheme();
   const medicationDisplay = medication.medicationCodeableConcept?.text || 
                           medication.medicationCodeableConcept?.coding?.[0]?.display || 
@@ -2055,10 +2060,27 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false }) => 
             )}
           </Stack>
         </Box>
-        
-        <IconButton size="small" onClick={onEdit}>
-          <EditIcon fontSize="small" />
-        </IconButton>
+
+        <Stack direction="row" spacing={0.5}>
+          <IconButton size="small" onClick={onEdit}>
+            <EditIcon fontSize="small" />
+          </IconButton>
+          {/* Navigate to pharmacy for medication details */}
+          {onNavigateToTab && (
+            <Tooltip title="View in Pharmacy">
+              <IconButton
+                size="small"
+                onClick={() => navigateToTab(onNavigateToTab, TAB_IDS.PHARMACY, {
+                  resourceId: medication.id,
+                  resourceType: 'MedicationRequest',
+                  action: 'view'
+                })}
+              >
+                <PharmacyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
       </Stack>
     </Paper>
   );

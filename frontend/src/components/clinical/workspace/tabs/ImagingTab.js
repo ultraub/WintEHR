@@ -79,8 +79,9 @@ import DownloadDialog from '../../imaging/DownloadDialog';
 import ShareDialog from '../../imaging/ShareDialog';
 import { printDocument } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import websocketService from '../../../../services/websocket';
-import { 
+import {
   ClinicalResourceCard,
   ClinicalSummaryCard,
   ClinicalFilterPanel,
@@ -472,7 +473,12 @@ const DICOMViewerDialog = ({ open, onClose, study, onDownload }) => {
   );
 };
 
-const ImagingTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
+const ImagingTab = ({
+  patientId,
+  onNotificationUpdate,
+  department = 'general',
+  onNavigateToTab // Cross-tab navigation support
+}) => {
   const theme = useTheme();
   const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();

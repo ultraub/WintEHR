@@ -91,6 +91,7 @@ import { medicationAdministrationService } from '../../../../services/medication
 import { useMedicationDispense, useMedicationWorkflow } from '../../../../hooks/useMedicationDispense';
 import { useMedicationAdministration } from '../../../../hooks/useMedicationAdministration';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import EnhancedDispenseDialog from './components/EnhancedDispenseDialog';
 import AdministrationDialog from './components/AdministrationDialog';
 import MedicationAdministrationRecord from '../../pharmacy/MedicationAdministrationRecord';
@@ -519,7 +520,12 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
   );
 };
 
-const PharmacyTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
+const PharmacyTab = ({
+  patientId,
+  onNotificationUpdate,
+  department = 'general',
+  onNavigateToTab // Cross-tab navigation support
+}) => {
   const theme = useTheme();
   const { getPatientResources, isLoading, currentPatient, refreshPatientResources, resources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();

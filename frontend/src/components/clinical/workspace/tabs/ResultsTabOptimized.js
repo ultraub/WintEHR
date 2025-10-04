@@ -58,7 +58,7 @@ import {
   Snackbar
 } from '@mui/material';
 import {
-  Science as LabIcon,  
+  Science as LabIcon,
   Assessment as DiagnosticIcon,
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
@@ -84,11 +84,12 @@ import {
   TableChart as TableIcon,
   ViewModule as CardsIcon,
   ShowChart as TrendsIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Assignment as OrderIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useNavigate } from 'react-router-dom';
+import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import VitalsOverview from '../../charts/VitalsOverview';
 import LabTrendsChart from '../../charts/LabTrendsChart';
 import { printDocument, formatLabResultsForPrint } from '../../../../core/export/printUtils';
@@ -180,9 +181,11 @@ const getResultStatus = (observation) => {
   }
 };
 
-const ResultsTabOptimized = ({ patientId }) => {
+const ResultsTabOptimized = ({
+  patientId,
+  onNavigateToTab // Cross-tab navigation support
+}) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const { currentPatient } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
   
@@ -573,6 +576,25 @@ const ResultsTabOptimized = ({ patientId }) => {
                 onEdit={() => handleViewDetails(item)}
                 onMore={() => handleViewDetails(item)}
                 isAlternate={index % 2 === 1}
+                customActions={
+                  item.basedOn?.[0]?.reference && onNavigateToTab ? (
+                    <Tooltip title="View Related Order">
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          const orderId = item.basedOn[0].reference.split('/')[1];
+                          navigateToTab(onNavigateToTab, TAB_IDS.ORDERS, {
+                            resourceId: orderId,
+                            resourceType: 'ServiceRequest',
+                            action: 'highlight'
+                          });
+                        }}
+                      >
+                        <OrderIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  ) : null
+                }
               />
             </Grid>
           ))}
@@ -693,9 +715,31 @@ const ResultsTabOptimized = ({ patientId }) => {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <IconButton size="small" onClick={() => handleViewDetails(item)}>
-                      <ViewIcon fontSize="small" />
-                    </IconButton>
+                    <Stack direction="row" spacing={0.5}>
+                      <Tooltip title="View Details">
+                        <IconButton size="small" onClick={() => handleViewDetails(item)}>
+                          <ViewIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {/* Navigate to related order if exists */}
+                      {item.basedOn?.[0]?.reference && onNavigateToTab && (
+                        <Tooltip title="View Related Order">
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              const orderId = item.basedOn[0].reference.split('/')[1];
+                              navigateToTab(onNavigateToTab, TAB_IDS.ORDERS, {
+                                resourceId: orderId,
+                                resourceType: 'ServiceRequest',
+                                action: 'highlight'
+                              });
+                            }}
+                          >
+                            <OrderIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Stack>
                   </TableCell>
                 </TableRow>
               );

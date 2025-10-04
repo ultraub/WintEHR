@@ -51,6 +51,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
+import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import EncounterSummaryDialogEnhanced from '../dialogs/EncounterSummaryDialogEnhanced';
 import EncounterSigningDialog from '../dialogs/EncounterSigningDialog';
 import EncounterCreationDialog from '../dialogs/EncounterCreationDialog';
@@ -115,10 +116,14 @@ const getEncounterTypeLabel = (encounter) => {
 
 
 
-const EncountersTab = ({ patientId, onNotificationUpdate, department = 'general' }) => {
+const EncountersTab = ({
+  patientId,
+  onNotificationUpdate,
+  department = 'general',
+  onNavigateToTab // Cross-tab navigation support
+}) => {
   const { getPatientResources, isLoading, currentPatient, resources, searchResources } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
-  const navigate = useNavigate();
   
   const [viewMode, setViewMode] = useState('cards'); // 'cards', 'timeline', or 'table'
   const [filterType, setFilterType] = useState('all');
