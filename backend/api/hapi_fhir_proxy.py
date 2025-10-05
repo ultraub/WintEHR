@@ -54,11 +54,17 @@ async def proxy_to_hapi_fhir(path: str, request: Request):
                 content=body
             )
 
+            # Prepare response headers (exclude compression headers - httpx handles decompression)
+            response_headers = dict(response.headers)
+            # Remove content-encoding headers since httpx already decompressed the response
+            response_headers.pop("content-encoding", None)
+            response_headers.pop("content-length", None)  # Length may be wrong after decompression
+
             # Return HAPI FHIR response
             return Response(
                 content=response.content,
                 status_code=response.status_code,
-                headers=dict(response.headers),
+                headers=response_headers,
                 media_type=response.headers.get("content-type", "application/json")
             )
 
