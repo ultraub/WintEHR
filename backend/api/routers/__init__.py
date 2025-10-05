@@ -23,17 +23,29 @@ def register_all_routers(app: FastAPI) -> None:
     """
     
     # 1. Core FHIR APIs
+    # ⚠️ DEPRECATED (2025-10-05): Old custom FHIR backend has been replaced by HAPI FHIR JPA Server
+    # All FHIR operations now route directly to HAPI FHIR via frontend/backend proxy configuration
+    # See: docs/HAPI_FHIR_MIGRATION.md for complete migration details
+    #
+    # The old fhir.api.router has been disabled. FHIR requests now go to:
+    #   - Development: http://hapi-fhir:8080 (Docker) or http://localhost:8888
+    #   - Production: Nginx proxies /fhir/ to hapi-fhir:8080/fhir/
+    #
+    # Rollback: Uncomment lines below and revert proxy configuration
     try:
-        from fhir.api.router import fhir_router
+        # OLD FHIR ROUTER - DISABLED
+        # from fhir.api.router import fhir_router
+        # app.include_router(fhir_router, tags=["FHIR R4"])
+
+        # Keep FHIR relationship and search value routers (may still be useful)
         from api.fhir_relationships_router import relationships_router
         from api.fhir.search_values import router as search_values_router
-        
-        app.include_router(fhir_router, tags=["FHIR R4"])
+
         app.include_router(relationships_router, prefix="/api", tags=["FHIR Relationships"])
         app.include_router(search_values_router, prefix="/api", tags=["FHIR Search Values"])
-        logger.info("✓ FHIR routers registered")
+        logger.info("✓ FHIR utility routers registered (main FHIR ops handled by HAPI FHIR)")
     except Exception as e:
-        logger.error(f"Failed to register FHIR routers: {e}")
+        logger.error(f"Failed to register FHIR utility routers: {e}")
     
     # 2. Authentication & Authorization
     try:

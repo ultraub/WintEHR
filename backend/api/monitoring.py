@@ -17,8 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from database import get_db_session, engine
-from fhir.api.redis_cache import get_redis_cache
-from fhir.api.cache import get_search_cache
+# DEPRECATED (2025-10-05): Old FHIR cache layers removed with HAPI FHIR migration
+# HAPI FHIR has its own internal caching - monitoring should query HAPI metrics instead
+# from fhir.api.redis_cache import get_redis_cache
+# from fhir.api.cache import get_search_cache
 
 import logging
 
@@ -146,30 +148,34 @@ async def get_system_health():
         }
         health_status["status"] = "degraded"
     
-    # Check Redis cache health
-    try:
-        redis_cache = await get_redis_cache()
-        redis_stats = await redis_cache.get_stats()
-        
-        health_status["components"]["redis_cache"] = {
-            "status": "healthy" if redis_stats["redis_cache"]["available"] else "unavailable",
-            "connected": redis_stats["redis_cache"].get("connected", False),
-            "hit_rate": redis_stats.get("hit_rate", 0),
-            "errors": redis_stats["redis_cache"].get("errors", 0)
-        }
-    except Exception as e:
-        health_status["components"]["redis_cache"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
-    
-    # Check memory cache health
-    try:
-        memory_cache = get_search_cache()
-        memory_stats = memory_cache.get_stats()
-        
-        health_status["components"]["memory_cache"] = {
-            "status": "healthy",
+    # DEPRECATED: Old FHIR cache monitoring (2025-10-05)
+    # HAPI FHIR has its own caching - query HAPI metrics endpoint instead
+    # TODO: Replace with HAPI FHIR metrics endpoint: http://hapi-fhir:8080/actuator/metrics
+
+    # Check Redis cache health - DEPRECATED
+    # try:
+    #     redis_cache = await get_redis_cache()
+    #     redis_stats = await redis_cache.get_stats()
+    #
+    #     health_status["components"]["redis_cache"] = {
+    #         "status": "healthy" if redis_stats["redis_cache"]["available"] else "unavailable",
+    #         "connected": redis_stats["redis_cache"].get("connected", False),
+    #         "hit_rate": redis_stats.get("hit_rate", 0),
+    #         "errors": redis_stats["redis_cache"].get("errors", 0)
+    #     }
+    # except Exception as e:
+    #     health_status["components"]["redis_cache"] = {
+    #         "status": "unhealthy",
+    #         "error": str(e)
+    #     }
+
+    # Check memory cache health - DEPRECATED
+    # try:
+    #     memory_cache = get_search_cache()
+    #     memory_stats = memory_cache.get_stats()
+    #
+    #     health_status["components"]["memory_cache"] = {
+    #         "status": "healthy",
             "size": memory_stats.get("size", 0),
             "hit_rate": memory_stats.get("hit_rate", 0)
         }
