@@ -236,16 +236,41 @@ docker-compose restart backend
 
 ---
 
-## Next Steps
+## Critical Follow-up Fix (Same Day)
 
-1. ✅ **FHIR Proxy**: Complete and working
-2. 📋 **Frontend Issue**: Update ProviderDirectoryContext.js to use `/api/provider-directory` prefix
-3. 🧪 **Testing**: Verify all frontend FHIR operations
-4. 📊 **Monitoring**: Watch for HAPI FHIR performance
-5. 📚 **Documentation**: Update API endpoint documentation
+### Issue: Content Decoding Error
+**Problem**: `ERR_CONTENT_DECODING_FAILED 200 (OK)` in frontend console
+
+**Root Cause**:
+- HAPI FHIR sends gzip-compressed responses with `Content-Encoding: gzip` header
+- `httpx.AsyncClient` automatically decompresses responses
+- Proxy forwarded the `Content-Encoding` header with decompressed content
+- Browser tried to decompress already-decompressed content → decoding error
+
+**Solution** (Commit: `c621b71d9`):
+```python
+# Remove compression headers after httpx decompression
+response_headers = dict(response.headers)
+response_headers.pop("content-encoding", None)  # Already decompressed
+response_headers.pop("content-length", None)    # May be wrong after decompression
+```
+
+**Testing**: ✅ All FHIR operations now working correctly in frontend
 
 ---
 
-**Status**: ✅ Critical fix deployed - Frontend FHIR operations restored
+## Next Steps
+
+1. ✅ **FHIR Proxy**: Complete and working
+2. ✅ **Compression Fix**: Resolved content decoding errors
+3. 📋 **Frontend Issue**: Update ProviderDirectoryContext.js to use `/api/provider-directory` prefix
+4. 🧪 **Testing**: Verify all frontend FHIR operations
+5. 📊 **Monitoring**: Watch for HAPI FHIR performance
+6. 📚 **Documentation**: Update API endpoint documentation
+
+---
+
+**Status**: ✅ Critical fixes deployed - Frontend FHIR operations fully restored
 **Impact**: All FHIR API operations now functional via HAPI FHIR proxy
-**Urgency**: HIGH - Patient data access restored
+**Commits**: `e1a2cd250` (proxy), `c621b71d9` (compression fix)
+**Urgency**: HIGH - Patient data access restored and working
