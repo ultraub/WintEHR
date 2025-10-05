@@ -7,12 +7,12 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import List, Optional
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
 from pydantic import BaseModel
 import uuid
 
 from database import get_db_session
 from api.auth import get_current_user
+from services.fhir_client_config import get_resource, search_resources, create_resource, update_resource
 
 router = APIRouter(prefix="/api/clinical/alerts", tags=["clinical-alerts"])
 
@@ -42,66 +42,111 @@ async def get_alerts(
     current_user: dict = Depends(get_current_user)
 ):
     """Get clinical alerts with optional filters."""
-    # Build query to get Communication resources used as alerts
-    query = """
-        SELECT resource 
-        FROM fhir.resources 
-        WHERE resource_type = 'Communication' 
-        AND deleted = false
-        AND resource->'category'->0->'coding'->0->>'code' = 'alert'
-    """
-    
-    conditions = []
-    if provider_id:
-        conditions.append(f"(resource->'recipient'->0->>'reference' = 'Practitioner/{provider_id}' OR resource->'recipient'->0->>'reference' = 'urn:uuid:{provider_id}')")
-    if patient_id:
-        conditions.append(f"(resource->'subject'->>'reference' = 'Patient/{patient_id}' OR resource->'subject'->>'reference' = 'urn:uuid:{patient_id}')")
-    if severity:
-        conditions.append(f"resource->'priority' = '{severity}'")
-    
-    if conditions:
-        query += " AND " + " AND ".join(conditions)
-    
-    query += f" ORDER BY last_updated DESC LIMIT {limit}"
-    
     try:
-        result = await db.execute(text(query))
+        # Build search parameters for Communication resources
+        search_params = {
+            'category': 'alert',
+            '_count': str(limit),
+            '_sort': '-sent'
+        }
+
+        if provider_id:
+            search_params['recipient'] = f'Practitioner/{provider_id}'
+        if patient_id:
+            search_params['patient'] = f'Patient/{patient_id}'
+
+        # Search Communication resources from HAPI FHIR
+        communication_resources = search_resources('Communication', search_params)
+
         alerts = []
-        
-        for row in result:
-            comm = row[0]
-            
-            # Extract alert details from Communication resource
-            is_acknowledged = comm.get("status") == "completed"
-            
-            # Extract IDs from references (handle both Patient/ and urn:uuid: formats)
-            patient_ref = comm.get("subject", {}).get("reference", "")
-            patient_id_clean = patient_ref.replace("Patient/", "").replace("urn:uuid:", "")
-            
-            provider_ref = comm.get("recipient", [{}])[0].get("reference", "")
-            provider_id_clean = provider_ref.replace("Practitioner/", "").replace("urn:uuid:", "")
-            
-            alert = AlertResponse(
-                id=comm.get("id"),
-                patient_id=patient_id_clean,
-                provider_id=provider_id_clean,
-                message=comm.get("payload", [{}])[0].get("contentString", ""),
-                severity=comm.get("priority", "info"),
-                alert_type=comm.get("reasonCode", [{}])[0].get("coding", [{}])[0].get("code", "general"),
-                created_at=comm.get("sent", datetime.now(timezone.utc).isoformat()),
-                acknowledged=is_acknowledged,
-                acknowledged_at=comm.get("received") if is_acknowledged else None,
-                acknowledged_by=comm.get("sender", {}).get("reference", "").replace("Practitioner/", "").replace("urn:uuid:", "") if is_acknowledged else None,
-                source=comm.get("medium", [{}])[0].get("coding", [{}])[0].get("code", "system"),
-                reference_id=comm.get("about", [{}])[0].get("reference") if comm.get("about") else None
-            )
-            
-            # Apply acknowledged filter if specified
-            if acknowledged is not None and alert.acknowledged != acknowledged:
-                continue
-                
-            alerts.append(alert)
-        
+        if communication_resources:
+            for comm in communication_resources:
+                # Determine if acknowledged
+                comm_status = comm.status if hasattr(comm, 'status') else "in-progress"
+                is_acknowledged = comm_status == "completed"
+
+                # Extract patient reference
+                patient_ref = ""
+                if hasattr(comm, 'subject') and comm.subject:
+                    patient_ref = comm.subject.reference if hasattr(comm.subject, 'reference') else ""
+                patient_id_clean = patient_ref.replace("Patient/", "").replace("urn:uuid:", "")
+
+                # Extract provider reference
+                provider_ref = ""
+                if hasattr(comm, 'recipient') and comm.recipient:
+                    first_recipient = comm.recipient[0] if comm.recipient else None
+                    if first_recipient and hasattr(first_recipient, 'reference'):
+                        provider_ref = first_recipient.reference
+                provider_id_clean = provider_ref.replace("Practitioner/", "").replace("urn:uuid:", "")
+
+                # Extract message
+                message = ""
+                if hasattr(comm, 'payload') and comm.payload:
+                    first_payload = comm.payload[0] if comm.payload else None
+                    if first_payload and hasattr(first_payload, 'contentString'):
+                        message = first_payload.contentString
+
+                # Extract severity (priority)
+                severity_val = comm.priority if hasattr(comm, 'priority') else "info"
+
+                # Extract alert type
+                alert_type = "general"
+                if hasattr(comm, 'reasonCode') and comm.reasonCode:
+                    first_reason = comm.reasonCode[0] if comm.reasonCode else None
+                    if first_reason and hasattr(first_reason, 'coding') and first_reason.coding:
+                        first_coding = first_reason.coding[0] if first_reason.coding else None
+                        if first_coding and hasattr(first_coding, 'code'):
+                            alert_type = first_coding.code
+
+                # Extract timestamps
+                created_at = comm.sent.isostring if hasattr(comm, 'sent') and comm.sent else datetime.now(timezone.utc)
+                acknowledged_at = comm.received.isostring if hasattr(comm, 'received') and comm.received and is_acknowledged else None
+
+                # Extract acknowledged by
+                acknowledged_by = None
+                if is_acknowledged and hasattr(comm, 'sender') and comm.sender:
+                    sender_ref = comm.sender.reference if hasattr(comm.sender, 'reference') else ""
+                    acknowledged_by = sender_ref.replace("Practitioner/", "").replace("urn:uuid:", "")
+
+                # Extract source
+                source = "system"
+                if hasattr(comm, 'medium') and comm.medium:
+                    first_medium = comm.medium[0] if comm.medium else None
+                    if first_medium and hasattr(first_medium, 'coding') and first_medium.coding:
+                        first_coding = first_medium.coding[0] if first_medium.coding else None
+                        if first_coding and hasattr(first_coding, 'code'):
+                            source = first_coding.code
+
+                # Extract reference
+                reference_id = None
+                if hasattr(comm, 'about') and comm.about:
+                    first_about = comm.about[0] if comm.about else None
+                    if first_about and hasattr(first_about, 'reference'):
+                        reference_id = first_about.reference
+
+                alert = AlertResponse(
+                    id=comm.id if hasattr(comm, 'id') else "",
+                    patient_id=patient_id_clean,
+                    provider_id=provider_id_clean,
+                    message=message,
+                    severity=severity_val,
+                    alert_type=alert_type,
+                    created_at=created_at,
+                    acknowledged=is_acknowledged,
+                    acknowledged_at=acknowledged_at,
+                    acknowledged_by=acknowledged_by,
+                    source=source,
+                    reference_id=reference_id
+                )
+
+                # Apply filter conditions
+                if severity and alert.severity != severity:
+                    continue
+                if acknowledged is not None and alert.acknowledged != acknowledged:
+                    continue
+
+                alerts.append(alert)
+
         return alerts
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch alerts: {str(e)}")
@@ -114,62 +159,29 @@ async def acknowledge_alert(
 ):
     """Acknowledge a clinical alert."""
     try:
-        # Get the alert (Communication resource)
-        result = await db.execute(
-            text("""
-                SELECT resource, version_id
-                FROM fhir.resources 
-                WHERE resource_type = 'Communication' 
-                AND fhir_id = :alert_id
-                AND deleted = false
-            """),
-            {"alert_id": alert_id}
-        )
-        
-        row = result.first()
-        if not row:
+        # Get the alert (Communication resource) from HAPI FHIR
+        comm = get_resource('Communication', alert_id)
+
+        if not comm:
             raise HTTPException(status_code=404, detail="Alert not found")
-        
-        comm = row[0]
-        current_version = row[1]
-        
+
+        # Convert to dict for updates
+        comm_dict = comm.as_json() if hasattr(comm, 'as_json') else comm
+
         # Update status to completed (acknowledged)
-        comm["status"] = "completed"
-        comm["received"] = datetime.now(timezone.utc).isoformat()
-        comm["sender"] = {
+        comm_dict["status"] = "completed"
+        comm_dict["received"] = datetime.now(timezone.utc).isoformat()
+        comm_dict["sender"] = {
             "reference": f"Practitioner/{current_user.get('id', 'unknown')}"
         }
-        
-        # Update metadata
-        comm["meta"] = {
-            "versionId": str(current_version + 1),
-            "lastUpdated": datetime.now(timezone.utc).isoformat()
-        }
-        
-        # Update in database
-        await db.execute(
-            text("""
-                UPDATE fhir.resources 
-                SET resource = :resource,
-                    version_id = :version_id,
-                    last_updated = :last_updated
-                WHERE resource_type = 'Communication' 
-                AND fhir_id = :alert_id
-            """),
-            {
-                "resource": comm,
-                "version_id": current_version + 1,
-                "last_updated": datetime.now(timezone.utc),
-                "alert_id": alert_id
-            }
-        )
-        await db.commit()
-        
+
+        # Update in HAPI FHIR
+        update_resource('Communication', alert_id, comm_dict)
+
         return {"message": "Alert acknowledged successfully"}
     except HTTPException:
         raise
     except Exception as e:
-        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to acknowledge alert: {str(e)}")
 
 @router.post("/create-test-alerts")
@@ -199,16 +211,13 @@ async def create_test_alerts(
             "reference": "AllergyIntolerance/test-allergy-1"
         }
     ]
-    
+
     created_alerts = []
-    
+
     for alert_data in test_alerts:
-        alert_id = str(uuid.uuid4())
-        
         # Create Communication resource for alert
         comm = {
             "resourceType": "Communication",
-            "id": alert_id,
             "status": "in-progress",  # Not yet acknowledged
             "category": [{
                 "coding": [{
@@ -243,33 +252,20 @@ async def create_test_alerts(
                 }]
             }]
         }
-        
+
         if alert_data.get("reference"):
             comm["about"] = [{
                 "reference": alert_data["reference"]
             }]
-        
+
         try:
-            await db.execute(
-                text("""
-                    INSERT INTO fhir.resources (resource_type, fhir_id, version_id, last_updated, resource)
-                    VALUES (:resource_type, :fhir_id, :version_id, :last_updated, :resource)
-                """),
-                {
-                    "resource_type": "Communication",
-                    "fhir_id": alert_id,
-                    "version_id": 1,
-                    "last_updated": datetime.now(timezone.utc),
-                    "resource": comm
-                }
-            )
+            # Create Communication resource in HAPI FHIR
+            created_comm = create_resource('Communication', comm)
+            alert_id = created_comm.id if hasattr(created_comm, 'id') else str(uuid.uuid4())
             created_alerts.append(alert_id)
         except Exception as e:
-            await db.rollback()
             raise HTTPException(status_code=500, detail=f"Failed to create test alert: {str(e)}")
-    
-    await db.commit()
-    
+
     return {
         "message": f"Created {len(created_alerts)} test alerts",
         "alert_ids": created_alerts

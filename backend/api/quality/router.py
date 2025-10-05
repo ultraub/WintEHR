@@ -13,6 +13,7 @@ import json
 
 from database import get_db_session
 from api.auth import get_current_user
+from services.fhir_client_config import search_resources
 
 router = APIRouter(prefix="/api/quality/measures", tags=["quality-measures"])
 
@@ -38,20 +39,20 @@ class QualitySummary(BaseModel):
 
 async def calculate_diabetes_care_measure(db: AsyncSession, provider_id: Optional[str] = None) -> QualityMeasure:
     """Calculate diabetes care quality measure (HbA1c testing)."""
-    # Get diabetic patients
-    diabetic_query = """
-        SELECT DISTINCT resource->'subject'->>'reference' as patient_ref
-        FROM fhir.resources 
-        WHERE resource_type = 'Condition' 
-        AND deleted = false
-        AND (
-            resource->'code'->'coding'->0->>'code' LIKE 'E11%'  -- Type 2 diabetes ICD-10
-            OR resource->'code'->>'text' ILIKE '%diabetes%'
-        )
-    """
-    
-    result = await db.execute(text(diabetic_query))
-    diabetic_patients = [row[0] for row in result]
+    # Get diabetic patients from HAPI FHIR
+    # Search for diabetes conditions using SNOMED codes
+    diabetic_conditions = search_resources('Condition', {
+        'code': '44054006,73211009,714628002,127013003,90781000119102'  # Diabetes SNOMED codes
+    })
+
+    # Extract unique patient references
+    diabetic_patients = set()
+    if diabetic_conditions:
+        for condition in diabetic_conditions:
+            if hasattr(condition, 'subject') and condition.subject:
+                patient_ref = condition.subject.reference if hasattr(condition.subject, 'reference') else str(condition.subject)
+                diabetic_patients.add(patient_ref)
+
     denominator = len(diabetic_patients)
     
     if denominator == 0:
@@ -67,25 +68,25 @@ async def calculate_diabetes_care_measure(db: AsyncSession, provider_id: Optiona
             category="chronic-disease"
         )
     
-    # Check for HbA1c tests in last 6 months
+    # Check for HbA1c tests in last 6 months from HAPI FHIR
     six_months_ago = (datetime.now(timezone.utc) - timedelta(days=180)).isoformat()
-    
-    hba1c_query = f"""
-        SELECT COUNT(DISTINCT resource->'subject'->>'reference') as tested_patients
-        FROM fhir.resources 
-        WHERE resource_type = 'Observation' 
-        AND deleted = false
-        AND resource->'subject'->>'reference' IN ({','.join([f"'{p}'" for p in diabetic_patients])})
-        AND (
-            resource->'code'->'coding'->0->>'code' = '4548-4'  -- LOINC for HbA1c
-            OR resource->'code'->>'text' ILIKE '%hba1c%'
-            OR resource->'code'->>'text' ILIKE '%hemoglobin a1c%'
-        )
-        AND resource->>'effectiveDateTime' > '{six_months_ago}'
-    """
-    
-    result = await db.execute(text(hba1c_query))
-    numerator = result.scalar() or 0
+
+    # Search for HbA1c observations
+    hba1c_observations = search_resources('Observation', {
+        'code': '4548-4',  # LOINC code for HbA1c
+        'date': f'ge{six_months_ago}'
+    })
+
+    # Count unique patients with HbA1c tests
+    tested_patients = set()
+    if hba1c_observations:
+        for obs in hba1c_observations:
+            if hasattr(obs, 'subject') and obs.subject:
+                patient_ref = obs.subject.reference if hasattr(obs.subject, 'reference') else str(obs.subject)
+                if patient_ref in diabetic_patients:
+                    tested_patients.add(patient_ref)
+
+    numerator = len(tested_patients)
     
     score = (numerator / denominator * 100) if denominator > 0 else 0
     
@@ -103,23 +104,30 @@ async def calculate_diabetes_care_measure(db: AsyncSession, provider_id: Optiona
 
 async def calculate_preventive_screening_measure(db: AsyncSession, provider_id: Optional[str] = None) -> QualityMeasure:
     """Calculate preventive screening measure (mammography)."""
-    # Get female patients aged 50-74
-    patient_query = """
-        SELECT resource->>'id' as patient_id
-        FROM fhir.resources 
-        WHERE resource_type = 'Patient' 
-        AND deleted = false
-        AND resource->>'gender' = 'female'
-        AND EXTRACT(YEAR FROM AGE(CURRENT_DATE, (resource->>'birthDate')::date)) BETWEEN 50 AND 74
-    """
-    
-    result = await db.execute(text(patient_query))
-    patient_ids = [row[0] for row in result]
-    # Create both Patient/ and urn:uuid: formats for comparison  
-    eligible_patients = []
-    for patient_id in patient_ids:
-        eligible_patients.extend([f"Patient/{patient_id}", f"urn:uuid:{patient_id}"])
-    denominator = len(patient_ids)  # Count unique patients, not references
+    # Get female patients aged 50-74 from HAPI FHIR
+    patients = search_resources('Patient', {
+        'gender': 'female'
+    })
+
+    # Filter by age 50-74
+    eligible_patients = set()
+    if patients:
+        for patient in patients:
+            if hasattr(patient, 'birthDate'):
+                birth_date = patient.birthDate.isostring if hasattr(patient.birthDate, 'isostring') else str(patient.birthDate)
+                from datetime import date
+                try:
+                    birth_date_obj = datetime.fromisoformat(birth_date.replace('Z', '+00:00')).date()
+                    age = (date.today() - birth_date_obj).days / 365.25
+                    if 50 <= age <= 74:
+                        patient_id = patient.id if hasattr(patient, 'id') else None
+                        if patient_id:
+                            # Store patient reference
+                            eligible_patients.add(f"Patient/{patient_id}")
+                except:
+                    pass
+
+    denominator = len(eligible_patients)
     
     if denominator == 0:
         return QualityMeasure(
@@ -134,24 +142,25 @@ async def calculate_preventive_screening_measure(db: AsyncSession, provider_id: 
             category="preventive-care"
         )
     
-    # Check for mammography in last 2 years
+    # Check for mammography in last 2 years from HAPI FHIR
     two_years_ago = (datetime.now(timezone.utc) - timedelta(days=730)).isoformat()
-    
-    mammography_query = f"""
-        SELECT COUNT(DISTINCT resource->'subject'->>'reference') as screened_patients
-        FROM fhir.resources 
-        WHERE resource_type = 'Observation' 
-        AND deleted = false
-        AND resource->'subject'->>'reference' IN ({','.join([f"'{p}'" for p in eligible_patients])})
-        AND (
-            resource->'code'->>'text' ILIKE '%mammogr%'
-            OR resource->'code'->'coding'->0->>'code' IN ('24606-6', '24605-8', '24604-1')  -- LOINC codes for mammography
-        )
-        AND resource->>'effectiveDateTime' > '{two_years_ago}'
-    """
-    
-    result = await db.execute(text(mammography_query))
-    numerator = result.scalar() or 0
+
+    # Search for mammography observations using LOINC codes
+    mammography_observations = search_resources('Observation', {
+        'code': '24606-6,24605-8,24604-1',  # LOINC codes for mammography
+        'date': f'ge{two_years_ago}'
+    })
+
+    # Count unique patients screened
+    screened_patients = set()
+    if mammography_observations:
+        for obs in mammography_observations:
+            if hasattr(obs, 'subject') and obs.subject:
+                patient_ref = obs.subject.reference if hasattr(obs.subject, 'reference') else str(obs.subject)
+                if patient_ref in eligible_patients:
+                    screened_patients.add(patient_ref)
+
+    numerator = len(screened_patients)
     
     score = (numerator / denominator * 100) if denominator > 0 else 0
     
@@ -169,17 +178,12 @@ async def calculate_preventive_screening_measure(db: AsyncSession, provider_id: 
 
 async def calculate_medication_adherence_measure(db: AsyncSession, provider_id: Optional[str] = None) -> QualityMeasure:
     """Calculate medication adherence measure."""
-    # Get active medications
-    active_meds_query = """
-        SELECT COUNT(*) as total_meds
-        FROM fhir.resources 
-        WHERE resource_type = 'MedicationRequest' 
-        AND deleted = false
-        AND resource->>'status' = 'active'
-    """
-    
-    result = await db.execute(text(active_meds_query))
-    denominator = result.scalar() or 0
+    # Get active medications from HAPI FHIR
+    active_meds = search_resources('MedicationRequest', {
+        'status': 'active'
+    })
+
+    denominator = len(active_meds) if active_meds else 0
     
     if denominator == 0:
         return QualityMeasure(

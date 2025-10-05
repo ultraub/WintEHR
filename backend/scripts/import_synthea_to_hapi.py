@@ -43,20 +43,8 @@ def load_synthea_bundles(synthea_dir: str) -> List[Dict]:
 def post_bundle_to_hapi(bundle: Dict) -> bool:
     """Post a FHIR bundle to HAPI FHIR server"""
     try:
-        # Convert collection bundle to transaction bundle
-        if bundle.get('type') == 'collection':
-            bundle['type'] = 'transaction'
-            # Add request method to each entry
-            for entry in bundle.get('entry', []):
-                resource = entry.get('resource', {})
-                resource_type = resource.get('resourceType')
-                resource_id = resource.get('id')
-
-                if resource_type and resource_id:
-                    entry['request'] = {
-                        'method': 'PUT',
-                        'url': f"{resource_type}/{resource_id}"
-                    }
+        # Synthea bundles are already transaction type with POST requests
+        # No conversion needed - post as-is
 
         # Post bundle to HAPI FHIR
         response = requests.post(
@@ -69,7 +57,7 @@ def post_bundle_to_hapi(bundle: Dict) -> bool:
             return True
         else:
             print(f"✗ Error posting bundle: {response.status_code}")
-            print(f"  Response: {response.text[:200]}")
+            print(f"  Response: {response.text[:500]}")
             return False
 
     except Exception as e:
