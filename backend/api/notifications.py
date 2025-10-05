@@ -9,7 +9,7 @@ import json
 
 from database import get_db_session as get_db
 from services.fhir_client_config import search_resources, get_resource, update_resource, create_resource
-from fhir.core.resources_r4b import Communication, Reference, Extension
+from shared.fhir_resources.resources_r4b import Communication, Reference, Extension
 from pydantic import BaseModel
 import logging
 

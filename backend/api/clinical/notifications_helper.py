@@ -3,7 +3,10 @@
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from sqlalchemy.orm import Session
-from fhir.api.notifications import create_system_notification
+# DEPRECATED (2025-10-05): Notifications need to be migrated to HAPI FHIR
+# Old create_system_notification used deprecated fhir.resources table
+# TODO: Migrate to create Communication resources and send to HAPI FHIR
+# from fhir.api.notifications import create_system_notification
 import asyncio
 
 # Critical value ranges for common lab tests
@@ -174,16 +177,18 @@ async def check_and_notify_critical_values(
     # Create critical value notification
     subject = f"Critical Lab Result - {critical_config['name']}"
     full_message = f"{message} for patient {patient_name}. Immediate review required."
-    
-    notification = await create_system_notification(
-        db=db,
-        recipient_id=provider_id,
-        subject=subject,
-        message=full_message,
-        priority="stat",
-        category="alert",
-        patient_id=patient_id
-    )
+
+    # TODO (2025-10-05): Migrate to HAPI FHIR Communication resources
+    # notification = await create_system_notification(
+    #     db=db,
+    #     recipient_id=provider_id,
+    #     subject=subject,
+    #     message=full_message,
+    #     priority="stat",
+    #     category="alert",
+    #     patient_id=patient_id
+    # )
+    notification = None  # Temporarily disabled pending HAPI FHIR migration
     
     return notification
 
@@ -245,16 +250,18 @@ async def notify_task_assignment(
         
         if assigner_query:
             message += f" (assigned by Dr. {assigner_query.first_name} {assigner_query.last_name})"
-    
-    notification = await create_system_notification(
-        db=db,
-        recipient_id=assignee_id,
-        subject=subject,
-        message=message,
-        priority=notification_priority,
-        category="notification",
-        patient_id=patient_id
-    )
+
+    # TODO (2025-10-05): Migrate to HAPI FHIR Communication resources
+    # notification = await create_system_notification(
+    #     db=db,
+    #     recipient_id=assignee_id,
+    #     subject=subject,
+    #     message=message,
+    #     priority=notification_priority,
+    #     category="notification",
+    #     patient_id=patient_id
+    # )
+    notification = None  # Temporarily disabled pending HAPI FHIR migration
     
     return notification
 
@@ -307,23 +314,25 @@ async def notify_appointment_reminder(
     
     subject = "Appointment Reminder"
     message = f"Reminder: {patient_name} has an appointment on {time_str}"
-    
+
     # Add appointment type if available
     if appointment.get("appointmentType"):
         appt_type = appointment["appointmentType"].get("text", "")
         if appt_type:
             message += f" ({appt_type})"
-    
-    notification = await create_system_notification(
-        db=db,
-        recipient_id=provider_id,
-        subject=subject,
-        message=message,
-        priority="routine",
-        category="reminder",
-        patient_id=patient_id
-    )
-    
+
+    # TODO (2025-10-05): Migrate to HAPI FHIR Communication resources
+    # notification = await create_system_notification(
+    #     db=db,
+    #     recipient_id=provider_id,
+    #     subject=subject,
+    #     message=message,
+    #     priority="routine",
+    #     category="reminder",
+    #     patient_id=patient_id
+    # )
+    notification = None  # Temporarily disabled pending HAPI FHIR migration
+
     return notification
 
 async def notify_medication_interaction(
@@ -373,15 +382,17 @@ async def notify_medication_interaction(
         f"Potential interaction detected for {patient_name}: "
         f"{medication1} + {medication2}. {description}"
     )
-    
-    notification = await create_system_notification(
-        db=db,
-        recipient_id=provider_id,
-        subject=subject,
-        message=message,
-        priority=priority,
-        category="alert",
-        patient_id=patient_id
-    )
-    
+
+    # TODO (2025-10-05): Migrate to HAPI FHIR Communication resources
+    # notification = await create_system_notification(
+    #     db=db,
+    #     recipient_id=provider_id,
+    #     subject=subject,
+    #     message=message,
+    #     priority=priority,
+    #     category="alert",
+    #     patient_id=patient_id
+    # )
+    notification = None  # Temporarily disabled pending HAPI FHIR migration
+
     return notification

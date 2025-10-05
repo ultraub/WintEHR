@@ -4,10 +4,12 @@
 
 > **Important**: For detailed implementation patterns and comprehensive documentation, see [CLAUDE-REFERENCE.md](./CLAUDE-REFERENCE.md)
 
-**Last Updated**: 2025-08-03  
-**Version**: 3.1
+**Last Updated**: 2025-10-05
+**Version**: 3.2
 
 > **NEW**: Simplified deployment! See [DEPLOYMENT_SIMPLIFIED.md](./DEPLOYMENT_SIMPLIFIED.md) for the new streamlined approach.
+
+> **🔄 HAPI FHIR MIGRATION** (2025-10-05): WintEHR has migrated from custom FHIR backend to industry-standard HAPI FHIR JPA Server. Old FHIR backend archived to `backend/archived/old_fhir_backend/`. Essential FHIR utilities preserved in `backend/shared/fhir_resources/`. See [backend/docs/HAPI_FHIR_MIGRATION_2025-10-05.md](backend/docs/HAPI_FHIR_MIGRATION_2025-10-05.md) for details.
 
 ## 🎯 Project Overview
 
@@ -29,7 +31,7 @@
 |--------|----------|---------|
 | **Backend API** | [`backend/api/CLAUDE.md`](backend/api/CLAUDE.md) | FastAPI endpoints, routers, services, middleware |
 | **Frontend Clinical UI** | [`frontend/src/CLAUDE.md`](frontend/src/CLAUDE.md) | React components, state management, FHIR client |
-| **FHIR Engine** | [`backend/fhir/CLAUDE.md`](backend/fhir/CLAUDE.md) | Core FHIR storage, search, validation, compartments |
+| **FHIR Engine** | [`backend/archived/old_fhir_backend/CLAUDE.md`](backend/archived/old_fhir_backend/CLAUDE.md) | ⚠️ **ARCHIVED** - Migrated to HAPI FHIR |
 | **Data Management** | [`backend/scripts/CLAUDE.md`](backend/scripts/CLAUDE.md) | Deployment scripts, data import, validation |
 | **Clinical Workflows** | [`backend/api/clinical/CLAUDE.md`](backend/api/clinical/CLAUDE.md) | CDS Hooks, orders, pharmacy, results, imaging |
 | **Security/Auth** | [`backend/api/auth/CLAUDE.md`](backend/api/auth/CLAUDE.md) | Authentication, authorization, audit, compliance |

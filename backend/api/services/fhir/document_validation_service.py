@@ -10,7 +10,7 @@ import json
 import logging
 from typing import Dict, Any, List, Tuple, Optional
 from datetime import datetime
-from fhir.core.resources_r4b import DocumentReference, Attachment
+from shared.fhir_resources.resources_r4b import DocumentReference, Attachment
 
 logger = logging.getLogger(__name__)
 
