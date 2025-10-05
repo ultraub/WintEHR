@@ -82,16 +82,14 @@ def register_all_routers(app: FastAPI) -> None:
     except Exception as e:
         logger.error(f"Failed to register clinical routers: {e}")
     
-    # 4. EMR Extensions
+    # 4. Clinical Canvas (AI-powered UI generation)
     try:
-        from emr_api.router import emr_router
         from clinical_canvas.router import router as clinical_canvas_router
-        
-        app.include_router(emr_router, tags=["EMR Extensions"])
+
         app.include_router(clinical_canvas_router, tags=["Clinical Canvas"])
-        logger.info("✓ EMR extension routers registered")
+        logger.info("✓ Clinical Canvas router registered")
     except Exception as e:
-        logger.error(f"Failed to register EMR routers: {e}")
+        logger.error(f"Failed to register Clinical Canvas router: {e}")
     
     # 5. Integration Services
     try:
