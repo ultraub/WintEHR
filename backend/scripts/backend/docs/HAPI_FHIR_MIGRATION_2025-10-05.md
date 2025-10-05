@@ -13,18 +13,18 @@ WintEHR has migrated from a custom FHIR backend implementation to the industry-s
 
 ### Archived Components
 
-**Complete Old FHIR Backend** → `backend/archived/old_fhir_backend/`
+**Complete Old FHIR Backend** - **DELETED** (commit `b055ef0a3`)
 - Custom FHIR storage engine
 - Search parameter extraction
 - FHIR routers and endpoints
 - Cache layers and validators
 - Reference resolution logic
+- **Note**: Code was deleted, not archived to a directory
 
-**Old FHIR-Dependent Scripts** → `backend/scripts/archived/old_fhir_dependent/`
-- `consolidated_search_indexing.py`
-- `fast_search_indexing.py`
-- `fix_fhir_relationships.py`
-- `test_generic_processor.py`
+**Old FHIR-Dependent Scripts** → `backend/scripts/archived_old_fhir/`
+- Data loading scripts
+- Testing scripts (~250K lines)
+- See `backend/scripts/archived_old_fhir/README.md` for details
 
 ### Preserved Components
 

@@ -5,7 +5,7 @@
 
 ## Why These Scripts Were Archived
 
-These scripts depended on the custom FHIR backend implementation that was archived to `backend/archived/old_fhir_backend/`. After the HAPI FHIR migration, these scripts:
+These scripts depended on the custom FHIR backend implementation that was **deleted** in commit `b055ef0a3`. After the HAPI FHIR migration, these scripts:
 
 1. **Import from archived modules**: They use `from fhir.core.*` and `from fhir.api.*`
 2. **Reference custom FHIR tables**: They query `fhir.search_params`, `fhir.compartments` tables designed for old backend
@@ -42,9 +42,9 @@ See:
 
 ## Restoration
 
-If needed, these scripts can be restored from this archive or from git history, but they would require:
+If needed, these scripts can be restored from git history (commit `b055ef0a3` and earlier), but they would require:
 1. Reverting the HAPI FHIR migration
-2. Restoring the old FHIR backend from `backend/archived/old_fhir_backend/`
+2. Restoring the old FHIR backend from git history (`backend/fhir/` directory)
 3. Updating database schema to old FHIR tables
 
 **Not recommended** - HAPI FHIR is the industry-standard solution.
