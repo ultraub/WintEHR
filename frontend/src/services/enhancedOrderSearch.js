@@ -12,6 +12,16 @@ class EnhancedOrderSearchService {
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
     this.baseUrl = '/fhir/R4';
+
+    // HAPI FHIR search parameter mappings (different from old backend)
+    this.searchParamMappings = {
+      ServiceRequest: {
+        sortParam: 'authored',  // HAPI FHIR uses 'authored' for ServiceRequest
+      },
+      MedicationRequest: {
+        sortParam: 'authoredon', // HAPI FHIR uses 'authoredon' for MedicationRequest
+      }
+    };
   }
 
   /**
@@ -27,7 +37,7 @@ class EnhancedOrderSearchService {
       const {
         patientId,
         resourceTypes = ['ServiceRequest', 'MedicationRequest'],
-        sort = '-authored-date',
+        sort = '-authored', // Will be mapped to resource-specific param (authored/authoredon)
         count = 50,
         page = 1,
         includeAnalytics = false,
@@ -67,10 +77,10 @@ class EnhancedOrderSearchService {
    */
   async searchResourceType(resourceType, patientId, searchParams, options = {}) {
     const { sort, count, page, includeRelated = false } = options;
-    
+
     // Build URL with parameters
     const url = new URL(`${this.baseUrl}/${resourceType}`, window.location.origin);
-    
+
     // Add patient filter
     if (patientId) {
       url.searchParams.append('subject', `Patient/${patientId}`);
@@ -82,7 +92,17 @@ class EnhancedOrderSearchService {
     }
 
     // Add sorting and pagination
-    if (sort) url.searchParams.append('_sort', sort);
+    if (sort) {
+      // Convert sort parameter to HAPI FHIR format if needed
+      const sortDirection = sort.startsWith('-') ? '-' : '';
+      const sortField = sort.replace(/^-/, '');
+
+      // Map old backend parameter names to HAPI FHIR names
+      const mapping = this.searchParamMappings[resourceType];
+      const hapiFhirSortField = mapping?.sortParam || sortField;
+
+      url.searchParams.append('_sort', `${sortDirection}${hapiFhirSortField}`);
+    }
     if (count) url.searchParams.append('_count', count);
     if (page > 1) {
       const offset = (page - 1) * count;
