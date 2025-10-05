@@ -64,6 +64,7 @@ import VirtualizedList from '../../../common/VirtualizedList';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
 import { getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
+import { useOrderSelectHook } from '../../../../hooks/useCDSHooks';
 import { getStatusColor, getSeverityColor } from '../../../../themes/clinicalThemeUtils';
 import websocketService from '../../../../services/websocket';
 
@@ -507,6 +508,20 @@ const EnhancedOrdersTab = ({
   const scrollContainerRef = useRef(null); // Added for auto-collapse on scroll
   const [selectedResult, setSelectedResult] = useState(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+
+  // CDS Hooks: order-select integration
+  // Convert selected order IDs Set to array of order objects for CDS hooks
+  const selectedOrdersArray = useMemo(() => {
+    if (selectedOrders.size === 0) return [];
+    return entries.filter(order => selectedOrders.has(order.id));
+  }, [selectedOrders, entries]);
+
+  // Trigger order-select CDS hooks when orders are selected
+  useOrderSelectHook(
+    patientId || currentPatient?.id,
+    'current-user', // TODO: Get from auth context
+    selectedOrdersArray
+  );
 
   // FHIR resources for providers, locations, and organizations
   const [availableProviders, setAvailableProviders] = useState([]);

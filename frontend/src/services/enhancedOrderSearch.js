@@ -18,6 +18,8 @@ class EnhancedOrderSearchService {
    * Search orders with advanced FHIR R4 parameters
    * @param {Object} searchParams - Search parameters
    * @param {Object} options - Search options
+   * @param {boolean} options.includeRelated - Include related resources (requester, performer, encounter) - WARNING: Can cause timeouts with large datasets
+   * @param {boolean} options.includeAnalytics - Include search analytics
    * @returns {Promise<Object>} Search results with metadata
    */
   async searchOrders(searchParams, options = {}) {
@@ -28,12 +30,13 @@ class EnhancedOrderSearchService {
         sort = '-authored-date',
         count = 50,
         page = 1,
-        includeAnalytics = false
+        includeAnalytics = false,
+        includeRelated = false // Disabled by default to prevent timeouts
       } = options;
 
       // Build search URLs for each resource type
-      const searchPromises = resourceTypes.map(resourceType => 
-        this.searchResourceType(resourceType, patientId, searchParams, { sort, count, page })
+      const searchPromises = resourceTypes.map(resourceType =>
+        this.searchResourceType(resourceType, patientId, searchParams, { sort, count, page, includeRelated })
       );
 
       const results = await Promise.all(searchPromises);
@@ -59,10 +62,11 @@ class EnhancedOrderSearchService {
    * @param {string} patientId - Patient ID
    * @param {URLSearchParams} searchParams - Search parameters
    * @param {Object} options - Additional options
+   * @param {boolean} options.includeRelated - Include related resources via _include (default: false)
    * @returns {Promise<Object>} FHIR Bundle
    */
   async searchResourceType(resourceType, patientId, searchParams, options = {}) {
-    const { sort, count, page } = options;
+    const { sort, count, page, includeRelated = false } = options;
     
     // Build URL with parameters
     const url = new URL(`${this.baseUrl}/${resourceType}`, window.location.origin);
@@ -85,10 +89,12 @@ class EnhancedOrderSearchService {
       url.searchParams.append('_offset', offset);
     }
 
-    // Add common includes for enhanced data
-    url.searchParams.append('_include', `${resourceType}:requester`);
-    url.searchParams.append('_include', `${resourceType}:performer`);
-    url.searchParams.append('_include', `${resourceType}:encounter`);
+    // Add common includes for enhanced data (optional - can cause timeouts with large datasets)
+    if (includeRelated) {
+      url.searchParams.append('_include', `${resourceType}:requester`);
+      url.searchParams.append('_include', `${resourceType}:performer`);
+      url.searchParams.append('_include', `${resourceType}:encounter`);
+    }
 
     // Check cache first
     const cacheKey = url.toString();
