@@ -416,8 +416,55 @@ class CDSHooksService {
           errors.push(`Condition ${index + 1}: Operator is required`);
         }
 
-        if (condition.value === '' || condition.value === null || condition.value === undefined) {
-          errors.push(`Condition ${index + 1}: Value is required`);
+        // Value validation - different logic for catalog vs non-catalog conditions
+        if (condition.useCatalog) {
+          // For catalog-integrated conditions, check type-specific fields
+          let hasRequiredData = false;
+
+          switch (condition.type) {
+            case 'medication':
+              hasRequiredData = condition.medication ||
+                               (condition.medications && condition.medications.length > 0) ||
+                               condition.drugClass;
+              if (!hasRequiredData) {
+                errors.push(`Condition ${index + 1}: Medication selection is required when using catalog integration`);
+              }
+              break;
+            case 'lab_value':
+              hasRequiredData = condition.labTest && condition.labTestDisplay;
+              if (!hasRequiredData) {
+                errors.push(`Condition ${index + 1}: Lab test selection is required when using catalog integration`);
+              }
+              // Still need numeric value for comparison
+              if (condition.value === '' || condition.value === null || condition.value === undefined) {
+                errors.push(`Condition ${index + 1}: Lab test value is required for comparison`);
+              } else if (isNaN(Number(condition.value))) {
+                errors.push(`Condition ${index + 1}: Lab value must be a number`);
+              }
+              break;
+            case 'condition':
+              hasRequiredData = condition.conditionCode && condition.conditionDisplay;
+              if (!hasRequiredData) {
+                errors.push(`Condition ${index + 1}: Condition selection is required when using catalog integration`);
+              }
+              break;
+            case 'vital_sign':
+              // Vital signs may use catalog or direct value
+              if (condition.value === '' || condition.value === null || condition.value === undefined) {
+                errors.push(`Condition ${index + 1}: Vital sign value is required`);
+              }
+              break;
+            default:
+              // For other types (age, gender), value is still required
+              if (condition.value === '' || condition.value === null || condition.value === undefined) {
+                errors.push(`Condition ${index + 1}: Value is required`);
+              }
+          }
+        } else {
+          // Non-catalog conditions always need a value field
+          if (condition.value === '' || condition.value === null || condition.value === undefined) {
+            errors.push(`Condition ${index + 1}: Value is required`);
+          }
         }
 
         // Type-specific validation
@@ -428,7 +475,7 @@ class CDSHooksService {
           }
         }
 
-        if (condition.type === 'lab_value') {
+        if (condition.type === 'lab_value' && !condition.useCatalog) {
           if (!condition.labTest) {
             errors.push(`Condition ${index + 1}: Lab test code is required for lab value conditions`);
           }
@@ -481,9 +528,9 @@ class CDSHooksService {
         throw new Error('Invalid transformed data structure');
       }
 
-      // Send to backend with timeout
+      // Send to backend with extended timeout for complex hooks
       const response = await axios.post(`${this.serviceManagementUrl}/services`, backendConfig, {
-        timeout: 10000, // 10 second timeout
+        timeout: 30000, // 30 second timeout (catalog processing can be slow)
         headers: {
           'Content-Type': 'application/json'
         }
@@ -566,9 +613,9 @@ class CDSHooksService {
         throw new Error('Invalid transformed data structure');
       }
 
-      // Send to backend with timeout
+      // Send to backend with extended timeout for complex hooks
       const response = await axios.put(`${this.serviceManagementUrl}/services/${serviceId}`, backendConfig, {
-        timeout: 10000, // 10 second timeout
+        timeout: 30000, // 30 second timeout (catalog processing can be slow)
         headers: {
           'Content-Type': 'application/json'
         }

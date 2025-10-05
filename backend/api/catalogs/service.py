@@ -13,7 +13,7 @@ import json
 import os
 
 from api.services.clinical.dynamic_catalog_service import DynamicCatalogService
-from models.clinical.catalogs import MedicationCatalog, LabTestCatalog, ImagingStudyCatalog, ClinicalOrderSet
+# Database catalog models removed - now using FHIR-based dynamic catalogs exclusively
 from .models import (
     MedicationCatalogItem, 
     LabTestCatalogItem, 
@@ -96,43 +96,8 @@ class UnifiedCatalogService:
                 ))
         except Exception as e:
             logger.warning(f"Dynamic catalog failed: {e}")
-        
-        # 2. If not enough results, try database
-        if len(results) < limit:
-            try:
-                query = select(MedicationCatalog).where(MedicationCatalog.is_active == True)
-                if search_term:
-                    search_pattern = f"%{search_term}%"
-                    query = query.where(
-                        or_(
-                            MedicationCatalog.generic_name.ilike(search_pattern),
-                            MedicationCatalog.brand_name.ilike(search_pattern)
-                        )
-                    )
-                query = query.limit(limit - len(results))
-                
-                result = await self.db.execute(query)
-                db_meds = result.scalars().all()
-                
-                for med in db_meds:
-                    results.append(MedicationCatalogItem(
-                        id=med.id,
-                        generic_name=med.generic_name,
-                        brand_name=med.brand_name,
-                        strength=med.strength,
-                        dosage_form=med.dosage_form,
-                        route=med.route,
-                        drug_class=med.drug_class,
-                        frequency_options=med.frequency_options or [],
-                        standard_doses=med.standard_doses or [],
-                        is_controlled_substance=med.is_controlled_substance,
-                        requires_authorization=med.requires_authorization,
-                        is_formulary=med.is_formulary
-                    ))
-            except Exception as e:
-                logger.warning(f"Database catalog failed: {e}")
-        
-        # 3. If still not enough, use static catalog
+
+        # 2. If not enough results, use static catalog
         if len(results) < limit:
             static_meds = self._static_catalogs.get('medications', [])
             if search_term:

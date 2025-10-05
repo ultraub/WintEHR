@@ -194,10 +194,10 @@ class SystemActionsHandler:
         db: AsyncSession
     ):
         """Log system action for audit trail"""
-        
+
         # This would typically write to an audit log table
         # For now, we'll just log it
-        logger.info(f"System action executed: {json.dumps({
+        action_data = {
             'action_type': action.type,
             'resource_type': result.get('resource_type'),
             'resource_id': result.get('resource_id'),
@@ -206,7 +206,8 @@ class SystemActionsHandler:
             'patient_id': context.get('patientId'),
             'hook_instance': context.get('hookInstance'),
             'service_id': context.get('serviceId')
-        })}")
+        }
+        logger.info(f"System action executed: {json.dumps(action_data)}")
 
 
 class SystemActionsValidator:

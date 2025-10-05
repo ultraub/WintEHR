@@ -695,20 +695,85 @@ const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
           </Alert>
         </Grid>
         
-        {/* Catalog Statistics - Temporarily disabled to prevent rendering errors */}
-        {false && catalogStats && (
+        {/* Catalog Statistics */}
+        {catalogStats && (
           <Grid item xs={12}>
             <Card variant="outlined">
               <CardContent>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
                   <Typography variant="subtitle1">Available Catalog Data</Typography>
-                  <IconButton onClick={refreshCatalogs} size="small">
-                    <RefreshIcon />
+                  <IconButton onClick={refreshCatalogs} size="small" disabled={loadingCatalogStats}>
+                    {loadingCatalogStats ? <CircularProgress size={20} /> : <RefreshIcon />}
                   </IconButton>
                 </Stack>
-                <Alert severity="info">
-                  Catalog statistics temporarily disabled. Catalog integration is still fully functional.
-                </Alert>
+
+                <Grid container spacing={2}>
+                  {catalogStats.medications && (
+                    <Grid item xs={12} sm={4}>
+                      <Stack alignItems="center">
+                        <Typography variant="h4" color="primary">
+                          {typeof catalogStats.medications === 'object'
+                            ? (catalogStats.medications.dynamic || 0) + (catalogStats.medications.database || 0) + (catalogStats.medications.static || 0)
+                            : (catalogStats.medications || 0)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Medications
+                        </Typography>
+                        {typeof catalogStats.medications === 'object' && (
+                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+                            {catalogStats.medications.dynamic || 0} dynamic • {catalogStats.medications.static || 0} static
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Grid>
+                  )}
+
+                  {catalogStats.conditions && (
+                    <Grid item xs={12} sm={4}>
+                      <Stack alignItems="center">
+                        <Typography variant="h4" color="primary">
+                          {typeof catalogStats.conditions === 'object'
+                            ? (catalogStats.conditions.dynamic || 0) + (catalogStats.conditions.database || 0) + (catalogStats.conditions.static || 0)
+                            : (catalogStats.conditions || 0)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Conditions
+                        </Typography>
+                        {typeof catalogStats.conditions === 'object' && (
+                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+                            {catalogStats.conditions.dynamic || 0} dynamic • {catalogStats.conditions.static || 0} static
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Grid>
+                  )}
+
+                  {catalogStats.lab_tests && (
+                    <Grid item xs={12} sm={4}>
+                      <Stack alignItems="center">
+                        <Typography variant="h4" color="primary">
+                          {typeof catalogStats.lab_tests === 'object'
+                            ? (catalogStats.lab_tests.dynamic || 0) + (catalogStats.lab_tests.database || 0) + (catalogStats.lab_tests.static || 0)
+                            : (catalogStats.lab_tests || 0)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Lab Tests
+                        </Typography>
+                        {typeof catalogStats.lab_tests === 'object' && (
+                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+                            {catalogStats.lab_tests.dynamic || 0} dynamic • {catalogStats.lab_tests.static || 0} static
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Grid>
+                  )}
+                </Grid>
+
+                {(!catalogStats.medications && !catalogStats.conditions && !catalogStats.lab_tests) && (
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    Catalog statistics are loading or unavailable. Catalog integration is still fully functional.
+                  </Alert>
+                )}
               </CardContent>
             </Card>
           </Grid>
