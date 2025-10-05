@@ -109,24 +109,20 @@ $ curl "http://localhost:8000/fhir/R4/Patient?_count=5"
 
 ---
 
-## Frontend Integration Note
+## Frontend Integration
 
-**Frontend is calling**:
+**All endpoints now working**:
 ```
-GET http://localhost:8000/fhir/R4/Patient?_count=25
-GET http://localhost:8000/fhir/R4/Communication?recipient=...
-GET http://localhost:8000/provider-directory/organizations  ❌ Missing /api prefix
-```
-
-**Correct endpoints**:
-```
-✅ GET /fhir/R4/Patient?_count=25          # HAPI FHIR proxy
-✅ GET /fhir/R4/Communication?...          # HAPI FHIR proxy
-❌ GET /provider-directory/organizations   # Wrong - missing /api
-✅ GET /api/provider-directory/organizations  # Correct
+✅ GET /fhir/R4/Patient?_count=25              # HAPI FHIR proxy
+✅ GET /fhir/R4/Communication?...              # HAPI FHIR proxy
+✅ GET /api/provider-directory/organizations   # Fixed with /api prefix
+✅ GET /api/provider-directory/specialties     # Fixed with /api prefix
 ```
 
-**Action Required**: Frontend needs to use `/api/provider-directory` prefix for provider directory endpoints.
+**Frontend Fix Applied** (Commit: `58f8b1279`):
+- Updated `ProviderDirectoryContext.js` to use correct `/api/provider-directory` prefix
+- Line 58: `/provider-directory/specialties` → `/api/provider-directory/specialties`
+- Line 92: `/provider-directory/organizations` → `/api/provider-directory/organizations`
 
 ---
 
@@ -263,14 +259,17 @@ response_headers.pop("content-length", None)    # May be wrong after decompressi
 
 1. ✅ **FHIR Proxy**: Complete and working
 2. ✅ **Compression Fix**: Resolved content decoding errors
-3. 📋 **Frontend Issue**: Update ProviderDirectoryContext.js to use `/api/provider-directory` prefix
+3. ✅ **Frontend Fix**: Updated ProviderDirectoryContext.js with correct `/api/provider-directory` prefix
 4. 🧪 **Testing**: Verify all frontend FHIR operations
 5. 📊 **Monitoring**: Watch for HAPI FHIR performance
 6. 📚 **Documentation**: Update API endpoint documentation
 
 ---
 
-**Status**: ✅ Critical fixes deployed - Frontend FHIR operations fully restored
-**Impact**: All FHIR API operations now functional via HAPI FHIR proxy
-**Commits**: `e1a2cd250` (proxy), `c621b71d9` (compression fix)
-**Urgency**: HIGH - Patient data access restored and working
+**Status**: ✅ All critical fixes deployed - All API operations fully restored
+**Impact**: FHIR and provider directory endpoints working correctly
+**Commits**:
+- `e1a2cd250` - HAPI FHIR proxy implementation
+- `c621b71d9` - Content encoding fix
+- `58f8b1279` - Provider directory endpoint fix
+**Urgency**: RESOLVED - All critical frontend operations working
