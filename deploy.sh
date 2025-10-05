@@ -228,23 +228,18 @@ if [ "$PATIENT_COUNT" -gt 0 ]; then
     echo -e "${YELLOW}Ensuring backend is fully initialized...${NC}"
     sleep 10
     
-    # Load patients using synthea_master
+    # Load patients using HAPI FHIR pipeline
     echo -e "${YELLOW}Starting patient data import (this may take several minutes)...${NC}"
-    echo -e "${YELLOW}  → Generating ${PATIENT_COUNT} synthetic patients${NC}"
-    echo -e "${YELLOW}  → Importing FHIR resources${NC}"
-    echo -e "${YELLOW}  → Indexing search parameters${NC}"
-    echo -e "${YELLOW}  → Populating compartments${NC}"
-    echo -e "${YELLOW}  → Generating DICOM images for studies${NC}"
-    echo -e "${YELLOW}  → Cleaning patient names (removing numeric suffixes)${NC}"
-    
-    if docker exec emr-backend python scripts/active/synthea_master.py full \
-        --count "$PATIENT_COUNT" \
-        --validation-mode light \
-        --include-dicom \
-        --clean-names; then
-        echo -e "${GREEN}✓ Patient data import completed${NC}"
+    echo -e "${YELLOW}  → Generating ${PATIENT_COUNT} synthetic patients with Synthea${NC}"
+    echo -e "${YELLOW}  → Converting bundles to HAPI FHIR format${NC}"
+    echo -e "${YELLOW}  → Uploading to HAPI FHIR server${NC}"
+    echo -e "${YELLOW}  → Verifying data integrity${NC}"
+
+    if docker exec emr-backend python scripts/synthea_to_hapi_pipeline.py "$PATIENT_COUNT" Massachusetts; then
+        echo -e "${GREEN}✓ Patient data loaded to HAPI FHIR${NC}"
     else
-        echo -e "${YELLOW}⚠ Data import completed with warnings (this is often normal)${NC}"
+        echo -e "${RED}✗ HAPI FHIR data load failed${NC}"
+        exit 1
     fi
     
     # Ensure catalog population (critical for search functionality)

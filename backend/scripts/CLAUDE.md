@@ -22,82 +22,87 @@ The Data Management module orchestrates WintEHR's complete data lifecycle:
 - **Error Recovery**: Robust error handling with detailed logging
 - **Modular Design**: Independent scripts that can be combined or run separately
 
-## 📋 Deployment Pipeline
+## 📋 Deployment Pipeline (HAPI FHIR)
 
-### Complete 8-Phase Deployment Process
+> **⚠️ IMPORTANT (2025-10-05)**: WintEHR now uses HAPI FHIR JPA Server. The old custom FHIR backend has been archived. See `archived_old_fhir/` for legacy scripts.
+
+### HAPI FHIR Deployment Process
 
 ```bash
-# Phase 1: Database Schema Initialization
-python scripts/setup/init_database_definitive.py --mode production
+# Phase 1: Generate and Load Synthea Data to HAPI FHIR
+python scripts/synthea_to_hapi_pipeline.py 50 Massachusetts
 
-# Phase 2: Synthea Setup (if needed)
-python scripts/active/synthea_master.py setup
+# Phase 2: Extract Clinical Catalogs from HAPI FHIR
+python scripts/active/consolidated_catalog_setup.py --extract-from-fhir
 
-# Phase 3: Data Generation and Import
-python scripts/active/synthea_master.py full --count 50 --validation-mode light
-
-# Phase 4: Search Parameter Indexing
-python scripts/active/consolidated_search_indexing.py --mode fix
-
-# Phase 5: Compartment Population
-python scripts/active/synthea_master.py validate  # Includes compartment check
-
-# Phase 6: DICOM Generation (Optional)
-python scripts/active/generate_dicom_for_studies.py
-
-# Phase 7: Enhancement Suite (Optional)
+# Phase 3: Optional Enhancements
 python scripts/active/consolidated_enhancement.py
-python scripts/active/consolidated_catalog_setup.py
 python scripts/active/consolidated_workflow_setup.py
-
-# Phase 8: Final Validation
-python scripts/testing/validate_fhir_data.py --verbose
 ```
 
-### Simplified Single-Command Deployment
+### Simplified Deployment (Using deploy.sh)
 ```bash
-# Complete deployment with 20 patients
-python scripts/active/synthea_master.py full --count 20 --full-enhancement
+# Deploy with 20 patients (recommended for development)
+./deploy.sh dev --patients 20
 
-# Production deployment with validation
-python scripts/active/synthea_master.py full --count 100 --validation-mode strict --include-dicom --full-enhancement
+# Deploy with 100 patients (production)
+./deploy.sh prod --patients 100
 ```
 
-## 🧬 Synthea Data Management
+### What Changed with HAPI FHIR Migration
+
+**Old (Archived)**:
+- `synthea_master.py` - Custom FHIR backend loader
+- Manual search parameter indexing
+- Manual compartment population
+- Custom FHIR search implementation
+
+**New (Current)**:
+- `synthea_to_hapi_pipeline.py` - HAPI FHIR loader
+- HAPI FHIR handles search indexing automatically
+- HAPI FHIR handles compartments natively
+- Industry-standard FHIR R4 compliance
+
+## 🧬 Synthea Data Management (HAPI FHIR)
 
 ### Core Features
-- **Unified Interface**: Single script manages all Synthea operations
-- **Comprehensive Validation**: Multiple validation modes for different use cases
-- **Inline Processing**: Search parameters, compartments, and references extracted during import
-- **Performance Optimized**: Batch processing with configurable sizes
+- **HAPI FHIR Native**: Direct integration with industry-standard FHIR server
+- **Automatic Indexing**: HAPI FHIR handles search parameters automatically
+- **Bundle Conversion**: Converts Synthea collection bundles to HAPI transaction format
+- **Production Ready**: Tested pipeline for reliable data loading
 
-### Key Operations
+### Primary Script: synthea_to_hapi_pipeline.py
 
-#### Data Generation
+#### Basic Usage
 ```bash
-# Generate specific number of patients
-python scripts/active/synthea_master.py generate --count 50 --state California
+# Load 10 patients (default)
+python scripts/synthea_to_hapi_pipeline.py
 
-# Generate with custom demographics
-python scripts/active/synthea_master.py generate --count 25 --state Massachusetts --city Boston --seed 12345
+# Load specific number of patients
+python scripts/synthea_to_hapi_pipeline.py 50
+
+# Load patients from specific state
+python scripts/synthea_to_hapi_pipeline.py 25 California
 ```
 
-#### Data Import with Validation Modes
+#### What It Does
+1. **Generates Synthea Data**: Runs Synthea JAR to create synthetic patients
+2. **Converts Bundles**: Transforms collection → transaction bundles for HAPI
+3. **Uploads to HAPI**: POSTs bundles to HAPI FHIR server via HTTP
+4. **Verifies Data**: Checks patient count and resource integrity
+
+### Alternative Loaders
+
+#### Simple Test Loader
 ```bash
-# Transform only (fastest, recommended for development)
-python scripts/active/synthea_master.py import --validation-mode transform_only
-
-# Light validation (basic structure checks)
-python scripts/active/synthea_master.py import --validation-mode light
-
-# Strict validation (full FHIR compliance, slower)
-python scripts/active/synthea_master.py import --validation-mode strict
+# Generate and load test patients quickly
+python scripts/simple_hapi_loader.py
 ```
 
-#### Database Management
+#### Pre-generated Data Loader
 ```bash
-# Clear database while preserving schema
-python scripts/active/synthea_master.py wipe
+# Load existing Synthea FHIR files
+python scripts/load_test_patients_to_hapi.py
 
 # Validate existing data
 python scripts/active/synthea_master.py validate
