@@ -327,11 +327,13 @@ class CDSHooksService {
       parameters.operator = ageOperatorMap[condition.operator] || condition.operator;
     } else if (condition.type === 'lab_value') {
       // Lab value specific parameters
+      // Standard: 'code' is the primary parameter (matches FHIR Observation.code)
+      // Legacy: 'labTest' maintained for backward compatibility
       parameters.code = condition.labTest;
-      parameters.labTest = condition.labTest; // For backward compatibility
+      parameters.labTest = condition.labTest; // BACKWARD COMPATIBILITY
       if (condition.labTestDisplay) {
         parameters.display = condition.labTestDisplay;
-        parameters.labTestDisplay = condition.labTestDisplay; // For backward compatibility
+        parameters.labTestDisplay = condition.labTestDisplay; // BACKWARD COMPATIBILITY
       }
       if (condition.value2) {
         parameters.value2 = condition.value2;

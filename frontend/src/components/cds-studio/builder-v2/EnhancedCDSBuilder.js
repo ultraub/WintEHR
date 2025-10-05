@@ -197,6 +197,61 @@ const CONDITION_TYPES = [
   { value: 'vital_sign', label: 'Vital Sign', description: 'Vital signs meeting criteria', catalogIntegration: true }
 ];
 
+// Hook-Condition Appropriateness Guidance
+// Provides informational guidance about typical condition usage for each hook type
+// Note: All conditions CAN be valid for any hook in certain clinical scenarios
+const HOOK_CONDITION_GUIDANCE = {
+  'patient-view': {
+    common: ['age', 'gender', 'condition', 'medication', 'lab_value', 'vital_sign'],
+    guidance: 'All condition types are appropriate for patient-view hooks'
+  },
+  'medication-prescribe': {
+    common: ['medication', 'age', 'gender', 'condition', 'lab_value'],
+    less_common: ['vital_sign'],
+    guidance: 'Medication conditions are most commonly used to check for drug interactions',
+    suggestions: {
+      vital_sign: 'Consider checking vital signs (e.g., blood pressure) before prescribing certain medications'
+    }
+  },
+  'order-sign': {
+    common: ['condition', 'age', 'gender', 'lab_value', 'vital_sign'],
+    less_common: ['medication'],
+    guidance: 'Order-related conditions typically check patient state and appropriateness',
+    suggestions: {
+      medication: 'Can be used to check for medication-procedure interactions'
+    }
+  },
+  'order-select': {
+    common: ['condition', 'age', 'gender', 'lab_value', 'vital_sign'],
+    less_common: ['medication'],
+    guidance: 'Similar to order-sign, focuses on order appropriateness',
+    suggestions: {
+      medication: 'Can be used to check for medication-procedure interactions'
+    }
+  }
+};
+
+/**
+ * Get guidance for a specific hook-condition combination
+ * Returns { level: 'common'|'less_common'|'appropriate', message: string }
+ */
+const getHookConditionGuidance = (hookType, conditionType) => {
+  const guidance = HOOK_CONDITION_GUIDANCE[hookType];
+  if (!guidance) return null;
+
+  if (guidance.common.includes(conditionType)) {
+    return { level: 'common', message: guidance.guidance };
+  } else if (guidance.less_common?.includes(conditionType)) {
+    const suggestion = guidance.suggestions?.[conditionType];
+    return {
+      level: 'less_common',
+      message: suggestion || `${conditionType} conditions are less commonly used with ${hookType} hooks`
+    };
+  }
+
+  return { level: 'appropriate', message: `${conditionType} condition can be used with ${hookType} hook` };
+};
+
 const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
   const theme = useTheme();
   const [activeStep, setActiveStep] = useState(0);
@@ -970,7 +1025,7 @@ const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
                         ))}
                       </Select>
                     </FormControl>
-                    
+
                     {/* Catalog integration toggle for applicable condition types */}
                     {CONDITION_TYPES.find(t => t.value === condition.type)?.catalogIntegration && (
                       <FormControlLabel
@@ -985,6 +1040,39 @@ const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
                       />
                     )}
                   </Stack>
+
+                  {/* Hook-Condition Appropriateness Guidance */}
+                  {(() => {
+                    const guidance = getHookConditionGuidance(hookData.hook, condition.type);
+                    if (!guidance) return null;
+
+                    const severityMap = {
+                      'common': 'success',
+                      'less_common': 'info',
+                      'appropriate': 'info'
+                    };
+
+                    const iconMap = {
+                      'common': <SuccessIcon />,
+                      'less_common': <InfoIcon />,
+                      'appropriate': <InfoIcon />
+                    };
+
+                    return (
+                      <Alert
+                        severity={severityMap[guidance.level]}
+                        icon={iconMap[guidance.level]}
+                        sx={{ mt: 1 }}
+                      >
+                        <AlertTitle>
+                          {guidance.level === 'common' ? 'Commonly Used' :
+                           guidance.level === 'less_common' ? 'Less Common' :
+                           'Appropriate'}
+                        </AlertTitle>
+                        {guidance.message}
+                      </Alert>
+                    );
+                  })()}
 
                   {/* Dynamic Condition Builder - Enhanced with catalog integration */}
                   {condition.type === 'lab_value' && (

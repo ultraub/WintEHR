@@ -1,0 +1,28 @@
+{
+  "id": "test-lab-glucose-high",
+  "title": "Test Lab Value - High Glucose",
+  "description": "Test hook for checking elevated glucose levels (> 200 mg/dL)",
+  "hook": "patient-view",
+  "enabled": true,
+  "conditions": [
+    {
+      "type": "lab_value",
+      "operator": "gt",
+      "parameters": {
+        "code": "2339-0",
+        "value": 200,
+        "timeframe": 30
+      }
+    }
+  ],
+  "cards": [
+    {
+      "summary": "Elevated glucose level detected",
+      "detail": "Patient has glucose > 200 mg/dL in the last 30 days",
+      "indicator": "warning",
+      "source": {
+        "label": "Lab Value Test"
+      }
+    }
+  ]
+}

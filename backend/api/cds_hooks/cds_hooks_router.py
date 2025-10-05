@@ -553,7 +553,7 @@ class CDSHookEngine:
                 return abs(age - value) < 1  # Within 1 year
             elif operator == 'gt':
                 return age > value
-            elif operator == 'ge' or operator == '>=':
+            elif operator == 'ge':
                 result = age >= value
                 logger.debug(f"Age check result: {age:.1f} >= {value} = {result}")
                 return result
@@ -636,14 +636,44 @@ class CDSHookEngine:
             return False
     
     async def _check_active_medication(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check for active medications using HAPI FHIR"""
+        """Check for active medications using HAPI FHIR
+
+        Supports multiple parameter formats:
+        - Legacy: codes (array of medication codes)
+        - Catalog: medication/medications/drugClass (single or array)
+
+        Supports operators: 'in', 'equals', 'not-in', 'contains', 'any'
+        """
         try:
-            codes = parameters.get('codes', [])
+            # Extract codes from multiple parameter formats for backward compatibility
+            codes = parameters.get('codes') or \
+                    parameters.get('medication') or \
+                    parameters.get('medications') or \
+                    parameters.get('drugClass')
+
+            # Normalize to list
             if isinstance(codes, str):
                 codes = codes.split(',')
                 codes = [code.strip() for code in codes if code.strip()]
+            elif codes is None:
+                codes = []
+            elif not isinstance(codes, list):
+                codes = [codes]
 
-            if not codes and codes != ['any']:
+            # Get operator (default to 'in' for backward compatibility)
+            operator = parameters.get('operator', 'in')
+
+            # Handle special 'any' case - just check if patient has any active medications
+            if codes == ['any'] or operator == 'any':
+                medications = search_resources('MedicationRequest', {
+                    'patient': f'Patient/{patient_id}',
+                    'status': 'active'
+                })
+                return len(medications) > 0 if medications else False
+
+            # Require codes for other operators
+            if not codes:
+                logger.warning(f"No medication codes provided for patient {patient_id}")
                 return False
 
             # Search medication requests from HAPI FHIR
@@ -653,29 +683,64 @@ class CDSHookEngine:
             })
 
             if not medications:
-                return False
+                # No medications found
+                return operator == 'not-in'  # True only for 'not-in' operator
 
-            # If checking for 'any' active medication
-            if codes == ['any']:
-                return len(medications) > 0
+            # Count matching medications
+            found_count = 0
+            matched_codes = set()
 
-            # Check if any medication has matching codes
             for med in medications:
                 if hasattr(med, 'medicationCodeableConcept') and med.medicationCodeableConcept:
                     if hasattr(med.medicationCodeableConcept, 'coding'):
                         for coding in med.medicationCodeableConcept.coding:
-                            if hasattr(coding, 'code') and coding.code in codes:
-                                return True
+                            if hasattr(coding, 'code'):
+                                # Check for matches based on operator
+                                if operator == 'contains':
+                                    # Partial match (code contains any of the search codes)
+                                    if any(search_code.lower() in coding.code.lower() for search_code in codes):
+                                        found_count += 1
+                                        matched_codes.add(coding.code)
+                                        break
+                                else:
+                                    # Exact match
+                                    if coding.code in codes:
+                                        found_count += 1
+                                        matched_codes.add(coding.code)
+                                        break
 
-            return False
+            logger.debug(f"Found {found_count} matching medications for patient {patient_id}: {matched_codes}")
+
+            # Apply operator logic
+            if operator in ('in', 'equals'):
+                # At least one medication matches
+                return found_count > 0
+            elif operator == 'not-in':
+                # No medications match
+                return found_count == 0
+            elif operator == 'contains':
+                # Already handled in the loop above
+                return found_count > 0
+            else:
+                logger.warning(f"Unknown operator '{operator}' for medication check, defaulting to 'in'")
+                return found_count > 0
 
         except Exception as e:
             logger.error(f"Error checking active medications: {e}")
             return False
     
     async def _check_lab_value(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check lab values against thresholds using HAPI FHIR"""
+        """Check lab values against thresholds using HAPI FHIR
+
+        Standard parameters:
+        - code: Lab test code (LOINC code recommended) - PRIMARY
+        - labTest: Legacy parameter name, maps to code - BACKWARD COMPATIBILITY
+        - operator: Comparison operator (gt, gte, lt, lte, eq, between, etc.)
+        - value: Threshold value to compare against
+        - timeframe: Lookback period in days (default: 90, -1 for unlimited)
+        """
         try:
+            # Accept both 'code' (standard) and 'labTest' (legacy) for backward compatibility
             code = parameters.get('code') or parameters.get('labTest')
             operator = parameters.get('operator', 'gt')
             value = float(parameters.get('value', 0))

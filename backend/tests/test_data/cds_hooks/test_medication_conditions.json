@@ -1,0 +1,26 @@
+{
+  "id": "test-medication-simvastatin",
+  "title": "Test Medication - Simvastatin Check",
+  "description": "Test hook for checking if patient is on Simvastatin (code 312961)",
+  "hook": "medication-prescribe",
+  "enabled": true,
+  "conditions": [
+    {
+      "type": "medication",
+      "operator": "in",
+      "parameters": {
+        "medication": "312961"
+      }
+    }
+  ],
+  "cards": [
+    {
+      "summary": "Patient is currently on Simvastatin",
+      "detail": "Testing medication parameter handling - patient has active Simvastatin prescription",
+      "indicator": "info",
+      "source": {
+        "label": "Medication Test"
+      }
+    }
+  ]
+}
