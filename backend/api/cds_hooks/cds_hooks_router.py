@@ -624,7 +624,7 @@ class CDSHookEngine:
             logger.debug(f"Found {found_count} matching conditions for patient {patient_id}")
 
             operator = parameters.get('operator', 'in')
-            if operator == 'in':
+            if operator in ('in', 'equals'):  # Support both 'in' and 'equals' operators
                 return found_count > 0
             elif operator == 'not-in':
                 return found_count == 0

@@ -8,12 +8,22 @@ import { v4 as uuidv4 } from 'uuid';
 
 class CDSHooksClient {
   constructor() {
-    // Use proxied path for all environments - the proxy handles the actual backend URL
-    // In development, the proxy forwards /api to http://localhost:8000
-    this.baseUrl = process.env.REACT_APP_CDS_HOOKS_URL || '/api';
+    // Determine if we're in Docker or local development
+    const isDocker = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+
+    // TEMPORARY FIX: Call backend directly to bypass proxy timeout issues
+    // In Docker, backend is at emr-backend-dev:8000
+    // In local dev, backend is at localhost:8000
+    const backendUrl = isDocker ? 'http://emr-backend-dev:8000' : 'http://localhost:8000';
+
+    // Use direct backend URL instead of proxied path
+    this.baseUrl = `${backendUrl}/api`;
+
+    console.log(`[CDSHooksClient] Using backend URL: ${backendUrl}`);
+
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
-      timeout: 10000, // 10 second timeout
+      timeout: 30000, // 30 second timeout (increased for CDS processing)
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'

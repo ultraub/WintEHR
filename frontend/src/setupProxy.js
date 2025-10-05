@@ -15,14 +15,32 @@ module.exports = function(app) {
     return createProxyMiddleware({
       target: backendTarget,
       changeOrigin: true,
-      logLevel: 'error',
+      logLevel: 'info',
       pathRewrite: pathRewrite,
+      // Configure all timeout-related options
+      timeout: 0, // Disable http-proxy timeout (let backend handle it)
+      proxyTimeout: 0, // Disable proxy-specific timeout
+      // Configure the underlying http agent with custom timeout
+      agent: false, // Disable keep-alive agent
+      onProxyReq: (proxyReq, req, res) => {
+        // Set socket timeout directly on the request
+        proxyReq.setTimeout(120000); // 2 minute timeout
+        console.log(`[${name}] ${req.method} ${req.path} -> ${backendTarget}${req.path}`);
+      },
+      onProxyRes: (proxyRes, req, res) => {
+        console.log(`[${name}] ${req.method} ${req.path} <- ${proxyRes.statusCode}`);
+      },
       onError: (err, req, res) => {
-        console.error(`[${name} Proxy Error]`, err.message);
+        console.error(`[${name} Proxy Error]`, err.message, err.code);
         if (err.code === 'ECONNREFUSED') {
           res.status(503).json({
             error: 'Backend service unavailable',
             message: 'The backend service is not running or still starting up'
+          });
+        } else if (err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT' || err.code === 'ECONNRESET') {
+          res.status(504).json({
+            error: 'Gateway timeout',
+            message: 'The backend took too long to respond. This may be due to catalog processing.'
           });
         } else {
           res.status(500).json({
@@ -30,10 +48,6 @@ module.exports = function(app) {
             message: err.message
           });
         }
-      },
-      onProxyReq: (proxyReq, req, res) => {
-        // Only log errors, not every request
-        // console.log(`[${name}] ${req.method} ${req.path} -> ${backendTarget}${req.path}`);
       }
     });
   };

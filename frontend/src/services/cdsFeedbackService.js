@@ -100,7 +100,9 @@ class CDSFeedbackService {
         serviceId,
         cardUuid,
         outcome,
-        error: error.message
+        error: error.message,
+        response: error.response?.data,
+        status: error.response?.status
       });
       // Don't throw - feedback failures shouldn't disrupt user experience
       return false;

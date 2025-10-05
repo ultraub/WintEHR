@@ -323,7 +323,7 @@ const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
       cards: { isValid: true, errors: [] },
       overall: { isValid: true, errors: [] }
     };
-    
+
     // Basic info validation
     if (!data.title?.trim()) {
       newValidation.basicInfo.errors.push('Title is required');
@@ -619,7 +619,7 @@ const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
   const saveHook = async () => {
     try {
       const validation = validateHook();
-      
+
       if (!validation.overall.isValid) {
         setSnackbar({
           open: true,
