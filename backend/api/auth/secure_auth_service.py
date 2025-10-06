@@ -17,7 +17,7 @@ from database import get_db_session
 from .config import JWT_ENABLED, JWT_ACCESS_TOKEN_EXPIRE_DELTA, JWT_REFRESH_TOKEN_EXPIRE_DELTA
 from .jwt_handler import create_access_token, verify_token
 from .models import User, TokenResponse, SimpleAuthResponse
-from api.services.audit_service import AuditService, AuditEventType
+from api.services.audit_event_service import AuditEventService, AuditEventType
 
 logger = logging.getLogger(__name__)
 
@@ -154,9 +154,9 @@ class SecureAuthService:
             "max_attempts": MAX_LOGIN_ATTEMPTS
         })
         await self.db.commit()
-        
-        # Log security event
-        audit = AuditService(self.db)
+
+        # Log security event (HAPI FHIR AuditEvent)
+        audit = AuditEventService()
         await audit.log_event(
             event_type=AuditEventType.AUTH_LOGIN_FAILURE,
             user_id=str(user_id),
@@ -199,9 +199,9 @@ class SecureAuthService:
         if request:
             ip_address = request.client.host if request.client else None
             user_agent = request.headers.get('user-agent')
-        
-        # Create audit service
-        audit = AuditService(self.db)
+
+        # Create audit service (HAPI FHIR AuditEvent)
+        audit = AuditEventService()
         
         try:
             user = await self.authenticate_user(username, password, ip_address)
