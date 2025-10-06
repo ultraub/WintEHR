@@ -3,20 +3,18 @@
  * Handles CRUD operations for custom CDS hooks
  */
 import axios from 'axios';
+import { getBackendUrl, getBackendApiUrl, getCdsHooksServicesUrl } from '../config/apiConfig';
 
 class CDSHooksService {
   constructor() {
-    // Determine if we're in Docker or local development
-    const isDocker = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    // Use centralized configuration for all URLs
+    const backendUrl = getBackendUrl();
+    const apiUrl = getBackendApiUrl();
+    const cdsServicesUrl = getCdsHooksServicesUrl();
 
-    // TEMPORARY FIX: Call backend directly to bypass proxy timeout issues
-    // In Docker, backend is at emr-backend-dev:8000
-    // In local dev, backend is at localhost:8000
-    const backendUrl = isDocker ? 'http://emr-backend-dev:8000' : 'http://localhost:8000';
-
-    // Use direct backend URL instead of proxied path
-    this.baseUrl = `${backendUrl}/api/cds-services`;
-    this.serviceManagementUrl = `${backendUrl}/api`;
+    // Configure service endpoints
+    this.baseUrl = cdsServicesUrl;
+    this.serviceManagementUrl = apiUrl;
 
     console.log(`[CDSHooksService] Using backend URL: ${backendUrl}`);
   }

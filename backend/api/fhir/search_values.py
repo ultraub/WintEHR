@@ -1,6 +1,8 @@
 """
 FHIR Search Parameter Distinct Values API
 Provides distinct values for token-type search parameters
+
+Updated: 2025-10-05 - Migrated to use HAPI FHIR JPA search index tables
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -31,36 +33,34 @@ async def get_distinct_values(
             'patient': 'subject',  # patient is often an alias for subject
             'subject': 'patient'   # and vice versa
         }
-        
-        # Build query to get distinct values from search_params table
+
+        # Query HAPI FHIR search index tables (updated 2025-10-05)
+        # Try token index first (most common for parameters like status, gender, code)
         query = text("""
-            SELECT DISTINCT 
-                sp.value_string,
-                sp.value_reference,
+            SELECT DISTINCT
+                sp.sp_value as value,
                 COUNT(*) as usage_count
-            FROM fhir.search_params sp
-            JOIN fhir.resources r ON sp.resource_id = r.id
-            WHERE r.resource_type = :resource_type
-            AND (sp.param_name = :param_name OR sp.param_name = :param_alias)
-            AND (sp.value_string IS NOT NULL OR sp.value_reference IS NOT NULL)
-            GROUP BY sp.value_string, sp.value_reference
+            FROM hfj_spidx_token sp
+            WHERE sp.res_type = :resource_type
+            AND sp.sp_name = :param_name
+            AND sp.sp_value IS NOT NULL
+            GROUP BY sp.sp_value
             ORDER BY usage_count DESC
             LIMIT :limit
         """)
-        
+
         result = db.execute(
             query,
             {
                 "resource_type": resource_type,
                 "param_name": parameter_name,
-                "param_alias": param_aliases.get(parameter_name, parameter_name),
                 "limit": limit
             }
         )
-        
+
         values = []
         for row in result:
-            value = row.value_string or row.value_reference
+            value = row.value
             if value:
                 # Clean up the value
                 # Remove prefixes like "urn:uuid:" or resource type prefixes
@@ -68,12 +68,45 @@ async def get_distinct_values(
                     continue  # Skip UUIDs
                 if "/" in value:
                     value = value.split("/", 1)[1]  # Get just the ID part
-                
+
                 values.append({
                     "value": value,
                     "display": value.replace("-", " ").replace("_", " ").title(),
                     "count": row.usage_count
                 })
+
+        # If no results from token index, try string index (for name, address, etc.)
+        if not values:
+            string_query = text("""
+                SELECT DISTINCT
+                    sp.sp_value_normalized as value,
+                    COUNT(*) as usage_count
+                FROM hfj_spidx_string sp
+                WHERE sp.res_type = :resource_type
+                AND sp.sp_name = :param_name
+                AND sp.sp_value_normalized IS NOT NULL
+                GROUP BY sp.sp_value_normalized
+                ORDER BY usage_count DESC
+                LIMIT :limit
+            """)
+
+            result = db.execute(
+                string_query,
+                {
+                    "resource_type": resource_type,
+                    "param_name": parameter_name,
+                    "limit": limit
+                }
+            )
+
+            for row in result:
+                value = row.value
+                if value:
+                    values.append({
+                        "value": value,
+                        "display": value.title() if value.islower() else value,
+                        "count": row.usage_count
+                    })
         
         # For certain well-known parameters, add standard values if not present
         standard_values = {

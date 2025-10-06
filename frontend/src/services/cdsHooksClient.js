@@ -5,19 +5,16 @@
 import axios from 'axios';
 import { cdsPrefetchResolver } from './cdsPrefetchResolver';
 import { v4 as uuidv4 } from 'uuid';
+import { getBackendUrl, getBackendApiUrl } from '../config/apiConfig';
 
 class CDSHooksClient {
   constructor() {
-    // Determine if we're in Docker or local development
-    const isDocker = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    // Use centralized configuration for all URLs
+    const backendUrl = getBackendUrl();
+    const apiUrl = getBackendApiUrl();
 
-    // TEMPORARY FIX: Call backend directly to bypass proxy timeout issues
-    // In Docker, backend is at emr-backend-dev:8000
-    // In local dev, backend is at localhost:8000
-    const backendUrl = isDocker ? 'http://emr-backend-dev:8000' : 'http://localhost:8000';
-
-    // Use direct backend URL instead of proxied path
-    this.baseUrl = `${backendUrl}/api`;
+    // Configure service endpoints
+    this.baseUrl = apiUrl;
 
     console.log(`[CDSHooksClient] Using backend URL: ${backendUrl}`);
 

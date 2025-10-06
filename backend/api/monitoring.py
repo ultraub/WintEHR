@@ -17,10 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from database import get_db_session, engine
-# DEPRECATED (2025-10-05): Old FHIR cache layers removed with HAPI FHIR migration
-# HAPI FHIR has its own internal caching - monitoring should query HAPI metrics instead
-# from fhir.api.redis_cache import get_redis_cache
-# from fhir.api.cache import get_search_cache
 
 import logging
 
@@ -147,44 +143,9 @@ async def get_system_health():
             "error": str(e)
         }
         health_status["status"] = "degraded"
-    
-    # DEPRECATED: Old FHIR cache monitoring (2025-10-05)
-    # HAPI FHIR has its own caching - query HAPI metrics endpoint instead
-    # TODO: Replace with HAPI FHIR metrics endpoint: http://hapi-fhir:8080/actuator/metrics
 
-    # Check Redis cache health - DEPRECATED
-    # try:
-    #     redis_cache = await get_redis_cache()
-    #     redis_stats = await redis_cache.get_stats()
-    #
-    #     health_status["components"]["redis_cache"] = {
-    #         "status": "healthy" if redis_stats["redis_cache"]["available"] else "unavailable",
-    #         "connected": redis_stats["redis_cache"].get("connected", False),
-    #         "hit_rate": redis_stats.get("hit_rate", 0),
-    #         "errors": redis_stats["redis_cache"].get("errors", 0)
-    #     }
-    # except Exception as e:
-    #     health_status["components"]["redis_cache"] = {
-    #         "status": "unhealthy",
-    #         "error": str(e)
-    #     }
+    # TODO: Add HAPI FHIR metrics endpoint integration: http://hapi-fhir:8080/actuator/metrics
 
-    # Check memory cache health - DEPRECATED
-    # try:
-    #     memory_cache = get_search_cache()
-    #     memory_stats = memory_cache.get_stats()
-    #
-    #     health_status["components"]["memory_cache"] = {
-    #         "status": "healthy",
-            "size": memory_stats.get("size", 0),
-            "hit_rate": memory_stats.get("hit_rate", 0)
-        }
-    except Exception as e:
-        health_status["components"]["memory_cache"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
-    
     # Check system resources
     health_status["components"]["system"] = {
         "status": "healthy",
@@ -239,62 +200,6 @@ async def get_connection_pool_status():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get pool status: {str(e)}")
-
-
-@monitoring_router.get("/cache/stats")
-async def get_cache_statistics():
-    """
-    Get cache performance statistics for both Redis and memory caches.
-    
-    Returns hit rates, sizes, and performance metrics.
-    """
-    cache_stats = {
-        "timestamp": datetime.now().isoformat(),
-        "redis": {},
-        "memory": {}
-    }
-    
-    # Get Redis cache stats
-    try:
-        redis_cache = await get_redis_cache()
-        redis_stats = await redis_cache.get_stats()
-        
-        cache_stats["redis"] = {
-            "available": redis_stats["redis_cache"]["available"],
-            "connected": redis_stats["redis_cache"].get("connected", False),
-            "hits": redis_stats.get("hits", 0),
-            "misses": redis_stats.get("misses", 0),
-            "hit_rate": redis_stats.get("hit_rate", 0),
-            "total_requests": redis_stats.get("total_requests", 0),
-            "errors": redis_stats["redis_cache"].get("errors", 0),
-            "cache_keys": redis_stats["redis_cache"].get("cache_keys", 0),
-            "memory_usage": redis_stats["redis_cache"].get("used_memory", "N/A")
-        }
-    except Exception as e:
-        cache_stats["redis"]["error"] = str(e)
-    
-    # Get memory cache stats
-    try:
-        memory_cache = get_search_cache()
-        memory_stats = memory_cache.get_stats()
-        
-        cache_stats["memory"] = memory_stats
-    except Exception as e:
-        cache_stats["memory"]["error"] = str(e)
-    
-    # Calculate combined metrics
-    total_hits = cache_stats["redis"].get("hits", 0) + cache_stats["memory"].get("hits", 0)
-    total_misses = cache_stats["redis"].get("misses", 0) + cache_stats["memory"].get("misses", 0)
-    total_requests = total_hits + total_misses
-    
-    cache_stats["combined"] = {
-        "total_hits": total_hits,
-        "total_misses": total_misses,
-        "total_requests": total_requests,
-        "combined_hit_rate": total_hits / total_requests if total_requests > 0 else 0
-    }
-    
-    return cache_stats
 
 
 @monitoring_router.get("/queries/slow")
@@ -445,34 +350,7 @@ async def get_performance_summary():
             
     except Exception as e:
         summary["database"]["error"] = str(e)
-    
-    # Cache performance
-    try:
-        redis_cache = await get_redis_cache()
-        redis_stats = await redis_cache.get_stats()
-        
-        memory_cache = get_search_cache()
-        memory_stats = memory_cache.get_stats()
-        
-        summary["cache"] = {
-            "redis_hit_rate": redis_stats.get("hit_rate", 0),
-            "memory_hit_rate": memory_stats.get("hit_rate", 0),
-            "redis_available": redis_stats["redis_cache"]["available"],
-            "total_cached_items": memory_stats.get("size", 0) + redis_stats["redis_cache"].get("cache_keys", 0)
-        }
-        
-        # Add recommendations
-        if summary["cache"]["redis_hit_rate"] < 0.5 and redis_stats.get("total_requests", 0) > 100:
-            summary["recommendations"].append({
-                "component": "cache",
-                "severity": "info",
-                "message": "Low Redis cache hit rate. Consider adjusting cache TTL.",
-                "action": "Review cache key generation and TTL settings"
-            })
-            
-    except Exception as e:
-        summary["cache"]["error"] = str(e)
-    
+
     # System performance
     summary["system"] = {
         "cpu_percent": psutil.cpu_percent(interval=0.1),

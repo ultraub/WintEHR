@@ -198,6 +198,8 @@ async def get_relationship_statistics(
     """
     Get statistical information about relationships in the database.
     Useful for understanding data patterns and connectivity.
+
+    Updated: 2025-10-05 - Migrated to HAPI FHIR JPA tables
     """
     try:
         stats = {
@@ -208,65 +210,66 @@ async def get_relationship_statistics(
             "mostConnectedResources": [],
             "orphanedResources": []
         }
-        
-        # Count resources by type
+
+        # Count resources by type from HAPI FHIR
         resource_count_query = """
-            SELECT resource_type, COUNT(*) as count
-            FROM fhir.resources
-            WHERE deleted = false
-            GROUP BY resource_type
+            SELECT res_type as resource_type, COUNT(*) as count
+            FROM hfj_resource
+            WHERE res_deleted_at IS NULL
+            GROUP BY res_type
             ORDER BY count DESC
         """
-        
+
         result = await db.execute(text(resource_count_query))
         for row in result:
             stats["resourceTypeCounts"][row.resource_type] = row.count
             stats["totalResources"] += row.count
-        
-        # Count relationships
+
+        # Count relationships from HAPI FHIR resource links
         relationship_count_query = """
-            SELECT 
-                source_type || '->' || target_type as relationship_type,
+            SELECT
+                r.res_type || '->' || link.target_resource_type as relationship_type,
                 COUNT(*) as count
-            FROM fhir.references
-            GROUP BY source_type, target_type
+            FROM hfj_res_link link
+            JOIN hfj_resource r ON link.src_resource_id = r.res_id
+            WHERE r.res_deleted_at IS NULL
+            GROUP BY r.res_type, link.target_resource_type
             ORDER BY count DESC
             LIMIT 20
         """
-        
+
         result = await db.execute(text(relationship_count_query))
         for row in result:
             stats["relationshipTypeCounts"][row.relationship_type] = row.count
             stats["totalRelationships"] += row.count
-        
-        # Find most connected resources
-        # Note: source_id is BIGINT (internal ID), target_id is VARCHAR (FHIR ID)
-        # We need to join with resources table to get consistent IDs
+
+        # Find most connected resources from HAPI FHIR
+        # Count both outgoing and incoming links
         connected_query = """
             WITH outgoing_connections AS (
-                SELECT 
-                    r.resource_type,
-                    r.fhir_id as resource_id,
+                SELECT
+                    r.res_type as resource_type,
+                    r.res_id::text as resource_id,
                     COUNT(*) as connection_count
-                FROM fhir.references ref
-                JOIN fhir.resources r ON ref.source_id = r.id
-                WHERE r.deleted = false
-                GROUP BY r.resource_type, r.fhir_id
+                FROM hfj_res_link link
+                JOIN hfj_resource r ON link.src_resource_id = r.res_id
+                WHERE r.res_deleted_at IS NULL
+                GROUP BY r.res_type, r.res_id
             ),
             incoming_connections AS (
-                SELECT 
-                    ref.target_type as resource_type,
-                    ref.target_id as resource_id,
+                SELECT
+                    target_resource_type as resource_type,
+                    target_resource_id as resource_id,
                     COUNT(*) as connection_count
-                FROM fhir.references ref
-                GROUP BY ref.target_type, ref.target_id
+                FROM hfj_res_link
+                GROUP BY target_resource_type, target_resource_id
             ),
             all_connections AS (
                 SELECT resource_type, resource_id, connection_count FROM outgoing_connections
                 UNION ALL
                 SELECT resource_type, resource_id, connection_count FROM incoming_connections
             )
-            SELECT 
+            SELECT
                 resource_type,
                 resource_id,
                 SUM(connection_count) as total_connections
@@ -275,7 +278,7 @@ async def get_relationship_statistics(
             ORDER BY total_connections DESC
             LIMIT 10
         """
-        
+
         result = await db.execute(text(connected_query))
         for row in result:
             stats["mostConnectedResources"].append({
@@ -283,9 +286,9 @@ async def get_relationship_statistics(
                 "id": row.resource_id,
                 "connectionCount": row.total_connections
             })
-        
+
         return stats
-        
+
     except Exception as e:
         logger.error(f"Error getting relationship statistics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -462,13 +465,14 @@ async def _discover_relationships_recursive(
                                 logger.warning(f"Could not fetch {target_type}/{target_id}: {str(e)}")
 
     # Also check for reverse relationships (resources that reference this one)
+    # Updated 2025-10-05: Query HAPI FHIR hfj_res_link table
     if include_counts and current_depth < max_depth:
         reverse_refs_query = """
-            SELECT r.resource_type as source_type, r.fhir_id as source_id, ref.reference_path as field_path
-            FROM fhir.references ref
-            JOIN fhir.resources r ON ref.source_id = r.id
-            WHERE ref.target_type = :target_type AND ref.target_id = :target_id
-            AND (r.deleted = false OR r.deleted IS NULL)
+            SELECT r.res_type as source_type, r.res_id::text as source_id, link.src_path as field_path
+            FROM hfj_res_link link
+            JOIN hfj_resource r ON link.src_resource_id = r.res_id
+            WHERE link.target_resource_type = :target_type AND link.target_resource_id = :target_id
+            AND r.res_deleted_at IS NULL
             LIMIT 50
         """
 
@@ -580,13 +584,13 @@ async def _find_paths_bfs(
                                 if next_node not in path:  # Avoid cycles
                                     queue.append((next_node, path + [next_node]))
 
-        # Check reverse references
+        # Check reverse references from HAPI FHIR (updated 2025-10-05)
         reverse_refs_query = """
-            SELECT r.resource_type || '/' || r.fhir_id as source
-            FROM fhir.references ref
-            JOIN fhir.resources r ON ref.source_id = r.id
-            WHERE ref.target_type = :target_type AND ref.target_id = :target_id
-            AND (r.deleted = false OR r.deleted IS NULL)
+            SELECT r.res_type || '/' || r.res_id::text as source
+            FROM hfj_res_link link
+            JOIN hfj_resource r ON link.src_resource_id = r.res_id
+            WHERE link.target_resource_type = :target_type AND link.target_resource_id = :target_id
+            AND r.res_deleted_at IS NULL
             LIMIT 20
         """
 

@@ -26,9 +26,9 @@ class HttpClientFactory {
    */
   static createApiClient(config = {}) {
     const factory = new HttpClientFactory();
+    const { getBackendApiUrl } = require('../config/apiConfig');
     return factory.createClient('api', {
-      baseURL: config.baseURL || process.env.REACT_APP_API_URL || 
-              (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : '/api'),
+      baseURL: config.baseURL || getBackendApiUrl(),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -108,10 +108,9 @@ class HttpClientFactory {
    */
   static createCdsClient(config = {}) {
     const factory = new HttpClientFactory();
+    const { getCdsHooksUrl } = require('../config/apiConfig');
     return factory.createClient('cds', {
-      baseURL: config.baseURL || 
-               process.env.REACT_APP_CDS_HOOKS_URL || 
-               (process.env.NODE_ENV === 'development' ? 'http://localhost:8000/cds-hooks' : '/cds-hooks'),
+      baseURL: config.baseURL || getCdsHooksUrl(),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',

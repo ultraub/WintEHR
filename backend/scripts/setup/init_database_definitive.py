@@ -122,107 +122,54 @@ class DefinitiveDatabaseInitializer:
                 logger.info("✅ Schemas verified/created")
             # Create the definitive schema
             logger.info("🏗️  Creating definitive database schema...")
-            
+
             # Determine whether to use IF NOT EXISTS based on skip_drop flag
             table_prefix = "CREATE TABLE IF NOT EXISTS" if self.skip_drop else "CREATE TABLE"
-            
+
             await self.connection.execute(f"""
-                -- Create resources table (the foundation)
-                {table_prefix} fhir.resources (
-                    id BIGSERIAL PRIMARY KEY,
-                    resource_type VARCHAR(255) NOT NULL,
-                fhir_id VARCHAR(255) NOT NULL UNIQUE,
-                version_id INTEGER NOT NULL DEFAULT 1,
-                last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                resource JSONB NOT NULL,
-                deleted BOOLEAN DEFAULT FALSE,
-                
-                -- Ensure uniqueness of resource_type + fhir_id
-                CONSTRAINT resources_resource_type_fhir_id_key UNIQUE(resource_type, fhir_id)
-            );
-            
-            -- Create search_params table with ALL required columns
-            {table_prefix} fhir.search_params (
-                id BIGSERIAL PRIMARY KEY,
-                resource_id BIGINT NOT NULL,
-                resource_type VARCHAR(50) NOT NULL,
-                param_name VARCHAR(100) NOT NULL,
-                param_type VARCHAR(20) NOT NULL,
-                
-                -- Value columns for different data types
-                value_string TEXT,
-                value_number NUMERIC,
-                value_date TIMESTAMP WITH TIME ZONE,
-                value_token VARCHAR(500),
-                value_token_system VARCHAR(500),
-                value_token_code VARCHAR(500),
-                value_reference VARCHAR(500),
-                value_quantity_value NUMERIC,
-                value_quantity_unit VARCHAR(100),
-                
-                -- Metadata
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                
-                -- Foreign key to resources
-                CONSTRAINT fk_search_params_resource 
-                    FOREIGN KEY (resource_id) 
-                    REFERENCES fhir.resources(id) 
-                    ON DELETE CASCADE
-            );
-            
-            -- Create resource_history table for versioning
-            {table_prefix} fhir.resource_history (
-                id BIGSERIAL PRIMARY KEY,
-                resource_id BIGINT NOT NULL,
-                version_id INTEGER NOT NULL,
-                operation VARCHAR(20) NOT NULL, -- 'create', 'update', 'delete'
-                resource JSONB NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                
-                -- Foreign key and uniqueness
-                CONSTRAINT fk_resource_history_resource 
-                    FOREIGN KEY (resource_id) 
-                    REFERENCES fhir.resources(id) 
-                    ON DELETE CASCADE,
-                CONSTRAINT resource_history_unique 
-                    UNIQUE (resource_id, version_id)
-            );
-            
-            -- Create references table for FHIR reference tracking
-            {table_prefix} fhir.references (
-                id BIGSERIAL PRIMARY KEY,
-                source_id BIGINT NOT NULL,
-                source_type VARCHAR(50) NOT NULL,
-                target_type VARCHAR(50) NOT NULL,
-                target_id VARCHAR(255) NOT NULL,
-                reference_path VARCHAR(100) NOT NULL,
-                reference_value TEXT NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                
-                -- Foreign key
-                CONSTRAINT fk_references_source 
-                    FOREIGN KEY (source_id) 
-                    REFERENCES fhir.resources(id) 
-                    ON DELETE CASCADE
-            );
+                -- =====================================================================
+                -- HAPI FHIR MIGRATION NOTE (2025-10-05)
+                -- =====================================================================
+                -- WintEHR has migrated from custom FHIR backend to HAPI FHIR JPA Server.
+                --
+                -- DEPRECATED TABLES (no longer created):
+                -- - fhir.resources → Now managed by HAPI FHIR (hfj_resource table)
+                -- - fhir.search_params → Now managed by HAPI FHIR (hfj_spidx_* tables)
+                -- - fhir.resource_history → Now managed by HAPI FHIR (hfj_res_ver table)
+                -- - fhir.references → Now managed by HAPI FHIR (hfj_res_link table)
+                --
+                -- These tables are no longer created as HAPI FHIR manages its own
+                -- database schema with 36+ internal tables (hfj_* prefix).
+                --
+                -- CUSTOM TABLES (still created):
+                -- - fhir.compartments → Custom patient compartment tracking
+                -- - fhir.audit_logs → Custom audit logging (separate from HAPI)
+                --
+                -- For FHIR resource operations, use HAPI FHIR REST API:
+                --   - Python: fhirclient library (services/fhir_client_config.py)
+                --   - Direct FHIR API: http://hapi:8080/fhir/
+                --
+                -- For direct database queries (when FHIR API is insufficient):
+                --   - Resource data: hfj_resource table
+                --   - Search indexes: hfj_spidx_token, hfj_spidx_string, etc.
+                --   - References: hfj_res_link table
+                -- =====================================================================
             
             -- Create compartments table for Patient/$everything operations
+            -- NOTE: Updated 2025-10-05 for HAPI FHIR migration
+            -- Removed foreign key to deprecated fhir.resources table
+            -- Now stores FHIR resource references (e.g., "Patient/123", "Observation/456")
             {table_prefix} fhir.compartments (
                 id BIGSERIAL PRIMARY KEY,
                 compartment_type VARCHAR(50) NOT NULL,
                 compartment_id VARCHAR(255) NOT NULL,
-                resource_id BIGINT NOT NULL,
+                resource_type VARCHAR(50) NOT NULL,
+                resource_id VARCHAR(255) NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                
-                -- Foreign key
-                CONSTRAINT fk_compartments_resource 
-                    FOREIGN KEY (resource_id) 
-                    REFERENCES fhir.resources(id) 
-                    ON DELETE CASCADE,
-                
+
                 -- Ensure uniqueness
-                CONSTRAINT compartments_unique 
-                    UNIQUE (compartment_type, compartment_id, resource_id)
+                CONSTRAINT compartments_unique
+                    UNIQUE (compartment_type, compartment_id, resource_type, resource_id)
             );
             
             -- Create audit_logs table for FHIR operation auditing
@@ -396,37 +343,19 @@ class DefinitiveDatabaseInitializer:
             # Create all performance indexes
             logger.info("📊 Creating performance indexes...")
             await self.connection.execute("""
-            -- Resources table indexes
-            CREATE INDEX IF NOT EXISTS idx_resources_type ON fhir.resources(resource_type);
-            CREATE INDEX IF NOT EXISTS idx_resources_type_id ON fhir.resources(resource_type, fhir_id);
-            CREATE INDEX IF NOT EXISTS idx_resources_updated ON fhir.resources(last_updated);
-            CREATE INDEX IF NOT EXISTS idx_resources_deleted ON fhir.resources(deleted) WHERE deleted = false;
-            
-            -- Search params indexes for performance
-            CREATE INDEX IF NOT EXISTS idx_search_params_resource ON fhir.search_params(resource_id, resource_type);
-            CREATE INDEX IF NOT EXISTS idx_search_params_param_name ON fhir.search_params(param_name);
-            CREATE INDEX IF NOT EXISTS idx_search_params_param_type ON fhir.search_params(param_type);
-            CREATE INDEX IF NOT EXISTS idx_search_params_string ON fhir.search_params(param_name, value_string) WHERE value_string IS NOT NULL;
-            CREATE INDEX IF NOT EXISTS idx_search_params_number ON fhir.search_params(param_name, value_number) WHERE value_number IS NOT NULL;
-            CREATE INDEX IF NOT EXISTS idx_search_params_date ON fhir.search_params(param_name, value_date) WHERE value_date IS NOT NULL;
-            CREATE INDEX IF NOT EXISTS idx_search_params_token ON fhir.search_params(param_name, value_token) WHERE value_token IS NOT NULL;
-            CREATE INDEX IF NOT EXISTS idx_search_params_token_code ON fhir.search_params(param_name, value_token_code) WHERE value_token_code IS NOT NULL;
-            CREATE INDEX IF NOT EXISTS idx_search_params_reference ON fhir.search_params(param_name, value_reference) WHERE value_reference IS NOT NULL;
-            
-            -- Resource history indexes
-            CREATE INDEX IF NOT EXISTS idx_resource_history_resource_id ON fhir.resource_history(resource_id);
-            CREATE INDEX IF NOT EXISTS idx_resource_history_created_at ON fhir.resource_history(created_at);
-            CREATE INDEX IF NOT EXISTS idx_resource_history_operation ON fhir.resource_history(operation);
-            
-            -- References indexes
-            CREATE INDEX IF NOT EXISTS idx_references_source ON fhir.references(source_id, source_type);
-            CREATE INDEX IF NOT EXISTS idx_references_target ON fhir.references(target_type, target_id);
-            CREATE INDEX IF NOT EXISTS idx_references_path ON fhir.references(reference_path);
-            
-            -- Compartments indexes
+            -- =====================================================================
+            -- HAPI FHIR MIGRATION NOTE (2025-10-05)
+            -- =====================================================================
+            -- Removed indexes for deprecated tables:
+            -- - fhir.resources, fhir.search_params, fhir.resource_history, fhir.references
+            -- HAPI FHIR manages its own indexes for hfj_* tables
+            -- =====================================================================
+
+            -- Compartments indexes (custom table)
             CREATE INDEX IF NOT EXISTS idx_compartments_compartment ON fhir.compartments(compartment_type, compartment_id);
-            CREATE INDEX IF NOT EXISTS idx_compartments_resource ON fhir.compartments(resource_id);
-            CREATE INDEX IF NOT EXISTS idx_compartments_type_id ON fhir.compartments(compartment_type, compartment_id, resource_id);
+            CREATE INDEX IF NOT EXISTS idx_compartments_resource_type ON fhir.compartments(resource_type);
+            CREATE INDEX IF NOT EXISTS idx_compartments_resource_id ON fhir.compartments(resource_id);
+            CREATE INDEX IF NOT EXISTS idx_compartments_type_id ON fhir.compartments(compartment_type, compartment_id, resource_type, resource_id);
             
             -- Audit logs indexes
             CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON fhir.audit_logs(resource_type, resource_id);
@@ -473,23 +402,20 @@ class DefinitiveDatabaseInitializer:
             logger.info("✅ Indexes created successfully")
             # Test the schema with a simple query
             logger.info("🧪 Testing schema with basic queries...")
-            result = await self.connection.fetchval("SELECT COUNT(*) FROM fhir.resources")
-            logger.info(f"✅ Resources table accessible (count: {result})")
-            
-            result = await self.connection.fetchval("SELECT COUNT(*) FROM fhir.search_params")
-            logger.info(f"✅ Search params table accessible (count: {result})")
-            
-            result = await self.connection.fetchval("SELECT COUNT(*) FROM fhir.resource_history")
-            logger.info(f"✅ Resource history table accessible (count: {result})")
-            
-            result = await self.connection.fetchval("SELECT COUNT(*) FROM fhir.references")
-            logger.info(f"✅ References table accessible (count: {result})")
-            
+
+            # Test custom FHIR tables (compartments and audit_logs)
             result = await self.connection.fetchval("SELECT COUNT(*) FROM fhir.compartments")
             logger.info(f"✅ Compartments table accessible (count: {result})")
-            
+
             result = await self.connection.fetchval("SELECT COUNT(*) FROM fhir.audit_logs")
             logger.info(f"✅ Audit logs table accessible (count: {result})")
+
+            # Test HAPI FHIR tables (managed by HAPI FHIR server)
+            try:
+                result = await self.connection.fetchval("SELECT COUNT(*) FROM hfj_resource WHERE res_deleted_at IS NULL")
+                logger.info(f"✅ HAPI FHIR resources table accessible (count: {result})")
+            except Exception as e:
+                logger.warning(f"⚠️  HAPI FHIR tables not yet created (will be created by HAPI server): {e}")
             
             result = await self.connection.fetchval("SELECT COUNT(*) FROM cds_hooks.hook_configurations")
             logger.info(f"✅ CDS Hooks configurations table accessible (count: {result})")
@@ -548,7 +474,8 @@ class DefinitiveDatabaseInitializer:
             """)
             
             existing_tables = [row['table_name'] for row in fhir_tables]
-            expected_tables = ['resources', 'search_params', 'resource_history', 'references', 'compartments', 'audit_logs']
+            # Updated 2025-10-05: Only check for tables we still create (not HAPI-managed tables)
+            expected_tables = ['compartments', 'audit_logs']
             missing_tables = set(expected_tables) - set(existing_tables)
             
             if missing_tables:

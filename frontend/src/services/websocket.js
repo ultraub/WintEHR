@@ -1,7 +1,7 @@
 /**
  * WebSocket Service
  * Manages real-time communication with the backend
- * 
+ *
  * Features:
  * - Auto-reconnection with exponential backoff
  * - Event subscription system
@@ -9,6 +9,8 @@
  * - Heartbeat/ping-pong mechanism
  * - Message queuing during disconnection
  */
+
+import { getWebSocketUrl } from '../config/apiConfig';
 
 class WebSocketService {
   constructor() {
@@ -27,22 +29,9 @@ class WebSocketService {
     this.tokenRefreshCallback = null;
     this.authFailureCount = 0;
     this.maxAuthRetries = 3;
-    
-    // Get WebSocket URL from environment or use default
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    
-    // In development, we need to connect directly to backend port
-    // In production, we use the same host as the frontend
-    let host;
-    if (process.env.NODE_ENV === 'development' && !process.env.REACT_APP_WS_URL) {
-      // Development: Connect directly to backend
-      host = 'localhost:8000';
-    } else {
-      // Production or custom URL
-      host = process.env.REACT_APP_WS_URL || window.location.host;
-    }
-    
-    this.baseUrl = `${protocol}//${host}/api/ws`;
+
+    // Use centralized configuration for WebSocket URL
+    this.baseUrl = getWebSocketUrl();
   }
 
   /**
