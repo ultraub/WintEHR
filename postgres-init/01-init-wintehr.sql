@@ -154,6 +154,8 @@ CREATE TABLE IF NOT EXISTS cds_hooks.hook_configurations (
     hook_type VARCHAR(100) NOT NULL,
     prefetch JSONB,
     configuration JSONB NOT NULL,
+    display_behavior JSONB DEFAULT '{}'::jsonb,
+    enabled BOOLEAN DEFAULT TRUE,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
