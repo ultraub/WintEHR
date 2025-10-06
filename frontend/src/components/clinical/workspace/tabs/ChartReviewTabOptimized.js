@@ -103,6 +103,7 @@ import useChartReviewResources from '../../../../hooks/useChartReviewResources';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
+import { useMedicationResolver } from '../../../../core/fhir/hooks/useMedicationResolver';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import ResourceDataGrid from '../../../common/ResourceDataGrid';
 import ConditionDialogEnhanced from '../dialogs/ConditionDialogEnhanced';
@@ -159,7 +160,10 @@ const ChartReviewTabOptimized = ({
     includeInactive: true,
     realTimeUpdates: true  // Enable real-time updates
   });
-  
+
+  // Resolve medication references for medications that use medicationReference instead of medicationCodeableConcept
+  const { resolvedMedications } = useMedicationResolver(medications);
+
   // View and filter states
   const [viewMode, setViewMode] = useState('dashboard'); // dashboard, timeline, list
   const [dateRange, setDateRange] = useState('all'); // all, 30d, 90d, 1y
@@ -977,6 +981,7 @@ const ChartReviewTabOptimized = ({
                                 onEdit={() => handleOpenDialog('medication', medication)}
                                 isAlternate={index % 2 === 1}  // For alternating rows
                                 onNavigateToTab={onNavigateToTab}
+                                resolvedName={resolvedMedications[medication.id]?.name}
                               />
                             ))}
                           </StaggeredFadeIn>
@@ -1860,10 +1865,11 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
   );
 };
 
-const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNavigateToTab }) => {
+const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNavigateToTab, resolvedName }) => {
   const theme = useTheme();
-  const medicationDisplay = medication.medicationCodeableConcept?.text || 
-                          medication.medicationCodeableConcept?.coding?.[0]?.display || 
+  const medicationDisplay = resolvedName ||
+                          medication.medicationCodeableConcept?.text ||
+                          medication.medicationCodeableConcept?.coding?.[0]?.display ||
                           'Unknown medication';
   const dosage = medication.dosageInstruction?.[0];
   const isActive = ['active', 'on-hold'].includes(medication.status);
