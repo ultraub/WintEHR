@@ -88,13 +88,14 @@ const RESOURCE_ICONS = {
   CareTeam: HospitalIcon
 };
 
-function ResourceDetailsPanel({ 
-  selectedNode, 
-  onClose, 
+function ResourceDetailsPanel({
+  selectedNode,
+  onClose,
   onResourceSelect,
   onAddToComparison,
   onFindPath,
-  width = 400 
+  onExploreRelationships,
+  width = 400
 }) {
   const fhirContext = useContext(FHIRResourceContext);
   const [resourceData, setResourceData] = useState(null);
@@ -173,10 +174,11 @@ function ResourceDetailsPanel({
       if (resource && isMountedRef.current) {
         setResourceData(resource);
       } else if (!resource) {
-        throw new Error('Resource not found');
+        throw new Error(`Resource ${selectedNode.id} exists in the relationship graph but not in the FHIR database. It may have been deleted or the reference is invalid.`);
       }
     } catch (err) {
       if (isMountedRef.current && !err.message?.includes('abort')) {
+        console.error('Resource load error:', err);
         setError(`Failed to load resource: ${err.message}`);
       }
     } finally {
@@ -627,6 +629,23 @@ function ResourceDetailsPanel({
         <MenuItem onClick={() => { onAddToComparison?.(selectedNode); handleCloseMenu(); }}>
           <ListItemIcon><CompareIcon fontSize="small" /></ListItemIcon>
           <ListItemText>Add to Comparison</ListItemText>
+        </MenuItem>
+        <Divider />
+        <MenuItem
+          onClick={() => {
+            if (onExploreRelationships) {
+              const [resourceType, resourceId] = selectedNode.id.split('/');
+              onExploreRelationships(resourceType, resourceId);
+            }
+            handleCloseMenu();
+          }}
+          disabled={!onExploreRelationships}
+        >
+          <ListItemIcon><RelationshipIcon fontSize="small" /></ListItemIcon>
+          <ListItemText
+            primary="Explore Relationships"
+            secondary="Load this resource's relationship graph"
+          />
         </MenuItem>
         <Divider />
         <MenuItem onClick={() => { loadResourceData(); handleCloseMenu(); }}>

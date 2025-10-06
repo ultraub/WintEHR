@@ -109,6 +109,123 @@ REFERENCE_FIELDS = {
         "insurance": {"target": ["Coverage", "ClaimResponse"], "type": "many-to-many"},
         "supportingInfo": {"target": ["Any"], "type": "many-to-many"},
         "specimen": {"target": ["Specimen"], "type": "many-to-many"}
+    },
+    "CarePlan": {
+        "subject": {"target": ["Patient", "Group"], "type": "many-to-one"},
+        "encounter": {"target": ["Encounter"], "type": "many-to-one"},
+        "author": {"target": ["Practitioner", "PractitionerRole", "Patient", "RelatedPerson", "Organization", "CareTeam", "Device"], "type": "many-to-one"},
+        "careTeam": {"target": ["CareTeam"], "type": "many-to-many"},
+        "addresses": {"target": ["Condition"], "type": "many-to-many"},
+        "supportingInfo": {"target": ["Any"], "type": "many-to-many"},
+        "goal": {"target": ["Goal"], "type": "many-to-many"},
+        "basedOn": {"target": ["CarePlan"], "type": "many-to-many"},
+        "replaces": {"target": ["CarePlan"], "type": "many-to-many"},
+        "partOf": {"target": ["CarePlan"], "type": "many-to-many"}
+    },
+    "CareTeam": {
+        "subject": {"target": ["Patient", "Group"], "type": "many-to-one"},
+        "encounter": {"target": ["Encounter"], "type": "many-to-one"},
+        "managingOrganization": {"target": ["Organization"], "type": "many-to-many"},
+        "participant": {"target": ["Practitioner", "PractitionerRole", "RelatedPerson", "Patient", "Organization", "CareTeam"], "type": "one-to-many"}
+    },
+    "Claim": {
+        "patient": {"target": ["Patient"], "type": "many-to-one"},
+        "enterer": {"target": ["Practitioner", "PractitionerRole"], "type": "many-to-one"},
+        "insurer": {"target": ["Organization"], "type": "many-to-one"},
+        "provider": {"target": ["Practitioner", "PractitionerRole", "Organization"], "type": "many-to-one"},
+        "priority": {"target": ["CodeableConcept"], "type": "many-to-one"},
+        "prescription": {"target": ["MedicationRequest", "VisionPrescription"], "type": "many-to-one"},
+        "originalPrescription": {"target": ["MedicationRequest"], "type": "many-to-one"},
+        "payee": {"target": ["Practitioner", "PractitionerRole", "Organization", "Patient", "RelatedPerson"], "type": "many-to-one"},
+        "referral": {"target": ["ServiceRequest"], "type": "many-to-one"},
+        "facility": {"target": ["Location"], "type": "many-to-one"},
+        "careTeam": {"target": ["Practitioner", "PractitionerRole", "Organization"], "type": "one-to-many"},
+        "procedure": {"target": ["Procedure"], "type": "one-to-many"}
+    },
+    "Practitioner": {
+        "qualification": {"target": ["Organization"], "type": "one-to-many"}
+    },
+    "PractitionerRole": {
+        "practitioner": {"target": ["Practitioner"], "type": "many-to-one"},
+        "organization": {"target": ["Organization"], "type": "many-to-one"},
+        "location": {"target": ["Location"], "type": "many-to-many"},
+        "healthcareService": {"target": ["HealthcareService"], "type": "many-to-many"},
+        "endpoint": {"target": ["Endpoint"], "type": "many-to-many"}
+    },
+    "Organization": {
+        "partOf": {"target": ["Organization"], "type": "many-to-one"},
+        "endpoint": {"target": ["Endpoint"], "type": "many-to-many"}
+    },
+    "Location": {
+        "managingOrganization": {"target": ["Organization"], "type": "many-to-one"},
+        "partOf": {"target": ["Location"], "type": "many-to-one"},
+        "endpoint": {"target": ["Endpoint"], "type": "many-to-many"}
+    },
+    "Device": {
+        "location": {"target": ["Location"], "type": "many-to-one"},
+        "patient": {"target": ["Patient"], "type": "many-to-one"},
+        "owner": {"target": ["Organization"], "type": "many-to-one"},
+        "parent": {"target": ["Device"], "type": "many-to-one"}
+    },
+    "ExplanationOfBenefit": {
+        "patient": {"target": ["Patient"], "type": "many-to-one"},
+        "enterer": {"target": ["Practitioner", "PractitionerRole"], "type": "many-to-one"},
+        "insurer": {"target": ["Organization"], "type": "many-to-one"},
+        "provider": {"target": ["Practitioner", "PractitionerRole", "Organization"], "type": "many-to-one"},
+        "prescription": {"target": ["MedicationRequest", "VisionPrescription"], "type": "many-to-one"},
+        "originalPrescription": {"target": ["MedicationRequest"], "type": "many-to-one"},
+        "payee": {"target": ["Practitioner", "PractitionerRole", "Organization", "Patient", "RelatedPerson"], "type": "many-to-one"},
+        "referral": {"target": ["ServiceRequest"], "type": "many-to-one"},
+        "facility": {"target": ["Location"], "type": "many-to-one"},
+        "claim": {"target": ["Claim"], "type": "many-to-one"},
+        "claimResponse": {"target": ["ClaimResponse"], "type": "many-to-one"}
+    },
+    "MedicationAdministration": {
+        "subject": {"target": ["Patient", "Group"], "type": "many-to-one"},
+        "context": {"target": ["Encounter", "EpisodeOfCare"], "type": "many-to-one"},
+        "supportingInformation": {"target": ["Any"], "type": "many-to-many"},
+        "performer": {"target": ["Practitioner", "PractitionerRole", "Patient", "RelatedPerson", "Device"], "type": "one-to-many"},
+        "reasonReference": {"target": ["Condition", "Observation", "DiagnosticReport"], "type": "many-to-many"},
+        "request": {"target": ["MedicationRequest"], "type": "many-to-one"},
+        "device": {"target": ["Device"], "type": "many-to-many"},
+        "eventHistory": {"target": ["Provenance"], "type": "many-to-many"}
+    },
+    "Medication": {
+        "manufacturer": {"target": ["Organization"], "type": "many-to-one"},
+        "ingredient": {"target": ["Medication", "Substance"], "type": "one-to-many"}
+    },
+    "DocumentReference": {
+        "subject": {"target": ["Patient", "Practitioner", "Group", "Device"], "type": "many-to-one"},
+        "author": {"target": ["Practitioner", "PractitionerRole", "Organization", "Device", "Patient", "RelatedPerson"], "type": "many-to-many"},
+        "authenticator": {"target": ["Practitioner", "PractitionerRole", "Organization"], "type": "many-to-one"},
+        "custodian": {"target": ["Organization"], "type": "many-to-one"},
+        "relatesTo": {"target": ["DocumentReference"], "type": "many-to-many"},
+        "context": {"target": ["Encounter", "EpisodeOfCare"], "type": "many-to-many"}
+    },
+    "ImagingStudy": {
+        "subject": {"target": ["Patient", "Device", "Group"], "type": "many-to-one"},
+        "encounter": {"target": ["Encounter"], "type": "many-to-one"},
+        "basedOn": {"target": ["CarePlan", "ServiceRequest", "Appointment", "AppointmentResponse", "Task"], "type": "many-to-many"},
+        "referrer": {"target": ["Practitioner", "PractitionerRole"], "type": "many-to-one"},
+        "interpreter": {"target": ["Practitioner", "PractitionerRole"], "type": "many-to-many"},
+        "endpoint": {"target": ["Endpoint"], "type": "many-to-many"},
+        "procedureReference": {"target": ["Procedure"], "type": "many-to-one"},
+        "location": {"target": ["Location"], "type": "many-to-one"},
+        "reasonReference": {"target": ["Condition", "Observation", "DiagnosticReport", "DocumentReference"], "type": "many-to-many"}
+    },
+    "Provenance": {
+        "target": {"target": ["Any"], "type": "many-to-many"},
+        "location": {"target": ["Location"], "type": "many-to-one"},
+        "agent": {"target": ["Practitioner", "PractitionerRole", "RelatedPerson", "Patient", "Device", "Organization"], "type": "one-to-many"},
+        "entity": {"target": ["Any"], "type": "one-to-many"}
+    },
+    "SupplyDelivery": {
+        "basedOn": {"target": ["SupplyRequest"], "type": "many-to-many"},
+        "partOf": {"target": ["SupplyDelivery", "Contract"], "type": "many-to-many"},
+        "patient": {"target": ["Patient"], "type": "many-to-one"},
+        "supplier": {"target": ["Practitioner", "PractitionerRole", "Organization"], "type": "many-to-one"},
+        "destination": {"target": ["Location"], "type": "many-to-one"},
+        "receiver": {"target": ["Practitioner", "PractitionerRole"], "type": "many-to-many"}
     }
 }
 
@@ -245,6 +362,7 @@ async def get_relationship_statistics(
 
         # Find most connected resources from HAPI FHIR
         # Count both outgoing and incoming links
+        # Fixed 2025-10-05: Cast all resource_id to text for UNION compatibility
         connected_query = """
             WITH outgoing_connections AS (
                 SELECT
@@ -259,7 +377,7 @@ async def get_relationship_statistics(
             incoming_connections AS (
                 SELECT
                     target_resource_type as resource_type,
-                    target_resource_id as resource_id,
+                    CAST(target_resource_id AS text) as resource_id,
                     COUNT(*) as connection_count
                 FROM hfj_res_link
                 GROUP BY target_resource_type, target_resource_id
@@ -343,8 +461,21 @@ async def find_relationship_paths(
 
 # Helper functions
 
-def _get_resource_display(resource: Dict[str, Any]) -> str:
-    """Extract a display name from a FHIR resource."""
+def _get_resource_display(resource: Any) -> str:
+    """
+    Extract a display name from a FHIR resource.
+
+    Handles both fhirclient objects and dictionaries.
+    Fixed 2025-10-05: Convert fhirclient objects to dict first
+    """
+    # Convert fhirclient object to dictionary if needed
+    if hasattr(resource, 'as_json'):
+        resource = resource.as_json()
+
+    # Now resource is guaranteed to be a dictionary
+    if not isinstance(resource, dict):
+        return "Unknown Resource"
+
     if "name" in resource:
         if isinstance(resource["name"], list) and len(resource["name"]) > 0:
             name = resource["name"][0]
@@ -353,23 +484,23 @@ def _get_resource_display(resource: Dict[str, Any]) -> str:
             elif "family" in name:
                 given = " ".join(name.get("given", []))
                 return f"{given} {name['family']}".strip()
-    
+
     if "display" in resource:
         return resource["display"]
-    
+
     if "code" in resource and "text" in resource["code"]:
         return resource["code"]["text"]
-    
+
     if "code" in resource and "coding" in resource["code"]:
         for coding in resource["code"]["coding"]:
             if "display" in coding:
                 return coding["display"]
-    
+
     return f"{resource.get('resourceType', 'Resource')} {resource.get('id', '')}"
 
 async def _discover_relationships_recursive(
     db: AsyncSession,
-    resource: Dict[str, Any],
+    resource: Any,  # Can be fhirclient object or dict
     resource_type: str,
     resource_id: str,
     max_depth: int,
@@ -378,9 +509,16 @@ async def _discover_relationships_recursive(
     result: Dict[str, Any],
     include_counts: bool
 ):
-    """Recursively discover relationships from a resource."""
+    """
+    Recursively discover relationships from a resource.
+
+    Fixed 2025-10-05: Handle fhirclient objects properly
+    """
     if current_depth > max_depth:
         return
+
+    # Convert fhirclient object to dictionary if needed
+    resource_dict = resource.as_json() if hasattr(resource, 'as_json') else resource
 
     # Add current resource as a node
     node_id = f"{resource_type}/{resource_id}"
@@ -394,10 +532,10 @@ async def _discover_relationships_recursive(
     # Get reference fields for this resource type
     reference_fields = REFERENCE_FIELDS.get(resource_type, {})
 
-    # Check each reference field
+    # Check each reference field (use resource_dict for field access)
     for field_name, field_config in reference_fields.items():
-        if field_name in resource:
-            references = resource[field_name]
+        if field_name in resource_dict:
+            references = resource_dict[field_name]
             if not isinstance(references, list):
                 references = [references]
 
@@ -436,7 +574,20 @@ async def _discover_relationships_recursive(
                     if target_type and target_id:
                         target_node_id = f"{target_type}/{target_id}"
 
-                        # Add link
+                        # LONG-TERM FIX (2025-10-05): Verify target resource exists before adding link
+                        # This prevents links to non-existent nodes in the graph
+                        target_resource = None
+                        if target_node_id not in visited and current_depth < max_depth:
+                            try:
+                                target_resource = get_resource(target_type, target_id)
+                                if not target_resource:
+                                    logger.debug(f"Skipping forward reference to {target_node_id} - resource not found in FHIR")
+                                    continue
+                            except Exception as e:
+                                logger.debug(f"Skipping forward reference to {target_node_id} - fetch failed: {str(e)}")
+                                continue
+
+                        # Resource exists - safe to add link
                         result["links"].append({
                             "source": node_id,
                             "target": target_node_id,
@@ -447,33 +598,33 @@ async def _discover_relationships_recursive(
                         # Recursively explore if not visited
                         if target_node_id not in visited and current_depth < max_depth:
                             visited.add(target_node_id)
-                            try:
-                                target_resource = get_resource(target_type, target_id)
-                                if target_resource:
-                                    await _discover_relationships_recursive(
-                                        db,
-                                        target_resource,
-                                        target_type,
-                                        target_id,
-                                        max_depth,
-                                        current_depth + 1,
-                                        visited,
-                                        result,
-                                        include_counts
-                                    )
-                            except Exception as e:
-                                logger.warning(f"Could not fetch {target_type}/{target_id}: {str(e)}")
+                            await _discover_relationships_recursive(
+                                db,
+                                target_resource,
+                                target_type,
+                                target_id,
+                                max_depth,
+                                current_depth + 1,
+                                visited,
+                                result,
+                                include_counts
+                            )
 
     # Also check for reverse relationships (resources that reference this one)
     # Updated 2025-10-05: Query HAPI FHIR hfj_res_link table
+    # Fixed 2025-10-05: Join through resource table to match FHIR logical ID
+    # Fixed 2025-10-05: Use r.fhir_id (source resource ID), not target_res.fhir_id
     if include_counts and current_depth < max_depth:
         reverse_refs_query = """
-            SELECT r.res_type as source_type, r.res_id::text as source_id, link.src_path as field_path
+            SELECT r.res_type as source_type, r.fhir_id as source_id, link.src_path as field_path
             FROM hfj_res_link link
             JOIN hfj_resource r ON link.src_resource_id = r.res_id
-            WHERE link.target_resource_type = :target_type AND link.target_resource_id = :target_id
+            JOIN hfj_resource target_res ON link.target_resource_id = target_res.res_id
+            WHERE target_res.res_type = :target_type
+            AND target_res.fhir_id = :target_id
             AND r.res_deleted_at IS NULL
-            LIMIT 50
+            AND target_res.res_deleted_at IS NULL
+            LIMIT 200
         """
 
         result_refs = await db.execute(
@@ -484,7 +635,18 @@ async def _discover_relationships_recursive(
         for row in result_refs:
             source_node_id = f"{row.source_type}/{row.source_id}"
 
-            # Add link
+            # LONG-TERM FIX (2025-10-05): Only add link if source resource actually exists
+            # Verify the resource can be fetched before adding it to the graph
+            try:
+                source_resource = get_resource(row.source_type, row.source_id)
+                if not source_resource:
+                    logger.debug(f"Skipping reverse reference from {source_node_id} - resource not found in FHIR")
+                    continue
+            except Exception as e:
+                logger.debug(f"Skipping reverse reference from {source_node_id} - fetch failed: {str(e)}")
+                continue
+
+            # Resource exists - safe to add link
             result["links"].append({
                 "source": source_node_id,
                 "target": node_id,
@@ -495,22 +657,17 @@ async def _discover_relationships_recursive(
             # Recursively explore if not visited
             if source_node_id not in visited:
                 visited.add(source_node_id)
-                try:
-                    source_resource = get_resource(row.source_type, row.source_id)
-                    if source_resource:
-                        await _discover_relationships_recursive(
-                            db,
-                            source_resource,
-                            row.source_type,
-                            row.source_id,
-                            max_depth,
-                            current_depth + 1,
-                            visited,
-                            result,
-                            include_counts
-                        )
-                except Exception as e:
-                    logger.warning(f"Could not fetch {row.source_type}/{row.source_id}: {str(e)}")
+                await _discover_relationships_recursive(
+                    db,
+                    source_resource,
+                    row.source_type,
+                    row.source_id,
+                    max_depth,
+                    current_depth + 1,
+                    visited,
+                    result,
+                    include_counts
+                )
 
 async def _find_paths_bfs(
     db: AsyncSession,
@@ -552,10 +709,14 @@ async def _find_paths_bfs(
         # Check forward references
         resource = get_resource(current_type, current_id)
         if resource:
+            # Convert fhirclient object to dictionary if needed
+            # Fixed 2025-10-05: Handle fhirclient objects properly
+            resource_dict = resource.as_json() if hasattr(resource, 'as_json') else resource
+
             reference_fields = REFERENCE_FIELDS.get(current_type, {})
             for field_name, field_config in reference_fields.items():
-                if field_name in resource:
-                    references = resource[field_name]
+                if field_name in resource_dict:
+                    references = resource_dict[field_name]
                     if not isinstance(references, list):
                         references = [references]
 
@@ -585,13 +746,17 @@ async def _find_paths_bfs(
                                     queue.append((next_node, path + [next_node]))
 
         # Check reverse references from HAPI FHIR (updated 2025-10-05)
+        # Fixed 2025-10-05: Join through resource table to match FHIR logical ID
         reverse_refs_query = """
-            SELECT r.res_type || '/' || r.res_id::text as source
+            SELECT r.res_type || '/' || r.fhir_id as source
             FROM hfj_res_link link
             JOIN hfj_resource r ON link.src_resource_id = r.res_id
-            WHERE link.target_resource_type = :target_type AND link.target_resource_id = :target_id
+            JOIN hfj_resource target_res ON link.target_resource_id = target_res.res_id
+            WHERE target_res.res_type = :target_type
+            AND target_res.fhir_id = :target_id
             AND r.res_deleted_at IS NULL
-            LIMIT 20
+            AND target_res.res_deleted_at IS NULL
+            LIMIT 100
         """
 
         result_refs = await db.execute(
