@@ -23,9 +23,9 @@ from typing import List, Dict, Optional
 import time
 
 # Configuration
-SYNTHEA_JAR = Path(__file__).parent / "synthea" / "synthea.jar"
-SYNTHEA_OUTPUT = Path(__file__).parent / "synthea" / "output" / "fhir"
-HAPI_FHIR_BASE = os.getenv('HAPI_FHIR_URL', 'http://localhost:8888/fhir')
+SYNTHEA_JAR = Path("/app/synthea/build/libs/synthea-with-dependencies.jar")
+SYNTHEA_OUTPUT = Path("/app/synthea/build/libs/output/fhir")
+HAPI_FHIR_BASE = os.getenv('HAPI_FHIR_URL', 'http://hapi-fhir:8080/fhir')
 
 def run_synthea(num_patients: int = 10, state: str = "Massachusetts"):
     """Generate Synthea FHIR data"""
