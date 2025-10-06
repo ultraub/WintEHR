@@ -185,27 +185,47 @@ async def get_searchable_parameters(
     db = Depends(get_db_session)
 ):
     """
-    Get all searchable parameters for a resource type that have values in the database.
+    Get all searchable parameters for a resource type from HAPI FHIR search indexes.
+
+    Updated: 2025-10-06 - Migrated from fhir.search_params to HAPI JPA indexes
     """
     try:
+        # Query HAPI FHIR JPA search indexes to find available parameters
+        # Combine token and string indexes for comprehensive parameter list
         query = text("""
-            SELECT DISTINCT sp.param_name
-            FROM fhir.search_params sp
-            JOIN fhir.resources r ON sp.resource_id = r.id
-            WHERE r.resource_type = :resource_type
-            ORDER BY sp.param_name
+            SELECT DISTINCT sp_name as param_name
+            FROM (
+                SELECT DISTINCT sp_name FROM hfj_spidx_token
+                WHERE res_type = :resource_type
+                UNION
+                SELECT DISTINCT sp_name FROM hfj_spidx_string
+                WHERE res_type = :resource_type
+                UNION
+                SELECT DISTINCT sp_name FROM hfj_spidx_date
+                WHERE res_type = :resource_type
+                UNION
+                SELECT DISTINCT sp_name FROM hfj_spidx_number
+                WHERE res_type = :resource_type
+                UNION
+                SELECT DISTINCT sp_name FROM hfj_spidx_quantity
+                WHERE res_type = :resource_type
+                UNION
+                SELECT DISTINCT sp_name FROM hfj_spidx_uri
+                WHERE res_type = :resource_type
+            ) AS all_params
+            ORDER BY param_name
         """)
-        
+
         result = db.execute(query, {"resource_type": resource_type})
-        
+
         parameters = [row.param_name for row in result]
-        
+
         return {
             "resource_type": resource_type,
             "parameters": parameters,
             "total": len(parameters)
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting searchable parameters: {str(e)}")
         raise HTTPException(
