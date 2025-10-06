@@ -20,13 +20,30 @@ WintEHR is a complete, FHIR-native Electronic Health Record system designed for 
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Production Deployment (HTTPS with Let's Encrypt)
 
+**Remote server deployment (Recommended):**
+```bash
+./deploy-fresh-server.sh user@your-server.com ~/.ssh/your-key.pem
+```
+
+**Local deployment:**
+```bash
+export DOMAIN="your-domain.com"
+export EMAIL="admin@your-domain.com"
+./deploy-fresh-server.sh
+```
+
+See [QUICKSTART.md](QUICKSTART.md) for quick reference or [DEPLOYMENT.md](DEPLOYMENT.md) for complete documentation.
+
+### Development/Local Testing
+
+**Prerequisites:**
 - Docker & Docker Compose
 - 8GB RAM minimum
 - 20GB free disk space
 
-### One-Command Deployment
+**One-Command Deployment:**
 
 ```bash
 # Clone and deploy

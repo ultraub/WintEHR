@@ -1,0 +1,235 @@
+# WintEHR Deployment Checklist
+
+Use this checklist to ensure a successful deployment.
+
+## Pre-Deployment
+
+### Domain & DNS
+- [ ] Domain purchased and configured
+- [ ] DNS A record points to server IP
+- [ ] DNS propagation verified (dig/nslookup)
+- [ ] Email address for SSL certificate alerts
+
+### Server Requirements
+- [ ] Ubuntu 20.04+ or Debian 11+
+- [ ] 4GB+ RAM (8GB recommended for production)
+- [ ] 20GB+ disk space (50GB+ for production)
+- [ ] SSH access configured
+- [ ] Sudo privileges available
+
+### Network & Security
+- [ ] Port 22 (SSH) accessible
+- [ ] Port 80 (HTTP) open in firewall/security group
+- [ ] Port 443 (HTTPS) open in firewall/security group
+- [ ] Server public IP obtained
+- [ ] SSH key authentication configured
+
+### Local Preparation
+- [ ] Repository cloned locally
+- [ ] SSH key file permissions set (chmod 600)
+- [ ] Environment variables prepared (optional)
+
+## Deployment
+
+### Execute Deployment
+- [ ] Run deployment script
+- [ ] Monitor output for errors
+- [ ] Wait for completion (15-20 minutes)
+
+### Verify SSL Certificate
+- [ ] HTTPS accessible (https://your-domain.com)
+- [ ] Valid SSL certificate (not self-signed)
+- [ ] Auto-redirect from HTTP to HTTPS working
+- [ ] Certificate expiry > 60 days
+
+### Verify Services
+- [ ] Frontend loads (https://your-domain.com)
+- [ ] Backend API responds (https://your-domain.com/api/health)
+- [ ] API docs accessible (https://your-domain.com/docs)
+- [ ] HAPI FHIR metadata (https://your-domain.com/fhir/metadata)
+
+### Verify Data
+- [ ] Can login with demo/password
+- [ ] Patient list displays
+- [ ] Patient records load completely
+- [ ] FHIR resources queryable
+- [ ] Clinical catalogs populated
+
+### Docker Services
+- [ ] All containers running: `docker-compose -f docker-compose.prod.yml ps`
+- [ ] PostgreSQL healthy
+- [ ] Redis healthy
+- [ ] HAPI FHIR healthy
+- [ ] Backend healthy
+- [ ] Frontend healthy
+- [ ] Nginx healthy
+- [ ] Certbot healthy
+
+## Post-Deployment
+
+### Security Hardening
+- [ ] Change default credentials (demo/password)
+- [ ] Review .env.production credentials
+- [ ] Enable JWT authentication (if needed)
+- [ ] Configure fail2ban (optional)
+- [ ] Set up automatic security updates
+- [ ] Review nginx security headers
+- [ ] Restrict database external access
+
+### Backup Setup
+- [ ] Database backup script configured
+- [ ] SSL certificates backed up
+- [ ] .env.production backed up securely
+- [ ] Backup schedule established
+- [ ] Backup restoration tested
+
+### Monitoring Setup (Optional)
+- [ ] Logging configured
+- [ ] Disk space monitoring
+- [ ] CPU/Memory monitoring
+- [ ] SSL expiry monitoring
+- [ ] Service health monitoring
+- [ ] Alert notifications configured
+
+### Documentation
+- [ ] Admin credentials documented securely
+- [ ] Backup procedures documented
+- [ ] Recovery procedures documented
+- [ ] Team access configured
+- [ ] Support contacts established
+
+## Validation Tests
+
+### Frontend Tests
+- [ ] Homepage loads
+- [ ] Login works
+- [ ] Patient list displays
+- [ ] Patient details load
+- [ ] Search functionality works
+- [ ] Navigation responsive
+
+### Backend Tests
+- [ ] Health endpoint: `curl https://your-domain.com/api/health`
+- [ ] API authentication works
+- [ ] CRUD operations functional
+- [ ] Error handling appropriate
+
+### FHIR Tests
+- [ ] Metadata endpoint: `curl https://your-domain.com/fhir/metadata`
+- [ ] Patient search: `curl https://your-domain.com/fhir/Patient`
+- [ ] Resource creation works
+- [ ] Resource retrieval works
+- [ ] FHIR validation working
+
+### Performance Tests
+- [ ] Page load time < 3 seconds
+- [ ] API response time < 500ms
+- [ ] Database queries optimized
+- [ ] Caching working (Redis)
+- [ ] Static assets served with cache headers
+
+### SSL/Security Tests
+- [ ] SSL Labs test (https://www.ssllabs.com/ssltest/)
+- [ ] Security headers present
+- [ ] CORS configured properly
+- [ ] Rate limiting functional
+- [ ] No mixed content warnings
+
+## Production Checklist
+
+### Before Going Live
+- [ ] All default passwords changed
+- [ ] JWT authentication enabled
+- [ ] Production credentials set
+- [ ] API keys configured
+- [ ] Database credentials rotated
+- [ ] Backups automated
+- [ ] Monitoring active
+- [ ] Error tracking configured
+- [ ] Log rotation configured
+- [ ] Documentation complete
+
+### Launch Day
+- [ ] Final backup taken
+- [ ] All services healthy
+- [ ] Team notified
+- [ ] Support plan in place
+- [ ] Rollback plan documented
+- [ ] Performance baseline established
+
+### Post-Launch
+- [ ] Monitor for 24-48 hours
+- [ ] Check error logs
+- [ ] Verify backups working
+- [ ] SSL renewal tested
+- [ ] User feedback collected
+- [ ] Performance metrics tracked
+
+## Maintenance Schedule
+
+### Daily
+- [ ] Check service status
+- [ ] Review error logs
+- [ ] Monitor disk space
+
+### Weekly
+- [ ] System updates: `sudo apt update && sudo apt upgrade`
+- [ ] Review security logs
+- [ ] Check backup success
+- [ ] Test SSL renewal (dry-run)
+
+### Monthly
+- [ ] Update Docker images
+- [ ] Database maintenance/vacuum
+- [ ] Review and rotate logs
+- [ ] Test backup restoration
+- [ ] Security audit
+- [ ] Performance review
+
+### Quarterly
+- [ ] Full security audit
+- [ ] Disaster recovery drill
+- [ ] Capacity planning review
+- [ ] Documentation update
+- [ ] Team training/review
+
+## Troubleshooting Reference
+
+### Service Won't Start
+```bash
+docker-compose -f docker-compose.prod.yml logs <service>
+docker-compose -f docker-compose.prod.yml restart <service>
+```
+
+### SSL Issues
+```bash
+docker-compose -f docker-compose.prod.yml run --rm certbot certificates
+docker-compose -f docker-compose.prod.yml run --rm certbot renew --dry-run
+```
+
+### Database Issues
+```bash
+docker exec emr-postgres pg_isready -U emr_user -d emr_db
+docker exec -it emr-postgres psql -U emr_user -d emr_db
+```
+
+### Performance Issues
+```bash
+docker stats
+df -h
+free -h
+```
+
+## Sign-Off
+
+Deployment completed by: _____________________ Date: __________
+Reviewed by: _____________________ Date: __________
+Production approved: _____________________ Date: __________
+
+## Notes
+
+Use this section for deployment-specific notes, issues encountered, or customizations made:
+
+_____________________________________________________________
+_____________________________________________________________
+_____________________________________________________________
