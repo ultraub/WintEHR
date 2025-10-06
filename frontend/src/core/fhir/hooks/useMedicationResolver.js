@@ -3,7 +3,7 @@
  * Resolves Medication references from MedicationRequest resources
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { fhirClient } from '../core/fhir/services/fhirClient';
+import { fhirClient } from '../services/fhirClient';
 
 // Cache for resolved medications to avoid repeated fetches
 const medicationCache = new Map();
