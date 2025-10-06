@@ -49,7 +49,7 @@ async def get_distinct_values(
             LIMIT :limit
         """)
 
-        result = db.execute(
+        result = await db.execute(
             query,
             {
                 "resource_type": resource_type,
@@ -90,7 +90,7 @@ async def get_distinct_values(
                 LIMIT :limit
             """)
 
-            result = db.execute(
+            result = await db.execute(
                 string_query,
                 {
                     "resource_type": resource_type,
@@ -216,7 +216,7 @@ async def get_searchable_parameters(
             ORDER BY param_name
         """)
 
-        result = db.execute(query, {"resource_type": resource_type})
+        result = await db.execute(query, {"resource_type": resource_type})
 
         parameters = [row.param_name for row in result]
 
