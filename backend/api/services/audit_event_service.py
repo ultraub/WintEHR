@@ -226,8 +226,10 @@ class AuditEventService:
 
             # Add resource entity if provided
             if resource_type and resource_id:
+                # Use display to avoid HAPI validation when resource doesn't exist
+                resource_ref = {"display": f"{resource_type}/{resource_id}"}
                 entity = {
-                    "what": {"reference": f"{resource_type}/{resource_id}"},
+                    "what": resource_ref,
                     "type": {
                         "system": "http://terminology.hl7.org/CodeSystem/audit-entity-type",
                         "code": "2",
