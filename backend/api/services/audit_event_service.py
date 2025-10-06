@@ -161,6 +161,8 @@ class AuditEventService:
 
             # Add user agent
             if user_id:
+                # Use display instead of reference to avoid validation errors
+                # when the Practitioner doesn't exist yet
                 agent = {
                     "type": {
                         "coding": [{
@@ -169,7 +171,7 @@ class AuditEventService:
                             "display": "Author"
                         }]
                     },
-                    "who": {"reference": f"Practitioner/{user_id}"},
+                    "who": {"display": user_id},  # Use display to avoid reference validation
                     "requestor": True
                 }
 
@@ -203,8 +205,13 @@ class AuditEventService:
 
             # Add patient entity if provided
             if patient_id:
+                # Use display to avoid reference validation when patient doesn't exist
+                patient_ref = {"display": patient_id}
+                # If patient_id looks like it includes "Patient/", use as reference
+                if patient_id.startswith("Patient/"):
+                    patient_ref = {"display": patient_id}
                 audit_event["entity"].append({
-                    "what": {"reference": f"Patient/{patient_id}"},
+                    "what": patient_ref,
                     "type": {
                         "system": "http://terminology.hl7.org/CodeSystem/audit-entity-type",
                         "code": "1",
