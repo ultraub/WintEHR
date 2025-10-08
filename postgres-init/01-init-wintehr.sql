@@ -27,6 +27,11 @@ BEGIN
         CREATE SCHEMA cds_hooks;
         RAISE NOTICE 'Created schema: cds_hooks';
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'audit') THEN
+        CREATE SCHEMA audit;
+        RAISE NOTICE 'Created schema: audit';
+    END IF;
 END$$;
 
 -- ========================================================================
@@ -58,6 +63,28 @@ CREATE TABLE IF NOT EXISTS auth.user_roles (
     user_id INTEGER REFERENCES auth.users(id) ON DELETE CASCADE,
     role_id INTEGER REFERENCES auth.roles(id) ON DELETE CASCADE,
     PRIMARY KEY (user_id, role_id)
+);
+
+-- ========================================================================
+-- Audit Logging Tables
+-- ========================================================================
+
+-- Audit events table for security and compliance logging
+CREATE TABLE IF NOT EXISTS audit.events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_type VARCHAR(100) NOT NULL,
+    event_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_id VARCHAR(255),
+    patient_id VARCHAR(255),
+    resource_type VARCHAR(100),
+    resource_id VARCHAR(255),
+    action VARCHAR(50),
+    outcome VARCHAR(50) DEFAULT 'success',
+    details JSONB,
+    ip_address INET,
+    user_agent TEXT,
+    session_id VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ========================================================================
@@ -100,6 +127,14 @@ CREATE TABLE IF NOT EXISTS cds_hooks.execution_log (
 -- ========================================================================
 
 \echo 'Creating indexes for performance optimization...'
+
+-- Audit indexes
+CREATE INDEX IF NOT EXISTS idx_audit_event_time ON audit.events(event_time);
+CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit.events(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_patient_id ON audit.events(patient_id);
+CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit.events(resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_event_type ON audit.events(event_type);
+CREATE INDEX IF NOT EXISTS idx_audit_outcome ON audit.events(outcome);
 
 -- CDS Hooks indexes
 CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_active ON cds_hooks.hook_configurations(is_active);
@@ -177,12 +212,15 @@ ON CONFLICT (username) DO NOTHING;
 -- Grant appropriate permissions to emr_user
 GRANT USAGE ON SCHEMA auth TO emr_user;
 GRANT USAGE ON SCHEMA cds_hooks TO emr_user;
+GRANT USAGE ON SCHEMA audit TO emr_user;
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA auth TO emr_user;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cds_hooks TO emr_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA audit TO emr_user;
 
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA auth TO emr_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA cds_hooks TO emr_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA audit TO emr_user;
 
 -- ========================================================================
 -- Verification and Summary
@@ -197,12 +235,12 @@ DECLARE
 BEGIN
     SELECT COUNT(*) INTO schema_count
     FROM information_schema.schemata
-    WHERE schema_name IN ('auth', 'cds_hooks');
+    WHERE schema_name IN ('auth', 'cds_hooks', 'audit');
 
-    IF schema_count = 2 THEN
+    IF schema_count = 3 THEN
         RAISE NOTICE '✅ All schemas created successfully';
     ELSE
-        RAISE EXCEPTION '❌ Schema creation failed. Expected 2, found %', schema_count;
+        RAISE EXCEPTION '❌ Schema creation failed. Expected 3, found %', schema_count;
     END IF;
 END$$;
 
@@ -214,12 +252,13 @@ BEGIN
     SELECT COUNT(*) INTO table_count
     FROM information_schema.tables
     WHERE (table_schema = 'auth' AND table_name IN ('users', 'roles', 'user_roles'))
-       OR (table_schema = 'cds_hooks' AND table_name IN ('hook_configurations', 'execution_log'));
+       OR (table_schema = 'cds_hooks' AND table_name IN ('hook_configurations', 'execution_log'))
+       OR (table_schema = 'audit' AND table_name = 'events');
 
-    IF table_count = 5 THEN
+    IF table_count = 6 THEN
         RAISE NOTICE '✅ All core tables created successfully';
     ELSE
-        RAISE EXCEPTION '❌ Table creation failed. Expected 5, found %', table_count;
+        RAISE EXCEPTION '❌ Table creation failed. Expected 6, found %', table_count;
     END IF;
 END$$;
 
@@ -229,10 +268,10 @@ SELECT
     schemaname,
     COUNT(*) as table_count
 FROM pg_tables
-WHERE schemaname IN ('auth', 'cds_hooks')
+WHERE schemaname IN ('auth', 'cds_hooks', 'audit')
 GROUP BY schemaname
 ORDER BY schemaname;
 
 \echo '✅ WintEHR database initialization completed successfully!'
-\echo 'Database is ready for authentication and CDS Hooks.'
+\echo 'Database is ready for authentication, CDS Hooks, and audit logging.'
 \echo 'FHIR data is managed by HAPI FHIR server in its own tables.'

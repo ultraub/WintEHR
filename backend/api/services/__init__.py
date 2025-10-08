@@ -1,9 +1,9 @@
 """
 API Services Module
 
-Migration Note (2025-10-06):
-- audit_service.py (deprecated) -> uses fhir.audit_logs table
-- audit_event_service.py (current) -> uses HAPI FHIR AuditEvent resources
+Audit Services:
+- audit_service.py (database table approach) -> uses audit.events table
+- audit_event_service.py (FHIR resource approach) -> uses HAPI FHIR AuditEvent resources
 """
 
 from .audit_event_service import AuditEventService, AuditEventType

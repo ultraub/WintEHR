@@ -84,7 +84,7 @@ class AuditService:
             
             # Prepare the audit log entry
             query = text("""
-                INSERT INTO fhir.audit_logs (
+                INSERT INTO audit.events (
                     id,
                     event_type,
                     event_time,
@@ -258,7 +258,7 @@ class AuditService:
     ) -> list:
         """Get audit logs for a specific user"""
         query = text("""
-            SELECT * FROM fhir.audit_logs
+            SELECT * FROM audit.events
             WHERE user_id = :user_id
             AND (:start_date IS NULL OR event_time >= :start_date)
             AND (:end_date IS NULL OR event_time <= :end_date)
@@ -286,7 +286,7 @@ class AuditService:
     ) -> list:
         """Get all access logs for a specific patient"""
         query = text("""
-            SELECT * FROM fhir.audit_logs
+            SELECT * FROM audit.events
             WHERE patient_id = :patient_id
             AND (:start_date IS NULL OR event_time >= :start_date)
             AND (:end_date IS NULL OR event_time <= :end_date)
@@ -312,7 +312,7 @@ class AuditService:
     ) -> list:
         """Get failed login attempts for security monitoring"""
         query = text("""
-            SELECT * FROM fhir.audit_logs
+            SELECT * FROM audit.events
             WHERE event_type = :event_type
             AND (:username IS NULL OR details->>'username' = :username)
             AND (:since IS NULL OR event_time >= :since)
