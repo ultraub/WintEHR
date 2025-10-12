@@ -17,42 +17,44 @@ JWT_REFRESH_TOKEN_EXPIRE_DELTA = timedelta(days=7)  # 7 days
 USE_SECURE_AUTH = os.getenv("USE_SECURE_AUTH", "false").lower() == "true" or JWT_ENABLED
 
 # Training mode users
+# ✅ Updated to use FHIR Practitioner IDs (matches Practitioner resources in HAPI FHIR)
+# These IDs correspond to Practitioner resources created by create_demo_practitioners.py
 TRAINING_USERS = {
     "demo": {
-        "id": "demo-user-001",
+        "id": "demo-physician",  # ✅ Matches Practitioner/demo-physician in HAPI FHIR
         "username": "demo",
-        "name": "Demo User",
-        "email": "demo@wintehr.training",
+        "name": "Dr. Demo Physician",
+        "email": "demo@wintehr.example.com",
         "role": "physician",
-        "permissions": ["read", "write", "admin"],
-        "department": "Internal Medicine"
+        "permissions": ["read", "write", "prescribe", "order:medication", "order:lab", "order:imaging", "admin"],
+        "department": "General Practice"
     },
     "nurse": {
-        "id": "nurse-user-001", 
+        "id": "demo-nurse",  # ✅ Matches Practitioner/demo-nurse in HAPI FHIR
         "username": "nurse",
-        "name": "Nurse User",
-        "email": "nurse@wintehr.training",
+        "name": "RN Demo Nurse",
+        "email": "nurse@wintehr.example.com",
         "role": "nurse",
-        "permissions": ["read", "write"],
-        "department": "Nursing"
+        "permissions": ["read", "write", "order:lab"],
+        "department": "Medical-Surgical Nursing"
     },
     "pharmacist": {
-        "id": "pharmacist-user-001",
-        "username": "pharmacist", 
-        "name": "Pharmacist User",
-        "email": "pharmacist@wintehr.training",
+        "id": "demo-pharmacist",  # ✅ Matches Practitioner/demo-pharmacist in HAPI FHIR
+        "username": "pharmacist",
+        "name": "PharmD Demo Pharmacist",
+        "email": "pharmacist@wintehr.example.com",
         "role": "pharmacist",
-        "permissions": ["read", "write", "department:pharmacy"],
-        "department": "Pharmacy"
+        "permissions": ["read", "write", "pharmacy:dispense", "pharmacy:review"],
+        "department": "Clinical Pharmacy"
     },
     "admin": {
-        "id": "admin-user-001",
+        "id": "demo-admin",  # ✅ Matches Practitioner/demo-admin in HAPI FHIR
         "username": "admin",
-        "name": "System Admin",
-        "email": "admin@wintehr.training", 
+        "name": "Dr. Demo Administrator",
+        "email": "admin@wintehr.example.com",
         "role": "admin",
-        "permissions": ["read", "write", "admin", "system"],
-        "department": "IT"
+        "permissions": ["read", "write", "admin", "system", "prescribe", "order:medication", "order:lab", "order:imaging"],
+        "department": "Hospital Administration"
     }
 }
 

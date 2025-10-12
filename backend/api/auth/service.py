@@ -21,12 +21,14 @@ security = HTTPBearer(auto_error=False)
 
 class AuthService:
     """Authentication service handling both training and production modes"""
-    
+
+    # Class-level session storage (shared across all instances)
+    # In production, this should use Redis or proper session storage
+    training_sessions: Dict[str, Dict[str, Any]] = {}
+    failed_attempts: Dict[str, list] = {}  # IP -> list of attempt timestamps
+
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.training_sessions: Dict[str, Dict[str, Any]] = {}
-        # Simple in-memory rate limiting (should use Redis in production)
-        self.failed_attempts: Dict[str, list] = {}  # IP -> list of attempt timestamps
     
     async def authenticate_user(self, username: str, password: str) -> Optional[User]:
         """Authenticate user based on current mode"""
@@ -116,7 +118,7 @@ class AuthService:
         else:
             # Training mode - return simple session
             session_token = f"training-session-{secrets.token_urlsafe(32)}"
-            self.training_sessions[session_token] = {
+            AuthService.training_sessions[session_token] = {
                 "user": user.dict(),
                 "created_at": datetime.utcnow()
             }
@@ -146,7 +148,7 @@ class AuthService:
             return None
         else:
             # Check training session
-            session = self.training_sessions.get(token)
+            session = AuthService.training_sessions.get(token)
             if session:
                 return User(**session["user"])
             return None
@@ -157,14 +159,14 @@ class AuthService:
         window_start = now - timedelta(minutes=window_minutes)
         
         # Clean old attempts
-        if ip_address in self.failed_attempts:
-            self.failed_attempts[ip_address] = [
-                attempt for attempt in self.failed_attempts[ip_address]
+        if ip_address in AuthService.failed_attempts:
+            AuthService.failed_attempts[ip_address] = [
+                attempt for attempt in AuthService.failed_attempts[ip_address]
                 if attempt > window_start
             ]
         
         # Check if too many attempts
-        attempts = self.failed_attempts.get(ip_address, [])
+        attempts = AuthService.failed_attempts.get(ip_address, [])
         if len(attempts) >= max_attempts:
             # Log suspicious activity (HAPI FHIR AuditEvent)
             audit = AuditEventService()
@@ -186,9 +188,9 @@ class AuthService:
     def _record_failed_attempt(self, ip_address: str):
         """Record a failed login attempt for rate limiting"""
         if ip_address:
-            if ip_address not in self.failed_attempts:
-                self.failed_attempts[ip_address] = []
-            self.failed_attempts[ip_address].append(datetime.utcnow())
+            if ip_address not in AuthService.failed_attempts:
+                AuthService.failed_attempts[ip_address] = []
+            AuthService.failed_attempts[ip_address].append(datetime.utcnow())
 
 
 # Dependency to get auth service
@@ -209,25 +211,33 @@ async def get_current_user(
 ) -> User:
     """Get current authenticated user from request"""
     token = None
-    
+
     # Check Bearer token first
     if credentials and credentials.credentials:
         token = credentials.credentials
     # Fall back to Authorization header
     elif authorization and authorization.startswith("Bearer "):
         token = authorization.replace("Bearer ", "")
-    
+
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # Get auth service
+
+    # Try Practitioner auth first (new system)
+    if token.startswith("practitioner-session-"):
+        from .practitioner_auth_service import get_practitioner_auth_service
+        practitioner_service = get_practitioner_auth_service()
+        user = await practitioner_service.validate_session(token)
+        if user:
+            return user
+
+    # Fall back to legacy auth service
     db = await get_db_session().__anext__()
     auth_service = AuthService(db)
-    
+
     user = await auth_service.get_current_user_from_token(token)
     if not user:
         raise HTTPException(
@@ -235,7 +245,7 @@ async def get_current_user(
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     return user
 
 

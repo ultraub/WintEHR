@@ -324,6 +324,17 @@ if [ "$SKIP_DATA" = false ]; then
         echo -e "${YELLOW}⚠️  DICOM generation had issues (non-critical)${NC}"
         echo "   Imaging studies will be available without DICOM files"
     fi
+
+    # Create demo Practitioner resources
+    echo -e "${BLUE}👨‍⚕️ Creating demo Practitioner resources...${NC}"
+    if docker exec emr-backend \
+        python scripts/active/create_demo_practitioners.py; then
+        echo -e "${GREEN}✅ Demo Practitioners created successfully${NC}"
+        echo "   Demo users (physician, nurse, pharmacist, admin) now have valid Practitioner resources"
+    else
+        echo -e "${YELLOW}⚠️  Demo Practitioner creation had issues (non-critical)${NC}"
+        echo "   Demo users may need to be created manually"
+    fi
     echo ""
 else
     echo -e "${YELLOW}⏭️  Skipping patient data generation (--skip-data flag)${NC}"

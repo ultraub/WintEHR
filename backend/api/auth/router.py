@@ -9,6 +9,7 @@ from typing import List
 
 from database import get_db_session
 from .service import AuthService, get_auth_service, get_current_user
+from .practitioner_auth_service import PractitionerAuthService, get_practitioner_auth_service
 from .models import LoginRequest, User, AuthConfig
 from .config import JWT_ENABLED, TRAINING_USERS
 
@@ -114,3 +115,54 @@ async def auth_health_check():
         "mode": "production" if JWT_ENABLED else "training",
         "jwt_enabled": JWT_ENABLED
     }
+
+
+# ========================================
+# Practitioner-based Authentication
+# ========================================
+
+@router.get("/practitioners")
+async def list_practitioners(
+    practitioner_service: PractitionerAuthService = Depends(get_practitioner_auth_service)
+):
+    """
+    List all active Practitioners for login selection.
+
+    Returns simplified practitioner info including:
+    - ID
+    - Full name
+    - Family name (for login)
+    - NPI
+    - Email
+    """
+    practitioners = await practitioner_service.list_all_practitioners()
+    return {
+        "practitioners": practitioners,
+        "total": len(practitioners),
+        "login_instructions": "Use family name, NPI, or ID to log in"
+    }
+
+
+@router.post("/practitioners/login")
+async def practitioner_login(
+    login_request: LoginRequest,
+    request: Request,
+    practitioner_service: PractitionerAuthService = Depends(get_practitioner_auth_service)
+):
+    """
+    Login as a Practitioner using family name, NPI, or Practitioner ID.
+
+    Examples:
+    - username: "Reilly981" (family name)
+    - username: "9999984591" (NPI)
+    - username: "78" (Practitioner ID)
+
+    Password is optional in development mode.
+
+    Returns authentication token and user information.
+    """
+    return await practitioner_service.login(
+        identifier=login_request.username,
+        password=login_request.password,
+        request=request
+    )
