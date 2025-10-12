@@ -33,10 +33,11 @@ case "$1" in
         echo ""
         echo -e "${BLUE}Resource Summary:${NC}"
         docker exec emr-postgres psql -U emr_user -d emr_db -c "
-            SELECT resource_type, COUNT(*) as count 
-            FROM fhir.resources 
-            GROUP BY resource_type 
-            ORDER BY count DESC 
+            SELECT res_type as resource_type, COUNT(*) as count
+            FROM hfj_resource
+            WHERE res_deleted_at IS NULL
+            GROUP BY res_type
+            ORDER BY count DESC
             LIMIT 10;" 2>/dev/null || echo "Database not accessible"
         exit 0
         ;;
