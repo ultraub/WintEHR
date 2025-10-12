@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 
-# HAPI FHIR Communication notification service (2025-10-05)
+# HAPI FHIR Communication notification service
 from api.services.notification_service import get_notification_service
 
 # Critical value ranges for common lab tests

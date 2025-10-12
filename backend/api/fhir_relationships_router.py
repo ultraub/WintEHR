@@ -315,8 +315,6 @@ async def get_relationship_statistics(
     """
     Get statistical information about relationships in the database.
     Useful for understanding data patterns and connectivity.
-
-    Updated: 2025-10-05 - Migrated to HAPI FHIR JPA tables
     """
     try:
         stats = {
@@ -362,7 +360,7 @@ async def get_relationship_statistics(
 
         # Find most connected resources from HAPI FHIR
         # Count both outgoing and incoming links
-        # Fixed 2025-10-05: Cast all resource_id to text for UNION compatibility
+        # Cast all resource_id to text for UNION compatibility
         connected_query = """
             WITH outgoing_connections AS (
                 SELECT
@@ -466,7 +464,7 @@ def _get_resource_display(resource: Any) -> str:
     Extract a display name from a FHIR resource.
 
     Handles both fhirclient objects and dictionaries.
-    Fixed 2025-10-05: Convert fhirclient objects to dict first
+    Convert fhirclient objects to dict first
     """
     # Convert fhirclient object to dictionary if needed
     if hasattr(resource, 'as_json'):
@@ -512,7 +510,7 @@ async def _discover_relationships_recursive(
     """
     Recursively discover relationships from a resource.
 
-    Fixed 2025-10-05: Handle fhirclient objects properly
+    Handle fhirclient objects properly
     """
     if current_depth > max_depth:
         return
@@ -574,7 +572,7 @@ async def _discover_relationships_recursive(
                     if target_type and target_id:
                         target_node_id = f"{target_type}/{target_id}"
 
-                        # LONG-TERM FIX (2025-10-05): Verify target resource exists before adding link
+                        # Verify target resource exists before adding link
                         # This prevents links to non-existent nodes in the graph
                         target_resource = None
                         if target_node_id not in visited and current_depth < max_depth:
@@ -611,9 +609,9 @@ async def _discover_relationships_recursive(
                             )
 
     # Also check for reverse relationships (resources that reference this one)
-    # Updated 2025-10-05: Query HAPI FHIR hfj_res_link table
-    # Fixed 2025-10-05: Join through resource table to match FHIR logical ID
-    # Fixed 2025-10-05: Use r.fhir_id (source resource ID), not target_res.fhir_id
+    # Query HAPI FHIR hfj_res_link table
+    # Join through resource table to match FHIR logical ID
+    # Use r.fhir_id (source resource ID), not target_res.fhir_id
     if include_counts and current_depth < max_depth:
         reverse_refs_query = """
             SELECT r.res_type as source_type, r.fhir_id as source_id, link.src_path as field_path
@@ -635,7 +633,7 @@ async def _discover_relationships_recursive(
         for row in result_refs:
             source_node_id = f"{row.source_type}/{row.source_id}"
 
-            # LONG-TERM FIX (2025-10-05): Only add link if source resource actually exists
+            # Only add link if source resource actually exists
             # Verify the resource can be fetched before adding it to the graph
             try:
                 source_resource = get_resource(row.source_type, row.source_id)
@@ -710,7 +708,7 @@ async def _find_paths_bfs(
         resource = get_resource(current_type, current_id)
         if resource:
             # Convert fhirclient object to dictionary if needed
-            # Fixed 2025-10-05: Handle fhirclient objects properly
+            # Handle fhirclient objects properly
             resource_dict = resource.as_json() if hasattr(resource, 'as_json') else resource
 
             reference_fields = REFERENCE_FIELDS.get(current_type, {})
@@ -745,8 +743,8 @@ async def _find_paths_bfs(
                                 if next_node not in path:  # Avoid cycles
                                     queue.append((next_node, path + [next_node]))
 
-        # Check reverse references from HAPI FHIR (updated 2025-10-05)
-        # Fixed 2025-10-05: Join through resource table to match FHIR logical ID
+        # Check reverse references from HAPI FHIR
+        # Join through resource table to match FHIR logical ID
         reverse_refs_query = """
             SELECT r.res_type || '/' || r.fhir_id as source
             FROM hfj_res_link link

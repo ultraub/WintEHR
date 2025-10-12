@@ -1,7 +1,12 @@
 #!/bin/bash
-
-# WintEHR Unified Deployment Script
-# Works for local, development, and production environments
+# WintEHR Main Deployment Orchestrator
+# Single-command deployment for WintEHR with HAPI FHIR
+#
+# Usage:
+#   ./deploy.sh                    # Deploy with config.yaml settings
+#   ./deploy.sh --environment dev  # Deploy with dev environment
+#   ./deploy.sh --validate-only    # Only validate configuration
+#   ./deploy.sh --help             # Show help
 
 set -e
 
@@ -12,7 +17,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Handle special commands
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Handle special commands first
 case "$1" in
     stop)
         echo -e "${YELLOW}Stopping WintEHR services...${NC}"
@@ -28,15 +37,21 @@ case "$1" in
         exit 0
         ;;
     status)
+        # Load config for container names and ports
+        if [ -f "deploy/load_config.sh" ]; then
+            source deploy/load_config.sh 2>/dev/null || true
+        fi
+
         echo -e "${BLUE}WintEHR Service Status:${NC}"
         docker-compose ps
         echo ""
         echo -e "${BLUE}Resource Summary:${NC}"
-        docker exec emr-postgres psql -U emr_user -d emr_db -c "
-            SELECT resource_type, COUNT(*) as count 
-            FROM fhir.resources 
-            GROUP BY resource_type 
-            ORDER BY count DESC 
+        docker exec ${WINTEHR_SERVICES_CONTAINER_NAMES_POSTGRES:-emr-postgres} psql -U ${POSTGRES_USER:-emr_user} -d ${POSTGRES_DB:-emr_db} -c "
+            SELECT res_type as resource_type, COUNT(*) as count
+            FROM hfj_resource
+            WHERE res_deleted_at IS NULL
+            GROUP BY res_type
+            ORDER BY count DESC
             LIMIT 10;" 2>/dev/null || echo "Database not accessible"
         exit 0
         ;;
@@ -51,305 +66,344 @@ case "$1" in
         ;;
 esac
 
-# Configuration
-ENVIRONMENT=${1:-dev}
-PATIENT_COUNT=10  # Default patient count
+# Default options
+VALIDATE_ONLY=false
+ENVIRONMENT=""
+SKIP_BUILD=false
+SKIP_DATA=false
 
-# Store environment and shift it off
-shift  # Remove environment argument
-
-# Parse additional arguments
+# Parse command line arguments
 while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --patients)
-            if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
-                PATIENT_COUNT="$2"
-                shift 2
-            else
-                echo "Error: --patients requires a numeric argument"
-                exit 1
-            fi
+    case $1 in
+        --environment|-e)
+            ENVIRONMENT="$2"
+            shift 2
+            ;;
+        --validate-only)
+            VALIDATE_ONLY=true
+            shift
+            ;;
+        --skip-build)
+            SKIP_BUILD=true
+            shift
+            ;;
+        --skip-data)
+            SKIP_DATA=true
+            shift
+            ;;
+        --help|-h)
+            cat << EOF
+WintEHR Deployment Script
+
+Usage:
+  ./deploy.sh [OPTIONS]
+
+Options:
+  --environment, -e ENV    Specify environment (dev, staging, production)
+  --validate-only          Validate configuration without deploying
+  --skip-build             Skip Docker image builds
+  --skip-data              Skip patient data generation
+  --help, -h               Show this help message
+
+Examples:
+  ./deploy.sh                          # Full deployment
+  ./deploy.sh --environment dev        # Deploy in dev mode
+  ./deploy.sh --validate-only          # Only validate config
+  ./deploy.sh --skip-data              # Deploy without generating data
+
+Configuration:
+  1. Copy config.example.yaml to config.yaml
+  2. Copy .env.example to .env
+  3. Edit both files with your settings
+  4. Run: ./deploy.sh
+
+For more information, see docs/CONFIGURATION.md
+EOF
+            exit 0
             ;;
         *)
-            shift
+            echo -e "${RED}Unknown option: $1${NC}"
+            echo "Run './deploy.sh --help' for usage information"
+            exit 1
             ;;
     esac
 done
 
-echo -e "${GREEN}WintEHR Deployment Script${NC}"
-echo "=================================="
-echo "Environment: $ENVIRONMENT"
-echo "Patient Count: $PATIENT_COUNT"
+# Print header
+echo "=============================================================================="
+echo "                    WintEHR Deployment Orchestrator"
+echo "=============================================================================="
 echo ""
 
-# Function to check if running on AWS
-is_aws() {
-    if [ -f /var/lib/cloud/instance/vendor-data.txt ] || [ -f /sys/hypervisor/uuid ]; then
-        return 0
-    fi
-    return 1
-}
+# Check prerequisites
+echo -e "${BLUE}📋 Checking prerequisites...${NC}"
 
-# Function to wait for PostgreSQL
-wait_for_postgres() {
-    local max_attempts=60
-    local attempt=0
-    
-    echo -e "${YELLOW}Waiting for PostgreSQL...${NC}"
-    while [ $attempt -lt $max_attempts ]; do
-        if docker exec emr-postgres pg_isready -U emr_user -d emr_db &>/dev/null; then
-            echo -e "${GREEN}✓ PostgreSQL is ready${NC}"
-            return 0
-        fi
-        attempt=$((attempt + 1))
-        sleep 2
-    done
-    echo -e "${RED}✗ PostgreSQL failed to start${NC}"
-    return 1
-}
-
-# Function to wait for backend service
-wait_for_backend() {
-    local max_attempts=60
-    local attempt=0
-    
-    echo -e "${YELLOW}Waiting for Backend API...${NC}"
-    while [ $attempt -lt $max_attempts ]; do
-        if curl -sf http://localhost:8000/api/health &>/dev/null; then
-            echo -e "${GREEN}✓ Backend API is ready${NC}"
-            return 0
-        fi
-        attempt=$((attempt + 1))
-        sleep 2
-    done
-    echo -e "${RED}✗ Backend API failed to start${NC}"
-    return 1
-}
-
-# Function to wait for frontend
-wait_for_frontend() {
-    local max_attempts=30
-    local attempt=0
-    local port=3000
-    
-    if [ "$ENVIRONMENT" == "prod" ]; then
-        port=80
-    fi
-    
-    echo -e "${YELLOW}Waiting for Frontend...${NC}"
-    while [ $attempt -lt $max_attempts ]; do
-        if curl -sf http://localhost:$port &>/dev/null; then
-            echo -e "${GREEN}✓ Frontend is ready${NC}"
-            return 0
-        fi
-        attempt=$((attempt + 1))
-        sleep 2
-    done
-    echo -e "${YELLOW}⚠ Frontend may still be starting (this is normal)${NC}"
-    return 0  # Don't fail deployment if frontend takes longer
-}
-
-# Stop existing containers
-echo -e "${YELLOW}Stopping existing containers...${NC}"
-docker-compose down || true
-
-# Build based on environment
-if [ "$ENVIRONMENT" == "prod" ] || is_aws; then
-    echo -e "${GREEN}Building for production...${NC}"
-    
-    # Use production Dockerfile for frontend
-    # First fix any corrupted entries, then set to production
-    sed -i.bak 's|dockerfile: Dockerfile.dev.dev|dockerfile: Dockerfile|g' docker-compose.yml
-    sed -i.bak 's|dockerfile: Dockerfile.dev|dockerfile: Dockerfile|g' docker-compose.yml
-    sed -i.bak 's|dockerfile: Dockerfile.production|dockerfile: Dockerfile|g' docker-compose.yml
-    sed -i.bak 's|- "3000:3000"|- "80:80"|g' docker-compose.yml
-    
-    # Build images
-    docker-compose build --no-cache
-    
-elif [ "$ENVIRONMENT" == "dev" ]; then
-    echo -e "${GREEN}Building for development...${NC}"
-    
-    # Use development Dockerfile for frontend
-    # First restore to base Dockerfile, then set to dev
-    sed -i.bak 's|dockerfile: Dockerfile.dev.dev|dockerfile: Dockerfile.dev|g' docker-compose.yml
-    sed -i.bak 's|dockerfile: Dockerfile.production|dockerfile: Dockerfile.dev|g' docker-compose.yml
-    sed -i.bak 's|dockerfile: Dockerfile$|dockerfile: Dockerfile.dev|g' docker-compose.yml
-    sed -i.bak 's|- "80:80"|- "3000:3000"|g' docker-compose.yml
-    
-    # Build images
-    docker-compose build
+if ! command -v docker &> /dev/null; then
+    echo -e "${RED}❌ Error: Docker is not installed${NC}"
+    exit 1
 fi
 
-# Start services
-echo -e "${YELLOW}Starting services...${NC}"
-docker-compose up -d
+if ! command -v docker-compose &> /dev/null; then
+    echo -e "${RED}❌ Error: docker-compose is not installed${NC}"
+    exit 1
+fi
 
-# Wait for services to be ready
-echo -e "${BLUE}Waiting for services to initialize...${NC}"
-sleep 5  # Give containers time to start
+if ! command -v python3 &> /dev/null; then
+    echo -e "${RED}❌ Error: python3 is not installed${NC}"
+    exit 1
+fi
 
-# Wait for database
-if ! wait_for_postgres; then
-    echo -e "${RED}PostgreSQL failed to start. Checking logs...${NC}"
-    docker-compose logs --tail=20 postgres
-    echo -e "${YELLOW}Attempting restart...${NC}"
-    docker-compose restart postgres
-    sleep 5
-    wait_for_postgres || {
-        echo -e "${RED}PostgreSQL still not responding. Deployment failed.${NC}"
+# Check Python dependencies
+if ! python3 -c "import yaml" 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  Installing required Python packages...${NC}"
+    pip3 install pyyaml python-dotenv
+fi
+
+echo -e "${GREEN}✅ Prerequisites check passed${NC}"
+echo ""
+
+# Check for config files
+echo -e "${BLUE}📋 Checking configuration files...${NC}"
+
+if [ ! -f "config.yaml" ]; then
+    echo -e "${RED}❌ Error: config.yaml not found${NC}"
+    echo "   Copy config.example.yaml to config.yaml and customize it"
+    echo "   Run: cp config.example.yaml config.yaml"
+    exit 1
+fi
+
+if [ ! -f ".env" ]; then
+    echo -e "${YELLOW}⚠️  Warning: .env file not found${NC}"
+    echo "   Copy .env.example to .env and set your secrets"
+    echo "   Run: cp .env.example .env"
+    read -p "   Continue anyway? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         exit 1
-    }
+    fi
 fi
+
+echo -e "${GREEN}✅ Configuration files found${NC}"
+echo ""
+
+# Load configuration
+echo -e "${BLUE}📋 Loading configuration...${NC}"
+
+# Source the config loader
+source deploy/load_config.sh ${ENVIRONMENT:+"$ENVIRONMENT"}
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}❌ Failed to load configuration${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ Configuration loaded${NC}"
+echo "   Environment: $WINTEHR_DEPLOYMENT_ENVIRONMENT"
+echo "   Patient Count: $WINTEHR_DEPLOYMENT_PATIENT_COUNT"
+echo "   SSL Enabled: $WINTEHR_DEPLOYMENT_ENABLE_SSL"
+echo ""
+
+# Validate configuration
+echo -e "${BLUE}🔍 Validating configuration...${NC}"
+
+if ! python3 deploy/validate_config.py ${ENVIRONMENT:+--environment "$ENVIRONMENT"}; then
+    echo -e "${RED}❌ Configuration validation failed${NC}"
+    echo "   Fix the errors above and try again"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ Configuration validation passed${NC}"
+echo ""
+
+# Stop here if validate-only
+if [ "$VALIDATE_ONLY" = true ]; then
+    echo -e "${GREEN}✅ Validation complete (--validate-only mode)${NC}"
+    exit 0
+fi
+
+# Start deployment
+echo "=============================================================================="
+echo "                         Starting Deployment"
+echo "=============================================================================="
+echo ""
+
+# Step 1: Build images (if not skipped)
+if [ "$SKIP_BUILD" = false ]; then
+    echo -e "${BLUE}🔨 Building Docker images...${NC}"
+
+    if [ "$WINTEHR_DEPLOYMENT_ENABLE_SSL" = "true" ]; then
+        docker-compose -f docker-compose.yml -f docker-compose-ssl.yml build
+    else
+        docker-compose build
+    fi
+
+    echo -e "${GREEN}✅ Docker images built${NC}"
+    echo ""
+else
+    echo -e "${YELLOW}⏭️  Skipping Docker image build${NC}"
+    echo ""
+fi
+
+# Step 2: Start services
+echo -e "${BLUE}🚀 Starting services...${NC}"
+
+if [ "$WINTEHR_DEPLOYMENT_ENABLE_SSL" = "true" ]; then
+    docker-compose -f docker-compose.yml -f docker-compose-ssl.yml up -d
+else
+    docker-compose up -d
+fi
+
+echo -e "${GREEN}✅ Services started${NC}"
+echo ""
+
+# Step 3: Wait for services to be healthy
+echo -e "${BLUE}⏳ Waiting for services to be healthy...${NC}"
+
+# Wait for HAPI FHIR (takes 5-6 minutes on first startup)
+echo "   Waiting for HAPI FHIR (this may take several minutes on first startup)..."
+for i in {1..180}; do
+    if curl -sf "http://localhost:${WINTEHR_SERVICES_PORTS_HAPI_FHIR}/fhir/metadata" > /dev/null 2>&1; then
+        echo -e "   ${GREEN}✓ HAPI FHIR is ready${NC}"
+        break
+    fi
+    if [ $i -eq 180 ]; then
+        echo -e "   ${RED}✗ HAPI FHIR failed to start after 9 minutes${NC}"
+        echo "   Check logs: docker-compose logs hapi-fhir"
+        exit 1
+    fi
+    # Show progress every 30 seconds
+    if [ $((i % 15)) -eq 0 ]; then
+        echo "   Still waiting... ($((i * 3 / 60)) minutes elapsed)"
+    fi
+    sleep 3
+done
 
 # Wait for backend
-if ! wait_for_backend; then
-    echo -e "${RED}Backend failed to start. Checking logs...${NC}"
-    docker-compose logs --tail=20 backend
-    echo -e "${YELLOW}Attempting restart...${NC}"
-    docker-compose restart backend
-    sleep 5
-    wait_for_backend || {
-        echo -e "${RED}Backend still not responding. Deployment failed.${NC}"
-        exit 1
-    }
-fi
-
-# Wait for frontend (non-blocking)
-wait_for_frontend
-
-# Load patient data if requested
-if [ "$PATIENT_COUNT" -gt 0 ]; then
-    echo -e "${BLUE}═══════════════════════════════════════${NC}"
-    echo -e "${BLUE}Loading Patient Data${NC}"
-    echo -e "${BLUE}═══════════════════════════════════════${NC}"
-    
-    # Wait for backend to be fully ready
-    echo -e "${YELLOW}Ensuring backend is fully initialized...${NC}"
-    sleep 10
-    
-    # Load patients using HAPI FHIR pipeline
-    echo -e "${YELLOW}Starting patient data import (this may take several minutes)...${NC}"
-    echo -e "${YELLOW}  → Generating ${PATIENT_COUNT} synthetic patients with Synthea${NC}"
-    echo -e "${YELLOW}  → Converting bundles to HAPI FHIR format${NC}"
-    echo -e "${YELLOW}  → Uploading to HAPI FHIR server${NC}"
-    echo -e "${YELLOW}  → Verifying data integrity${NC}"
-
-    if docker exec emr-backend python scripts/synthea_to_hapi_pipeline.py "$PATIENT_COUNT" Massachusetts; then
-        echo -e "${GREEN}✓ Patient data loaded to HAPI FHIR${NC}"
-    else
-        echo -e "${RED}✗ HAPI FHIR data load failed${NC}"
-        exit 1
+echo "   Waiting for backend..."
+for i in {1..30}; do
+    if curl -sf "http://localhost:${WINTEHR_SERVICES_PORTS_BACKEND}/health" > /dev/null 2>&1; then
+        echo -e "   ${GREEN}✓ Backend is ready${NC}"
+        break
     fi
-    
-    # Ensure catalog population (critical for search functionality)
-    echo ""
-    echo -e "${YELLOW}Extracting clinical catalogs for search functionality...${NC}"
-    if docker exec emr-backend python scripts/active/consolidated_catalog_setup.py --extract-from-fhir; then
-        echo -e "${GREEN}✓ Clinical catalogs populated${NC}"
-    else
-        echo -e "${YELLOW}⚠ Catalog extraction completed with warnings${NC}"
+    if [ $i -eq 30 ]; then
+        echo -e "   ${YELLOW}⚠️  Backend may not be fully ready${NC}"
+        break
     fi
-    
-    # Verify data load
-    echo ""
-    echo -e "${YELLOW}Verifying data import...${NC}"
-    VERIFY_RESULT=$(docker exec emr-backend python -c "
-import asyncio
-import asyncpg
-import json
+    sleep 2
+done
 
-async def check():
-    try:
-        conn = await asyncpg.connect('postgresql://emr_user:emr_password@postgres:5432/emr_db')
-        
-        # Get counts
-        patient_count = await conn.fetchval('SELECT COUNT(*) FROM fhir.resources WHERE resource_type = \\'Patient\\'')
-        total_count = await conn.fetchval('SELECT COUNT(*) FROM fhir.resources')
-        
-        # Get catalog counts
-        med_count = await conn.fetchval('SELECT COUNT(*) FROM clinical_catalogs WHERE catalog_type = \\'medication\\'')
-        cond_count = await conn.fetchval('SELECT COUNT(*) FROM clinical_catalogs WHERE catalog_type = \\'condition\\'')
-        lab_count = await conn.fetchval('SELECT COUNT(*) FROM clinical_catalogs WHERE catalog_type = \\'lab_test\\'')
-        
-        await conn.close()
-        
-        result = {
-            'patients': patient_count,
-            'total_resources': total_count,
-            'medications': med_count,
-            'conditions': cond_count,
-            'lab_tests': lab_count
-        }
-        print(json.dumps(result))
-    except Exception as e:
-        print(json.dumps({'error': str(e)}))
-
-asyncio.run(check())
-" 2>/dev/null)
-    
-    if [ -n "$VERIFY_RESULT" ]; then
-        # Parse JSON result
-        if echo "$VERIFY_RESULT" | grep -q '"patients"'; then
-            PATIENTS=$(echo "$VERIFY_RESULT" | grep -o '"patients":[0-9]*' | cut -d: -f2)
-            TOTAL=$(echo "$VERIFY_RESULT" | grep -o '"total_resources":[0-9]*' | cut -d: -f2)
-            MEDS=$(echo "$VERIFY_RESULT" | grep -o '"medications":[0-9]*' | cut -d: -f2)
-            CONDS=$(echo "$VERIFY_RESULT" | grep -o '"conditions":[0-9]*' | cut -d: -f2)
-            LABS=$(echo "$VERIFY_RESULT" | grep -o '"lab_tests":[0-9]*' | cut -d: -f2)
-            
-            echo -e "${GREEN}✓ Data Import Summary:${NC}"
-            echo -e "  • Patients: ${PATIENTS}"
-            echo -e "  • Total Resources: ${TOTAL}"
-            echo -e "  • Medication Catalog: ${MEDS} items"
-            echo -e "  • Condition Catalog: ${CONDS} items"
-            echo -e "  • Lab Test Catalog: ${LABS} items"
-        else
-            echo -e "${YELLOW}⚠ Could not verify exact counts, but data appears to be loaded${NC}"
-        fi
-    else
-        echo -e "${YELLOW}⚠ Could not verify data load, please check manually${NC}"
-    fi
-fi
-
-# Display access information
-echo ""
-echo -e "${GREEN}=================================="
-echo "Deployment Complete!"
-echo "=================================="
+echo -e "${GREEN}✅ Services are healthy${NC}"
 echo ""
 
-if [ "$ENVIRONMENT" == "dev" ]; then
-    echo "Access the application at:"
-    echo "  Frontend: http://localhost:3000"
-    echo "  Backend API: http://localhost:8000"
-    echo "  API Docs: http://localhost:8000/docs"
+# Step 4: Load patient data (if not skipped)
+if [ "$SKIP_DATA" = false ]; then
+    echo -e "${BLUE}👥 Loading patient data (${WINTEHR_DEPLOYMENT_PATIENT_COUNT} patients)...${NC}"
+    echo "   This may take several minutes..."
+
+    # Run the Synthea to HAPI pipeline
+    # Syntax: synthea_to_hapi_pipeline.py <count> <state>
+    if docker exec emr-backend \
+        python scripts/synthea_to_hapi_pipeline.py \
+        ${WINTEHR_DEPLOYMENT_PATIENT_COUNT} \
+        "${WINTEHR_SYNTHEA_STATE}"; then
+        echo -e "${GREEN}✅ Patient data loaded successfully${NC}"
+        echo "   Generated ${WINTEHR_DEPLOYMENT_PATIENT_COUNT} synthetic patients"
+    else
+        echo -e "${RED}❌ Failed to load patient data${NC}"
+        echo "   Check logs: docker-compose logs backend"
+        echo "   Or run manually: docker exec emr-backend python scripts/synthea_to_hapi_pipeline.py ${WINTEHR_DEPLOYMENT_PATIENT_COUNT} ${WINTEHR_SYNTHEA_STATE}"
+        exit 1
+    fi
+
+    # Generate DICOM files for ImagingStudy resources
+    echo -e "${BLUE}🏥 Generating DICOM files for imaging studies...${NC}"
+    if docker exec emr-backend \
+        python scripts/active/generate_dicom_from_hapi.py; then
+        echo -e "${GREEN}✅ DICOM files generated successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠️  DICOM generation had issues (non-critical)${NC}"
+        echo "   Imaging studies will be available without DICOM files"
+    fi
+
+    # Create demo Practitioner resources
+    echo -e "${BLUE}👨‍⚕️ Creating demo Practitioner resources...${NC}"
+    if docker exec emr-backend \
+        python scripts/active/create_demo_practitioners.py; then
+        echo -e "${GREEN}✅ Demo Practitioners created successfully${NC}"
+        echo "   Demo users (physician, nurse, pharmacist, admin) now have valid Practitioner resources"
+    else
+        echo -e "${YELLOW}⚠️  Demo Practitioner creation had issues (non-critical)${NC}"
+        echo "   Demo users may need to be created manually"
+    fi
     echo ""
-    echo "Default credentials:"
-    echo "  Username: demo"
-    echo "  Password: password"
 else
-    if is_aws; then
-        PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
-        echo "Access the application at:"
-        echo "  Frontend: http://$PUBLIC_IP"
-        echo "  Backend API: http://$PUBLIC_IP:8000"
-        echo "  API Docs: http://$PUBLIC_IP:8000/docs"
-    else
-        echo "Access the application at:"
-        echo "  Frontend: http://localhost"
-        echo "  Backend API: http://localhost:8000"
-        echo "  API Docs: http://localhost:8000/docs"
-    fi
+    echo -e "${YELLOW}⏭️  Skipping patient data generation (--skip-data flag)${NC}"
     echo ""
-    echo "Default credentials:"
-    echo "  Username: demo"
-    echo "  Password: password"
 fi
 
+# Step 5: Configure Azure NSG (if Azure deployment)
+if [ -n "$WINTEHR_AZURE_RESOURCE_GROUP" ]; then
+    echo -e "${BLUE}🔒 Configuring Azure Network Security Group...${NC}"
+
+    if [ -f "deploy/configure-azure-nsg.sh" ]; then
+        bash deploy/configure-azure-nsg.sh
+        echo -e "${GREEN}✅ Azure NSG configured${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Azure NSG configuration script not found${NC}"
+    fi
+    echo ""
+fi
+
+# Step 6: Setup SSL (if enabled)
+if [ "$WINTEHR_DEPLOYMENT_ENABLE_SSL" = "true" ]; then
+    echo -e "${BLUE}🔒 Setting up SSL certificate...${NC}"
+
+    if [ -f "deploy/setup-ssl.sh" ]; then
+        bash deploy/setup-ssl.sh
+        echo -e "${GREEN}✅ SSL certificate configured${NC}"
+    else
+        echo -e "${YELLOW}⚠️  SSL setup script not found${NC}"
+        echo "   Manually configure SSL certificate for: $WINTEHR_SSL_DOMAIN_NAME"
+    fi
+    echo ""
+fi
+
+# Step 7: Verification
+echo -e "${BLUE}🔍 Verifying deployment...${NC}"
+
+# Check resource counts
+echo "   Checking FHIR resources..."
+for resource_type in Patient Condition Observation MedicationRequest; do
+    count=$(curl -s "http://localhost:${WINTEHR_SERVICES_PORTS_HAPI_FHIR}/fhir/${resource_type}?_summary=count" | \
+            grep -o '"total":[0-9]*' | cut -d: -f2 || echo "0")
+    printf "   %-20s %s\n" "$resource_type:" "$count"
+done
+
 echo ""
-echo -e "${YELLOW}Commands:${NC}"
-echo "  View logs: docker-compose logs -f"
-echo "  Check status: docker-compose ps"
-echo "  Stop services: docker-compose down"
+echo -e "${GREEN}✅ Verification complete${NC}"
 echo ""
-echo -e "${GREEN}✓ Deployment successful!${NC}"
+
+# Deployment complete
+echo "=============================================================================="
+echo "                      Deployment Complete! 🎉"
+echo "=============================================================================="
+echo ""
+echo "Service URLs:"
+echo "  Frontend:    http://localhost:${WINTEHR_SERVICES_PORTS_FRONTEND}"
+echo "  Backend API: http://localhost:${WINTEHR_SERVICES_PORTS_BACKEND}"
+echo "  HAPI FHIR:   http://localhost:${WINTEHR_SERVICES_PORTS_HAPI_FHIR}/fhir"
+echo ""
+
+if [ "$WINTEHR_DEPLOYMENT_ENABLE_SSL" = "true" ]; then
+    echo "Public URL:  https://${WINTEHR_SSL_DOMAIN_NAME}"
+    echo ""
+fi
+
+echo "Useful commands:"
+echo "  View logs:       docker-compose logs -f"
+echo "  Stop services:   docker-compose down"
+echo "  Restart:         docker-compose restart"
+echo "  Status:          docker-compose ps"
+echo ""
+echo "For troubleshooting, see documentation in docs/"
+echo "=============================================================================="

@@ -1,0 +1,48 @@
+# WintEHR Local Development Configuration
+# This file overrides config.yaml for local Docker deployment
+# Only include settings that differ from production defaults
+
+deployment:
+  environment: dev
+  patient_count: 10  # Fewer patients for faster local testing
+  enable_ssl: false  # No SSL for local development
+  enable_monitoring: false
+
+# No Azure configuration for local deployment
+# (azure section omitted - will be ignored)
+
+ssl:
+  domain_name: localhost
+  ssl_email: dev@localhost
+  provider: none
+
+services:
+  ports:
+    frontend: 3000
+    backend: 8000
+    hapi_fhir: 8888
+    postgres: 5432
+    redis: 6379
+    # No nginx ports needed for local (direct access)
+
+database:
+  host: postgres  # Docker service name
+  port: 5432
+  name: emr_db
+
+hapi_fhir:
+  memory: 2g
+  validation_mode: NEVER
+  narrative_enabled: true
+  graphql_enabled: false
+
+synthea:
+  state: Massachusetts
+  seed: 12345
+  jar_version: 3.2.0
+
+security:
+  allowed_ips: []
+  cors_origins:
+    - "*"  # Allow all origins for local development
+  rate_limiting_enabled: false

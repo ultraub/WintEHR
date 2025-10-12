@@ -4,7 +4,7 @@ Catalog Extraction Service
 Extracts unique medications, conditions, and lab tests from patient FHIR data
 to build searchable catalogs for CPOE (Computerized Provider Order Entry).
 
-Updated: 2025-10-05 - Migrated to use HAPI FHIR REST API (proper approach)
+Uses HAPI FHIR REST API via fhirclient library for portable FHIR resource access.
 """
 
 import json
@@ -26,16 +26,12 @@ logger = logging.getLogger(__name__)
 
 class CatalogExtractor:
     """
-    Extracts catalog items from FHIR resources in the database.
+    Extracts catalog items from FHIR resources using HAPI FHIR REST API.
 
     This service analyzes patient data to build catalogs of:
     - Medications (from MedicationRequest resources)
     - Conditions (from Condition resources)
     - Lab Tests (from Observation resources with category=laboratory)
-
-    MIGRATION NOTE (2025-10-05):
-    Updated to use HAPI FHIR REST API via fhirclient library.
-    This is the proper, portable approach vs direct SQL queries.
     """
 
     def __init__(self, session: AsyncSession = None):

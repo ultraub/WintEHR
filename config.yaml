@@ -1,0 +1,154 @@
+# WintEHR Deployment Configuration
+# Main configuration file - customize for your deployment
+# Secrets (passwords, API keys) should go in .env file, not here
+
+# ============================================================================
+# DEPLOYMENT SETTINGS
+# ============================================================================
+deployment:
+  # Environment: dev, staging, production
+  environment: production
+
+  # Number of synthetic patients to generate with Synthea
+  patient_count: 50
+
+  # Enable SSL/HTTPS (requires valid domain)
+  enable_ssl: true
+
+  # Enable monitoring and logging
+  enable_monitoring: false
+
+# ============================================================================
+# AZURE INFRASTRUCTURE (for Azure deployments)
+# ============================================================================
+azure:
+  # Azure resource group name
+  resource_group: wintehr-rg
+
+  # Virtual machine name
+  vm_name: wintehr-vm
+
+  # Network security group name
+  nsg_name: wintehr-nsg
+
+  # Azure region
+  location: eastus2
+
+# ============================================================================
+# SSL/TLS CONFIGURATION
+# ============================================================================
+ssl:
+  # Domain name for SSL certificate
+  domain_name: wintehr.eastus2.cloudapp.azure.com
+
+  # Email for Let's Encrypt notifications
+  ssl_email: admin@example.com
+
+  # SSL provider: letsencrypt or custom
+  provider: letsencrypt
+
+# ============================================================================
+# SERVICE CONFIGURATION
+# ============================================================================
+services:
+  # Port mappings for all services
+  ports:
+    frontend: 3000
+    backend: 8000
+    hapi_fhir: 8888
+    postgres: 5432
+    redis: 6379
+    nginx_http: 80
+    nginx_https: 443
+
+  # Container names (for docker exec, logs, etc.)
+  container_names:
+    frontend: emr-frontend
+    backend: emr-backend
+    hapi: hapi-fhir
+    postgres: emr-postgres
+    redis: emr-redis
+    nginx: emr-nginx
+
+  # Docker image tags
+  image_tags:
+    frontend: latest
+    backend: latest
+    hapi: latest
+
+# ============================================================================
+# DATABASE CONFIGURATION
+# ============================================================================
+database:
+  # Database host (use 'postgres' for Docker, localhost for local)
+  host: postgres
+
+  # Database port
+  port: 5432
+
+  # Database name
+  name: emr_db
+
+  # Note: username and password are in .env file for security
+
+# ============================================================================
+# HAPI FHIR SERVER SETTINGS
+# ============================================================================
+hapi_fhir:
+  # JVM memory allocation (e.g., 2g, 4g, 8g)
+  memory: 2g
+
+  # Validation mode: NEVER, ONCE, ALWAYS
+  validation_mode: NEVER
+
+  # Enable narrative generation
+  narrative_enabled: true
+
+  # Enable GraphQL endpoint
+  graphql_enabled: false
+
+# ============================================================================
+# SYNTHEA CONFIGURATION
+# ============================================================================
+synthea:
+  # US state for patient generation
+  state: Massachusetts
+
+  # Random seed for reproducibility (optional)
+  seed: 12345
+
+  # Synthea JAR version to download
+  jar_version: 3.2.0
+
+# ============================================================================
+# NETWORK SECURITY
+# ============================================================================
+security:
+  # Allowed IP addresses (CIDR notation)
+  # Empty list = allow all
+  # Example: ["1.2.3.4/32", "10.0.0.0/8"]
+  allowed_ips: []
+
+  # CORS allowed origins
+  # Use ["*"] for development, specific domains for production
+  cors_origins:
+    - "*"
+
+  # Enable rate limiting
+  rate_limiting_enabled: false
+
+# ============================================================================
+# STORAGE PATHS
+# ============================================================================
+paths:
+  # Data directory for persistent storage
+  data: /app/data
+
+  # Log directory
+  logs: /app/logs
+
+  # Backup directory
+  backups: /app/backups
+
+  # Upload directory (DICOM files, etc.)
+  uploads: /app/uploads

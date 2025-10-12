@@ -1,18 +1,10 @@
-"""Clinical notes API endpoints - FHIR DocumentReference based"""
+"""Clinical notes API endpoints - Pure FHIR DocumentReference Implementation"""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 
-from services.fhir_client_config import (
-    search_resources,
-    get_resource,
-    create_resource,
-    update_resource,
-    get_fhir_server
-)
-from fhirclient.models.documentreference import DocumentReference
-from fhirclient.models.practitioner import Practitioner
+from services.hapi_fhir_client import HAPIFHIRClient
 
 from .fhir_converters import (
     convert_note_to_document_reference,
@@ -98,19 +90,16 @@ class NoteTemplateResponse(NoteTemplateCreate):
         from_attributes = True
 
 
-def get_current_user_id() -> str:
+async def get_current_user_id() -> str:
     """Get current authenticated user ID - using demo user for now"""
     # TODO: Replace with proper JWT auth from api.auth.service
     # For now, return demo practitioner ID
-    practitioners = search_resources("Practitioner", {"_count": "1"})
-    if practitioners:
-        return practitioners[0].id
+    hapi_client = HAPIFHIRClient()
+    bundle = await hapi_client.search("Practitioner", {"_count": "1"})
+    entries = bundle.get("entry", [])
+    if entries:
+        return entries[0].get("resource", {}).get("id")
     raise HTTPException(status_code=401, detail="No authenticated user found")
-
-
-def dict_to_document_reference(doc_ref_dict: dict) -> DocumentReference:
-    """Convert dictionary to fhirclient DocumentReference object"""
-    return DocumentReference(doc_ref_dict)
 
 
 @router.post("/", response_model=ClinicalNoteResponse)
@@ -118,35 +107,42 @@ async def create_note(
     note: ClinicalNoteCreate,
     current_user_id: str = Depends(get_current_user_id)
 ):
-    """Create a new clinical note as FHIR DocumentReference"""
+    """
+    Create a new clinical note as FHIR DocumentReference
+
+    Educational notes:
+    - Stores clinical notes as FHIR DocumentReference resources
+    - Supports SOAP format (Subjective, Objective, Assessment, Plan)
+    - Includes versioning and co-signature workflow
+    """
+    hapi_client = HAPIFHIRClient()
+
     # Convert API note to FHIR DocumentReference dict
     doc_ref_dict = convert_note_to_document_reference(
         note.dict(),
         current_user_id
     )
 
-    # Create fhirclient DocumentReference object
-    doc_ref_obj = dict_to_document_reference(doc_ref_dict)
-
-    # Create FHIR resource
-    created_resource = create_resource(doc_ref_obj)
+    # Create FHIR resource via HAPI FHIR
+    created_resource = await hapi_client.create("DocumentReference", doc_ref_dict)
 
     if not created_resource:
         raise HTTPException(status_code=500, detail="Failed to create note")
 
     # Convert back to API response format
-    return convert_document_reference_to_note_response(created_resource.as_json())
+    return convert_document_reference_to_note_response(created_resource)
 
 
 @router.get("/{note_id}", response_model=ClinicalNoteResponse)
 async def get_note(note_id: str):
     """Get a specific clinical note from FHIR DocumentReference"""
-    doc_ref = get_resource("DocumentReference", note_id)
+    hapi_client = HAPIFHIRClient()
+    doc_ref = await hapi_client.read("DocumentReference", note_id)
 
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    return convert_document_reference_to_note_response(doc_ref.as_json())
+    return convert_document_reference_to_note_response(doc_ref)
 
 
 @router.get("/", response_model=List[ClinicalNoteResponse])
@@ -159,7 +155,16 @@ async def get_notes(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000)
 ):
-    """Get clinical notes with filters using FHIR search"""
+    """
+    Get clinical notes with filters using FHIR search
+
+    Educational notes:
+    - Queries FHIR DocumentReference resources
+    - Supports filtering by patient, encounter, note type, status, author
+    - Maps clinical note types to standard LOINC codes
+    """
+    hapi_client = HAPIFHIRClient()
+
     # Build FHIR search parameters
     search_params = {
         "_count": str(limit),
@@ -199,13 +204,14 @@ async def get_notes(
     if author_id:
         search_params["author"] = f"Practitioner/{author_id}" if not author_id.startswith("Practitioner/") else author_id
 
-    # Search DocumentReference resources
-    resources = search_resources("DocumentReference", search_params)
+    # Search DocumentReference resources via HAPI FHIR
+    bundle = await hapi_client.search("DocumentReference", search_params)
 
     # Convert to API response format
     notes = []
-    for resource in resources:
-        note_response = convert_document_reference_to_note_response(resource.as_json())
+    for entry in bundle.get("entry", []):
+        resource = entry.get("resource", {})
+        note_response = convert_document_reference_to_note_response(resource)
 
         # Filter by status if provided (since docStatus isn't searchable)
         if status and note_response.get('status') != status:
@@ -226,27 +232,34 @@ async def update_note(
     note_update: ClinicalNoteUpdate,
     current_user_id: str = Depends(get_current_user_id)
 ):
-    """Update a clinical note (FHIR DocumentReference)"""
+    """
+    Update a clinical note (FHIR DocumentReference)
+
+    Educational notes:
+    - Enforces edit permissions (only author can edit draft notes)
+    - Prevents editing signed/final notes
+    - Maintains FHIR versioning through meta.versionId
+    """
+    hapi_client = HAPIFHIRClient()
+
     # Get existing note
-    doc_ref = get_resource("DocumentReference", note_id)
+    doc_ref = await hapi_client.read("DocumentReference", note_id)
 
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    doc_ref_dict = doc_ref.as_json()
-
     # Check if user can edit
-    author_ref = doc_ref_dict.get('author', [{}])[0].get('reference', '')
+    author_ref = doc_ref.get('author', [{}])[0].get('reference', '')
     author_id = author_ref.split('/')[-1] if author_ref else None
 
-    if doc_ref_dict.get('docStatus') == 'final' and author_id != current_user_id:
+    if doc_ref.get('docStatus') == 'final' and author_id != current_user_id:
         raise HTTPException(status_code=403, detail="Cannot edit signed note")
 
     # Update fields - need to reconstruct content
     update_data = note_update.dict(exclude_unset=True)
 
     # Get current note data
-    current_note = convert_document_reference_to_note_response(doc_ref_dict)
+    current_note = convert_document_reference_to_note_response(doc_ref)
 
     # Merge updates
     for field, value in update_data.items():
@@ -258,20 +271,19 @@ async def update_note(
         author_id
     )
 
-    # Preserve ID and increment version
+    # Preserve ID for update
     updated_doc_ref_dict['id'] = note_id
 
-    # Create fhirclient object and update
-    updated_doc_ref_obj = dict_to_document_reference(updated_doc_ref_dict)
-    result = update_resource(updated_doc_ref_obj)
+    # Update resource via HAPI FHIR
+    result = await hapi_client.update("DocumentReference", note_id, updated_doc_ref_dict)
 
     if not result:
         raise HTTPException(status_code=500, detail="Failed to update note")
 
     # Retrieve updated resource
-    final_doc_ref = get_resource("DocumentReference", note_id)
+    final_doc_ref = await hapi_client.read("DocumentReference", note_id)
 
-    return convert_document_reference_to_note_response(final_doc_ref.as_json())
+    return convert_document_reference_to_note_response(final_doc_ref)
 
 
 @router.put("/{note_id}/sign")
@@ -279,21 +291,28 @@ async def sign_note(
     note_id: str,
     current_user_id: str = Depends(get_current_user_id)
 ):
-    """Sign a clinical note (update FHIR DocumentReference status)"""
+    """
+    Sign a clinical note (update FHIR DocumentReference status)
+
+    Educational notes:
+    - Implements clinical note signing workflow
+    - Supports co-signature requirements
+    - Changes docStatus from preliminary to final upon signing
+    """
+    hapi_client = HAPIFHIRClient()
+
     # Get existing note
-    doc_ref = get_resource("DocumentReference", note_id)
+    doc_ref = await hapi_client.read("DocumentReference", note_id)
 
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    doc_ref_dict = doc_ref.as_json()
-
     # Get author and cosigner from extensions
-    author_ref = doc_ref_dict.get('author', [{}])[0].get('reference', '')
+    author_ref = doc_ref.get('author', [{}])[0].get('reference', '')
     author_id = author_ref.split('/')[-1] if author_ref else None
 
     cosigner_id = None
-    for ext in doc_ref_dict.get('extension', []):
+    for ext in doc_ref.get('extension', []):
         if ext.get('url') == "http://wintehr.org/fhir/StructureDefinition/cosigner":
             cosigner_ref = ext.get('valueReference', {}).get('reference', '')
             cosigner_id = cosigner_ref.split('/')[-1] if cosigner_ref else None
@@ -304,42 +323,41 @@ async def sign_note(
 
     # Determine requires_cosignature
     requires_cosignature = False
-    for ext in doc_ref_dict.get('extension', []):
+    for ext in doc_ref.get('extension', []):
         if ext.get('url') == "http://wintehr.org/fhir/StructureDefinition/requires-cosignature":
             requires_cosignature = ext.get('valueBoolean', False)
 
     # Update status based on who's signing
     if author_id == current_user_id:
         new_status = "signed" if not requires_cosignature else "pending_signature"
-        doc_ref_dict = update_document_reference_status(doc_ref_dict, new_status, current_user_id)
+        doc_ref = update_document_reference_status(doc_ref, new_status, current_user_id)
     elif cosigner_id == current_user_id:
         # Check if already signed by author
-        already_signed = doc_ref_dict.get('docStatus') == 'final' or \
+        already_signed = doc_ref.get('docStatus') == 'final' or \
                         any(ext.get('url') == "http://wintehr.org/fhir/StructureDefinition/signed-by"
-                            for ext in doc_ref_dict.get('extension', []))
+                            for ext in doc_ref.get('extension', []))
 
         if already_signed or requires_cosignature:
-            doc_ref_dict = update_document_reference_status(doc_ref_dict, "signed", current_user_id)
+            doc_ref = update_document_reference_status(doc_ref, "signed", current_user_id)
 
             # Add cosigner signature extension
-            if 'extension' not in doc_ref_dict:
-                doc_ref_dict['extension'] = []
+            if 'extension' not in doc_ref:
+                doc_ref['extension'] = []
 
-            doc_ref_dict['extension'].append({
+            doc_ref['extension'].append({
                 "url": "http://wintehr.org/fhir/StructureDefinition/cosigned-at",
                 "valueDateTime": datetime.utcnow().isoformat()
             })
 
-    # Update resource
-    updated_doc_ref_obj = dict_to_document_reference(doc_ref_dict)
-    result = update_resource(updated_doc_ref_obj)
+    # Update resource via HAPI FHIR
+    result = await hapi_client.update("DocumentReference", note_id, doc_ref)
 
     if not result:
         raise HTTPException(status_code=500, detail="Failed to sign note")
 
     # Get final status
-    final_doc_ref = get_resource("DocumentReference", note_id)
-    final_note = convert_document_reference_to_note_response(final_doc_ref.as_json())
+    final_doc_ref = await hapi_client.read("DocumentReference", note_id)
+    final_note = convert_document_reference_to_note_response(final_doc_ref)
 
     return {"message": "Note signed successfully", "status": final_note.get('status')}
 
@@ -350,17 +368,24 @@ async def create_addendum(
     addendum: ClinicalNoteCreate,
     current_user_id: str = Depends(get_current_user_id)
 ):
-    """Create an addendum to an existing note (FHIR DocumentReference with relatesTo)"""
+    """
+    Create an addendum to an existing note (FHIR DocumentReference with relatesTo)
+
+    Educational notes:
+    - Addenda can only be created for signed/final notes
+    - Links to parent note via relatesTo field
+    - Preserves clinical documentation integrity
+    """
+    hapi_client = HAPIFHIRClient()
+
     # Get parent note
-    parent_doc_ref = get_resource("DocumentReference", note_id)
+    parent_doc_ref = await hapi_client.read("DocumentReference", note_id)
 
     if not parent_doc_ref:
         raise HTTPException(status_code=404, detail="Parent note not found")
 
-    parent_dict = parent_doc_ref.as_json()
-
     # Check parent note is signed
-    if parent_dict.get('docStatus') != 'final':
+    if parent_doc_ref.get('docStatus') != 'final':
         raise HTTPException(status_code=400, detail="Can only add addendum to signed notes")
 
     # Create addendum data
@@ -374,16 +399,13 @@ async def create_addendum(
         current_user_id
     )
 
-    # Create fhirclient object
-    addendum_doc_ref_obj = dict_to_document_reference(addendum_doc_ref_dict)
-
-    # Create addendum resource
-    created_resource = create_resource(addendum_doc_ref_obj)
+    # Create addendum resource via HAPI FHIR
+    created_resource = await hapi_client.create("DocumentReference", addendum_doc_ref_dict)
 
     if not created_resource:
         raise HTTPException(status_code=500, detail="Failed to create addendum")
 
-    return convert_document_reference_to_note_response(created_resource.as_json())
+    return convert_document_reference_to_note_response(created_resource)
 
 
 # Template endpoints
