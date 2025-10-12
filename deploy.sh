@@ -259,19 +259,23 @@ echo ""
 # Step 3: Wait for services to be healthy
 echo -e "${BLUE}⏳ Waiting for services to be healthy...${NC}"
 
-# Wait for HAPI FHIR
-echo "   Waiting for HAPI FHIR..."
-for i in {1..60}; do
+# Wait for HAPI FHIR (takes 5-6 minutes on first startup)
+echo "   Waiting for HAPI FHIR (this may take several minutes on first startup)..."
+for i in {1..180}; do
     if curl -sf "http://localhost:${WINTEHR_SERVICES_PORTS_HAPI_FHIR}/fhir/metadata" > /dev/null 2>&1; then
         echo -e "   ${GREEN}✓ HAPI FHIR is ready${NC}"
         break
     fi
-    if [ $i -eq 60 ]; then
-        echo -e "   ${RED}✗ HAPI FHIR failed to start${NC}"
+    if [ $i -eq 180 ]; then
+        echo -e "   ${RED}✗ HAPI FHIR failed to start after 9 minutes${NC}"
         echo "   Check logs: docker-compose logs hapi-fhir"
         exit 1
     fi
-    sleep 2
+    # Show progress every 30 seconds
+    if [ $((i % 15)) -eq 0 ]; then
+        echo "   Still waiting... ($((i * 3 / 60)) minutes elapsed)"
+    fi
+    sleep 3
 done
 
 # Wait for backend

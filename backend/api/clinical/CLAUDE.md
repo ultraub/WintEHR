@@ -373,18 +373,22 @@ GET /api/clinical/pharmacy/metrics?date_range=7
 ### FHIR Resource Integrity
 **Critical FHIR Patterns**:
 ```python
-# Always use proper FHIR resource creation
+# Always use proper FHIR resource creation via HAPI FHIR
+from services.hapi_fhir_client import HAPIFHIRClient
+
 async def create_medication_order(patient_id: str, medication_data: dict):
-    # 1. Validate patient exists
-    patient = await storage.read_resource('Patient', patient_id)
+    hapi_client = HAPIFHIRClient()
+
+    # 1. Validate patient exists via HAPI FHIR
+    patient = await hapi_client.read("Patient", patient_id)
     if not patient:
         raise HTTPException(404, "Patient not found")
-    
+
     # 2. Run safety checks
     safety_result = await comprehensive_safety_check(patient_id, [medication_data])
     if safety_result.critical_alerts > 0:
         raise HTTPException(400, "Critical safety alerts prevent ordering")
-    
+
     # 3. Create FHIR-compliant resource
     medication_request = {
         "resourceType": "MedicationRequest",
@@ -395,12 +399,10 @@ async def create_medication_order(patient_id: str, medication_data: dict):
         "authoredOn": datetime.utcnow().isoformat(),
         # ... additional required fields
     }
-    
-    # 4. Store with audit trail
-    resource_id, version, timestamp = await storage.create_resource(
-        'MedicationRequest', 
-        medication_request
-    )
+
+    # 4. Store via HAPI FHIR (automatically handles versioning and audit)
+    created_resource = await hapi_client.create("MedicationRequest", medication_request)
+    resource_id = created_resource["id"]
     
     # 5. Publish workflow event
     await publish_event(CLINICAL_EVENTS.MEDICATION_PRESCRIBED, {
@@ -512,11 +514,13 @@ search_params = {
     "_count": 50          # Reasonable limit
 }
 
-# Use search parameter indexing
-medications, total = await storage.search_resources(
-    'MedicationRequest', 
-    search_params
-)
+# Search via HAPI FHIR (automatically uses indexed search parameters)
+from services.hapi_fhir_client import HAPIFHIRClient
+hapi_client = HAPIFHIRClient()
+
+bundle = await hapi_client.search("MedicationRequest", search_params)
+medications = bundle.get("entry", [])
+total = bundle.get("total", 0)
 ```
 
 ## 🚀 Common Clinical Workflow Patterns
@@ -575,11 +579,15 @@ async def complete_medication_workflow(
         fhir_medication_request = build_fhir_medication_request(
             patient_id, medication_request, prescriber_id
         )
-        
-        resource_id, version, timestamp = await storage.create_resource(
-            'MedicationRequest', 
+
+        # Store via HAPI FHIR
+        from services.hapi_fhir_client import HAPIFHIRClient
+        hapi_client = HAPIFHIRClient()
+        created_resource = await hapi_client.create(
+            "MedicationRequest",
             fhir_medication_request
         )
+        resource_id = created_resource["id"]
         
         # 6. Publish workflow events
         await publish_event(CLINICAL_EVENTS.MEDICATION_PRESCRIBED, {
@@ -694,9 +702,13 @@ async def get_comprehensive_patient_summary(patient_id: str) -> dict:
     """
     Aggregate comprehensive patient data for clinical decision making
     """
+    # Use HAPI FHIR $everything operation for comprehensive patient data
+    from services.hapi_fhir_client import HAPIFHIRClient
+    hapi_client = HAPIFHIRClient()
+
     # Run parallel queries for efficiency
     patient_data, conditions, medications, allergies, labs, vitals = await asyncio.gather(
-        storage.read_resource('Patient', patient_id),
+        hapi_client.read("Patient", patient_id),
         get_patient_conditions(patient_id),
         get_patient_current_medications(patient_id),
         get_patient_allergies(patient_id),
