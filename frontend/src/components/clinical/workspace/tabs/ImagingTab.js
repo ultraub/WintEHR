@@ -502,67 +502,86 @@ const ImagingTab = ({
   // Load imaging studies function with useCallback
   const loadImagingStudies = useCallback(async () => {
     if (!patientId) return;
-    
+
     setLoading(true);
     try {
-      // Try to get imaging studies from FHIR resources first
-      const fhirStudies = getPatientResources(patientId, 'ImagingStudy') || [];
-      console.log('Loading imaging studies for patient:', patientId);
-      console.log('FHIR ImagingStudy resources found:', fhirStudies.length);
-      
-      // If we have FHIR studies, try to enrich them with DICOM directory info
-      if (fhirStudies.length > 0) {
-        // Get available DICOM studies from the backend
+      console.log('[ImagingTab] Loading imaging studies for patient:', patientId);
+
+      // Try to get imaging studies from FHIR context first
+      let fhirStudies = getPatientResources(patientId, 'ImagingStudy') || [];
+      console.log('[ImagingTab] Studies from context:', fhirStudies.length);
+
+      // If no studies in context, fetch directly from HAPI FHIR
+      if (fhirStudies.length === 0) {
+        console.log('[ImagingTab] Fetching ImagingStudy resources directly from HAPI FHIR...');
         try {
-          const dicomResponse = await axios.get('/api/dicom/studies');
-          const availableDicomStudies = dicomResponse.data || [];
-          
-          // Map FHIR studies to DICOM directories
-          const enrichedStudies = fhirStudies.map(fhirStudy => {
-            // Try to find matching DICOM study by patient ID or study description
-            const matchingDicom = availableDicomStudies.find(dicomStudy => {
-              // Match by patient ID if available
-              if (dicomStudy.patientID && currentPatient?.id) {
-                return dicomStudy.patientID === currentPatient.id;
-              }
-              // Match by modality and approximate date
-              if (fhirStudy.modality?.[0]?.code && dicomStudy.modality) {
-                return fhirStudy.modality[0].code.toUpperCase() === dicomStudy.modality.toUpperCase();
-              }
-              return false;
-            });
-            
-            // If we found a matching DICOM study, add the directory info
-            if (matchingDicom) {
-              return {
-                ...fhirStudy,
-                studyDirectory: matchingDicom.studyDirectory,
-                dicomMetadata: matchingDicom
-              };
+          const response = await axios.get(`http://localhost:8888/fhir/ImagingStudy`, {
+            params: {
+              patient: patientId,
+              _sort: '-_lastUpdated'
             }
-            
-            // Otherwise, generate a default directory based on study type
-            const modality = fhirStudy.modality?.[0]?.code || 'CT';
-            const bodyPart = fhirStudy.description?.includes('chest') || fhirStudy.description?.includes('Chest') 
-              ? 'CHEST' 
-              : fhirStudy.description?.includes('head') || fhirStudy.description?.includes('Head')
-              ? 'HEAD'
-              : 'CHEST'; // Default
-            
-            const generatedDirectory = `${modality.toUpperCase()}_${bodyPart}_${fhirStudy.id?.substring(0, 8) || 'SAMPLE'}`;
-            console.log(`Generated DICOM directory for study ${fhirStudy.id}: ${generatedDirectory}`);
-            
+          });
+
+          if (response.data?.entry) {
+            fhirStudies = response.data.entry.map(entry => entry.resource);
+            console.log('[ImagingTab] Fetched', fhirStudies.length, 'ImagingStudy resources from HAPI FHIR');
+          }
+        } catch (fetchError) {
+          console.error('[ImagingTab] Failed to fetch ImagingStudy from HAPI FHIR:', fetchError);
+        }
+      }
+
+      console.log('[ImagingTab] Total FHIR ImagingStudy resources:', fhirStudies.length);
+
+      // If we have FHIR studies, enrich them with Endpoint data
+      if (fhirStudies.length > 0) {
+        try {
+          // Process each study to extract directory from Endpoint
+          const enrichedStudies = await Promise.all(fhirStudies.map(async (fhirStudy) => {
+            let studyDirectory = null;
+
+            // Check if study has endpoint reference
+            if (fhirStudy.endpoint && fhirStudy.endpoint.length > 0) {
+              const endpointRef = fhirStudy.endpoint[0].reference;
+              console.log('[ImagingTab] Found endpoint reference:', endpointRef);
+
+              try {
+                // Fetch the Endpoint resource from HAPI FHIR
+                const endpointResponse = await axios.get(`http://localhost:8888/fhir/${endpointRef}`);
+                const endpoint = endpointResponse.data;
+
+                console.log('[ImagingTab] Endpoint address:', endpoint.address);
+
+                // Extract directory name from file:// address
+                if (endpoint.address && endpoint.address.startsWith('file://')) {
+                  const filePath = endpoint.address.replace('file://', '');
+                  const pathParts = filePath.split('/');
+                  studyDirectory = pathParts[pathParts.length - 1];
+                  console.log('[ImagingTab] Extracted directory name:', studyDirectory);
+                }
+              } catch (endpointError) {
+                console.error('[ImagingTab] Failed to fetch Endpoint:', endpointError);
+              }
+            }
+
+            // If no endpoint or extraction failed, use study ID as fallback
+            if (!studyDirectory) {
+              // Try using the actual directory format: study_{id}
+              studyDirectory = `study_${fhirStudy.id}`;
+              console.log('[ImagingTab] Using fallback directory:', studyDirectory);
+            }
+
             return {
               ...fhirStudy,
-              studyDirectory: generatedDirectory
+              studyDirectory: studyDirectory
             };
-          });
-          
+          }));
+
+          console.log('[ImagingTab] Enriched studies:', enrichedStudies);
           setStudies(enrichedStudies);
         } catch (error) {
-          console.warn('Failed to enrich studies with DICOM data:', error);
-          console.log('Available DICOM studies:', error.response?.status, error.message);
-          // Fall back to FHIR studies without DICOM enrichment
+          console.error('[ImagingTab] Failed to enrich studies with Endpoint data:', error);
+          // Fall back to FHIR studies without enrichment
           setStudies(fhirStudies);
         }
       } else {

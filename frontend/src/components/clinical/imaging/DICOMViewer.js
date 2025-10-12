@@ -118,18 +118,18 @@ const DICOMViewer = ({ study, onClose }) => {
         throw new Error('Unable to determine study directory');
       }
 
-      // Load study metadata
-      const metadataResponse = await apiClient.get(`/api/dicom/studies/${studyDir}/metadata`);
+      // Load study metadata (backend endpoint is at /dicom not /api/dicom)
+      const metadataResponse = await apiClient.get(`/dicom/studies/${studyDir}/metadata`);
       const instancesData = metadataResponse.data.instances;
-      
+
       if (!instancesData || instancesData.length === 0) {
         throw new Error('No DICOM instances found in study');
       }
 
       setInstances(instancesData);
-      
+
       // Load viewer config
-      const configResponse = await apiClient.get(`/api/dicom/studies/${studyDir}/viewer-config`);
+      const configResponse = await apiClient.get(`/dicom/studies/${studyDir}/viewer-config`);
       setViewerConfig(configResponse.data);
       
       // Set initial window/level from first instance
@@ -151,10 +151,15 @@ const DICOMViewer = ({ study, onClose }) => {
   };
 
   const extractStudyDirectory = (studyObj) => {
+    console.log('[DICOMViewer] Extracting study directory from:', studyObj);
+
     // Try to extract study directory from various possible sources
     if (studyObj.studyDirectory) {
+      console.log('[DICOMViewer] Using studyDirectory property:', studyObj.studyDirectory);
       return studyObj.studyDirectory;
     }
+
+    console.log('[DICOMViewer] No studyDirectory property found, using fallback logic');
     
     // Check for DICOM directory in extensions
     if (studyObj.extension) {
@@ -196,8 +201,8 @@ const DICOMViewer = ({ study, onClose }) => {
   const loadInstanceImage = async (instance) => {
     try {
       const studyDir = extractStudyDirectory(study);
-      const url = `/api/dicom/studies/${studyDir}/instances/${instance.instanceNumber}/image?window_center=${windowCenter}&window_width=${windowWidth}`;
-      
+      const url = `/dicom/studies/${studyDir}/instances/${instance.instanceNumber}/image?window_center=${windowCenter}&window_width=${windowWidth}`;
+
       const response = await apiClient.get(url, { responseType: 'blob' });
       const imageBlob = response.data;
       const imageUrl = URL.createObjectURL(imageBlob);
