@@ -20,42 +20,74 @@ WintEHR is a complete, FHIR-native Electronic Health Record system designed for 
 
 ## 🚀 Quick Start
 
-### Production Deployment (HTTPS with Let's Encrypt)
+### Prerequisites
 
-**Remote server deployment (Recommended):**
-```bash
-./deploy-fresh-server.sh user@your-server.com ~/.ssh/your-key.pem
-```
-
-**Local deployment:**
-```bash
-export DOMAIN="your-domain.com"
-export EMAIL="admin@your-domain.com"
-./deploy-fresh-server.sh
-```
-
-See [QUICKSTART.md](QUICKSTART.md) for quick reference or [DEPLOYMENT.md](DEPLOYMENT.md) for complete documentation.
-
-### Development/Local Testing
-
-**Prerequisites:**
 - Docker & Docker Compose
+- Python 3.9+ (for configuration)
 - 8GB RAM minimum
 - 20GB free disk space
 
-**One-Command Deployment:**
+### 5-Minute Setup
 
 ```bash
-# Clone and deploy
+# 1. Clone repository
 git clone https://github.com/ultraub/WintEHR.git
 cd WintEHR
-./deploy.sh dev --patients 50
+
+# 2. Configure deployment
+cp config.example.yaml config.yaml
+cp .env.example .env
+
+# Edit configuration (set domain, passwords, etc.)
+vim config.yaml  # Set your preferences
+vim .env         # Set secure passwords
+
+# 3. Validate configuration
+python3 deploy/validate_config.py
+
+# 4. Deploy!
+./deploy.sh
 ```
 
 The system will be available at:
-- **Clinical Portal**: http://localhost
-- **FHIR API**: http://localhost:8000/fhir/R4
-- **API Documentation**: http://localhost:8000/docs
+- **Clinical Portal**: https://your-domain.com (or http://localhost:3000 for dev)
+- **FHIR API**: https://your-domain.com/fhir
+- **API Documentation**: https://your-domain.com/api/docs
+
+### Development Mode
+
+For local testing without SSL:
+
+```bash
+# Create dev configuration
+cp config.example.yaml config.dev.yaml
+
+# Edit for development (set enable_ssl: false, patient_count: 10)
+vim config.dev.yaml
+
+# Deploy in dev mode
+./deploy.sh --environment dev
+```
+
+### Production Deployment
+
+For production with SSL and Azure:
+
+```bash
+# 1. Configure Azure settings in config.yaml
+vim config.yaml  # Set azure.* and ssl.* sections
+
+# 2. Deploy
+./deploy.sh
+
+# 3. Configure firewall (automatic)
+# Azure NSG rules configured automatically
+
+# 4. Setup SSL (automatic)
+# Let's Encrypt certificate obtained automatically
+```
+
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for complete configuration reference.
 
 ### Default Users
 
@@ -72,9 +104,72 @@ WintEHR uses a modern microservices architecture:
 
 - **Frontend**: React 18 with Material-UI
 - **Backend**: FastAPI (Python) with async support
-- **Database**: PostgreSQL 15 with JSONB for FHIR resources
+- **FHIR Server**: HAPI FHIR JPA Server (industry-standard)
+- **Database**: PostgreSQL 15 with HAPI JPA schema
 - **Cache**: Redis for sessions and performance
+- **Reverse Proxy**: Nginx with SSL/TLS support
 - **Containerization**: Docker with orchestration
+
+## ⚙️ Configuration
+
+WintEHR uses a comprehensive configuration management system for flexible deployments:
+
+### Configuration Files
+
+- **config.yaml** - Main configuration (deployment settings, Azure, SSL, services)
+- **.env** - Secrets (database passwords, API keys)
+- **config.{env}.yaml** - Environment-specific overrides (dev, staging, prod)
+
+### Key Features
+
+- **Single Source of Truth**: All settings in one place
+- **Environment Overrides**: Easy dev/staging/prod configurations
+- **Validation**: Pre-deployment checks catch errors early
+- **Secrets Management**: Secure handling of passwords and API keys
+- **Azure Integration**: Automatic NSG and resource configuration
+- **SSL Automation**: Let's Encrypt certificate management
+
+### Configuration Options
+
+```yaml
+deployment:
+  environment: production    # dev, staging, production
+  patient_count: 50         # Synthea patients to generate
+  enable_ssl: true          # Automatic SSL with Let's Encrypt
+
+azure:
+  resource_group: wintehr-rg
+  vm_name: wintehr-vm
+  location: eastus2
+
+ssl:
+  domain_name: wintehr.eastus2.cloudapp.azure.com
+  ssl_email: admin@example.com
+
+services:
+  ports:                    # Customize all service ports
+    frontend: 3000
+    backend: 8000
+    hapi_fhir: 8888
+
+hapi_fhir:
+  memory: 2g               # JVM memory allocation
+  validation_mode: NEVER   # FHIR validation level
+
+synthea:
+  state: Massachusetts     # US state for patient data
+  jar_version: 3.2.0       # Synthea version
+```
+
+### Complete Documentation
+
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for:
+- Complete configuration reference
+- Environment-specific setup
+- Azure deployment guide
+- SSL configuration
+- Secrets management
+- Troubleshooting
 
 ## 📋 Clinical Modules
 
@@ -131,25 +226,35 @@ WintEHR uses a modern microservices architecture:
 WintEHR includes Synthea integration for realistic test data:
 
 ```bash
-# Generate 50 patients with 10 years of history
-docker exec emr-backend python scripts/active/synthea_master.py full --count 50
+# Generate and load patients (handled automatically during deployment)
+./deploy.sh --patients 50
+
+# Or manually load data
+docker exec emr-backend python scripts/synthea_to_hapi_pipeline.py 50 Massachusetts
 ```
 
 ### Database Schema
 
-The system uses 6 core FHIR tables:
-- `fhir.resources` - Main resource storage
-- `fhir.resource_history` - Version tracking
-- `fhir.search_params` - Search indexes
-- `fhir.references` - Resource relationships
-- `fhir.compartments` - Patient compartments
-- `fhir.audit_logs` - Audit trail
+FHIR resources are managed by HAPI FHIR JPA Server using industry-standard tables:
+- `hfj_resource` - FHIR resource storage with versioning
+- `hfj_spidx_*` - Search parameter indexes (string, token, date, number, quantity)
+- `hfj_res_link` - Resource references and relationships
+- `hfj_res_tag` - Resource tags and security labels
+
+Clinical workflow data uses dedicated tables:
+- `clinical_notes` - Clinical documentation
+- `orders` - Order management
+- `tasks` - Clinical task tracking
+- `clinical_catalogs` - Medication, condition, and lab catalogs
 
 ## 🔧 Deployment Options
 
 ### Development Mode
 ```bash
-./deploy.sh dev --patients 20
+# Configure dev settings in config.yaml (or config.dev.yaml)
+# Set: environment: dev, enable_ssl: false, patient_count: 20
+
+./deploy.sh --environment dev
 ```
 - JWT authentication disabled
 - Demo users enabled
@@ -157,7 +262,10 @@ The system uses 6 core FHIR tables:
 
 ### Production Mode
 ```bash
-./deploy.sh prod --patients 100
+# Configure production settings in config.yaml
+# Set: environment: production, enable_ssl: true, patient_count: 100
+
+./deploy.sh
 ```
 - JWT authentication required
 - SSL/TLS ready
