@@ -137,16 +137,14 @@ def register_all_routers(app: FastAPI) -> None:
     except Exception as e:
         logger.error(f"Failed to register imaging routers: {e}")
     
-    # 8. Patient Data & Provider Directory
+    # 8. Provider Directory
     try:
-        from api.patient_data import router as patient_data_router
         from api.clinical.provider_directory_router import router as provider_directory_router
-        
-        app.include_router(patient_data_router, prefix="/api", tags=["Patient Data"])
+
         app.include_router(provider_directory_router, tags=["Provider Directory"])
-        logger.info("✓ Patient data & provider directory routers registered")
+        logger.info("✓ Provider directory router registered")
     except Exception as e:
-        logger.error(f"Failed to register patient data/provider routers: {e}")
+        logger.error(f"Failed to register provider router: {e}")
     
     # 9. Monitoring & Performance
     try:

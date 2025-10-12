@@ -1,9 +1,0 @@
-{
-  "name": "wintehr-backend",
-  "version": "1.0.0",
-  "description": "WintEHR Backend Services",
-  "private": true,
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.56.0"
-  }
-}
