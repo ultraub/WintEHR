@@ -1,0 +1,29 @@
+{
+  "id": "test-vital-bp-high",
+  "title": "Test Vital Sign - High Blood Pressure",
+  "description": "Test hook for checking elevated systolic blood pressure (> 140 mmHg)",
+  "hook": "patient-view",
+  "enabled": true,
+  "conditions": [
+    {
+      "type": "vital_sign",
+      "operator": "gt",
+      "parameters": {
+        "type": "85354-9",
+        "component": "systolic",
+        "value": 140,
+        "timeframe": 7
+      }
+    }
+  ],
+  "cards": [
+    {
+      "summary": "Elevated blood pressure detected",
+      "detail": "Patient has systolic BP > 140 mmHg in the last 7 days",
+      "indicator": "warning",
+      "source": {
+        "label": "Vital Sign Test"
+      }
+    }
+  ]
+}

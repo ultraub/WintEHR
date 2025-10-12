@@ -1,15 +1,28 @@
-"""CDS Hooks service implementations"""
+"""
+CDS Hooks service implementations using fhirclient for HAPI FHIR
+
+This module provides CDS Hooks services that fetch data from HAPI FHIR
+using the fhirclient library instead of using prefetched data.
+"""
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 import uuid
 import logging
+from services.fhir_client_config import (
+    get_patient,
+    search_conditions,
+    search_medications,
+    search_observations,
+    search_allergies
+)
 
 logger = logging.getLogger(__name__)
 
+
 class BaseCDSService:
     """Base class for CDS services"""
-    
+
     def create_card(
         self,
         summary: str,
@@ -25,358 +38,447 @@ class BaseCDSService:
             "summary": summary,
             "detail": detail,
             "indicator": indicator,  # info, warning, critical
-            "source": source or {"label": "Teaching EMR CDS"}
+            "source": source or {"label": "WintEHR CDS"}
         }
-        
+
         if suggestions:
             card["suggestions"] = suggestions
         if links:
             card["links"] = links
-            
+
         return card
-    
-    def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any]) -> Dict[str, Any]:
+
+    def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any] = None) -> Dict[str, Any]:
         """Execute the CDS service - to be implemented by subclasses"""
         raise NotImplementedError
 
+
 class DiabetesManagementService(BaseCDSService):
-    """Diabetes management CDS service"""
-    
-    def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any]) -> Dict[str, Any]:
+    """Diabetes management CDS service using HAPI FHIR"""
+
+    def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any] = None) -> Dict[str, Any]:
         cards = []
-        
+
         try:
-            # Check if patient has diabetes
-            conditions = prefetch.get("conditions", [])
-            if not conditions:
+            # Get patient ID from context
+            patient_id = context.get('patientId')
+            if not patient_id:
+                logger.warning("No patientId in context")
                 return {"cards": []}
-            
-            # Check latest A1C
-            a1c = prefetch.get("a1c")
-            if a1c and isinstance(a1c, dict):
-                # FHIR Observation structure: check valueQuantity
-                value_quantity = a1c.get('valueQuantity', {})
-                a1c_value = value_quantity.get('value') if value_quantity else None
-                
-                if a1c_value and a1c_value >= 9.0:
-                    cards.append(self.create_card(
-                    summary="High A1C Alert",
-                    detail=f"Patient's A1C is {a1c_value}% (goal < 7%). Consider intensifying therapy.",
-                    indicator="critical",
+
+            # Remove 'Patient/' prefix if present
+            if patient_id.startswith('Patient/'):
+                patient_id = patient_id.replace('Patient/', '')
+
+            # Fetch patient data from HAPI FHIR
+            patient = get_patient(patient_id)
+            if not patient:
+                logger.warning(f"Patient {patient_id} not found")
+                return {"cards": []}
+
+            # Check if patient has diabetes
+            conditions = search_conditions(patient_id, status='active')
+            has_diabetes = any(
+                'diabetes' in condition.code.text.lower() if condition.code and condition.code.text else False
+                for condition in conditions
+            )
+
+            if not has_diabetes:
+                return {"cards": []}
+
+            # Check latest A1C (HbA1c observation)
+            a1c_observations = search_observations(
+                patient_id,
+                code='4548-4'  # LOINC code for HbA1c
+            )
+
+            if a1c_observations:
+                # Get most recent A1C
+                latest_a1c = max(
+                    a1c_observations,
+                    key=lambda obs: obs.effectiveDateTime.as_json() if obs.effectiveDateTime else ''
+                )
+
+                if latest_a1c.valueQuantity and latest_a1c.valueQuantity.value:
+                    a1c_value = latest_a1c.valueQuantity.value
+
+                    if a1c_value >= 9.0:
+                        cards.append(self.create_card(
+                            summary="High A1C Alert",
+                            detail=f"Patient's A1C is {a1c_value}% (goal < 7%). Consider intensifying therapy.",
+                            indicator="critical",
+                            suggestions=[
+                                {
+                                    "label": "Add basal insulin",
+                                    "uuid": str(uuid.uuid4()),
+                                    "actions": [{
+                                        "type": "create",
+                                        "description": "Prescribe insulin glargine",
+                                        "resource": {
+                                            "resourceType": "MedicationRequest",
+                                            "subject": {"reference": f"Patient/{patient_id}"},
+                                            "medicationCodeableConcept": {
+                                                "text": "Insulin glargine 10 units subcutaneous at bedtime"
+                                            }
+                                        }
+                                    }]
+                                }
+                            ],
+                            links=[
+                                {
+                                    "label": "ADA Standards of Care",
+                                    "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
+                                    "type": "absolute"
+                                }
+                            ]
+                        ))
+                    elif a1c_value >= 7.0:
+                        cards.append(self.create_card(
+                            summary="A1C Above Goal",
+                            detail=f"Patient's A1C is {a1c_value}% (goal < 7%). Consider treatment adjustment.",
+                            indicator="warning"
+                        ))
+
+            # Check if on metformin (first-line therapy)
+            medications = search_medications(patient_id, status='active')
+            on_metformin = any(
+                'metformin' in (
+                    med.medicationCodeableConcept.text.lower()
+                    if med.medicationCodeableConcept and med.medicationCodeableConcept.text
+                    else ''
+                )
+                for med in medications
+            )
+
+            if not on_metformin:
+                cards.append(self.create_card(
+                    summary="Consider Metformin",
+                    detail="Patient with diabetes not on metformin. Consider starting metformin as first-line therapy.",
+                    indicator="info",
                     suggestions=[
                         {
-                            "label": "Add basal insulin",
+                            "label": "Start metformin",
                             "uuid": str(uuid.uuid4()),
                             "actions": [{
                                 "type": "create",
-                                "description": "Prescribe insulin glargine",
+                                "description": "Prescribe metformin",
                                 "resource": {
                                     "resourceType": "MedicationRequest",
+                                    "subject": {"reference": f"Patient/{patient_id}"},
                                     "medicationCodeableConcept": {
-                                        "text": "Insulin glargine 10 units subcutaneous at bedtime"
+                                        "text": "Metformin 500mg PO BID"
                                     }
                                 }
                             }]
                         }
-                    ],
-                    links=[
-                        {
-                            "label": "ADA Standards of Care",
-                            "url": "https://diabetesjournals.org/care/issue/47/Supplement_1",
-                            "type": "absolute"
-                        }
                     ]
                 ))
-            elif a1c_value and a1c_value >= 7.0:
-                cards.append(self.create_card(
-                    summary="A1C Above Goal",
-                    detail=f"Patient's A1C is {a1c_value}% (goal < 7%). Consider treatment adjustment.",
-                    indicator="warning"
-                ))
-            
-            # Check if on metformin (first-line therapy)
-            medications = prefetch.get("medications", [])
-            on_metformin = False
-            for med in medications:
-                if isinstance(med, dict):
-                    # Check FHIR MedicationRequest structure
-                    med_concept = med.get('medicationCodeableConcept', {})
-                    if med_concept:
-                        # Check text or coding display
-                        med_text = med_concept.get('text', '')
-                        if med_text and 'metformin' in med_text.lower():
-                            on_metformin = True
-                            break
-                        # Also check codings
-                        for coding in med_concept.get('coding', []):
-                            display = coding.get('display', '')
-                            if display and 'metformin' in display.lower():
-                                on_metformin = True
-                                break
-            
-            if not on_metformin:
-                cards.append(self.create_card(
-                summary="Consider Metformin",
-                detail="Patient with diabetes not on metformin. Consider starting metformin as first-line therapy.",
+
+            # Annual screening reminder
+            cards.append(self.create_card(
+                summary="Annual Diabetes Screenings Due",
+                detail="Remember annual screenings: eye exam, foot exam, urine microalbumin",
                 indicator="info",
-                suggestions=[
+                links=[
                     {
-                        "label": "Start metformin",
-                        "uuid": str(uuid.uuid4()),
-                        "actions": [{
-                            "type": "create",
-                            "description": "Prescribe metformin",
-                            "resource": {
-                                "resourceType": "MedicationRequest",
-                                "medicationCodeableConcept": {
-                                    "text": "Metformin 500mg PO BID"
-                                }
-                            }
-                        }]
+                        "label": "Diabetes Care Checklist",
+                        "url": "https://www.cdc.gov/diabetes/managing/care-schedule.html",
+                        "type": "absolute"
                     }
                 ]
-                ))
-            
-            # Check for annual screening reminders
-            cards.append(self.create_card(
-            summary="Annual Diabetes Screenings Due",
-            detail="Remember annual screenings: eye exam, foot exam, urine microalbumin",
-            indicator="info",
-            links=[
-                {
-                    "label": "Diabetes Care Checklist",
-                    "url": "https://www.cdc.gov/diabetes/managing/care-schedule.html",
-                    "type": "absolute"
-                }
-            ]
             ))
-            
-            return {"cards": cards}
-            
+
         except Exception as e:
-            # Log error but don't crash - return empty cards array
-            logger.error(f"Error in DiabetesManagementService: {str(e)}", exc_info=True)
-            
-            # Return error card to inform user
-            error_card = self.create_card(
+            logger.error(f"Error in DiabetesManagementService: {e}", exc_info=True)
+            cards.append(self.create_card(
                 summary="CDS Service Error",
-                detail=f"An error occurred while evaluating diabetes management recommendations. Please contact support if this persists.",
+                detail=f"Unable to check diabetes management guidelines: {str(e)}",
                 indicator="warning"
-            )
-            return {"cards": [error_card]}
+            ))
+
+        return {"cards": cards}
+
+
+class AllergyCheckService(BaseCDSService):
+    """Allergy checking service using HAPI FHIR"""
+
+    def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any] = None) -> Dict[str, Any]:
+        cards = []
+
+        try:
+            patient_id = context.get('patientId', '').replace('Patient/', '')
+            medications = context.get('medications', [])
+
+            if not patient_id or not medications:
+                return {"cards": []}
+
+            # Fetch allergies from HAPI FHIR
+            allergies = search_allergies(patient_id)
+
+            for medication in medications:
+                med_text = (
+                    medication.get('medicationCodeableConcept', {}).get('text', '').lower()
+                    if isinstance(medication, dict)
+                    else ''
+                )
+
+                for allergy in allergies:
+                    if not allergy.code or not allergy.code.text:
+                        continue
+
+                    allergy_text = allergy.code.text.lower()
+
+                    # Check for matches
+                    if any(term in med_text for term in allergy_text.split()):
+                        cards.append(self.create_card(
+                            summary="Allergy Alert",
+                            detail=f"Patient has documented allergy to {allergy.code.text}",
+                            indicator="critical",
+                            source={"label": "Allergy Checking Service"}
+                        ))
+
+        except Exception as e:
+            logger.error(f"Error in AllergyCheckService: {e}", exc_info=True)
+            cards.append(self.create_card(
+                summary="CDS Service Error",
+                detail=f"Unable to check allergies: {str(e)}",
+                indicator="warning"
+            ))
+
+        return {"cards": cards}
+
+
+class DrugInteractionService(BaseCDSService):
+    """Drug-drug interaction checking service"""
+
+    # Common drug interactions (simplified example)
+    INTERACTIONS = {
+        ('warfarin', 'aspirin'): {
+            'severity': 'critical',
+            'message': 'Increased bleeding risk with warfarin + aspirin combination'
+        },
+        ('metformin', 'contrast'): {
+            'severity': 'warning',
+            'message': 'Hold metformin before and after contrast administration'
+        },
+        ('ace inhibitor', 'potassium'): {
+            'severity': 'warning',
+            'message': 'Monitor potassium levels with ACE inhibitor + potassium supplement'
+        }
+    }
+
+    def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any] = None) -> Dict[str, Any]:
+        cards = []
+
+        try:
+            patient_id = context.get('patientId', '').replace('Patient/', '')
+            new_medications = context.get('medications', [])
+
+            if not patient_id:
+                return {"cards": []}
+
+            # Fetch current medications from HAPI FHIR
+            current_meds = search_medications(patient_id, status='active')
+
+            # Extract medication names
+            current_med_names = [
+                med.medicationCodeableConcept.text.lower()
+                for med in current_meds
+                if med.medicationCodeableConcept and med.medicationCodeableConcept.text
+            ]
+
+            new_med_names = [
+                med.get('medicationCodeableConcept', {}).get('text', '').lower()
+                for med in new_medications
+                if isinstance(med, dict)
+            ]
+
+            # Check for interactions
+            for new_med in new_med_names:
+                for current_med in current_med_names:
+                    for (drug1, drug2), interaction in self.INTERACTIONS.items():
+                        if (drug1 in new_med and drug2 in current_med) or \
+                           (drug2 in new_med and drug1 in current_med):
+                            cards.append(self.create_card(
+                                summary="Drug Interaction Alert",
+                                detail=interaction['message'],
+                                indicator=interaction['severity']
+                            ))
+
+        except Exception as e:
+            logger.error(f"Error in DrugInteractionService: {e}", exc_info=True)
+            cards.append(self.create_card(
+                summary="CDS Service Error",
+                detail=f"Unable to check drug interactions: {str(e)}",
+                indicator="warning"
+            ))
+
+        return {"cards": cards}
+
 
 class HypertensionManagementService(BaseCDSService):
-    """Hypertension management CDS service"""
-    
-    def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any]) -> Dict[str, Any]:
+    """Hypertension management CDS service using HAPI FHIR"""
+
+    def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any] = None) -> Dict[str, Any]:
         cards = []
-        
+
         try:
-            # Check blood pressure readings
-            bp_observations = prefetch.get("bp", [])
+            patient_id = context.get('patientId', '').replace('Patient/', '')
+            if not patient_id:
+                return {"cards": []}
+
+            # Fetch blood pressure observations from HAPI FHIR
+            bp_observations = search_observations(patient_id, code='85354-9')  # Blood pressure panel
+
             if not bp_observations:
                 return {"cards": []}
-            
-            # Get latest systolic and diastolic readings
+
+            # Extract systolic and diastolic readings
             systolic_readings = []
             diastolic_readings = []
-            
+
             for obs in bp_observations:
-                if isinstance(obs, dict):
-                    # Check if this is a blood pressure observation
-                    code_concept = obs.get('code', {})
-                    if code_concept:
-                        # Look for LOINC codes in codings
-                        for coding in code_concept.get('coding', []):
-                            code = coding.get('code')
-                            if code:
-                                # Extract value from valueQuantity
-                                value_quantity = obs.get('valueQuantity', {})
-                                value = value_quantity.get('value')
-                                if value is not None:
-                                    if code == "8480-6":  # Systolic
-                                        systolic_readings.append(float(value))
-                                    elif code == "8462-4":  # Diastolic
-                                        diastolic_readings.append(float(value))
-            
+                # Check for component observations (systolic and diastolic)
+                if hasattr(obs, 'component') and obs.component:
+                    for comp in obs.component:
+                        if comp.code and comp.code.coding:
+                            code = comp.code.coding[0].code if comp.code.coding else None
+                            if code and comp.valueQuantity and comp.valueQuantity.value:
+                                if code == "8480-6":  # Systolic
+                                    systolic_readings.append(float(comp.valueQuantity.value))
+                                elif code == "8462-4":  # Diastolic
+                                    diastolic_readings.append(float(comp.valueQuantity.value))
+
             if systolic_readings and diastolic_readings:
                 avg_systolic = sum(systolic_readings[:3]) / min(3, len(systolic_readings))
                 avg_diastolic = sum(diastolic_readings[:3]) / min(3, len(diastolic_readings))
-                
+
                 if avg_systolic >= 180 or avg_diastolic >= 120:
                     cards.append(self.create_card(
-                    summary="Hypertensive Crisis",
-                    detail=f"Average BP: {avg_systolic:.0f}/{avg_diastolic:.0f}. Immediate evaluation needed.",
-                    indicator="critical",
-                    links=[
-                        {
+                        summary="Hypertensive Crisis",
+                        detail=f"Average BP: {avg_systolic:.0f}/{avg_diastolic:.0f}. Immediate evaluation needed.",
+                        indicator="critical",
+                        links=[{
                             "label": "Hypertensive Crisis Management",
                             "url": "https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings/hypertensive-crisis-when-you-should-call-911-for-high-blood-pressure",
                             "type": "absolute"
-                        }
-                    ]
-                ))
-            elif avg_systolic >= 140 or avg_diastolic >= 90:
-                cards.append(self.create_card(
-                    summary="Blood Pressure Above Goal",
-                    detail=f"Average BP: {avg_systolic:.0f}/{avg_diastolic:.0f} (goal < 130/80). Consider medication adjustment.",
-                    indicator="warning",
-                    suggestions=[
-                        {
+                        }]
+                    ))
+                elif avg_systolic >= 140 or avg_diastolic >= 90:
+                    cards.append(self.create_card(
+                        summary="Blood Pressure Above Goal",
+                        detail=f"Average BP: {avg_systolic:.0f}/{avg_diastolic:.0f} (goal < 130/80). Consider medication adjustment.",
+                        indicator="warning",
+                        suggestions=[{
                             "label": "Increase antihypertensive therapy",
                             "uuid": str(uuid.uuid4())
-                        }
-                    ]
-                ))
-        
-            # Check medication adherence
-            medications = prefetch.get("medications", [])
-            on_ace_arb = False
-            for med in medications:
-                if isinstance(med, dict):
-                    med_concept = med.get('medicationCodeableConcept', {})
-                    if med_concept:
-                        med_text = med_concept.get('text', '')
-                        if med_text and any(drug in med_text.lower() for drug in ['lisinopril', 'losartan', 'enalapril']):
-                            on_ace_arb = True
-                            break
-                        # Also check codings
-                        for coding in med_concept.get('coding', []):
-                            display = coding.get('display', '')
-                            if display and any(drug in display.lower() for drug in ['lisinopril', 'losartan', 'enalapril']):
-                                on_ace_arb = True
-                                break
-        
+                        }]
+                    ))
+
+            # Check for ACE inhibitor or ARB
+            medications = search_medications(patient_id, status='active')
+            on_ace_arb = any(
+                any(drug in med.medicationCodeableConcept.text.lower()
+                    for drug in ['lisinopril', 'losartan', 'enalapril'])
+                for med in medications
+                if med.medicationCodeableConcept and med.medicationCodeableConcept.text
+            )
+
             if not on_ace_arb:
                 cards.append(self.create_card(
                     summary="Consider ACE Inhibitor or ARB",
                     detail="Patient with hypertension not on ACE inhibitor or ARB. Consider as first-line therapy.",
                     indicator="info"
                 ))
-        
-            return {"cards": cards}
-            
-        except Exception as e:
-            # Log error but don't crash
-            logger.error(f"Error in HypertensionManagementService: {str(e)}", exc_info=True)
-            
-            # Return error card to inform user
-            error_card = self.create_card(
-                summary="CDS Service Error",
-                detail="An error occurred while evaluating blood pressure recommendations. Please contact support if this persists.",
-                indicator="warning"
-            )
-            return {"cards": [error_card]}
 
-class DrugInteractionService(BaseCDSService):
-    """Drug interaction checking service"""
-    
-    # Simplified interaction database
-    INTERACTIONS = {
-        ('warfarin', 'aspirin'): {
-            'severity': 'warning',
-            'summary': 'Increased bleeding risk',
-            'detail': 'Concurrent use of warfarin and aspirin increases bleeding risk. Monitor INR closely.'
-        },
-        ('lisinopril', 'potassium'): {
-            'severity': 'warning',
-            'summary': 'Risk of hyperkalemia',
-            'detail': 'ACE inhibitors with potassium supplements can cause hyperkalemia. Monitor potassium levels.'
-        },
-        ('metformin', 'contrast'): {
-            'severity': 'critical',
-            'summary': 'Risk of lactic acidosis',
-            'detail': 'Hold metformin before and after contrast procedures to prevent lactic acidosis.'
-        }
-    }
-    
-    def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any]) -> Dict[str, Any]:
-        cards = []
-        
-        # Get current medications
-        medications = prefetch.get("medications", [])
-        if not medications:
-            return {"cards": []}
-        
-        # Get medication being prescribed (from context)
-        new_medication = context.get("medications", {}).get("new", [])
-        if not new_medication:
-            return {"cards": []}
-        
-        # Extract medication names
-        current_meds = []
-        for med in medications:
-            if hasattr(med, 'medication_name'):
-                current_meds.append(med.medication_name.lower())
-        
-        # Check for interactions
-        for new_med in new_medication:
-            new_med_name = new_med.get("display", "").lower()
-            
-            for current_med in current_meds:
-                # Check each interaction pair
-                for (drug1, drug2), interaction in self.INTERACTIONS.items():
-                    if (drug1 in new_med_name and drug2 in current_med) or \
-                       (drug2 in new_med_name and drug1 in current_med):
-                        cards.append(self.create_card(
-                            summary=f"Drug Interaction: {interaction['summary']}",
-                            detail=interaction['detail'],
-                            indicator=interaction['severity']
-                        ))
-        
+        except Exception as e:
+            logger.error(f"Error in HypertensionManagementService: {e}", exc_info=True)
+            cards.append(self.create_card(
+                summary="CDS Service Error",
+                detail=f"Unable to check hypertension management: {str(e)}",
+                indicator="warning"
+            ))
+
         return {"cards": cards}
 
+
 class PreventiveCareService(BaseCDSService):
-    """Preventive care reminder service"""
-    
-    def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any]) -> Dict[str, Any]:
+    """Preventive care reminder service using HAPI FHIR"""
+
+    def execute(self, context: Dict[str, Any], prefetch: Dict[str, Any] = None) -> Dict[str, Any]:
         cards = []
-        
-        # Get patient demographics
-        patient = prefetch.get("patient", {})
-        if not patient:
-            return {"cards": []}
-        
-        # Calculate age
-        birth_date = patient.get("birthDate")
-        if birth_date:
-            birth_date = date.fromisoformat(birth_date)
-            age = (date.today() - birth_date).days // 365
-            
-            # Age-based screening recommendations
-            if age >= 50:
-                cards.append(self.create_card(
-                    summary="Colorectal Cancer Screening Due",
-                    detail="Patient is over 50. Recommend colonoscopy or FIT testing.",
-                    indicator="info",
-                    links=[
-                        {
+
+        try:
+            patient_id = context.get('patientId', '').replace('Patient/', '')
+            if not patient_id:
+                return {"cards": []}
+
+            # Fetch patient from HAPI FHIR
+            patient = get_patient(patient_id)
+            if not patient:
+                return {"cards": []}
+
+            # Calculate age
+            if patient.birthDate:
+                birth_date = patient.birthDate.as_json()
+                birth_date_obj = datetime.fromisoformat(birth_date).date() if isinstance(birth_date, str) else birth_date
+                age = (date.today() - birth_date_obj).days // 365
+
+                # Age-based screening recommendations
+                if age >= 50:
+                    cards.append(self.create_card(
+                        summary="Colorectal Cancer Screening Due",
+                        detail="Patient is over 50. Recommend colonoscopy or FIT testing.",
+                        indicator="info",
+                        links=[{
                             "label": "USPSTF Screening Guidelines",
                             "url": "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening",
                             "type": "absolute"
-                        }
-                    ]
-                ))
-            
-            if age >= 40 and patient.get("gender") == "female":
-                cards.append(self.create_card(
-                    summary="Mammography Screening",
-                    detail="Annual mammography recommended for women over 40.",
-                    indicator="info"
-                ))
-            
-            if age >= 65:
-                cards.append(self.create_card(
-                    summary="Pneumococcal Vaccine Recommended",
-                    detail="CDC recommends pneumococcal vaccination for adults 65 and older.",
-                    indicator="info"
-                ))
-        
-        # Annual flu vaccine reminder (always applicable)
-        cards.append(self.create_card(
-            summary="Annual Flu Vaccine",
-            detail="Annual influenza vaccination recommended for all patients.",
-            indicator="info"
-        ))
-        
+                        }]
+                    ))
+
+                if age >= 40 and patient.gender == "female":
+                    cards.append(self.create_card(
+                        summary="Mammography Screening",
+                        detail="Annual mammography recommended for women over 40.",
+                        indicator="info"
+                    ))
+
+                if age >= 65:
+                    cards.append(self.create_card(
+                        summary="Pneumococcal Vaccine Recommended",
+                        detail="CDC recommends pneumococcal vaccination for adults 65 and older.",
+                        indicator="info"
+                    ))
+
+            # Annual flu vaccine reminder
+            cards.append(self.create_card(
+                summary="Annual Flu Vaccine",
+                detail="Annual influenza vaccination recommended for all patients.",
+                indicator="info"
+            ))
+
+        except Exception as e:
+            logger.error(f"Error in PreventiveCareService: {e}", exc_info=True)
+            cards.append(self.create_card(
+                summary="CDS Service Error",
+                detail=f"Unable to check preventive care: {str(e)}",
+                indicator="warning"
+            ))
+
         return {"cards": cards}
+
+
+# Service registry for easy access
+CDS_SERVICES = {
+    'diabetes-management': DiabetesManagementService(),
+    'hypertension-management': HypertensionManagementService(),
+    'allergy-check': AllergyCheckService(),
+    'drug-interaction': DrugInteractionService(),
+    'preventive-care': PreventiveCareService(),
+}
+
+
+def get_cds_service(service_id: str) -> Optional[BaseCDSService]:
+    """Get a CDS service by ID"""
+    return CDS_SERVICES.get(service_id)

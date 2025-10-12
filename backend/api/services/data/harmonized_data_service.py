@@ -15,10 +15,11 @@ from models.models import (
     Medication, Observation, Procedure, Immunization, Allergy,
     CarePlan, Payer, Claim, Device, DiagnosticReport, ImagingStudy
 )
-from models.clinical.catalogs import MedicationCatalog, LabTestCatalog, ImagingStudyCatalog
-from models.clinical.notes import ClinicalNote
-from models.clinical.orders import Order
-from models.clinical.tasks import ClinicalTask, InboxItem
+# Clinical catalog models removed - now using FHIR-based dynamic catalogs
+# from models.clinical.catalogs import MedicationCatalog, LabTestCatalog, ImagingStudyCatalog
+# from models.clinical.notes import ClinicalNote  # Not used - clinical notes via FHIR DocumentReference
+# from models.clinical.orders import Order  # Not used - orders via FHIR ServiceRequest/MedicationRequest
+# from models.clinical.tasks import ClinicalTask, InboxItem  # Not used - tasks via FHIR Task/Communication
 
 class HarmonizedDataService:
     """Centralized service for consistent data access across EMR"""
@@ -287,13 +288,10 @@ class HarmonizedDataService:
         
         result = []
         for med in medications:
-            # Try to get additional info from catalog
-            catalog_info = None
-            if med.rxnorm_code:
-                catalog_info = self.db.query(MedicationCatalog).filter(
-                    MedicationCatalog.rxnorm_code == med.rxnorm_code
-                ).first()
-            
+            # Note: Additional medication info (generic name, drug class, therapeutic class)
+            # is available via async FHIR MedicationRequest queries or DynamicCatalogService
+            # This synchronous service returns core medication data only
+
             med_dict = {
                 'id': med.id,
                 'name': med.medication_name,
@@ -305,14 +303,7 @@ class HarmonizedDataService:
                 'end_date': med.end_date.isoformat() if med.end_date else None,
                 'prescriber_id': med.prescriber_id
             }
-            
-            if catalog_info:
-                med_dict.update({
-                    'generic_name': catalog_info.generic_name,
-                    'drug_class': catalog_info.drug_class,
-                    'therapeutic_class': catalog_info.therapeutic_class
-                })
-            
+
             result.append(med_dict)
         
         return result

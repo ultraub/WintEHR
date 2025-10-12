@@ -95,6 +95,7 @@ import {
 import { format, parseISO, formatDistanceToNow, isPast, isFuture, differenceInDays, addDays, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import { printDocument } from '../../../../core/export/printUtils';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 // Removed framer-motion for consistency
@@ -390,7 +391,12 @@ const CareTeamMember = ({ participant, onEdit }) => {
   );
 };
 
-const CarePlanTabEnhanced = ({ patientId, patient, density: propDensity }) => {
+const CarePlanTabEnhanced = ({
+  patientId,
+  patient,
+  density: propDensity,
+  onNavigateToTab // Cross-tab navigation support
+}) => {
   const theme = useTheme();
   const { density, setDensity } = useDensity();
   

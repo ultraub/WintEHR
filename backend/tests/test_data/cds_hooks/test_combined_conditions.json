@@ -1,0 +1,31 @@
+{
+  "id": "test-combined-elderly-diabetic",
+  "title": "Test Combined Conditions - Elderly with Diabetes",
+  "description": "Test hook with multiple conditions (age AND diagnosis)",
+  "hook": "patient-view",
+  "enabled": true,
+  "conditions": [
+    {
+      "type": "age",
+      "operator": "ge",
+      "value": 65
+    },
+    {
+      "type": "condition",
+      "operator": "in",
+      "parameters": {
+        "codes": ["44054006", "73211009"]
+      }
+    }
+  ],
+  "cards": [
+    {
+      "summary": "Elderly patient with chronic condition",
+      "detail": "Patient is 65+ years old AND has diabetes or stress disorder. Both conditions must be met for this alert.",
+      "indicator": "info",
+      "source": {
+        "label": "Combined Condition Test"
+      }
+    }
+  ]
+}

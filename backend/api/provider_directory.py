@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, List, Dict, Any
 from database import get_async_session
 from sqlalchemy.ext.asyncio import AsyncSession
-import json
+from services.fhir_client_config import get_resource, search_resources
 
 router = APIRouter(prefix="/api/provider-directory", tags=["provider-directory"])
 
@@ -22,55 +22,43 @@ async def search_providers(
 ):
     """Search for providers based on various criteria."""
     try:
-        # Build base query for Practitioner resources
-        query = """
-            SELECT id, fhir_id, resource
-            FROM fhir.resources
-            WHERE resource_type = 'Practitioner'
-            AND deleted = false
-        """
-        
-        # Add name filter if provided
+        # Search Practitioner resources from HAPI FHIR
+        search_params = {}
         if name:
-            query += f" AND resource::text ILIKE '%{name}%'"
-        
-        # Execute query
-        result = await db.execute(query)
-        rows = result.fetchall()
-        
+            search_params['name'] = name
+        if active_only:
+            search_params['active'] = 'true'
+
+        practitioners = search_resources('Practitioner', search_params)
+
         providers = []
-        for row in rows:
-            resource = json.loads(row.resource) if isinstance(row.resource, str) else row.resource
-            
-            # Extract provider info
-            provider_name = resource.get('name', [{}])[0]
-            
-            provider = {
-                'id': row.fhir_id,
-                'name': {
-                    'given': provider_name.get('given', []),
-                    'family': provider_name.get('family', ''),
-                    'prefix': provider_name.get('prefix', []),
-                    'suffix': provider_name.get('suffix', [])
-                },
-                'active': resource.get('active', True),
-                'gender': resource.get('gender'),
-                'qualification': resource.get('qualification', []),
-                'telecom': resource.get('telecom', []),
-                'address': resource.get('address', [])
-            }
-            
-            # Filter by active status
-            if active_only and not provider['active']:
-                continue
-                
-            providers.append(provider)
-        
+        if practitioners:
+            for resource in practitioners:
+                # Extract provider info
+                provider_name = resource.name[0] if hasattr(resource, 'name') and resource.name else None
+
+                provider = {
+                    'id': resource.id if hasattr(resource, 'id') else None,
+                    'name': {
+                        'given': provider_name.given if provider_name and hasattr(provider_name, 'given') else [],
+                        'family': provider_name.family if provider_name and hasattr(provider_name, 'family') else '',
+                        'prefix': provider_name.prefix if provider_name and hasattr(provider_name, 'prefix') else [],
+                        'suffix': provider_name.suffix if provider_name and hasattr(provider_name, 'suffix') else []
+                    },
+                    'active': resource.active if hasattr(resource, 'active') else True,
+                    'gender': resource.gender if hasattr(resource, 'gender') else None,
+                    'qualification': [q.as_json() if hasattr(q, 'as_json') else q for q in resource.qualification] if hasattr(resource, 'qualification') and resource.qualification else [],
+                    'telecom': [t.as_json() if hasattr(t, 'as_json') else t for t in resource.telecom] if hasattr(resource, 'telecom') and resource.telecom else [],
+                    'address': [a.as_json() if hasattr(a, 'as_json') else a for a in resource.address] if hasattr(resource, 'address') and resource.address else []
+                }
+
+                providers.append(provider)
+
         return {
             'providers': providers,
             'total': len(providers)
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -81,27 +69,20 @@ async def get_provider_profile(
 ):
     """Get detailed profile for a specific provider."""
     try:
-        query = """
-            SELECT resource
-            FROM fhir.resources
-            WHERE resource_type = 'Practitioner'
-            AND fhir_id = :practitioner_id
-            AND deleted = false
-        """
-        
-        result = await db.execute(query, {'practitioner_id': practitioner_id})
-        row = result.fetchone()
-        
-        if not row:
+        # Get Practitioner from HAPI FHIR
+        resource = get_resource('Practitioner', practitioner_id)
+
+        if not resource:
             raise HTTPException(status_code=404, detail="Provider not found")
-        
-        resource = json.loads(row.resource) if isinstance(row.resource, str) else row.resource
-        
+
+        # Convert to JSON
+        profile = resource.as_json() if hasattr(resource, 'as_json') else resource
+
         return {
-            'profile': resource,
-            'roles': []  # TODO: Fetch PractitionerRole resources
+            'profile': profile,
+            'roles': []  # Roles fetched via separate endpoint
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -114,26 +95,20 @@ async def get_provider_roles(
 ):
     """Get roles for a specific provider."""
     try:
-        # Query for PractitionerRole resources
-        query = """
-            SELECT resource
-            FROM fhir.resources
-            WHERE resource_type = 'PractitionerRole'
-            AND resource::text LIKE :practitioner_ref
-            AND deleted = false
-        """
-        
-        practitioner_ref = f'%Practitioner/{practitioner_id}%'
-        result = await db.execute(query, {'practitioner_ref': practitioner_ref})
-        rows = result.fetchall()
-        
+        # Search for PractitionerRole resources from HAPI FHIR
+        practitioner_roles = search_resources('PractitionerRole', {
+            'practitioner': f'Practitioner/{practitioner_id}'
+        })
+
         roles = []
-        for row in rows:
-            resource = json.loads(row.resource) if isinstance(row.resource, str) else row.resource
-            roles.append(resource)
-        
+        if practitioner_roles:
+            for role in practitioner_roles:
+                # Convert to JSON
+                role_data = role.as_json() if hasattr(role, 'as_json') else role
+                roles.append(role_data)
+
         return {'roles': roles}
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -141,26 +116,29 @@ async def get_provider_roles(
 async def get_specialties(db: AsyncSession = Depends(get_async_session)):
     """Get list of available specialties."""
     try:
-        # Query for unique specialties from PractitionerRole resources
-        query = """
-            SELECT DISTINCT 
-                jsonb_array_elements(resource::jsonb->'specialty')->>'text' as specialty
-            FROM fhir.resources
-            WHERE resource_type = 'PractitionerRole'
-            AND deleted = false
-            AND resource::jsonb->'specialty' IS NOT NULL
-        """
-        
-        result = await db.execute(query)
-        rows = result.fetchall()
-        
-        specialties = [row.specialty for row in rows if row.specialty]
-        
+        # Get all PractitionerRole resources from HAPI FHIR
+        practitioner_roles = search_resources('PractitionerRole', {})
+
+        # Extract unique specialties
+        specialties_set = set()
+        if practitioner_roles:
+            for role in practitioner_roles:
+                if hasattr(role, 'specialty') and role.specialty:
+                    for specialty in role.specialty:
+                        if hasattr(specialty, 'text'):
+                            specialties_set.add(specialty.text)
+                        elif hasattr(specialty, 'coding') and specialty.coding:
+                            for coding in specialty.coding:
+                                if hasattr(coding, 'display'):
+                                    specialties_set.add(coding.display)
+
+        specialties = sorted(list(specialties_set))
+
         return {
-            'specialties': sorted(list(set(specialties))),
+            'specialties': specialties,
             'total': len(specialties)
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -168,30 +146,29 @@ async def get_specialties(db: AsyncSession = Depends(get_async_session)):
 async def get_organizations(db: AsyncSession = Depends(get_async_session)):
     """Get list of available organizations."""
     try:
-        query = """
-            SELECT id, fhir_id, resource
-            FROM fhir.resources
-            WHERE resource_type = 'Organization'
-            AND deleted = false
-        """
-        
-        result = await db.execute(query)
-        rows = result.fetchall()
-        
+        # Get Organization resources from HAPI FHIR
+        org_resources = search_resources('Organization', {})
+
         organizations = []
-        for row in rows:
-            resource = json.loads(row.resource) if isinstance(row.resource, str) else row.resource
-            organizations.append({
-                'id': row.fhir_id,
-                'name': resource.get('name'),
-                'type': resource.get('type', []),
-                'active': resource.get('active', True)
-            })
-        
+        if org_resources:
+            for resource in org_resources:
+                org_data = {
+                    'id': resource.id if hasattr(resource, 'id') else None,
+                    'name': resource.name if hasattr(resource, 'name') else None,
+                    'type': [],
+                    'active': resource.active if hasattr(resource, 'active') else True
+                }
+
+                # Extract organization types
+                if hasattr(resource, 'type') and resource.type:
+                    org_data['type'] = [t.as_json() if hasattr(t, 'as_json') else t for t in resource.type]
+
+                organizations.append(org_data)
+
         return {
             'organizations': organizations,
             'total': len(organizations)
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

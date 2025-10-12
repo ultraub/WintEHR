@@ -58,7 +58,7 @@ import {
   Snackbar
 } from '@mui/material';
 import {
-  Science as LabIcon,  
+  Science as LabIcon,
   Assessment as DiagnosticIcon,
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
@@ -84,11 +84,12 @@ import {
   TableChart as TableIcon,
   ViewModule as CardsIcon,
   ShowChart as TrendsIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Assignment as OrderIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useNavigate } from 'react-router-dom';
+import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import VitalsOverview from '../../charts/VitalsOverview';
 import LabTrendsChart from '../../charts/LabTrendsChart';
 import { printDocument, formatLabResultsForPrint } from '../../../../core/export/printUtils';
@@ -180,9 +181,11 @@ const getResultStatus = (observation) => {
   }
 };
 
-const ResultsTabOptimized = ({ patientId }) => {
+const ResultsTabOptimized = ({
+  patientId,
+  onNavigateToTab // Cross-tab navigation support
+}) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const { currentPatient } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
   
@@ -277,7 +280,7 @@ const ResultsTabOptimized = ({ patientId }) => {
   useEffect(() => {
     if (!patientId) return;
 
-    console.log('[ResultsTabOptimized] Setting up real-time subscriptions for patient:', patientId);
+    // Setting up real-time subscriptions for patient
 
     const subscriptions = [];
 
@@ -292,16 +295,11 @@ const ResultsTabOptimized = ({ patientId }) => {
 
     resultEvents.forEach(eventType => {
       const unsubscribe = subscribe(eventType, (event) => {
-        console.log('[ResultsTabOptimized] Result event received:', {
-          eventType,
-          eventPatientId: event.patientId,
-          currentPatientId: patientId,
-          event
-        });
+        // Result event received
         
         // Handle update if the event is for the current patient
         if (event.patientId === patientId) {
-          console.log('[ResultsTabOptimized] Updating results for event:', eventType);
+          // Updating results for event
           handleResultUpdate(eventType, event);
         }
       });
@@ -309,18 +307,19 @@ const ResultsTabOptimized = ({ patientId }) => {
     });
 
     return () => {
-      console.log('[ResultsTabOptimized] Cleaning up subscriptions');
+      // Cleaning up subscriptions
       subscriptions.forEach(unsub => unsub());
     };
   }, [patientId, subscribe]);
+
+  // Ref to track WebSocket subscription ID for proper cleanup
+  const wsSubscriptionIdRef = useRef(null);
 
   // WebSocket patient room subscription for multi-user sync
   useEffect(() => {
     if (!patientId || !websocketService.isConnected) return;
 
-    console.log('[ResultsTabOptimized] Setting up WebSocket patient room subscription for:', patientId);
-
-    let subscriptionId = null;
+    // Setting up WebSocket patient room subscription
 
     const setupPatientSubscription = async () => {
       try {
@@ -330,32 +329,34 @@ const ResultsTabOptimized = ({ patientId }) => {
           'DiagnosticReport'
         ];
 
-        subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
-        console.log('[ResultsTabOptimized] Successfully subscribed to patient room:', subscriptionId);
+        const subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
+        wsSubscriptionIdRef.current = subscriptionId;
+        // Successfully subscribed to patient room
       } catch (error) {
-        console.error('[ResultsTabOptimized] Failed to subscribe to patient room:', error);
+        // Failed to subscribe to patient room
       }
     };
 
     setupPatientSubscription();
 
     return () => {
-      if (subscriptionId) {
-        console.log('[ResultsTabOptimized] Unsubscribing from patient room:', subscriptionId);
-        websocketService.unsubscribeFromPatient(subscriptionId);
+      if (wsSubscriptionIdRef.current) {
+        // Unsubscribing from patient room
+        websocketService.unsubscribeFromPatient(wsSubscriptionIdRef.current);
+        wsSubscriptionIdRef.current = null;
       }
     };
   }, [patientId]);
 
   // Handle incremental result updates
   const handleResultUpdate = useCallback((eventType, eventData) => {
-    console.log('[ResultsTabOptimized] Handling result update:', eventType, eventData);
+    // Handling result update
     
     // Extract the result from the event data
     const result = eventData.result || eventData.observation || eventData.resource;
     
     if (!result) {
-      console.warn('[ResultsTabOptimized] No result in event data');
+      // No result in event data
       return;
     }
 
@@ -388,7 +389,7 @@ const ResultsTabOptimized = ({ patientId }) => {
         diagnosticReports: updateResultsList(prev.diagnosticReports, result, eventType)
       }));
     }
-  }, [getObservationCategory]);
+  }, []);
 
   // Helper function to update results list
   const updateResultsList = (list, newResult, eventType) => {
@@ -575,6 +576,25 @@ const ResultsTabOptimized = ({ patientId }) => {
                 onEdit={() => handleViewDetails(item)}
                 onMore={() => handleViewDetails(item)}
                 isAlternate={index % 2 === 1}
+                customActions={
+                  item.basedOn?.[0]?.reference && onNavigateToTab ? (
+                    <Tooltip title="View Related Order">
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          const orderId = item.basedOn[0].reference.split('/')[1];
+                          navigateToTab(onNavigateToTab, TAB_IDS.ORDERS, {
+                            resourceId: orderId,
+                            resourceType: 'ServiceRequest',
+                            action: 'highlight'
+                          });
+                        }}
+                      >
+                        <OrderIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  ) : null
+                }
               />
             </Grid>
           ))}
@@ -695,9 +715,31 @@ const ResultsTabOptimized = ({ patientId }) => {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <IconButton size="small" onClick={() => handleViewDetails(item)}>
-                      <ViewIcon fontSize="small" />
-                    </IconButton>
+                    <Stack direction="row" spacing={0.5}>
+                      <Tooltip title="View Details">
+                        <IconButton size="small" onClick={() => handleViewDetails(item)}>
+                          <ViewIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {/* Navigate to related order if exists */}
+                      {item.basedOn?.[0]?.reference && onNavigateToTab && (
+                        <Tooltip title="View Related Order">
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              const orderId = item.basedOn[0].reference.split('/')[1];
+                              navigateToTab(onNavigateToTab, TAB_IDS.ORDERS, {
+                                resourceId: orderId,
+                                resourceType: 'ServiceRequest',
+                                action: 'highlight'
+                              });
+                            }}
+                          >
+                            <OrderIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Stack>
                   </TableCell>
                 </TableRow>
               );

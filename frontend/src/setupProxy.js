@@ -4,25 +4,49 @@ module.exports = function(app) {
   // Determine backend URL based on environment
   // In Docker development, always use 'backend' service name
   const isDocker = process.env.HOST === '0.0.0.0';
-  const backendTarget = isDocker 
-    ? 'http://emr-backend-dev:8000' 
+  const backendTarget = isDocker
+    ? 'http://emr-backend-dev:8000'
     : process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
-  
+
+  // HAPI FHIR target (separate from backend)
+  const hapiFhirTarget = isDocker
+    ? 'http://hapi-fhir:8080'
+    : 'http://localhost:8888';
+
   console.log(`[Proxy] Backend target: ${backendTarget} (Docker: ${isDocker})`);
-  
+  console.log(`[Proxy] HAPI FHIR target: ${hapiFhirTarget} (Docker: ${isDocker})`);
+
   // Common proxy options with error handling
   const createProxy = (name, pathRewrite) => {
     return createProxyMiddleware({
       target: backendTarget,
       changeOrigin: true,
-      logLevel: 'error',
+      logLevel: 'info',
       pathRewrite: pathRewrite,
+      // Configure all timeout-related options
+      timeout: 0, // Disable http-proxy timeout (let backend handle it)
+      proxyTimeout: 0, // Disable proxy-specific timeout
+      // Configure the underlying http agent with custom timeout
+      agent: false, // Disable keep-alive agent
+      onProxyReq: (proxyReq, req, res) => {
+        // Set socket timeout directly on the request
+        proxyReq.setTimeout(120000); // 2 minute timeout
+        console.log(`[${name}] ${req.method} ${req.path} -> ${backendTarget}${req.path}`);
+      },
+      onProxyRes: (proxyRes, req, res) => {
+        console.log(`[${name}] ${req.method} ${req.path} <- ${proxyRes.statusCode}`);
+      },
       onError: (err, req, res) => {
-        console.error(`[${name} Proxy Error]`, err.message);
+        console.error(`[${name} Proxy Error]`, err.message, err.code);
         if (err.code === 'ECONNREFUSED') {
           res.status(503).json({
             error: 'Backend service unavailable',
             message: 'The backend service is not running or still starting up'
+          });
+        } else if (err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT' || err.code === 'ECONNRESET') {
+          res.status(504).json({
+            error: 'Gateway timeout',
+            message: 'The backend took too long to respond. This may be due to catalog processing.'
           });
         } else {
           res.status(500).json({
@@ -30,10 +54,6 @@ module.exports = function(app) {
             message: err.message
           });
         }
-      },
-      onProxyReq: (proxyReq, req, res) => {
-        // Only log errors, not every request
-        // console.log(`[${name}] ${req.method} ${req.path} -> ${backendTarget}${req.path}`);
       }
     });
   };
@@ -44,21 +64,56 @@ module.exports = function(app) {
     createProxy('API')
   );
   
-  // FHIR routes - need to add the path back since Express strips it
+  // FHIR routes - proxy to HAPI FHIR server
   app.use(
     '/fhir',
-    createProxy('FHIR', (path, req) => {
-      // Add /fhir back to the path since Express strips it
-      return '/fhir' + path;
+    createProxyMiddleware({
+      target: hapiFhirTarget,
+      changeOrigin: true,
+      logLevel: 'info',
+      pathRewrite: (path, req) => {
+        // HAPI FHIR uses /fhir as base path
+        // Remove /R4 if present and add /fhir back
+        const cleanPath = path.replace(/^\/R4/, '');
+        return '/fhir' + cleanPath;
+      },
+      timeout: 90000, // 90 second timeout for FHIR operations
+      proxyTimeout: 90000,
+      onProxyReq: (proxyReq, req, res) => {
+        proxyReq.setTimeout(90000);
+        console.log(`[HAPI FHIR] ${req.method} ${req.path} -> ${hapiFhirTarget}/fhir${req.path}`);
+      },
+      onProxyRes: (proxyRes, req, res) => {
+        console.log(`[HAPI FHIR] ${req.method} ${req.path} <- ${proxyRes.statusCode}`);
+      },
+      onError: (err, req, res) => {
+        console.error(`[HAPI FHIR Proxy Error]`, err.message, err.code);
+        if (err.code === 'ECONNREFUSED') {
+          res.status(503).json({
+            error: 'HAPI FHIR server unavailable',
+            message: 'The HAPI FHIR server is not running or still starting up'
+          });
+        } else if (err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT' || err.code === 'ECONNRESET') {
+          res.status(504).json({
+            error: 'HAPI FHIR timeout',
+            message: 'The HAPI FHIR server took too long to respond'
+          });
+        } else {
+          res.status(500).json({
+            error: 'HAPI FHIR proxy error',
+            message: err.message
+          });
+        }
+      }
     })
   );
   
-  // CDS Hooks routes - need to add the path back
+  // CDS Services routes - need to add the path back
   app.use(
-    '/cds-hooks',
+    '/cds-services',
     createProxy('CDS', (path, req) => {
-      // Add /cds-hooks back to the path
-      return '/cds-hooks' + path;
+      // Add /api/cds-services back to the path
+      return '/api/cds-services' + path;
     })
   );
   

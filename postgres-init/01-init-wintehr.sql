@@ -2,6 +2,10 @@
 -- WintEHR PostgreSQL Initialization Script
 -- This script is automatically executed by PostgreSQL docker-entrypoint-initdb.d
 -- ========================================================================
+--
+-- NOTE: FHIR data is stored by HAPI FHIR server in its own tables (hfj_*)
+--       This script only creates schemas for authentication and CDS Hooks
+-- ========================================================================
 
 -- Connect to the WintEHR database
 \c emr_db;
@@ -14,101 +18,21 @@
 -- Create schemas
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'fhir') THEN
-        CREATE SCHEMA fhir;
-        RAISE NOTICE 'Created schema: fhir';
-    END IF;
-    
     IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'auth') THEN
         CREATE SCHEMA auth;
         RAISE NOTICE 'Created schema: auth';
     END IF;
-    
+
     IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'cds_hooks') THEN
         CREATE SCHEMA cds_hooks;
         RAISE NOTICE 'Created schema: cds_hooks';
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'audit') THEN
+        CREATE SCHEMA audit;
+        RAISE NOTICE 'Created schema: audit';
+    END IF;
 END$$;
-
--- ========================================================================
--- FHIR Resource Tables
--- ========================================================================
-
--- Main resources table
-CREATE TABLE IF NOT EXISTS fhir.resources (
-    id BIGSERIAL PRIMARY KEY,
-    resource_type VARCHAR(255) NOT NULL,
-    fhir_id VARCHAR(255) NOT NULL,
-    version_id INTEGER NOT NULL DEFAULT 1,
-    last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted BOOLEAN DEFAULT FALSE,
-    resource JSONB NOT NULL,
-    UNIQUE(resource_type, fhir_id)
-);
-
--- Resource history table for versioning
-CREATE TABLE IF NOT EXISTS fhir.resource_history (
-    id BIGSERIAL PRIMARY KEY,
-    resource_id BIGINT NOT NULL,
-    version_id INTEGER NOT NULL,
-    operation VARCHAR(50) NOT NULL,
-    resource JSONB NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (resource_id) REFERENCES fhir.resources(id) ON DELETE CASCADE
-);
-
--- Search parameters table for FHIR search
-CREATE TABLE IF NOT EXISTS fhir.search_params (
-    id BIGSERIAL PRIMARY KEY,
-    resource_id BIGINT NOT NULL,
-    resource_type VARCHAR(255),
-    param_name VARCHAR(255) NOT NULL,
-    param_type VARCHAR(50),
-    value_string TEXT,
-    value_number NUMERIC,
-    value_date DATE,
-    value_token_system VARCHAR(255),
-    value_token_code VARCHAR(255),
-    value_reference VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (resource_id) REFERENCES fhir.resources(id) ON DELETE CASCADE
-);
-
--- Resource references table for relationship tracking
-CREATE TABLE IF NOT EXISTS fhir.references (
-    id BIGSERIAL PRIMARY KEY,
-    source_resource_id BIGINT NOT NULL,
-    source_id BIGINT, -- Alias for compatibility (will be synced with source_resource_id)
-    source_path VARCHAR(255) NOT NULL,
-    target_resource_type VARCHAR(255),
-    target_resource_id VARCHAR(255),
-    target_url TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (source_resource_id) REFERENCES fhir.resources(id) ON DELETE CASCADE
-);
-
--- Compartments table for patient compartment
-CREATE TABLE IF NOT EXISTS fhir.compartments (
-    id BIGSERIAL PRIMARY KEY,
-    compartment_type VARCHAR(50) NOT NULL,
-    compartment_id VARCHAR(255) NOT NULL,
-    resource_id BIGINT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (resource_id) REFERENCES fhir.resources(id) ON DELETE CASCADE
-);
-
--- Audit log table for security and compliance
-CREATE TABLE IF NOT EXISTS fhir.audit_logs (
-    id BIGSERIAL PRIMARY KEY,
-    user_id VARCHAR(255),
-    action VARCHAR(50) NOT NULL,
-    resource_type VARCHAR(255),
-    resource_id VARCHAR(255),
-    details JSONB,
-    ip_address INET,
-    user_agent TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
 -- ========================================================================
 -- Authentication Tables
@@ -142,6 +66,28 @@ CREATE TABLE IF NOT EXISTS auth.user_roles (
 );
 
 -- ========================================================================
+-- Audit Logging Tables
+-- ========================================================================
+
+-- Audit events table for security and compliance logging
+CREATE TABLE IF NOT EXISTS audit.events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_type VARCHAR(100) NOT NULL,
+    event_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_id VARCHAR(255),
+    patient_id VARCHAR(255),
+    resource_type VARCHAR(100),
+    resource_id VARCHAR(255),
+    action VARCHAR(50),
+    outcome VARCHAR(50) DEFAULT 'success',
+    details JSONB,
+    ip_address INET,
+    user_agent TEXT,
+    session_id VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ========================================================================
 -- CDS Hooks Tables
 -- ========================================================================
 
@@ -154,6 +100,8 @@ CREATE TABLE IF NOT EXISTS cds_hooks.hook_configurations (
     hook_type VARCHAR(100) NOT NULL,
     prefetch JSONB,
     configuration JSONB NOT NULL,
+    display_behavior JSONB DEFAULT '{}'::jsonb,
+    enabled BOOLEAN DEFAULT TRUE,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -180,40 +128,13 @@ CREATE TABLE IF NOT EXISTS cds_hooks.execution_log (
 
 \echo 'Creating indexes for performance optimization...'
 
--- Resources table indexes
-CREATE INDEX IF NOT EXISTS idx_resources_type ON fhir.resources(resource_type);
-CREATE INDEX IF NOT EXISTS idx_resources_type_id ON fhir.resources(resource_type, fhir_id);
-CREATE INDEX IF NOT EXISTS idx_resources_updated ON fhir.resources(last_updated);
-CREATE INDEX IF NOT EXISTS idx_resources_deleted ON fhir.resources(deleted);
-CREATE INDEX IF NOT EXISTS idx_resources_resource_gin ON fhir.resources USING gin(resource);
-
--- Resource history indexes
-CREATE INDEX IF NOT EXISTS idx_resource_history_resource_id ON fhir.resource_history(resource_id);
-CREATE INDEX IF NOT EXISTS idx_resource_history_version ON fhir.resource_history(resource_id, version_id);
-CREATE INDEX IF NOT EXISTS idx_resource_history_operation ON fhir.resource_history(operation);
-
--- Search parameters indexes
-CREATE INDEX IF NOT EXISTS idx_search_params_resource_id ON fhir.search_params(resource_id);
-CREATE INDEX IF NOT EXISTS idx_search_params_name_type ON fhir.search_params(param_name, param_type);
-CREATE INDEX IF NOT EXISTS idx_search_params_string ON fhir.search_params(param_name, value_string) WHERE value_string IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_search_params_number ON fhir.search_params(param_name, value_number) WHERE value_number IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_search_params_date ON fhir.search_params(param_name, value_date) WHERE value_date IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_search_params_token ON fhir.search_params(param_name, value_token_code) WHERE value_token_code IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_search_params_reference ON fhir.search_params(param_name, value_reference) WHERE value_reference IS NOT NULL;
-
--- References table indexes
-CREATE INDEX IF NOT EXISTS idx_references_source ON fhir.references(source_resource_id);
-CREATE INDEX IF NOT EXISTS idx_references_source_id ON fhir.references(source_id);
-CREATE INDEX IF NOT EXISTS idx_references_target ON fhir.references(target_resource_type, target_resource_id);
-
--- Compartments table indexes
-CREATE INDEX IF NOT EXISTS idx_compartments_type_id ON fhir.compartments(compartment_type, compartment_id);
-CREATE INDEX IF NOT EXISTS idx_compartments_resource ON fhir.compartments(resource_id);
-
--- Audit logs indexes
-CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON fhir.audit_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON fhir.audit_logs(resource_type, resource_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON fhir.audit_logs(created_at);
+-- Audit indexes
+CREATE INDEX IF NOT EXISTS idx_audit_event_time ON audit.events(event_time);
+CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit.events(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_patient_id ON audit.events(patient_id);
+CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit.events(resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_event_type ON audit.events(event_type);
+CREATE INDEX IF NOT EXISTS idx_audit_outcome ON audit.events(outcome);
 
 -- CDS Hooks indexes
 CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_active ON cds_hooks.hook_configurations(is_active);
@@ -259,26 +180,6 @@ BEGIN
     END IF;
 END$$;
 
--- Function to sync source_id with source_resource_id in references table
-CREATE OR REPLACE FUNCTION sync_references_source_id()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.source_id = NEW.source_resource_id;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Trigger to keep source_id in sync
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'sync_references_source_id_trigger') THEN
-        CREATE TRIGGER sync_references_source_id_trigger
-            BEFORE INSERT OR UPDATE ON fhir.references
-            FOR EACH ROW
-            EXECUTE FUNCTION sync_references_source_id();
-    END IF;
-END$$;
-
 -- ========================================================================
 -- Initial Data
 -- ========================================================================
@@ -309,17 +210,17 @@ ON CONFLICT (username) DO NOTHING;
 \echo 'Setting up database permissions...'
 
 -- Grant appropriate permissions to emr_user
-GRANT USAGE ON SCHEMA fhir TO emr_user;
 GRANT USAGE ON SCHEMA auth TO emr_user;
 GRANT USAGE ON SCHEMA cds_hooks TO emr_user;
+GRANT USAGE ON SCHEMA audit TO emr_user;
 
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA fhir TO emr_user;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA auth TO emr_user;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cds_hooks TO emr_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA audit TO emr_user;
 
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA fhir TO emr_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA auth TO emr_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA cds_hooks TO emr_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA audit TO emr_user;
 
 -- ========================================================================
 -- Verification and Summary
@@ -333,9 +234,9 @@ DECLARE
     schema_count INTEGER;
 BEGIN
     SELECT COUNT(*) INTO schema_count
-    FROM information_schema.schemata 
-    WHERE schema_name IN ('fhir', 'auth', 'cds_hooks');
-    
+    FROM information_schema.schemata
+    WHERE schema_name IN ('auth', 'cds_hooks', 'audit');
+
     IF schema_count = 3 THEN
         RAISE NOTICE '✅ All schemas created successfully';
     ELSE
@@ -349,26 +250,28 @@ DECLARE
     table_count INTEGER;
 BEGIN
     SELECT COUNT(*) INTO table_count
-    FROM information_schema.tables 
-    WHERE table_schema = 'fhir' 
-    AND table_name IN ('resources', 'resource_history', 'search_params', 'references');
-    
-    IF table_count = 4 THEN
-        RAISE NOTICE '✅ All core FHIR tables created successfully';
+    FROM information_schema.tables
+    WHERE (table_schema = 'auth' AND table_name IN ('users', 'roles', 'user_roles'))
+       OR (table_schema = 'cds_hooks' AND table_name IN ('hook_configurations', 'execution_log'))
+       OR (table_schema = 'audit' AND table_name = 'events');
+
+    IF table_count = 6 THEN
+        RAISE NOTICE '✅ All core tables created successfully';
     ELSE
-        RAISE EXCEPTION '❌ FHIR table creation failed. Expected 4, found %', table_count;
+        RAISE EXCEPTION '❌ Table creation failed. Expected 6, found %', table_count;
     END IF;
 END$$;
 
 -- Show summary
 \echo 'Database initialization summary:'
-SELECT 
+SELECT
     schemaname,
     COUNT(*) as table_count
-FROM pg_tables 
-WHERE schemaname IN ('fhir', 'auth', 'cds_hooks')
+FROM pg_tables
+WHERE schemaname IN ('auth', 'cds_hooks', 'audit')
 GROUP BY schemaname
 ORDER BY schemaname;
 
 \echo '✅ WintEHR database initialization completed successfully!'
-\echo 'Database is ready for FHIR resource storage and clinical operations.'
+\echo 'Database is ready for authentication, CDS Hooks, and audit logging.'
+\echo 'FHIR data is managed by HAPI FHIR server in its own tables.'

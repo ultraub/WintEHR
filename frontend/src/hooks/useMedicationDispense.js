@@ -6,12 +6,14 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export const useMedicationDispense = (patientId, options = {}) => {
   const [dispenses, setDispenses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const { publish } = useClinicalWorkflow();
+  const { user } = useAuth();
   
   const searchParams = useMemo(() => ({
     subject: patientId,
@@ -73,8 +75,10 @@ export const useMedicationDispense = (patientId, options = {}) => {
         whenHandedOver: dispenseData.whenHandedOver || new Date().toISOString(),
         performer: dispenseData.performer || [{
           actor: {
-            reference: 'Practitioner/current-pharmacist',
-            display: 'Current Pharmacist'
+            reference: user?.practitioner_id ? `Practitioner/${user.practitioner_id}` : 
+                      user?.id ? `Practitioner/${user.id}` : 
+                      `Practitioner/${Date.now()}`,
+            display: user?.display_name || user?.name || 'Pharmacist'
           }
         }],
         location: dispenseData.location,

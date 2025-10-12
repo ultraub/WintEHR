@@ -3,14 +3,20 @@
  * Handles CRUD operations for custom CDS hooks
  */
 import axios from 'axios';
+import { getBackendUrl, getBackendApiUrl, getCdsHooksServicesUrl } from '../config/apiConfig';
 
 class CDSHooksService {
   constructor() {
-    // Use the proxied path for all environments
-    // The proxy will handle forwarding to the correct backend URL
-    this.baseUrl = '/api/cds-services';
-    // Service management endpoints are under /api/services (without 'cds-')
-    this.serviceManagementUrl = '/api';
+    // Use centralized configuration for all URLs
+    const backendUrl = getBackendUrl();
+    const apiUrl = getBackendApiUrl();
+    const cdsServicesUrl = getCdsHooksServicesUrl();
+
+    // Configure service endpoints
+    this.baseUrl = cdsServicesUrl;
+    this.serviceManagementUrl = apiUrl;
+
+    console.log(`[CDSHooksService] Using backend URL: ${backendUrl}`);
   }
 
   /**
@@ -61,6 +67,9 @@ class CDSHooksService {
               throw new Error(`Condition ${i + 1} is not a valid object`);
             }
 
+            // Debug logging for condition before transformation
+            console.log(`Condition ${i + 1} BEFORE buildConditionParameters:`, JSON.stringify(condition, null, 2));
+
             const mappedType = this.mapConditionType(condition.type);
             if (!mappedType) {
               throw new Error(`Unknown condition type: ${condition.type}`);
@@ -70,6 +79,9 @@ class CDSHooksService {
             if (!parameters || typeof parameters !== 'object') {
               throw new Error(`Failed to build parameters for condition ${i + 1}`);
             }
+
+            // Debug logging for parameters after buildConditionParameters
+            console.log(`Condition ${i + 1} AFTER buildConditionParameters - parameters:`, JSON.stringify(parameters, null, 2));
 
             conditions.push({
               type: mappedType,
@@ -131,7 +143,13 @@ class CDSHooksService {
 
     // Transform backend conditions to frontend conditions
     const conditions = backendConfig.conditions.map((condition, index) => {
+      // Debug logging: Show what backend data we're transforming
+      console.log(`[transformToFrontendFormat] Condition ${index + 1} from backend:`,
+        JSON.stringify({ type: condition.type, parameters: condition.parameters }, null, 2));
+
       const conditionType = this.mapBackendConditionType(condition.type);
+      console.log(`[transformToFrontendFormat] Mapped ${condition.type} → ${conditionType}`);
+
       let operator = condition.parameters.operator || 'equals';
       
       // Map backend operators back to frontend format
@@ -163,11 +181,21 @@ class CDSHooksService {
       // Add type-specific fields
       if (conditionType === 'lab_value') {
         frontendCondition.labTest = condition.parameters.code || condition.parameters.labTest;
+        frontendCondition.labTestDisplay = condition.parameters.display || condition.parameters.labTestDisplay;
         if (condition.parameters.timeframe) {
           frontendCondition.timeframe = condition.parameters.timeframe;
         }
         if (condition.parameters.value2) {
           frontendCondition.value2 = condition.parameters.value2;
+        }
+        // Mark as using catalog if it has display text
+        if (frontendCondition.labTest && frontendCondition.labTestDisplay) {
+          frontendCondition.useCatalog = true;
+          frontendCondition.catalogSettings = {
+            searchEnabled: true,
+            suggestionLimit: 10,
+            autoRefresh: false
+          };
         }
       } else if (conditionType === 'vital_sign') {
         frontendCondition.vitalType = condition.parameters.type;
@@ -175,14 +203,52 @@ class CDSHooksService {
           frontendCondition.component = condition.parameters.component;
         }
       } else if (conditionType === 'condition') {
-        if (condition.parameters.codes) {
-          frontendCondition.codes = condition.parameters.codes;
+        // Map backend diagnosis-code parameters back to frontend catalog fields
+        if (condition.parameters.code || condition.parameters.codes) {
+          frontendCondition.conditionCode = condition.parameters.code || condition.parameters.codes;
+          frontendCondition.codes = condition.parameters.code || condition.parameters.codes; // Backward compatibility
+        }
+        if (condition.parameters.display) {
+          frontendCondition.conditionDisplay = condition.parameters.display;
         }
         if (condition.parameters.system) {
           frontendCondition.system = condition.parameters.system;
         }
+        // Mark as using catalog since it has catalog data
+        if (frontendCondition.conditionCode && frontendCondition.conditionDisplay) {
+          frontendCondition.useCatalog = true;
+          frontendCondition.catalogSettings = {
+            searchEnabled: true,
+            suggestionLimit: 10,
+            autoRefresh: false
+          };
+        }
+      } else if (conditionType === 'medication') {
+        // Map backend medication parameters back to frontend catalog fields
+        if (condition.parameters.medication) {
+          frontendCondition.medication = condition.parameters.medication;
+        }
+        if (condition.parameters.medications) {
+          frontendCondition.medications = condition.parameters.medications;
+        }
+        if (condition.parameters.drugClass) {
+          frontendCondition.drugClass = condition.parameters.drugClass;
+        }
+        // Mark as using catalog since it has catalog data
+        if (frontendCondition.medication || frontendCondition.medications || frontendCondition.drugClass) {
+          frontendCondition.useCatalog = true;
+          frontendCondition.catalogSettings = {
+            searchEnabled: true,
+            suggestionLimit: 10,
+            autoRefresh: false
+          };
+        }
       }
-      
+
+      // Debug logging: Show final transformed frontend condition
+      console.log(`[transformToFrontendFormat] Condition ${index + 1} transformed to frontend:`,
+        JSON.stringify(frontendCondition, null, 2));
+
       return frontendCondition;
     });
 
@@ -259,8 +325,14 @@ class CDSHooksService {
       parameters.operator = ageOperatorMap[condition.operator] || condition.operator;
     } else if (condition.type === 'lab_value') {
       // Lab value specific parameters
+      // Standard: 'code' is the primary parameter (matches FHIR Observation.code)
+      // Legacy: 'labTest' maintained for backward compatibility
       parameters.code = condition.labTest;
-      parameters.labTest = condition.labTest; // For backward compatibility
+      parameters.labTest = condition.labTest; // BACKWARD COMPATIBILITY
+      if (condition.labTestDisplay) {
+        parameters.display = condition.labTestDisplay;
+        parameters.labTestDisplay = condition.labTestDisplay; // BACKWARD COMPATIBILITY
+      }
       if (condition.value2) {
         parameters.value2 = condition.value2;
       }
@@ -297,11 +369,38 @@ class CDSHooksService {
       }
     } else if (condition.type === 'condition') {
       // Medical condition specific parameters
-      if (condition.codes) {
-        parameters.codes = condition.codes;
+      // Support both catalog-integrated fields and legacy fields
+      if (condition.conditionCode || condition.codes) {
+        parameters.code = condition.conditionCode || condition.codes;
+        parameters.codes = condition.conditionCode || condition.codes; // Backward compatibility
+      }
+      if (condition.conditionDisplay) {
+        parameters.display = condition.conditionDisplay;
       }
       if (condition.system) {
         parameters.system = condition.system;
+      }
+
+      // Diagnosis codes don't use comparison operators
+      // Remove invalid operators for code-based conditions
+      if (parameters.operator && ['gt', 'gte', 'lt', 'lte', 'ge', 'le'].includes(parameters.operator)) {
+        delete parameters.operator;
+      }
+    } else if (condition.type === 'medication') {
+      // Medication specific parameters from catalog integration
+      if (condition.medication) {
+        parameters.medication = condition.medication;
+      }
+      if (condition.medications) {
+        parameters.medications = condition.medications;
+      }
+      if (condition.drugClass) {
+        parameters.drugClass = condition.drugClass;
+      }
+
+      // Medications don't use comparison operators
+      if (parameters.operator && ['gt', 'gte', 'lt', 'lte', 'ge', 'le'].includes(parameters.operator)) {
+        delete parameters.operator;
       }
     }
 
@@ -416,8 +515,56 @@ class CDSHooksService {
           errors.push(`Condition ${index + 1}: Operator is required`);
         }
 
-        if (condition.value === '' || condition.value === null || condition.value === undefined) {
-          errors.push(`Condition ${index + 1}: Value is required`);
+        // Value validation - different logic for catalog vs non-catalog conditions
+        if (condition.useCatalog) {
+          // For catalog-integrated conditions, check type-specific fields
+          let hasRequiredData = false;
+
+          switch (condition.type) {
+            case 'medication':
+              hasRequiredData = condition.medication ||
+                               (condition.medications && condition.medications.length > 0) ||
+                               condition.drugClass;
+              if (!hasRequiredData) {
+                errors.push(`Condition ${index + 1}: Medication selection is required when using catalog integration`);
+              }
+              break;
+            case 'lab_value':
+              hasRequiredData = condition.labTest && condition.labTestDisplay;
+              if (!hasRequiredData) {
+                errors.push(`Condition ${index + 1}: Lab test selection is required when using catalog integration`);
+              }
+              // Still need numeric value for comparison
+              if (condition.value === '' || condition.value === null || condition.value === undefined) {
+                errors.push(`Condition ${index + 1}: Lab test value is required for comparison`);
+              } else if (isNaN(Number(condition.value))) {
+                errors.push(`Condition ${index + 1}: Lab value must be a number`);
+              }
+              break;
+            case 'condition':
+              hasRequiredData = condition.conditionCode && condition.conditionDisplay;
+              if (!hasRequiredData) {
+                errors.push(`Condition ${index + 1}: Condition selection is required when using catalog integration`);
+              }
+              // Condition types with catalog integration don't need a 'value' field
+              break;
+            case 'vital_sign':
+              // Vital signs may use catalog or direct value
+              if (condition.value === '' || condition.value === null || condition.value === undefined) {
+                errors.push(`Condition ${index + 1}: Vital sign value is required`);
+              }
+              break;
+            default:
+              // For other types (age, gender), value is still required
+              if (condition.value === '' || condition.value === null || condition.value === undefined) {
+                errors.push(`Condition ${index + 1}: Value is required`);
+              }
+          }
+        } else {
+          // Non-catalog conditions always need a value field
+          if (condition.value === '' || condition.value === null || condition.value === undefined) {
+            errors.push(`Condition ${index + 1}: Value is required`);
+          }
         }
 
         // Type-specific validation
@@ -428,7 +575,7 @@ class CDSHooksService {
           }
         }
 
-        if (condition.type === 'lab_value') {
+        if (condition.type === 'lab_value' && !condition.useCatalog) {
           if (!condition.labTest) {
             errors.push(`Condition ${index + 1}: Lab test code is required for lab value conditions`);
           }
@@ -481,9 +628,35 @@ class CDSHooksService {
         throw new Error('Invalid transformed data structure');
       }
 
-      // Send to backend with timeout
+      // Log the data being sent for debugging
+      console.log('Sending CDS service to backend:', JSON.stringify(backendConfig, null, 2));
+
+      // Final backend validation
+      if (backendConfig.conditions && backendConfig.conditions.length > 0) {
+        for (let i = 0; i < backendConfig.conditions.length; i++) {
+          const condition = backendConfig.conditions[i];
+
+          // Check for empty diagnosis codes
+          if (condition.type === 'diagnosis-code' && !condition.parameters.code && !condition.parameters.codes) {
+            throw new Error(`Condition ${i + 1}: Please select a diagnosis code from the catalog before saving`);
+          }
+
+          // Check for empty medications
+          if (condition.type === 'medication-active' && !condition.parameters.medication &&
+              !condition.parameters.medications && !condition.parameters.drugClass) {
+            throw new Error(`Condition ${i + 1}: Please select a medication from the catalog before saving`);
+          }
+
+          // Check for empty lab tests
+          if (condition.type === 'lab-value' && !condition.parameters.code && !condition.parameters.labTest) {
+            throw new Error(`Condition ${i + 1}: Please select a lab test from the catalog before saving`);
+          }
+        }
+      }
+
+      // Send to backend with extended timeout for complex hooks
       const response = await axios.post(`${this.serviceManagementUrl}/services`, backendConfig, {
-        timeout: 10000, // 10 second timeout
+        timeout: 30000, // 30 second timeout (catalog processing can be slow)
         headers: {
           'Content-Type': 'application/json'
         }
@@ -507,6 +680,11 @@ class CDSHooksService {
         throw new Error('Request timeout - the server took too long to respond. Please try again.');
       } else if (error.response?.status === 409) {
         throw new Error('Service ID already exists. Please choose a different ID.');
+      } else if (error.response?.status === 422) {
+        // Unprocessable Entity - validation error from backend
+        const detail = error.response.data?.detail || error.response.data?.message || 'Validation failed';
+        console.error('Backend validation error (422):', error.response.data);
+        throw new Error(`Validation error: ${JSON.stringify(detail)}`);
       } else if (error.response?.status === 400) {
         const detail = error.response.data?.detail || error.response.data?.message || error.message;
         throw new Error(`Invalid service data: ${detail}`);
@@ -566,9 +744,12 @@ class CDSHooksService {
         throw new Error('Invalid transformed data structure');
       }
 
-      // Send to backend with timeout
+      // Log the data being sent for debugging
+      console.log('Updating CDS service:', JSON.stringify(backendConfig, null, 2));
+
+      // Send to backend with extended timeout for complex hooks
       const response = await axios.put(`${this.serviceManagementUrl}/services/${serviceId}`, backendConfig, {
-        timeout: 10000, // 10 second timeout
+        timeout: 30000, // 30 second timeout (catalog processing can be slow)
         headers: {
           'Content-Type': 'application/json'
         }
@@ -592,6 +773,11 @@ class CDSHooksService {
         throw new Error('Request timeout - the server took too long to respond. Please try again.');
       } else if (error.response?.status === 404) {
         throw new Error(`Service "${serviceId}" not found. It may have been deleted.`);
+      } else if (error.response?.status === 422) {
+        // Unprocessable Entity - validation error from backend
+        const detail = error.response.data?.detail || error.response.data?.message || 'Validation failed';
+        console.error('Backend validation error (422):', error.response.data);
+        throw new Error(`Validation error: ${JSON.stringify(detail)}`);
       } else if (error.response?.status === 400) {
         const detail = error.response.data?.detail || error.response.data?.message || error.message;
         throw new Error(`Invalid service data: ${detail}`);

@@ -14,8 +14,8 @@ import logging
 
 from database import get_db_session
 from .hook_persistence import (
-    get_persistence_manager, 
-    load_hooks_from_database, 
+    get_persistence_manager,
+    load_hooks_from_database,
     save_sample_hooks_to_database
 )
 from .feedback_persistence import (
@@ -54,6 +54,7 @@ from .rules_engine.integration import cds_integration
 from .rules_engine.safety import safety_manager, FeatureFlag
 from .service_registry import service_registry, register_builtin_services
 from .service_implementations import register_example_services
+from services.fhir_client_config import get_resource, search_resources
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -518,31 +519,21 @@ class CDSHookEngine:
             return True
     
     async def _check_patient_age(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check patient age condition"""
+        """Check patient age condition using HAPI FHIR"""
         try:
-            # Get patient data from FHIR storage
-            query = text("""
-                SELECT resource 
-                FROM fhir.resources 
-                WHERE resource_type = 'Patient' 
-                AND resource->>'id' = :patient_id
-                AND deleted = false
-                LIMIT 1
-            """)
-            result = await self.db.execute(query, {'patient_id': patient_id})
-            row = result.first()
-            
-            if not row:
-                logger.warning(f"Patient {patient_id} not found")
+            # Get patient data from HAPI FHIR
+            patient = get_resource('Patient', patient_id)
+
+            if not patient:
+                logger.warning(f"Patient {patient_id} not found in HAPI FHIR")
                 return False
-            
-            patient_dict = row.resource
-            birth_date_str = patient_dict.get('birthDate')
-            
+
+            birth_date_str = patient.birthDate.isostring if hasattr(patient, 'birthDate') else None
+
             if not birth_date_str:
                 logger.warning(f"No birthDate for patient {patient_id}")
                 return False
-            
+
             # Parse birth date
             from datetime import datetime
             try:
@@ -550,19 +541,19 @@ class CDSHookEngine:
             except ValueError:
                 logger.error(f"Invalid birthDate format for patient {patient_id}: {birth_date_str}")
                 return False
-            
+
             # Calculate age
             age = (datetime.now().date() - birth_date).days / 365.25
             operator = parameters.get('operator', 'eq')
             value = float(parameters.get('value', 0))
-            
+
             logger.debug(f"Patient age check: age={age:.1f}, operator={operator}, value={value}")
-            
+
             if operator == 'eq':
                 return abs(age - value) < 1  # Within 1 year
             elif operator == 'gt':
                 return age > value
-            elif operator == 'ge' or operator == '>=':
+            elif operator == 'ge':
                 result = age >= value
                 logger.debug(f"Age check result: {age:.1f} >= {value} = {result}")
                 return result
@@ -570,42 +561,33 @@ class CDSHookEngine:
                 return age < value
             elif operator == 'le':
                 return age <= value
-            
+
             return False
-            
+
         except Exception as e:
             logger.error(f"Error checking patient age: {e}")
             return False
     
     async def _check_patient_gender(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check patient gender condition"""
+        """Check patient gender condition using HAPI FHIR"""
         try:
-            query = text("""
-                SELECT resource 
-                FROM fhir.resources 
-                WHERE resource_type = 'Patient' 
-                AND resource->>'id' = :patient_id
-                AND deleted = false
-                LIMIT 1
-            """)
-            result = await self.db.execute(query, {'patient_id': patient_id})
-            row = result.first()
-            
-            if not row:
+            # Get patient data from HAPI FHIR
+            patient = get_resource('Patient', patient_id)
+
+            if not patient:
                 return False
-            
-            patient_dict = row.resource
+
             target_gender = parameters.get('value', '').lower()
-            patient_gender = (patient_dict.get('gender') or '').lower()
-            
+            patient_gender = (patient.gender or '').lower() if hasattr(patient, 'gender') else ''
+
             return patient_gender == target_gender
-            
+
         except Exception as e:
             logger.error(f"Error checking patient gender: {e}")
             return False
     
     async def _check_diagnosis_code(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check for specific diagnosis codes"""
+        """Check for specific diagnosis codes using HAPI FHIR"""
         try:
             codes = parameters.get('codes', [])
             if isinstance(codes, str):
@@ -613,163 +595,202 @@ class CDSHookEngine:
                 codes = [code.strip() for code in codes if code.strip()]
             elif not isinstance(codes, list):
                 codes = []
-            
+
             if not codes:
                 logger.warning(f"No codes to check for patient {patient_id}")
                 return False
-            
+
             logger.debug(f"Checking diagnosis codes {codes} for patient {patient_id}")
-            
-            # Query to find conditions with any of the specified codes
-            query = text("""
-                SELECT COUNT(*) as count
-                FROM fhir.resources 
-                WHERE resource_type = 'Condition' 
-                AND deleted = false
-                AND resource->'subject'->>'reference' = :patient_ref
-                AND (
-                    EXISTS (
-                        SELECT 1 FROM jsonb_array_elements(resource->'code'->'coding') AS coding
-                        WHERE coding->>'code' = ANY(:codes)
-                    )
-                    OR resource->'code'->>'text' ILIKE ANY(:text_patterns)
-                )
-            """)
-            
-            text_patterns = [f'%{code}%' for code in codes] + ['%diabetes%', '%prediabetes%']
-            
-            result = await self.db.execute(query, {
-                'patient_ref': f'Patient/{patient_id}',
-                'codes': codes,
-                'text_patterns': text_patterns
+
+            # Search conditions from HAPI FHIR for this patient
+            conditions = search_resources('Condition', {
+                'patient': f'Patient/{patient_id}'
             })
-            
-            count = result.scalar()
-            logger.debug(f"Found {count} matching conditions for patient {patient_id}")
-            
+
+            if not conditions:
+                logger.debug(f"No conditions found for patient {patient_id}")
+                return False
+
+            # Check if any condition has matching codes
+            found_count = 0
+            for condition in conditions:
+                if hasattr(condition, 'code') and condition.code:
+                    if hasattr(condition.code, 'coding'):
+                        for coding in condition.code.coding:
+                            if hasattr(coding, 'code') and coding.code in codes:
+                                found_count += 1
+                                break
+
+            logger.debug(f"Found {found_count} matching conditions for patient {patient_id}")
+
             operator = parameters.get('operator', 'in')
-            if operator == 'in':
-                return count > 0
+            if operator in ('in', 'equals'):  # Support both 'in' and 'equals' operators
+                return found_count > 0
             elif operator == 'not-in':
-                return count == 0
-            
+                return found_count == 0
+
             return False
-            
+
         except Exception as e:
             logger.error(f"Error checking diagnosis codes: {e}")
             return False
     
     async def _check_active_medication(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check for active medications"""
+        """Check for active medications using HAPI FHIR
+
+        Supports multiple parameter formats:
+        - Legacy: codes (array of medication codes)
+        - Catalog: medication/medications/drugClass (single or array)
+
+        Supports operators: 'in', 'equals', 'not-in', 'contains', 'any'
+        """
         try:
-            codes = parameters.get('codes', [])
+            # Extract codes from multiple parameter formats for backward compatibility
+            codes = parameters.get('codes') or \
+                    parameters.get('medication') or \
+                    parameters.get('medications') or \
+                    parameters.get('drugClass')
+
+            # Normalize to list
             if isinstance(codes, str):
                 codes = codes.split(',')
                 codes = [code.strip() for code in codes if code.strip()]
-            
+            elif codes is None:
+                codes = []
+            elif not isinstance(codes, list):
+                codes = [codes]
+
+            # Get operator (default to 'in' for backward compatibility)
+            operator = parameters.get('operator', 'in')
+
+            # Handle special 'any' case - just check if patient has any active medications
+            if codes == ['any'] or operator == 'any':
+                medications = search_resources('MedicationRequest', {
+                    'patient': f'Patient/{patient_id}',
+                    'status': 'active'
+                })
+                return len(medications) > 0 if medications else False
+
+            # Require codes for other operators
             if not codes:
+                logger.warning(f"No medication codes provided for patient {patient_id}")
                 return False
-            
-            query = text("""
-                SELECT COUNT(*) as count
-                FROM fhir.resources 
-                WHERE resource_type = 'MedicationRequest' 
-                AND deleted = false
-                AND resource->'subject'->>'reference' = :patient_ref
-                AND resource->>'status' = 'active'
-                AND EXISTS (
-                    SELECT 1 FROM jsonb_array_elements(
-                        COALESCE(resource->'medicationCodeableConcept'->'coding', '[]'::jsonb)
-                    ) AS coding
-                    WHERE coding->>'code' = ANY(:codes)
-                )
-            """)
-            
-            result = await self.db.execute(query, {
-                'patient_ref': f'Patient/{patient_id}',
-                'codes': codes
+
+            # Search medication requests from HAPI FHIR
+            medications = search_resources('MedicationRequest', {
+                'patient': f'Patient/{patient_id}',
+                'status': 'active'
             })
-            
-            count = result.scalar()
-            return count > 0
-            
+
+            if not medications:
+                # No medications found
+                return operator == 'not-in'  # True only for 'not-in' operator
+
+            # Count matching medications
+            found_count = 0
+            matched_codes = set()
+
+            for med in medications:
+                if hasattr(med, 'medicationCodeableConcept') and med.medicationCodeableConcept:
+                    if hasattr(med.medicationCodeableConcept, 'coding'):
+                        for coding in med.medicationCodeableConcept.coding:
+                            if hasattr(coding, 'code'):
+                                # Check for matches based on operator
+                                if operator == 'contains':
+                                    # Partial match (code contains any of the search codes)
+                                    if any(search_code.lower() in coding.code.lower() for search_code in codes):
+                                        found_count += 1
+                                        matched_codes.add(coding.code)
+                                        break
+                                else:
+                                    # Exact match
+                                    if coding.code in codes:
+                                        found_count += 1
+                                        matched_codes.add(coding.code)
+                                        break
+
+            logger.debug(f"Found {found_count} matching medications for patient {patient_id}: {matched_codes}")
+
+            # Apply operator logic
+            if operator in ('in', 'equals'):
+                # At least one medication matches
+                return found_count > 0
+            elif operator == 'not-in':
+                # No medications match
+                return found_count == 0
+            elif operator == 'contains':
+                # Already handled in the loop above
+                return found_count > 0
+            else:
+                logger.warning(f"Unknown operator '{operator}' for medication check, defaulting to 'in'")
+                return found_count > 0
+
         except Exception as e:
             logger.error(f"Error checking active medications: {e}")
             return False
     
     async def _check_lab_value(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check lab values against thresholds"""
+        """Check lab values against thresholds using HAPI FHIR
+
+        Standard parameters:
+        - code: Lab test code (LOINC code recommended) - PRIMARY
+        - labTest: Legacy parameter name, maps to code - BACKWARD COMPATIBILITY
+        - operator: Comparison operator (gt, gte, lt, lte, eq, between, etc.)
+        - value: Threshold value to compare against
+        - timeframe: Lookback period in days (default: 90, -1 for unlimited)
+        """
         try:
+            # Accept both 'code' (standard) and 'labTest' (legacy) for backward compatibility
             code = parameters.get('code') or parameters.get('labTest')
             operator = parameters.get('operator', 'gt')
             value = float(parameters.get('value', 0))
             timeframe = int(parameters.get('timeframe', 90))  # days
-            
+
             logger.info(f"Lab value check - Initial parameters: {parameters}")
             logger.info(f"Lab value check - Extracted values: code={code}, operator={operator}, value={value}, patient_id={patient_id}")
-            
+
             if not code:
                 logger.debug(f"No lab code provided in parameters: {parameters}")
                 return False
-            
+
             # Handle negative timeframe values (means unlimited lookback)
             if timeframe < 0:
                 timeframe = 36500  # 100 years - effectively unlimited
-            
+
             cutoff_date = (datetime.now() - timedelta(days=timeframe)).isoformat()
-            
+
             logger.info(f"Lab value check: patient={patient_id}, code={code}, operator={operator}, value={value}, timeframe={timeframe} days, cutoff_date={cutoff_date}")
-            
-            # Try both reference formats: urn:uuid: and Patient/
-            query = text("""
-                SELECT resource
-                FROM fhir.resources 
-                WHERE resource_type = 'Observation' 
-                AND deleted = false
-                AND (
-                    resource->'subject'->>'reference' = :patient_ref_fhir
-                    OR resource->'subject'->>'reference' = :patient_ref_uuid
-                )
-                AND (
-                    resource->'category'->0->'coding'->0->>'code' = 'laboratory'
-                    OR resource->'category' @> '[{"coding": [{"code": "laboratory"}]}]'
-                )
-                AND EXISTS (
-                    SELECT 1 FROM jsonb_array_elements(resource->'code'->'coding') AS coding
-                    WHERE coding->>'code' = :code
-                )
-                AND resource->>'effectiveDateTime' >= :cutoff_date
-                ORDER BY resource->>'effectiveDateTime' DESC
-                LIMIT 1
-            """)
-            
-            params = {
-                'patient_ref_fhir': f'Patient/{patient_id}',
-                'patient_ref_uuid': f'urn:uuid:{patient_id}',
+
+            # Search observations from HAPI FHIR
+            observations = search_resources('Observation', {
+                'patient': f'Patient/{patient_id}',
+                'category': 'laboratory',
                 'code': code,
-                'cutoff_date': cutoff_date
-            }
-            logger.info(f"Lab value check - Query parameters: {params}")
-            
-            result = await self.db.execute(query, params)
-            
-            row = result.first()
-            if not row:
+                'date': f'ge{cutoff_date}'
+            })
+
+            if not observations:
                 logger.info(f"No lab values found for code {code} within {timeframe} days for patient {patient_id}")
-                logger.info(f"Checked references: Patient/{patient_id} and urn:uuid:{patient_id}")
                 return operator == 'missing'
-            
-            obs_dict = row.resource
-            value_quantity = obs_dict.get('valueQuantity')
-            
-            if not value_quantity or 'value' not in value_quantity:
+
+            # Get the most recent observation (HAPI should return sorted by date DESC)
+            obs = observations[0] if observations else None
+
+            if not obs:
+                return operator == 'missing'
+
+            # Get value from observation
+            lab_value = None
+            if hasattr(obs, 'valueQuantity') and obs.valueQuantity:
+                if hasattr(obs.valueQuantity, 'value'):
+                    lab_value = float(obs.valueQuantity.value)
+
+            if lab_value is None:
                 logger.debug(f"No valueQuantity found in observation for patient {patient_id}")
                 return False
-            
-            lab_value = float(value_quantity['value'])
-            
+
             logger.debug(f"Lab value comparison: {lab_value} {operator} {value}")
-            
+
             if operator == 'gt':
                 result = lab_value > value
             elif operator == 'ge':
@@ -782,72 +803,71 @@ class CDSHookEngine:
                 result = abs(lab_value - value) < 0.01
             else:
                 result = False
-            
+
             logger.debug(f"Lab value check result: {result} (lab_value={lab_value}, operator={operator}, threshold={value})")
             return result
-            
+
         except Exception as e:
             logger.error(f"Error checking lab values for patient {patient_id}: {e}")
             return False
     
     async def _check_vital_sign(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check vital signs against normal ranges"""
+        """Check vital signs against normal ranges using HAPI FHIR"""
         try:
             vital_type = parameters.get('type')
             operator = parameters.get('operator', 'gt')
             value = float(parameters.get('value', 0))
             timeframe = int(parameters.get('timeframe', 7))  # days
-            
+
             if not vital_type:
                 return False
-            
+
             cutoff_date = (datetime.now() - timedelta(days=timeframe)).isoformat()
-            
-            query = text("""
-                SELECT resource
-                FROM fhir.resources 
-                WHERE resource_type = 'Observation' 
-                AND deleted = false
-                AND resource->'subject'->>'reference' = :patient_ref
-                AND resource->>'category' = 'vital-signs'
-                AND EXISTS (
-                    SELECT 1 FROM jsonb_array_elements(resource->'code'->'coding') AS coding
-                    WHERE coding->>'code' = :vital_type
-                )
-                AND resource->>'effectiveDateTime' >= :cutoff_date
-                ORDER BY resource->>'effectiveDateTime' DESC
-                LIMIT 1
-            """)
-            
-            result = await self.db.execute(query, {
-                'patient_ref': f'Patient/{patient_id}',
-                'vital_type': vital_type,
-                'cutoff_date': cutoff_date
+
+            # Search vital signs from HAPI FHIR
+            observations = search_resources('Observation', {
+                'patient': f'Patient/{patient_id}',
+                'category': 'vital-signs',
+                'code': vital_type,
+                'date': f'ge{cutoff_date}'
             })
-            
-            row = result.first()
-            if not row:
+
+            if not observations:
                 return False
-            
-            obs_dict = row.resource
-            
+
+            # Get the most recent observation
+            obs = observations[0] if observations else None
+
+            if not obs:
+                return False
+
+            vital_value = None
+
             # Handle blood pressure components
-            if vital_type == '85354-9' and 'component' in obs_dict:
+            if vital_type == '85354-9' and hasattr(obs, 'component'):
                 component = parameters.get('component', 'systolic')
-                for comp in obs_dict['component']:
-                    comp_code = comp.get('code', {}).get('coding', [{}])[0].get('code')
-                    if ((component == 'systolic' and comp_code == '8480-6') or 
+                for comp in obs.component:
+                    comp_code = None
+                    if hasattr(comp, 'code') and hasattr(comp.code, 'coding'):
+                        comp_code = comp.code.coding[0].code if comp.code.coding else None
+
+                    if ((component == 'systolic' and comp_code == '8480-6') or
                         (component == 'diastolic' and comp_code == '8462-4')):
-                        vital_value = float(comp.get('valueQuantity', {}).get('value', 0))
-                        break
-                else:
+                        if hasattr(comp, 'valueQuantity') and hasattr(comp.valueQuantity, 'value'):
+                            vital_value = float(comp.valueQuantity.value)
+                            break
+
+                if vital_value is None:
                     return False
+
             # Regular vital signs
-            elif 'valueQuantity' in obs_dict:
-                vital_value = float(obs_dict['valueQuantity'].get('value', 0))
-            else:
+            elif hasattr(obs, 'valueQuantity') and obs.valueQuantity:
+                if hasattr(obs.valueQuantity, 'value'):
+                    vital_value = float(obs.valueQuantity.value)
+
+            if vital_value is None:
                 return False
-            
+
             if operator == 'gt':
                 return vital_value > value
             elif operator == 'ge':
@@ -856,9 +876,9 @@ class CDSHookEngine:
                 return vital_value < value
             elif operator == 'le':
                 return vital_value <= value
-            
+
             return False
-            
+
         except Exception as e:
             logger.error(f"Error checking vital signs: {e}")
             return False

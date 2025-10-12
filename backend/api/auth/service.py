@@ -13,7 +13,7 @@ from database import get_db_session
 from .config import JWT_ENABLED, TRAINING_USERS, TRAINING_PASSWORD, JWT_ACCESS_TOKEN_EXPIRE_DELTA, USE_SECURE_AUTH
 from .jwt_handler import create_access_token, verify_token, verify_password
 from .models import User, TokenResponse, SimpleAuthResponse
-from api.services.audit_service import AuditService, AuditEventType
+from api.services.audit_event_service import AuditEventService, AuditEventType
 
 # Security scheme
 security = HTTPBearer(auto_error=False)
@@ -66,8 +66,8 @@ class AuthService:
             ip_address = request.client.host if request.client else None
             user_agent = request.headers.get('user-agent')
         
-        # Create audit service
-        audit = AuditService(self.db)
+        # Create audit service (HAPI FHIR AuditEvent)
+        audit = AuditEventService()
         
         # Basic rate limiting check
         if ip_address:
@@ -166,8 +166,8 @@ class AuthService:
         # Check if too many attempts
         attempts = self.failed_attempts.get(ip_address, [])
         if len(attempts) >= max_attempts:
-            # Log suspicious activity
-            audit = AuditService(self.db)
+            # Log suspicious activity (HAPI FHIR AuditEvent)
+            audit = AuditEventService()
             await audit.log_event(
                 event_type=AuditEventType.SECURITY_SUSPICIOUS_ACTIVITY,
                 details={

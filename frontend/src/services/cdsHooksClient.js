@@ -5,15 +5,22 @@
 import axios from 'axios';
 import { cdsPrefetchResolver } from './cdsPrefetchResolver';
 import { v4 as uuidv4 } from 'uuid';
+import { getBackendUrl, getBackendApiUrl } from '../config/apiConfig';
 
 class CDSHooksClient {
   constructor() {
-    // Use proxied path for all environments - the proxy handles the actual backend URL
-    // In development, the proxy forwards /api to http://localhost:8000
-    this.baseUrl = process.env.REACT_APP_CDS_HOOKS_URL || '/api';
+    // Use centralized configuration for all URLs
+    const backendUrl = getBackendUrl();
+    const apiUrl = getBackendApiUrl();
+
+    // Configure service endpoints
+    this.baseUrl = apiUrl;
+
+    console.log(`[CDSHooksClient] Using backend URL: ${backendUrl}`);
+
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
-      timeout: 10000, // 10 second timeout
+      timeout: 30000, // 30 second timeout (increased for CDS processing)
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'

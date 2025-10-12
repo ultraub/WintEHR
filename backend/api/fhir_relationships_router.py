@@ -14,7 +14,7 @@ import logging
 from collections import defaultdict
 
 from database import get_db_session
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import get_resource
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +109,123 @@ REFERENCE_FIELDS = {
         "insurance": {"target": ["Coverage", "ClaimResponse"], "type": "many-to-many"},
         "supportingInfo": {"target": ["Any"], "type": "many-to-many"},
         "specimen": {"target": ["Specimen"], "type": "many-to-many"}
+    },
+    "CarePlan": {
+        "subject": {"target": ["Patient", "Group"], "type": "many-to-one"},
+        "encounter": {"target": ["Encounter"], "type": "many-to-one"},
+        "author": {"target": ["Practitioner", "PractitionerRole", "Patient", "RelatedPerson", "Organization", "CareTeam", "Device"], "type": "many-to-one"},
+        "careTeam": {"target": ["CareTeam"], "type": "many-to-many"},
+        "addresses": {"target": ["Condition"], "type": "many-to-many"},
+        "supportingInfo": {"target": ["Any"], "type": "many-to-many"},
+        "goal": {"target": ["Goal"], "type": "many-to-many"},
+        "basedOn": {"target": ["CarePlan"], "type": "many-to-many"},
+        "replaces": {"target": ["CarePlan"], "type": "many-to-many"},
+        "partOf": {"target": ["CarePlan"], "type": "many-to-many"}
+    },
+    "CareTeam": {
+        "subject": {"target": ["Patient", "Group"], "type": "many-to-one"},
+        "encounter": {"target": ["Encounter"], "type": "many-to-one"},
+        "managingOrganization": {"target": ["Organization"], "type": "many-to-many"},
+        "participant": {"target": ["Practitioner", "PractitionerRole", "RelatedPerson", "Patient", "Organization", "CareTeam"], "type": "one-to-many"}
+    },
+    "Claim": {
+        "patient": {"target": ["Patient"], "type": "many-to-one"},
+        "enterer": {"target": ["Practitioner", "PractitionerRole"], "type": "many-to-one"},
+        "insurer": {"target": ["Organization"], "type": "many-to-one"},
+        "provider": {"target": ["Practitioner", "PractitionerRole", "Organization"], "type": "many-to-one"},
+        "priority": {"target": ["CodeableConcept"], "type": "many-to-one"},
+        "prescription": {"target": ["MedicationRequest", "VisionPrescription"], "type": "many-to-one"},
+        "originalPrescription": {"target": ["MedicationRequest"], "type": "many-to-one"},
+        "payee": {"target": ["Practitioner", "PractitionerRole", "Organization", "Patient", "RelatedPerson"], "type": "many-to-one"},
+        "referral": {"target": ["ServiceRequest"], "type": "many-to-one"},
+        "facility": {"target": ["Location"], "type": "many-to-one"},
+        "careTeam": {"target": ["Practitioner", "PractitionerRole", "Organization"], "type": "one-to-many"},
+        "procedure": {"target": ["Procedure"], "type": "one-to-many"}
+    },
+    "Practitioner": {
+        "qualification": {"target": ["Organization"], "type": "one-to-many"}
+    },
+    "PractitionerRole": {
+        "practitioner": {"target": ["Practitioner"], "type": "many-to-one"},
+        "organization": {"target": ["Organization"], "type": "many-to-one"},
+        "location": {"target": ["Location"], "type": "many-to-many"},
+        "healthcareService": {"target": ["HealthcareService"], "type": "many-to-many"},
+        "endpoint": {"target": ["Endpoint"], "type": "many-to-many"}
+    },
+    "Organization": {
+        "partOf": {"target": ["Organization"], "type": "many-to-one"},
+        "endpoint": {"target": ["Endpoint"], "type": "many-to-many"}
+    },
+    "Location": {
+        "managingOrganization": {"target": ["Organization"], "type": "many-to-one"},
+        "partOf": {"target": ["Location"], "type": "many-to-one"},
+        "endpoint": {"target": ["Endpoint"], "type": "many-to-many"}
+    },
+    "Device": {
+        "location": {"target": ["Location"], "type": "many-to-one"},
+        "patient": {"target": ["Patient"], "type": "many-to-one"},
+        "owner": {"target": ["Organization"], "type": "many-to-one"},
+        "parent": {"target": ["Device"], "type": "many-to-one"}
+    },
+    "ExplanationOfBenefit": {
+        "patient": {"target": ["Patient"], "type": "many-to-one"},
+        "enterer": {"target": ["Practitioner", "PractitionerRole"], "type": "many-to-one"},
+        "insurer": {"target": ["Organization"], "type": "many-to-one"},
+        "provider": {"target": ["Practitioner", "PractitionerRole", "Organization"], "type": "many-to-one"},
+        "prescription": {"target": ["MedicationRequest", "VisionPrescription"], "type": "many-to-one"},
+        "originalPrescription": {"target": ["MedicationRequest"], "type": "many-to-one"},
+        "payee": {"target": ["Practitioner", "PractitionerRole", "Organization", "Patient", "RelatedPerson"], "type": "many-to-one"},
+        "referral": {"target": ["ServiceRequest"], "type": "many-to-one"},
+        "facility": {"target": ["Location"], "type": "many-to-one"},
+        "claim": {"target": ["Claim"], "type": "many-to-one"},
+        "claimResponse": {"target": ["ClaimResponse"], "type": "many-to-one"}
+    },
+    "MedicationAdministration": {
+        "subject": {"target": ["Patient", "Group"], "type": "many-to-one"},
+        "context": {"target": ["Encounter", "EpisodeOfCare"], "type": "many-to-one"},
+        "supportingInformation": {"target": ["Any"], "type": "many-to-many"},
+        "performer": {"target": ["Practitioner", "PractitionerRole", "Patient", "RelatedPerson", "Device"], "type": "one-to-many"},
+        "reasonReference": {"target": ["Condition", "Observation", "DiagnosticReport"], "type": "many-to-many"},
+        "request": {"target": ["MedicationRequest"], "type": "many-to-one"},
+        "device": {"target": ["Device"], "type": "many-to-many"},
+        "eventHistory": {"target": ["Provenance"], "type": "many-to-many"}
+    },
+    "Medication": {
+        "manufacturer": {"target": ["Organization"], "type": "many-to-one"},
+        "ingredient": {"target": ["Medication", "Substance"], "type": "one-to-many"}
+    },
+    "DocumentReference": {
+        "subject": {"target": ["Patient", "Practitioner", "Group", "Device"], "type": "many-to-one"},
+        "author": {"target": ["Practitioner", "PractitionerRole", "Organization", "Device", "Patient", "RelatedPerson"], "type": "many-to-many"},
+        "authenticator": {"target": ["Practitioner", "PractitionerRole", "Organization"], "type": "many-to-one"},
+        "custodian": {"target": ["Organization"], "type": "many-to-one"},
+        "relatesTo": {"target": ["DocumentReference"], "type": "many-to-many"},
+        "context": {"target": ["Encounter", "EpisodeOfCare"], "type": "many-to-many"}
+    },
+    "ImagingStudy": {
+        "subject": {"target": ["Patient", "Device", "Group"], "type": "many-to-one"},
+        "encounter": {"target": ["Encounter"], "type": "many-to-one"},
+        "basedOn": {"target": ["CarePlan", "ServiceRequest", "Appointment", "AppointmentResponse", "Task"], "type": "many-to-many"},
+        "referrer": {"target": ["Practitioner", "PractitionerRole"], "type": "many-to-one"},
+        "interpreter": {"target": ["Practitioner", "PractitionerRole"], "type": "many-to-many"},
+        "endpoint": {"target": ["Endpoint"], "type": "many-to-many"},
+        "procedureReference": {"target": ["Procedure"], "type": "many-to-one"},
+        "location": {"target": ["Location"], "type": "many-to-one"},
+        "reasonReference": {"target": ["Condition", "Observation", "DiagnosticReport", "DocumentReference"], "type": "many-to-many"}
+    },
+    "Provenance": {
+        "target": {"target": ["Any"], "type": "many-to-many"},
+        "location": {"target": ["Location"], "type": "many-to-one"},
+        "agent": {"target": ["Practitioner", "PractitionerRole", "RelatedPerson", "Patient", "Device", "Organization"], "type": "one-to-many"},
+        "entity": {"target": ["Any"], "type": "one-to-many"}
+    },
+    "SupplyDelivery": {
+        "basedOn": {"target": ["SupplyRequest"], "type": "many-to-many"},
+        "partOf": {"target": ["SupplyDelivery", "Contract"], "type": "many-to-many"},
+        "patient": {"target": ["Patient"], "type": "many-to-one"},
+        "supplier": {"target": ["Practitioner", "PractitionerRole", "Organization"], "type": "many-to-one"},
+        "destination": {"target": ["Location"], "type": "many-to-one"},
+        "receiver": {"target": ["Practitioner", "PractitionerRole"], "type": "many-to-many"}
     }
 }
 
@@ -136,24 +253,22 @@ async def discover_relationships(
     Discover actual relationships for a specific resource instance.
     Returns connected resources with relationship metadata.
     """
-    storage = FHIRStorageEngine(db)
-    
     try:
         # Get the source resource
         logger.info(f"Attempting to read resource: {resource_type}/{resource_id}")
         try:
-            source_resource = await storage.read_resource(resource_type, resource_id)
+            source_resource = get_resource(resource_type, resource_id)
         except AttributeError as ae:
             logger.error(f"AttributeError when reading resource: {ae}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Storage engine error: {str(ae)}")
+            raise HTTPException(status_code=500, detail=f"FHIR client error: {str(ae)}")
         except Exception as e:
             logger.error(f"Unexpected error reading resource: {e}", exc_info=True)
             raise
-            
+
         if not source_resource:
             logger.warning(f"Resource not found: {resource_type}/{resource_id}")
             raise HTTPException(status_code=404, detail=f"{resource_type}/{resource_id} not found")
-        
+
         # Initialize result structure
         result = {
             "source": {
@@ -165,20 +280,20 @@ async def discover_relationships(
             "nodes": [],
             "links": []
         }
-        
+
         # Track visited resources to avoid cycles
         visited = set()
         visited.add(f"{resource_type}/{resource_id}")
-        
+
         # Discover relationships recursively
         await _discover_relationships_recursive(
-            storage, 
-            source_resource, 
+            db,
+            source_resource,
             resource_type,
             resource_id,
-            depth, 
-            1, 
-            visited, 
+            depth,
+            1,
+            visited,
             result,
             include_counts
         )
@@ -200,6 +315,8 @@ async def get_relationship_statistics(
     """
     Get statistical information about relationships in the database.
     Useful for understanding data patterns and connectivity.
+
+    Updated: 2025-10-05 - Migrated to HAPI FHIR JPA tables
     """
     try:
         stats = {
@@ -210,65 +327,67 @@ async def get_relationship_statistics(
             "mostConnectedResources": [],
             "orphanedResources": []
         }
-        
-        # Count resources by type
+
+        # Count resources by type from HAPI FHIR
         resource_count_query = """
-            SELECT resource_type, COUNT(*) as count
-            FROM fhir.resources
-            WHERE deleted = false
-            GROUP BY resource_type
+            SELECT res_type as resource_type, COUNT(*) as count
+            FROM hfj_resource
+            WHERE res_deleted_at IS NULL
+            GROUP BY res_type
             ORDER BY count DESC
         """
-        
+
         result = await db.execute(text(resource_count_query))
         for row in result:
             stats["resourceTypeCounts"][row.resource_type] = row.count
             stats["totalResources"] += row.count
-        
-        # Count relationships
+
+        # Count relationships from HAPI FHIR resource links
         relationship_count_query = """
-            SELECT 
-                source_type || '->' || target_type as relationship_type,
+            SELECT
+                r.res_type || '->' || link.target_resource_type as relationship_type,
                 COUNT(*) as count
-            FROM fhir.references
-            GROUP BY source_type, target_type
+            FROM hfj_res_link link
+            JOIN hfj_resource r ON link.src_resource_id = r.res_id
+            WHERE r.res_deleted_at IS NULL
+            GROUP BY r.res_type, link.target_resource_type
             ORDER BY count DESC
             LIMIT 20
         """
-        
+
         result = await db.execute(text(relationship_count_query))
         for row in result:
             stats["relationshipTypeCounts"][row.relationship_type] = row.count
             stats["totalRelationships"] += row.count
-        
-        # Find most connected resources
-        # Note: source_id is BIGINT (internal ID), target_id is VARCHAR (FHIR ID)
-        # We need to join with resources table to get consistent IDs
+
+        # Find most connected resources from HAPI FHIR
+        # Count both outgoing and incoming links
+        # Fixed 2025-10-05: Cast all resource_id to text for UNION compatibility
         connected_query = """
             WITH outgoing_connections AS (
-                SELECT 
-                    r.resource_type,
-                    r.fhir_id as resource_id,
+                SELECT
+                    r.res_type as resource_type,
+                    r.res_id::text as resource_id,
                     COUNT(*) as connection_count
-                FROM fhir.references ref
-                JOIN fhir.resources r ON ref.source_id = r.id
-                WHERE r.deleted = false
-                GROUP BY r.resource_type, r.fhir_id
+                FROM hfj_res_link link
+                JOIN hfj_resource r ON link.src_resource_id = r.res_id
+                WHERE r.res_deleted_at IS NULL
+                GROUP BY r.res_type, r.res_id
             ),
             incoming_connections AS (
-                SELECT 
-                    ref.target_type as resource_type,
-                    ref.target_id as resource_id,
+                SELECT
+                    target_resource_type as resource_type,
+                    CAST(target_resource_id AS text) as resource_id,
                     COUNT(*) as connection_count
-                FROM fhir.references ref
-                GROUP BY ref.target_type, ref.target_id
+                FROM hfj_res_link
+                GROUP BY target_resource_type, target_resource_id
             ),
             all_connections AS (
                 SELECT resource_type, resource_id, connection_count FROM outgoing_connections
                 UNION ALL
                 SELECT resource_type, resource_id, connection_count FROM incoming_connections
             )
-            SELECT 
+            SELECT
                 resource_type,
                 resource_id,
                 SUM(connection_count) as total_connections
@@ -277,7 +396,7 @@ async def get_relationship_statistics(
             ORDER BY total_connections DESC
             LIMIT 10
         """
-        
+
         result = await db.execute(text(connected_query))
         for row in result:
             stats["mostConnectedResources"].append({
@@ -285,9 +404,9 @@ async def get_relationship_statistics(
                 "id": row.resource_id,
                 "connectionCount": row.total_connections
             })
-        
+
         return stats
-        
+
     except Exception as e:
         logger.error(f"Error getting relationship statistics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -305,19 +424,17 @@ async def find_relationship_paths(
     Find all paths between two resources.
     Useful for understanding how resources are connected.
     """
-    storage = FHIRStorageEngine(db)
-    
     try:
         # Verify both resources exist
-        source = await storage.read_resource(source_type, source_id)
-        target = await storage.read_resource(target_type, target_id)
-        
+        source = get_resource(source_type, source_id)
+        target = get_resource(target_type, target_id)
+
         if not source or not target:
             raise HTTPException(status_code=404, detail="Source or target resource not found")
-        
+
         # Find paths using breadth-first search
         paths = await _find_paths_bfs(
-            storage,
+            db,
             f"{source_type}/{source_id}",
             f"{target_type}/{target_id}",
             max_depth
@@ -344,8 +461,21 @@ async def find_relationship_paths(
 
 # Helper functions
 
-def _get_resource_display(resource: Dict[str, Any]) -> str:
-    """Extract a display name from a FHIR resource."""
+def _get_resource_display(resource: Any) -> str:
+    """
+    Extract a display name from a FHIR resource.
+
+    Handles both fhirclient objects and dictionaries.
+    Fixed 2025-10-05: Convert fhirclient objects to dict first
+    """
+    # Convert fhirclient object to dictionary if needed
+    if hasattr(resource, 'as_json'):
+        resource = resource.as_json()
+
+    # Now resource is guaranteed to be a dictionary
+    if not isinstance(resource, dict):
+        return "Unknown Resource"
+
     if "name" in resource:
         if isinstance(resource["name"], list) and len(resource["name"]) > 0:
             name = resource["name"][0]
@@ -354,23 +484,23 @@ def _get_resource_display(resource: Dict[str, Any]) -> str:
             elif "family" in name:
                 given = " ".join(name.get("given", []))
                 return f"{given} {name['family']}".strip()
-    
+
     if "display" in resource:
         return resource["display"]
-    
+
     if "code" in resource and "text" in resource["code"]:
         return resource["code"]["text"]
-    
+
     if "code" in resource and "coding" in resource["code"]:
         for coding in resource["code"]["coding"]:
             if "display" in coding:
                 return coding["display"]
-    
+
     return f"{resource.get('resourceType', 'Resource')} {resource.get('id', '')}"
 
 async def _discover_relationships_recursive(
-    storage: FHIRStorageEngine,
-    resource: Dict[str, Any],
+    db: AsyncSession,
+    resource: Any,  # Can be fhirclient object or dict
     resource_type: str,
     resource_id: str,
     max_depth: int,
@@ -379,10 +509,17 @@ async def _discover_relationships_recursive(
     result: Dict[str, Any],
     include_counts: bool
 ):
-    """Recursively discover relationships from a resource."""
+    """
+    Recursively discover relationships from a resource.
+
+    Fixed 2025-10-05: Handle fhirclient objects properly
+    """
     if current_depth > max_depth:
         return
-    
+
+    # Convert fhirclient object to dictionary if needed
+    resource_dict = resource.as_json() if hasattr(resource, 'as_json') else resource
+
     # Add current resource as a node
     node_id = f"{resource_type}/{resource_id}"
     result["nodes"].append({
@@ -391,25 +528,25 @@ async def _discover_relationships_recursive(
         "display": _get_resource_display(resource),
         "depth": current_depth - 1
     })
-    
+
     # Get reference fields for this resource type
     reference_fields = REFERENCE_FIELDS.get(resource_type, {})
-    
-    # Check each reference field
+
+    # Check each reference field (use resource_dict for field access)
     for field_name, field_config in reference_fields.items():
-        if field_name in resource:
-            references = resource[field_name]
+        if field_name in resource_dict:
+            references = resource_dict[field_name]
             if not isinstance(references, list):
                 references = [references]
-            
+
             logger.info(f"Found field {field_name} with {len(references)} references in {resource_type}/{resource_id}")
-            
+
             for ref in references:
                 if isinstance(ref, dict) and "reference" in ref:
                     ref_string = ref["reference"]
                     target_type = None
                     target_id = None
-                    
+
                     # Handle both standard and URN format references
                     if ref_string.startswith("urn:uuid:"):
                         # URN format - need to determine resource type from context
@@ -421,7 +558,7 @@ async def _discover_relationships_recursive(
                             # Try to resolve the actual resource type
                             for possible_type in field_config["target"]:
                                 try:
-                                    test_resource = await storage.read_resource(possible_type, target_id)
+                                    test_resource = get_resource(possible_type, target_id)
                                     if test_resource:
                                         target_type = possible_type
                                         logger.info(f"Resolved URN {ref_string} to {possible_type}/{target_id}")
@@ -433,87 +570,107 @@ async def _discover_relationships_recursive(
                         ref_parts = ref_string.split("/")
                         if len(ref_parts) == 2:
                             target_type, target_id = ref_parts
-                    
+
                     if target_type and target_id:
                         target_node_id = f"{target_type}/{target_id}"
-                        
-                        # Add link
+
+                        # LONG-TERM FIX (2025-10-05): Verify target resource exists before adding link
+                        # This prevents links to non-existent nodes in the graph
+                        target_resource = None
+                        if target_node_id not in visited and current_depth < max_depth:
+                            try:
+                                target_resource = get_resource(target_type, target_id)
+                                if not target_resource:
+                                    logger.debug(f"Skipping forward reference to {target_node_id} - resource not found in FHIR")
+                                    continue
+                            except Exception as e:
+                                logger.debug(f"Skipping forward reference to {target_node_id} - fetch failed: {str(e)}")
+                                continue
+
+                        # Resource exists - safe to add link
                         result["links"].append({
                             "source": node_id,
                             "target": target_node_id,
                             "field": field_name,
                             "type": field_config["type"]
                         })
-                        
+
                         # Recursively explore if not visited
                         if target_node_id not in visited and current_depth < max_depth:
                             visited.add(target_node_id)
-                            try:
-                                target_resource = await storage.read_resource(target_type, target_id)
-                                if target_resource:
-                                    await _discover_relationships_recursive(
-                                        storage,
-                                        target_resource,
-                                        target_type,
-                                        target_id,
-                                        max_depth,
-                                        current_depth + 1,
-                                        visited,
-                                        result,
-                                        include_counts
-                                    )
-                            except Exception as e:
-                                logger.warning(f"Could not fetch {target_type}/{target_id}: {str(e)}")
-    
+                            await _discover_relationships_recursive(
+                                db,
+                                target_resource,
+                                target_type,
+                                target_id,
+                                max_depth,
+                                current_depth + 1,
+                                visited,
+                                result,
+                                include_counts
+                            )
+
     # Also check for reverse relationships (resources that reference this one)
+    # Updated 2025-10-05: Query HAPI FHIR hfj_res_link table
+    # Fixed 2025-10-05: Join through resource table to match FHIR logical ID
+    # Fixed 2025-10-05: Use r.fhir_id (source resource ID), not target_res.fhir_id
     if include_counts and current_depth < max_depth:
         reverse_refs_query = """
-            SELECT r.resource_type as source_type, r.fhir_id as source_id, ref.reference_path as field_path
-            FROM fhir.references ref
-            JOIN fhir.resources r ON ref.source_id = r.id
-            WHERE ref.target_type = :target_type AND ref.target_id = :target_id
-            AND (r.deleted = false OR r.deleted IS NULL)
-            LIMIT 50
+            SELECT r.res_type as source_type, r.fhir_id as source_id, link.src_path as field_path
+            FROM hfj_res_link link
+            JOIN hfj_resource r ON link.src_resource_id = r.res_id
+            JOIN hfj_resource target_res ON link.target_resource_id = target_res.res_id
+            WHERE target_res.res_type = :target_type
+            AND target_res.fhir_id = :target_id
+            AND r.res_deleted_at IS NULL
+            AND target_res.res_deleted_at IS NULL
+            LIMIT 200
         """
-        
-        result_refs = await storage.session.execute(
+
+        result_refs = await db.execute(
             text(reverse_refs_query),
             {"target_type": resource_type, "target_id": resource_id}
         )
-        
+
         for row in result_refs:
             source_node_id = f"{row.source_type}/{row.source_id}"
-            
-            # Add link
+
+            # LONG-TERM FIX (2025-10-05): Only add link if source resource actually exists
+            # Verify the resource can be fetched before adding it to the graph
+            try:
+                source_resource = get_resource(row.source_type, row.source_id)
+                if not source_resource:
+                    logger.debug(f"Skipping reverse reference from {source_node_id} - resource not found in FHIR")
+                    continue
+            except Exception as e:
+                logger.debug(f"Skipping reverse reference from {source_node_id} - fetch failed: {str(e)}")
+                continue
+
+            # Resource exists - safe to add link
             result["links"].append({
                 "source": source_node_id,
                 "target": node_id,
                 "field": row.field_path,
                 "type": "reverse"
             })
-            
+
             # Recursively explore if not visited
             if source_node_id not in visited:
                 visited.add(source_node_id)
-                try:
-                    source_resource = await storage.read_resource(row.source_type, row.source_id)
-                    if source_resource:
-                        await _discover_relationships_recursive(
-                            storage,
-                            source_resource,
-                            row.source_type,
-                            row.source_id,
-                            max_depth,
-                            current_depth + 1,
-                            visited,
-                            result,
-                            include_counts
-                        )
-                except Exception as e:
-                    logger.warning(f"Could not fetch {row.source_type}/{row.source_id}: {str(e)}")
+                await _discover_relationships_recursive(
+                    db,
+                    source_resource,
+                    row.source_type,
+                    row.source_id,
+                    max_depth,
+                    current_depth + 1,
+                    visited,
+                    result,
+                    include_counts
+                )
 
 async def _find_paths_bfs(
-    storage: FHIRStorageEngine,
+    db: AsyncSession,
     source: str,
     target: str,
     max_depth: int
@@ -522,13 +679,13 @@ async def _find_paths_bfs(
     paths = []
     queue = [(source, [source])]
     visited = set()
-    
+
     while queue and len(paths) < 10:  # Limit to 10 paths
         current, path = queue.pop(0)
-        
+
         if len(path) > max_depth:
             continue
-            
+
         if current == target:
             # Found a path
             path_details = []
@@ -540,29 +697,33 @@ async def _find_paths_bfs(
                 })
             paths.append(path_details)
             continue
-        
+
         if current in visited:
             continue
-            
+
         visited.add(current)
-        
+
         # Get all connected resources
         current_type, current_id = current.split("/")
-        
+
         # Check forward references
-        resource = await storage.read_resource(current_type, current_id)
+        resource = get_resource(current_type, current_id)
         if resource:
+            # Convert fhirclient object to dictionary if needed
+            # Fixed 2025-10-05: Handle fhirclient objects properly
+            resource_dict = resource.as_json() if hasattr(resource, 'as_json') else resource
+
             reference_fields = REFERENCE_FIELDS.get(current_type, {})
             for field_name, field_config in reference_fields.items():
-                if field_name in resource:
-                    references = resource[field_name]
+                if field_name in resource_dict:
+                    references = resource_dict[field_name]
                     if not isinstance(references, list):
                         references = [references]
-                    
+
                     for ref in references:
                         if isinstance(ref, dict) and "reference" in ref:
                             ref_string = ref["reference"]
-                            
+
                             # Handle URN format references
                             if ref_string.startswith("urn:uuid:"):
                                 # For URN references, try to resolve the resource type
@@ -570,7 +731,7 @@ async def _find_paths_bfs(
                                 if field_config.get("target"):
                                     for possible_type in field_config["target"]:
                                         try:
-                                            test_resource = await storage.read_resource(possible_type, target_id)
+                                            test_resource = get_resource(possible_type, target_id)
                                             if test_resource:
                                                 next_node = f"{possible_type}/{target_id}"
                                                 if next_node not in path:
@@ -583,25 +744,29 @@ async def _find_paths_bfs(
                                 next_node = ref_string
                                 if next_node not in path:  # Avoid cycles
                                     queue.append((next_node, path + [next_node]))
-        
-        # Check reverse references
+
+        # Check reverse references from HAPI FHIR (updated 2025-10-05)
+        # Fixed 2025-10-05: Join through resource table to match FHIR logical ID
         reverse_refs_query = """
-            SELECT r.resource_type || '/' || r.fhir_id as source
-            FROM fhir.references ref
-            JOIN fhir.resources r ON ref.source_id = r.id
-            WHERE ref.target_type = :target_type AND ref.target_id = :target_id
-            AND (r.deleted = false OR r.deleted IS NULL)
-            LIMIT 20
+            SELECT r.res_type || '/' || r.fhir_id as source
+            FROM hfj_res_link link
+            JOIN hfj_resource r ON link.src_resource_id = r.res_id
+            JOIN hfj_resource target_res ON link.target_resource_id = target_res.res_id
+            WHERE target_res.res_type = :target_type
+            AND target_res.fhir_id = :target_id
+            AND r.res_deleted_at IS NULL
+            AND target_res.res_deleted_at IS NULL
+            LIMIT 100
         """
-        
-        result_refs = await storage.session.execute(
+
+        result_refs = await db.execute(
             text(reverse_refs_query),
             {"target_type": current_type, "target_id": current_id}
         )
-        
+
         for row in result_refs:
             next_node = row.source
             if next_node not in path:  # Avoid cycles
                 queue.append((next_node, path + [next_node]))
-    
+
     return paths

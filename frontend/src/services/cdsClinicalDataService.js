@@ -4,32 +4,16 @@
  * and vital sign references for CDS Hooks condition evaluation
  */
 import axios from 'axios';
+import { buildUrl } from '../config/apiConfig';
 
 class CDSClinicalDataService {
   constructor() {
-    // Determine backend URL based on environment
-    const getBackendHost = () => {
-      // Check if running in Docker container
-      if (!!process.env.HOSTNAME) {
-        return 'http://backend:8000';
-      }
-      // In development, use localhost
-      if (process.env.NODE_ENV === 'development') {
-        return 'http://localhost:8000';
-      }
-      // In production, use relative URLs (empty string means same origin)
-      return '';
-    };
-    
-    const backendHost = getBackendHost();
-    
-    this.baseUrl = process.env.REACT_APP_BACKEND_URL 
-      ? `${process.env.REACT_APP_BACKEND_URL}/api/catalogs`
-      : (backendHost ? `${backendHost}/api/catalogs` : '/api/catalogs');
-    
+    // Use centralized configuration for backend URL
+    this.baseUrl = buildUrl('backend', '/api/catalogs');
+
     this.cache = new Map();
     this.cacheTimeout = 10 * 60 * 1000; // 10 minutes for reference data
-    
+
     // Create a dedicated HTTP client
     this.httpClient = axios.create({
       headers: {

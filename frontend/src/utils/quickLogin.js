@@ -3,9 +3,12 @@
  * This helps bypass the login page for testing
  */
 
+import { buildUrl } from '../config/apiConfig';
+
 export async function quickLogin(username = 'demo', password = 'password') {
   try {
-    const response = await fetch('http://localhost:8000/api/auth/login', {
+    const loginUrl = buildUrl('backend', '/api/auth/login');
+    const response = await fetch(loginUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -12,12 +12,24 @@ class EnhancedOrderSearchService {
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
     this.baseUrl = '/fhir/R4';
+
+    // HAPI FHIR search parameter mappings (different from old backend)
+    this.searchParamMappings = {
+      ServiceRequest: {
+        sortParam: 'authored',  // HAPI FHIR uses 'authored' for ServiceRequest
+      },
+      MedicationRequest: {
+        sortParam: 'authoredon', // HAPI FHIR uses 'authoredon' for MedicationRequest
+      }
+    };
   }
 
   /**
    * Search orders with advanced FHIR R4 parameters
    * @param {Object} searchParams - Search parameters
    * @param {Object} options - Search options
+   * @param {boolean} options.includeRelated - Include related resources (requester, performer, encounter) - WARNING: Can cause timeouts with large datasets
+   * @param {boolean} options.includeAnalytics - Include search analytics
    * @returns {Promise<Object>} Search results with metadata
    */
   async searchOrders(searchParams, options = {}) {
@@ -25,15 +37,16 @@ class EnhancedOrderSearchService {
       const {
         patientId,
         resourceTypes = ['ServiceRequest', 'MedicationRequest'],
-        sort = '-authored-date',
+        sort = '-authored', // Will be mapped to resource-specific param (authored/authoredon)
         count = 50,
         page = 1,
-        includeAnalytics = false
+        includeAnalytics = false,
+        includeRelated = false // Disabled by default to prevent timeouts
       } = options;
 
       // Build search URLs for each resource type
-      const searchPromises = resourceTypes.map(resourceType => 
-        this.searchResourceType(resourceType, patientId, searchParams, { sort, count, page })
+      const searchPromises = resourceTypes.map(resourceType =>
+        this.searchResourceType(resourceType, patientId, searchParams, { sort, count, page, includeRelated })
       );
 
       const results = await Promise.all(searchPromises);
@@ -59,14 +72,15 @@ class EnhancedOrderSearchService {
    * @param {string} patientId - Patient ID
    * @param {URLSearchParams} searchParams - Search parameters
    * @param {Object} options - Additional options
+   * @param {boolean} options.includeRelated - Include related resources via _include (default: false)
    * @returns {Promise<Object>} FHIR Bundle
    */
   async searchResourceType(resourceType, patientId, searchParams, options = {}) {
-    const { sort, count, page } = options;
-    
+    const { sort, count, page, includeRelated = false } = options;
+
     // Build URL with parameters
     const url = new URL(`${this.baseUrl}/${resourceType}`, window.location.origin);
-    
+
     // Add patient filter
     if (patientId) {
       url.searchParams.append('subject', `Patient/${patientId}`);
@@ -78,17 +92,29 @@ class EnhancedOrderSearchService {
     }
 
     // Add sorting and pagination
-    if (sort) url.searchParams.append('_sort', sort);
+    if (sort) {
+      // Convert sort parameter to HAPI FHIR format if needed
+      const sortDirection = sort.startsWith('-') ? '-' : '';
+      const sortField = sort.replace(/^-/, '');
+
+      // Map old backend parameter names to HAPI FHIR names
+      const mapping = this.searchParamMappings[resourceType];
+      const hapiFhirSortField = mapping?.sortParam || sortField;
+
+      url.searchParams.append('_sort', `${sortDirection}${hapiFhirSortField}`);
+    }
     if (count) url.searchParams.append('_count', count);
     if (page > 1) {
       const offset = (page - 1) * count;
       url.searchParams.append('_offset', offset);
     }
 
-    // Add common includes for enhanced data
-    url.searchParams.append('_include', `${resourceType}:requester`);
-    url.searchParams.append('_include', `${resourceType}:performer`);
-    url.searchParams.append('_include', `${resourceType}:encounter`);
+    // Add common includes for enhanced data (optional - can cause timeouts with large datasets)
+    if (includeRelated) {
+      url.searchParams.append('_include', `${resourceType}:requester`);
+      url.searchParams.append('_include', `${resourceType}:performer`);
+      url.searchParams.append('_include', `${resourceType}:encounter`);
+    }
 
     // Check cache first
     const cacheKey = url.toString();

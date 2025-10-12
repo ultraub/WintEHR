@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import get_resource, create_resource, update_resource, delete_resource
 from .models import Action, ActionType, Suggestion
 
 logger = logging.getLogger(__name__)
@@ -44,10 +44,9 @@ class ActionExecutionResult(BaseModel):
 
 class ActionExecutor:
     """Executes CDS Hook actions"""
-    
+
     def __init__(self, db: AsyncSession):
-        self.db = db
-        self.storage = FHIRStorageEngine(db)
+        self.db = db  # Keep for audit logging if needed
     
     async def execute_action(self, request: ActionExecutionRequest, action_data: Dict[str, Any]) -> ActionExecutionResult:
         """Execute a CDS action and return the result"""
@@ -109,7 +108,7 @@ class ActionExecutor:
         """Validate that the action can be executed"""
         # Check if patient exists
         try:
-            patient = await self.storage.read_resource("Patient", request.patient_id)
+            patient = get_resource("Patient", request.patient_id)
             if not patient:
                 raise ValueError(f"Patient {request.patient_id} not found")
         except Exception as e:
@@ -118,7 +117,7 @@ class ActionExecutor:
         # Check if encounter exists (if provided)
         if request.encounter_id:
             try:
-                encounter = await self.storage.read_resource("Encounter", request.encounter_id)
+                encounter = get_resource("Encounter", request.encounter_id)
                 if not encounter:
                     raise ValueError(f"Encounter {request.encounter_id} not found")
             except Exception as e:
@@ -166,8 +165,9 @@ class ActionExecutor:
             resource_data["requester"] = {"reference": f"Practitioner/{request.user_id}"}
         
         # Create the resource
-        resource_id, version_id, last_updated = await self.storage.create_resource(resource_type, resource_data)
-        
+        created_resource = create_resource(resource_data)
+        resource_id = created_resource.get("id")
+
         return ActionExecutionResult(
             execution_id="",  # Will be set by caller
             success=True,
@@ -195,7 +195,7 @@ class ActionExecutor:
             raise ValueError("Resource type and ID are required for update action")
         
         # Get existing resource
-        existing_resource = await self.storage.read_resource(resource_type, resource_id)
+        existing_resource = get_resource(resource_type, resource_id)
         if not existing_resource:
             raise ValueError(f"{resource_type} {resource_id} not found")
         
@@ -208,8 +208,8 @@ class ActionExecutor:
         }
         
         # Update the resource
-        version_id, last_updated = await self.storage.update_resource(resource_type, resource_id, updated_resource)
-        
+        updated_result = update_resource(resource_type, resource_id, updated_resource)
+
         return ActionExecutionResult(
             execution_id="",  # Will be set by caller
             success=True,
@@ -237,7 +237,7 @@ class ActionExecutor:
         resource_type, resource_id = resource_ref.split("/", 1)
         
         # Soft delete the resource
-        await self.storage.delete_resource(resource_type, resource_id)
+        delete_resource(resource_type, resource_id)
         
         return ActionExecutionResult(
             execution_id="",  # Will be set by caller
@@ -389,7 +389,7 @@ class ActionExecutor:
                 })
             
             # Store audit log
-            await self.storage.create_resource("AuditEvent", log_entry)
+            create_resource("AuditEvent", log_entry)
             
         except Exception as e:
             logger.warning(f"Failed to log action execution: {str(e)}")

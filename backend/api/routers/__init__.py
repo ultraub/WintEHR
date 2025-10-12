@@ -22,16 +22,22 @@ def register_all_routers(app: FastAPI) -> None:
     - Integration Services
     """
     
-    # 1. Core FHIR APIs
+    # 1. Core FHIR APIs - HAPI FHIR Proxy
+    # HAPI FHIR JPA Server replaced old custom FHIR backend (2025-10-05)
+    # This proxy forwards /fhir/R4/* requests to HAPI FHIR at http://hapi-fhir:8080
     try:
-        from fhir.api.router import fhir_router
+        from api.hapi_fhir_proxy import router as hapi_fhir_proxy
+
+        app.include_router(hapi_fhir_proxy, tags=["FHIR R4 (HAPI Proxy)"])
+        logger.info("✓ HAPI FHIR proxy router registered")
+
+        # Keep FHIR relationship and search value routers (may still be useful)
         from api.fhir_relationships_router import relationships_router
         from api.fhir.search_values import router as search_values_router
-        
-        app.include_router(fhir_router, tags=["FHIR R4"])
+
         app.include_router(relationships_router, prefix="/api", tags=["FHIR Relationships"])
         app.include_router(search_values_router, prefix="/api", tags=["FHIR Search Values"])
-        logger.info("✓ FHIR routers registered")
+        logger.info("✓ FHIR utility routers registered")
     except Exception as e:
         logger.error(f"Failed to register FHIR routers: {e}")
     
@@ -54,12 +60,14 @@ def register_all_routers(app: FastAPI) -> None:
         from api.clinical.dynamic_catalog_router import router as dynamic_catalog_router
         from api.clinical.medication_lists_router import router as medication_lists_router
         from api.clinical.drug_safety_router import router as drug_safety_router
-        
+        from api.clinical.documentation.notes_router import router as clinical_notes_router
+
         app.include_router(catalogs_router, tags=["Clinical Catalogs"])
         app.include_router(dynamic_catalog_router, tags=["Dynamic Catalog (Legacy)"])
         app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
         app.include_router(medication_lists_router, tags=["Medication Lists"])
         app.include_router(drug_safety_router, prefix="/api/clinical", tags=["Drug Safety"])
+        app.include_router(clinical_notes_router, tags=["Clinical Documentation"])
         app.include_router(clinical_tasks_router, tags=["Clinical Tasks"])
         app.include_router(clinical_alerts_router, tags=["Clinical Alerts"])
         app.include_router(clinical_inbox_router, tags=["Clinical Inbox"])
@@ -68,16 +76,14 @@ def register_all_routers(app: FastAPI) -> None:
     except Exception as e:
         logger.error(f"Failed to register clinical routers: {e}")
     
-    # 4. EMR Extensions
+    # 4. Clinical Canvas (AI-powered UI generation)
     try:
-        from emr_api.router import emr_router
         from clinical_canvas.router import router as clinical_canvas_router
-        
-        app.include_router(emr_router, tags=["EMR Extensions"])
+
         app.include_router(clinical_canvas_router, tags=["Clinical Canvas"])
-        logger.info("✓ EMR extension routers registered")
+        logger.info("✓ Clinical Canvas router registered")
     except Exception as e:
-        logger.error(f"Failed to register EMR routers: {e}")
+        logger.error(f"Failed to register Clinical Canvas router: {e}")
     
     # 5. Integration Services
     try:

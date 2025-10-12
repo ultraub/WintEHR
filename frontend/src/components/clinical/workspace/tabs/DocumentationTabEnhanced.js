@@ -103,6 +103,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { printDocument, formatClinicalNoteForPrint, exportClinicalNote } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import websocketService from '../../../../services/websocket';
 import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
 import NoteTemplateWizard from '../dialogs/NoteTemplateWizard';
@@ -438,7 +439,14 @@ const CollapsibleCategory = memo(({ category, categoryKey, documents, selectedCa
 
 CollapsibleCategory.displayName = 'CollapsibleCategory';
 
-const DocumentationTabEnhanced = ({ patientId, onNotificationUpdate, newNoteDialogOpen, onNewNoteDialogClose, department = 'general' }) => {
+const DocumentationTabEnhanced = ({
+  patientId,
+  onNotificationUpdate,
+  newNoteDialogOpen,
+  onNewNoteDialogClose,
+  department = 'general',
+  onNavigateToTab // Cross-tab navigation support
+}) => {
   const theme = useTheme();
   const { getPatientResources, isLoading, currentPatient, searchResources } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();

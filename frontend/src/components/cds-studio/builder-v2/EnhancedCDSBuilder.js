@@ -197,6 +197,61 @@ const CONDITION_TYPES = [
   { value: 'vital_sign', label: 'Vital Sign', description: 'Vital signs meeting criteria', catalogIntegration: true }
 ];
 
+// Hook-Condition Appropriateness Guidance
+// Provides informational guidance about typical condition usage for each hook type
+// Note: All conditions CAN be valid for any hook in certain clinical scenarios
+const HOOK_CONDITION_GUIDANCE = {
+  'patient-view': {
+    common: ['age', 'gender', 'condition', 'medication', 'lab_value', 'vital_sign'],
+    guidance: 'All condition types are appropriate for patient-view hooks'
+  },
+  'medication-prescribe': {
+    common: ['medication', 'age', 'gender', 'condition', 'lab_value'],
+    less_common: ['vital_sign'],
+    guidance: 'Medication conditions are most commonly used to check for drug interactions',
+    suggestions: {
+      vital_sign: 'Consider checking vital signs (e.g., blood pressure) before prescribing certain medications'
+    }
+  },
+  'order-sign': {
+    common: ['condition', 'age', 'gender', 'lab_value', 'vital_sign'],
+    less_common: ['medication'],
+    guidance: 'Order-related conditions typically check patient state and appropriateness',
+    suggestions: {
+      medication: 'Can be used to check for medication-procedure interactions'
+    }
+  },
+  'order-select': {
+    common: ['condition', 'age', 'gender', 'lab_value', 'vital_sign'],
+    less_common: ['medication'],
+    guidance: 'Similar to order-sign, focuses on order appropriateness',
+    suggestions: {
+      medication: 'Can be used to check for medication-procedure interactions'
+    }
+  }
+};
+
+/**
+ * Get guidance for a specific hook-condition combination
+ * Returns { level: 'common'|'less_common'|'appropriate', message: string }
+ */
+const getHookConditionGuidance = (hookType, conditionType) => {
+  const guidance = HOOK_CONDITION_GUIDANCE[hookType];
+  if (!guidance) return null;
+
+  if (guidance.common.includes(conditionType)) {
+    return { level: 'common', message: guidance.guidance };
+  } else if (guidance.less_common?.includes(conditionType)) {
+    const suggestion = guidance.suggestions?.[conditionType];
+    return {
+      level: 'less_common',
+      message: suggestion || `${conditionType} conditions are less commonly used with ${hookType} hooks`
+    };
+  }
+
+  return { level: 'appropriate', message: `${conditionType} condition can be used with ${hookType} hook` };
+};
+
 const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
   const theme = useTheme();
   const [activeStep, setActiveStep] = useState(0);
@@ -323,7 +378,7 @@ const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
       cards: { isValid: true, errors: [] },
       overall: { isValid: true, errors: [] }
     };
-    
+
     // Basic info validation
     if (!data.title?.trim()) {
       newValidation.basicInfo.errors.push('Title is required');
@@ -619,7 +674,7 @@ const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
   const saveHook = async () => {
     try {
       const validation = validateHook();
-      
+
       if (!validation.overall.isValid) {
         setSnackbar({
           open: true,
@@ -695,20 +750,85 @@ const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
           </Alert>
         </Grid>
         
-        {/* Catalog Statistics - Temporarily disabled to prevent rendering errors */}
-        {false && catalogStats && (
+        {/* Catalog Statistics */}
+        {catalogStats && (
           <Grid item xs={12}>
             <Card variant="outlined">
               <CardContent>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
                   <Typography variant="subtitle1">Available Catalog Data</Typography>
-                  <IconButton onClick={refreshCatalogs} size="small">
-                    <RefreshIcon />
+                  <IconButton onClick={refreshCatalogs} size="small" disabled={loadingCatalogStats}>
+                    {loadingCatalogStats ? <CircularProgress size={20} /> : <RefreshIcon />}
                   </IconButton>
                 </Stack>
-                <Alert severity="info">
-                  Catalog statistics temporarily disabled. Catalog integration is still fully functional.
-                </Alert>
+
+                <Grid container spacing={2}>
+                  {catalogStats.medications && (
+                    <Grid item xs={12} sm={4}>
+                      <Stack alignItems="center">
+                        <Typography variant="h4" color="primary">
+                          {typeof catalogStats.medications === 'object'
+                            ? (catalogStats.medications.dynamic || 0) + (catalogStats.medications.database || 0) + (catalogStats.medications.static || 0)
+                            : (catalogStats.medications || 0)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Medications
+                        </Typography>
+                        {typeof catalogStats.medications === 'object' && (
+                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+                            {catalogStats.medications.dynamic || 0} dynamic • {catalogStats.medications.static || 0} static
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Grid>
+                  )}
+
+                  {catalogStats.conditions && (
+                    <Grid item xs={12} sm={4}>
+                      <Stack alignItems="center">
+                        <Typography variant="h4" color="primary">
+                          {typeof catalogStats.conditions === 'object'
+                            ? (catalogStats.conditions.dynamic || 0) + (catalogStats.conditions.database || 0) + (catalogStats.conditions.static || 0)
+                            : (catalogStats.conditions || 0)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Conditions
+                        </Typography>
+                        {typeof catalogStats.conditions === 'object' && (
+                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+                            {catalogStats.conditions.dynamic || 0} dynamic • {catalogStats.conditions.static || 0} static
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Grid>
+                  )}
+
+                  {catalogStats.lab_tests && (
+                    <Grid item xs={12} sm={4}>
+                      <Stack alignItems="center">
+                        <Typography variant="h4" color="primary">
+                          {typeof catalogStats.lab_tests === 'object'
+                            ? (catalogStats.lab_tests.dynamic || 0) + (catalogStats.lab_tests.database || 0) + (catalogStats.lab_tests.static || 0)
+                            : (catalogStats.lab_tests || 0)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Lab Tests
+                        </Typography>
+                        {typeof catalogStats.lab_tests === 'object' && (
+                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+                            {catalogStats.lab_tests.dynamic || 0} dynamic • {catalogStats.lab_tests.static || 0} static
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Grid>
+                  )}
+                </Grid>
+
+                {(!catalogStats.medications && !catalogStats.conditions && !catalogStats.lab_tests) && (
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    Catalog statistics are loading or unavailable. Catalog integration is still fully functional.
+                  </Alert>
+                )}
               </CardContent>
             </Card>
           </Grid>
@@ -905,7 +1025,7 @@ const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
                         ))}
                       </Select>
                     </FormControl>
-                    
+
                     {/* Catalog integration toggle for applicable condition types */}
                     {CONDITION_TYPES.find(t => t.value === condition.type)?.catalogIntegration && (
                       <FormControlLabel
@@ -920,6 +1040,39 @@ const EnhancedCDSBuilder = ({ onSave, onCancel, editingHook = null }) => {
                       />
                     )}
                   </Stack>
+
+                  {/* Hook-Condition Appropriateness Guidance */}
+                  {(() => {
+                    const guidance = getHookConditionGuidance(hookData.hook, condition.type);
+                    if (!guidance) return null;
+
+                    const severityMap = {
+                      'common': 'success',
+                      'less_common': 'info',
+                      'appropriate': 'info'
+                    };
+
+                    const iconMap = {
+                      'common': <SuccessIcon />,
+                      'less_common': <InfoIcon />,
+                      'appropriate': <InfoIcon />
+                    };
+
+                    return (
+                      <Alert
+                        severity={severityMap[guidance.level]}
+                        icon={iconMap[guidance.level]}
+                        sx={{ mt: 1 }}
+                      >
+                        <AlertTitle>
+                          {guidance.level === 'common' ? 'Commonly Used' :
+                           guidance.level === 'less_common' ? 'Less Common' :
+                           'Appropriate'}
+                        </AlertTitle>
+                        {guidance.message}
+                      </Alert>
+                    );
+                  })()}
 
                   {/* Dynamic Condition Builder - Enhanced with catalog integration */}
                   {condition.type === 'lab_value' && (

@@ -2,7 +2,30 @@
 
 **Purpose**: Essential guide for AI agents working with WintEHR's frontend service layer and business logic.
 
-**Last Updated**: 2025-01-20
+**Last Updated**: 2025-10-05
+
+> **🚨 CRITICAL UPDATE (2025-10-05)**: WintEHR has migrated from the custom FHIR backend to **HAPI FHIR JPA Server**. All FHIR operations now route to the industry-standard HAPI FHIR server. See [HAPI FHIR Migration Documentation](/docs/HAPI_FHIR_MIGRATION.md) for complete details.
+
+## 🔄 HAPI FHIR Migration Impact
+
+### What Changed
+- **FHIR Server**: Now using HAPI FHIR JPA Server (industry-standard)
+- **Routing**: All `/fhir` requests go to `hapi-fhir:8080` (was `backend:8000`)
+- **Search Parameters**: HAPI FHIR uses resource-specific parameter names
+  - MedicationRequest: `authoredon` (was `authored-date`)
+  - ServiceRequest: `authored` (was `authored-date`)
+- **Performance**: 450-600x faster queries with automatic search indexing
+
+### What Stayed the Same
+- ✅ All frontend code (transparent migration)
+- ✅ CDS Hooks (still route to backend)
+- ✅ Authentication (still handled by backend)
+- ✅ Custom EMR extensions (still in backend)
+
+### Service Layer Adaptations
+- **enhancedOrderSearch.js**: Added automatic search parameter mapping
+- **fhirClient.ts**: Already using correct HAPI FHIR parameter names
+- **All other services**: No changes required (transparent)
 
 ## 🎯 Overview
 

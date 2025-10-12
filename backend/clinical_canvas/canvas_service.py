@@ -12,7 +12,6 @@ from datetime import datetime
 import httpx
 from anthropic import AsyncAnthropic
 
-from fhir.core.storage import FHIRStorageEngine
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 

@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 
 from database import get_db_session as get_session
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import search_resources
 from api.services.clinical.provider_directory_service import ProviderDirectoryService
 from api.auth.service import get_optional_current_user, get_current_user_or_demo
 from api.auth.models import User
@@ -71,8 +71,7 @@ async def search_providers(
     Search for healthcare providers with various filters.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        provider_service = ProviderDirectoryService(storage)
+        provider_service = ProviderDirectoryService(session)
         
         providers = []
         search_params = {
@@ -127,8 +126,7 @@ async def get_provider_profile(
     Get complete provider profile including roles, specialties, and locations.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        provider_service = ProviderDirectoryService(storage)
+        provider_service = ProviderDirectoryService(session)
         
         profile = await provider_service.get_provider_profile(practitioner_id)
         
@@ -197,8 +195,7 @@ async def get_provider_roles(
     Get all roles for a practitioner across organizations and locations.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        provider_service = ProviderDirectoryService(storage)
+        provider_service = ProviderDirectoryService(session)
         
         roles = await provider_service.get_practitioner_roles(practitioner_id)
         
@@ -222,8 +219,7 @@ async def get_provider_specialties(
     Get all specialties for a practitioner.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        provider_service = ProviderDirectoryService(storage)
+        provider_service = ProviderDirectoryService(session)
         
         specialties = await provider_service.get_provider_specialties(practitioner_id)
         
@@ -247,8 +243,7 @@ async def get_provider_locations(
     Get all locations where a practitioner provides services.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        provider_service = ProviderDirectoryService(storage)
+        provider_service = ProviderDirectoryService(session)
         
         locations = await provider_service.get_provider_locations(practitioner_id)
         
@@ -279,8 +274,7 @@ async def search_providers_near_location(
     Search for providers within geographic distance with optional specialty filtering.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        provider_service = ProviderDirectoryService(storage)
+        provider_service = ProviderDirectoryService(session)
         
         providers = await provider_service.search_providers_near_location(
             latitude, longitude, distance_km, specialty_code
@@ -313,8 +307,7 @@ async def search_providers_near_location_post(
     Search for providers within geographic distance (POST version with request body).
     """
     try:
-        storage = FHIRStorageEngine(session)
-        provider_service = ProviderDirectoryService(storage)
+        provider_service = ProviderDirectoryService(session)
         
         providers = await provider_service.search_providers_near_location(
             request.latitude, request.longitude, request.distance_km, request.specialty_code
@@ -345,8 +338,7 @@ async def search_locations_near(
     Search for locations within geographic distance.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        provider_service = ProviderDirectoryService(storage)
+        provider_service = ProviderDirectoryService(session)
         
         locations = await provider_service.geographic_location_search(
             latitude, longitude, distance_km
@@ -387,8 +379,7 @@ async def get_organization_hierarchy(
     Get organizational hierarchy for an organization.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        provider_service = ProviderDirectoryService(storage)
+        provider_service = ProviderDirectoryService(session)
         
         hierarchy = await provider_service.get_organizational_hierarchy(organization_id)
         
@@ -417,8 +408,7 @@ async def get_organization_providers(
     Get all providers associated with an organization.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        provider_service = ProviderDirectoryService(storage)
+        provider_service = ProviderDirectoryService(session)
         
         providers = await provider_service.search_providers_by_organization(organization_id)
         
@@ -446,8 +436,7 @@ async def get_location_hierarchy(
     Get location hierarchy for a location.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        provider_service = ProviderDirectoryService(storage)
+        provider_service = ProviderDirectoryService(session)
         
         hierarchy = await provider_service.get_location_hierarchy(location_id)
         
@@ -473,15 +462,14 @@ async def get_location_providers(
     Get all providers who provide services at a specific location.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        provider_service = ProviderDirectoryService(storage)
+        provider_service = ProviderDirectoryService(session)
         
         # Search for practitioner roles at this location
         search_params = {
             'location': f"Location/{location_id}"
         }
         
-        roles_response = await storage.search_resources('PractitionerRole', search_params)
+        roles_response = search_resources('PractitionerRole', search_params)
         providers = []
         
         for entry in roles_response.get('entry', []):
@@ -520,10 +508,8 @@ async def get_available_specialties(
     Get all available provider specialties in the system.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        
         # Search all PractitionerRole resources to get unique specialties
-        roles_response = await storage.search_resources('PractitionerRole', {})
+        roles_response = search_resources('PractitionerRole', {})
         
         # Handle different response formats from search_resources
         entries = []
@@ -577,13 +563,11 @@ async def get_available_organizations(
     Get all available organizations in the system.
     """
     try:
-        storage = FHIRStorageEngine(session)
-        
         # For now, don't filter by active status
         # TODO: Fix search parameter handling
         search_params = {}
-        
-        orgs_response = await storage.search_resources('Organization', search_params)
+
+        orgs_response = search_resources('Organization', search_params)
         
         # Handle different response formats from search_resources
         entries = []

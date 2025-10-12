@@ -27,7 +27,8 @@ app = FastAPI(
     description="A modern EMR system for teaching clinical workflows, FHIR, and CDS Hooks",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    redirect_slashes=False  # Disable automatic slash redirects
 )
 
 # Set up security middleware (includes HTTPS enforcement, security headers, and secure CORS)

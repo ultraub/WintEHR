@@ -13,17 +13,16 @@ from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import search_resources, get_resource
 
 logger = logging.getLogger(__name__)
 
 
 class ProviderDirectoryService:
     """Service for provider directory operations with geographic and multi-facility support."""
-    
-    def __init__(self, storage_engine: FHIRStorageEngine):
-        self.storage = storage_engine
-        self.session = storage_engine.session
+
+    def __init__(self, session: Optional[AsyncSession] = None):
+        self.session = session  # Only needed for geographic SQL queries
     
     # ============================================================================
     # Provider Search and Directory Operations
@@ -49,36 +48,36 @@ class ProviderDirectoryService:
             if location_id:
                 search_params['location'] = f"Location/{location_id}"
             
-            # Search PractitionerRole resources
-            practitioner_roles = await self.storage.search_resources('PractitionerRole', search_params)
-            
+            # Search PractitionerRole resources via HAPI FHIR
+            practitioner_roles = search_resources('PractitionerRole', search_params)
+
             # Resolve practitioner details for each role
             provider_profiles = []
             for role in practitioner_roles.get('entry', []):
                 role_resource = role['resource']
-                
+
                 # Get practitioner details
                 practitioner_ref = role_resource.get('practitioner', {}).get('reference', '')
                 if practitioner_ref:
                     practitioner_id = practitioner_ref.split('/')[-1]
-                    practitioner = await self.storage.read_resource('Practitioner', practitioner_id)
-                    
+                    practitioner = get_resource('Practitioner', practitioner_id)
+
                     # Get location details
                     locations = []
                     for loc_ref in role_resource.get('location', []):
                         location_ref = loc_ref.get('reference', '')
                         if location_ref:
                             location_id = location_ref.split('/')[-1]
-                            location = await self.storage.read_resource('Location', location_id)
+                            location = get_resource('Location', location_id)
                             if location:
                                 locations.append(location)
-                    
+
                     # Get organization details
                     org_ref = role_resource.get('organization', {}).get('reference', '')
                     organization = None
                     if org_ref:
                         org_id = org_ref.split('/')[-1]
-                        organization = await self.storage.read_resource('Organization', org_id)
+                        organization = get_resource('Organization', org_id)
                     
                     provider_profile = {
                         'practitioner': practitioner,
@@ -113,26 +112,26 @@ class ProviderDirectoryService:
                 'practitioner': f"Practitioner/{practitioner_id}"
             }
             
-            roles_response = await self.storage.search_resources('PractitionerRole', search_params)
+            roles_response = search_resources('PractitionerRole', search_params)
             roles = []
-            
+
             for entry in roles_response.get('entry', []):
                 role_resource = entry['resource']
-                
+
                 # Get organization details
                 org_ref = role_resource.get('organization', {}).get('reference', '')
                 organization = None
                 if org_ref:
                     org_id = org_ref.split('/')[-1]
-                    organization = await self.storage.read_resource('Organization', org_id)
-                
+                    organization = get_resource('Organization', org_id)
+
                 # Get location details
                 locations = []
                 for loc_ref in role_resource.get('location', []):
                     location_ref = loc_ref.get('reference', '')
                     if location_ref:
                         location_id = location_ref.split('/')[-1]
-                        location = await self.storage.read_resource('Location', location_id)
+                        location = get_resource('Location', location_id)
                         if location:
                             locations.append(location)
                 
@@ -166,7 +165,7 @@ class ProviderDirectoryService:
         """
         try:
             # Get practitioner resource
-            practitioner = await self.storage.read_resource('Practitioner', practitioner_id)
+            practitioner = get_resource('Practitioner', practitioner_id)
             if not practitioner:
                 return None
             
@@ -269,7 +268,7 @@ class ProviderDirectoryService:
                 if specialty_code:
                     search_params['specialty'] = specialty_code
                 
-                roles_response = await self.storage.search_resources('PractitionerRole', search_params)
+                roles_response = search_resources('PractitionerRole', search_params)
                 
                 for entry in roles_response.get('entry', []):
                     role_resource = entry['resource']
@@ -366,7 +365,7 @@ class ProviderDirectoryService:
         """Fallback geographic search using Python Haversine calculation."""
         try:
             # Get all locations with coordinates
-            locations_response = await self.storage.search_resources('Location', {})
+            locations_response = search_resources('Location', {})
             locations = []
             
             for entry in locations_response.get('entry', []):
@@ -435,7 +434,7 @@ class ProviderDirectoryService:
             Hierarchical organization structure
         """
         try:
-            organization = await self.storage.read_resource('Organization', org_id)
+            organization = get_resource('Organization', org_id)
             if not organization:
                 return None
             
@@ -473,7 +472,7 @@ class ProviderDirectoryService:
                 'partof': f"Organization/{parent_org_id}"
             }
             
-            children_response = await self.storage.search_resources('Organization', search_params)
+            children_response = search_resources('Organization', search_params)
             children = []
             
             for entry in children_response.get('entry', []):
@@ -495,7 +494,7 @@ class ProviderDirectoryService:
                 'organization': f"Organization/{org_id}"
             }
             
-            facilities_response = await self.storage.search_resources('Location', search_params)
+            facilities_response = search_resources('Location', search_params)
             facilities = []
             
             for entry in facilities_response.get('entry', []):
@@ -540,7 +539,7 @@ class ProviderDirectoryService:
             Hierarchical location structure
         """
         try:
-            location = await self.storage.read_resource('Location', location_id)
+            location = get_resource('Location', location_id)
             if not location:
                 return None
             
@@ -559,7 +558,7 @@ class ProviderDirectoryService:
             managing_org_ref = location.get('managingOrganization', {})
             if managing_org_ref and 'reference' in managing_org_ref:
                 org_id = managing_org_ref['reference'].split('/')[-1]
-                managing_org = await self.storage.read_resource('Organization', org_id)
+                managing_org = get_resource('Organization', org_id)
             
             hierarchy = {
                 'location': location,
@@ -582,7 +581,7 @@ class ProviderDirectoryService:
                 'partof': f"Location/{parent_location_id}"
             }
             
-            children_response = await self.storage.search_resources('Location', search_params)
+            children_response = search_resources('Location', search_params)
             children = []
             
             for entry in children_response.get('entry', []):
@@ -692,7 +691,7 @@ class ProviderDirectoryService:
                 'organization': f"Organization/{organization_id}"
             }
             
-            roles_response = await self.storage.search_resources('PractitionerRole', search_params)
+            roles_response = search_resources('PractitionerRole', search_params)
             providers = []
             
             for entry in roles_response.get('entry', []):

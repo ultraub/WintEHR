@@ -6,7 +6,7 @@ Provides FHIR data access for UI Composer agents to make informed decisions
 import logging
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import search_resources, get_resource
 from datetime import datetime, timedelta
 import json
 
@@ -14,16 +14,15 @@ logger = logging.getLogger(__name__)
 
 class FHIRQueryService:
     """Service for querying FHIR data to support UI generation"""
-    
+
     def __init__(self, db_session: AsyncSession):
-        self.storage = FHIRStorageEngine(db_session)
         self.db_session = db_session
     
     async def get_patient_summary(self, patient_id: str) -> Dict[str, Any]:
         """Get comprehensive patient summary including available resources"""
         try:
             # Get patient demographics
-            patient = await self.storage.read_resource("Patient", patient_id)
+            patient = get_resource("Patient", patient_id)
             if not patient:
                 return {"error": f"Patient {patient_id} not found"}
             
@@ -44,21 +43,21 @@ class FHIRQueryService:
                 try:
                     # Get count
                     search_params = {"patient": patient_id, "_summary": "count"}
-                    bundle = await self.storage.search_resources(resource_type, search_params)
+                    bundle = search_resources(resource_type, search_params)
                     count = bundle.get("total", 0) if isinstance(bundle, dict) else 0
                     summary["resourceCounts"][resource_type] = count
-                    
+
                     # Get recent samples if any exist
                     if count > 0:
                         search_params = {
                             "patient": patient_id,
-                            "_count": 3,
+                            "_count": "3",
                             "_sort": "-_lastUpdated"
                         }
-                        sample_bundle = await self.storage.search_resources(resource_type, search_params)
+                        sample_bundle = search_resources(resource_type, search_params)
                         if isinstance(sample_bundle, dict) and sample_bundle.get("entry"):
                             summary["recentData"][resource_type] = [
-                                entry["resource"] for entry in sample_bundle["entry"]
+                                entry.get("resource", entry) for entry in sample_bundle["entry"]
                             ]
                 except Exception as e:
                     logger.warning(f"Error querying {resource_type}: {e}")
@@ -93,11 +92,11 @@ class FHIRQueryService:
                 else:
                     search_params["value-quantity"] = value_quantity
             
-            bundle = await self.storage.search_resources("Observation", search_params)
-            
+            bundle = search_resources("Observation", search_params)
+
             # Handle case where bundle might be a string or have error
             if isinstance(bundle, str):
-                logger.error(f"Unexpected string response from storage: {bundle}")
+                logger.error(f"Unexpected string response from FHIR client: {bundle}")
                 return {"error": "Invalid response format", "total": 0, "observations": []}
             
             # Extract useful information
@@ -108,7 +107,7 @@ class FHIRQueryService:
             
             if isinstance(bundle, dict) and bundle.get("entry"):
                 for entry in bundle["entry"]:
-                    obs = entry["resource"]
+                    obs = entry.get("resource", entry)
                     results["observations"].append({
                         "id": obs.get("id"),
                         "patientId": obs.get("subject", {}).get("reference", "").split("/")[-1],
@@ -134,17 +133,17 @@ class FHIRQueryService:
             if condition_text:
                 search_params["_text"] = condition_text
             
-            bundle = await self.storage.search_resources("Condition", search_params)
-            
+            bundle = search_resources("Condition", search_params)
+
             # Handle case where bundle might be a string or have error
             if isinstance(bundle, str):
-                logger.error(f"Unexpected string response from storage: {bundle}")
+                logger.error(f"Unexpected string response from FHIR client: {bundle}")
                 return []
-            
+
             patient_ids = set()
             if isinstance(bundle, dict) and bundle.get("entry"):
                 for entry in bundle["entry"]:
-                    condition = entry["resource"]
+                    condition = entry.get("resource", entry)
                     patient_ref = condition.get("subject", {}).get("reference", "")
                     if patient_ref:
                         patient_id = patient_ref.split("/")[-1]

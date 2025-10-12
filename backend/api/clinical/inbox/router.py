@@ -19,7 +19,7 @@ import json
 import logging
 
 from database import get_db_session
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import search_resources, get_resource, update_resource, create_resource
 from pydantic import BaseModel
 from enum import Enum
 
@@ -77,11 +77,6 @@ class CreateTaskRequest(BaseModel):
     assigned_to: Optional[str] = None
 
 
-async def get_storage(db: AsyncSession = Depends(get_db_session)) -> FHIRStorageEngine:
-    """Get FHIR storage engine instance"""
-    return FHIRStorageEngine(db)
-
-
 @router.get("/", response_model=List[InboxItem])
 async def get_inbox_items(
     status: Optional[InboxItemStatus] = None,
@@ -89,9 +84,7 @@ async def get_inbox_items(
     assigned_to: Optional[str] = None,
     patient_id: Optional[str] = None,
     limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-    storage: FHIRStorageEngine = Depends(get_storage),
-    db: AsyncSession = Depends(get_db_session)
+    offset: int = Query(0, ge=0)
 ):
     """
     Get inbox items with filtering options.
@@ -106,11 +99,11 @@ async def get_inbox_items(
         inbox_items = []
         
         # 1. Get FHIR Tasks
-        task_params = {"status": "requested,accepted,in-progress"}
+        task_params = {"status": "requested,accepted,in-progress", "_count": limit}
         if patient_id:
             task_params["patient"] = patient_id
-        
-        tasks, _ = await storage.search_resources("Task", task_params, limit=limit)
+
+        tasks = search_resources("Task", task_params)
         
         for task in tasks:
             # Extract patient info - handle both reference string and object formats
@@ -144,12 +137,13 @@ async def get_inbox_items(
             # Search for recent observations with abnormal flags
             obs_params = {
                 "status": "final",
-                "date": f"ge{(datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')}"
+                "date": f"ge{(datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')}",
+                "_count": 50
             }
             if patient_id:
                 obs_params["patient"] = patient_id
-            
-            observations, _ = await storage.search_resources("Observation", obs_params, limit=50)
+
+            observations = search_resources("Observation", obs_params)
             
             for obs in observations:
                 # Check if abnormal - safely navigate nested structures
@@ -192,11 +186,11 @@ async def get_inbox_items(
         
         # 3. Get pending medication requests
         if not type or type == InboxItemType.MEDICATION_REQUEST:
-            med_params = {"status": "draft,active", "intent": "order"}
+            med_params = {"status": "draft,active", "intent": "order", "_count": 20}
             if patient_id:
                 med_params["patient"] = patient_id
-            
-            med_requests, _ = await storage.search_resources("MedicationRequest", med_params, limit=20)
+
+            med_requests = search_resources("MedicationRequest", med_params)
             
             for med_req in med_requests:
                 if med_req.get("status") == "draft":
@@ -240,17 +234,14 @@ async def get_inbox_items(
 
 @router.get("/stats")
 async def get_inbox_stats(
-    assigned_to: Optional[str] = None,
-    storage: FHIRStorageEngine = Depends(get_storage)
+    assigned_to: Optional[str] = None
 ):
     """Get inbox statistics including counts by type and status."""
     try:
         # Get all items (simplified version)
         all_items = await get_inbox_items(
             assigned_to=assigned_to,
-            limit=200,
-            storage=storage,
-            db=None  # Will be injected by dependency
+            limit=200
         )
         
         # Calculate statistics
@@ -278,8 +269,7 @@ async def get_inbox_stats(
 
 @router.get("/{item_id}")
 async def get_inbox_item(
-    item_id: str,
-    storage: FHIRStorageEngine = Depends(get_storage)
+    item_id: str
 ):
     """Get a specific inbox item by ID."""
     try:
@@ -287,7 +277,7 @@ async def get_inbox_item(
         if item_id.startswith("lab-"):
             # Lab result
             obs_id = item_id.replace("lab-", "")
-            obs = await storage.read_resource("Observation", obs_id)
+            obs = get_resource("Observation", obs_id)
             if not obs:
                 raise HTTPException(status_code=404, detail="Lab result not found")
             
@@ -313,7 +303,7 @@ async def get_inbox_item(
         elif item_id.startswith("med-"):
             # Medication request
             med_id = item_id.replace("med-", "")
-            med_req = await storage.read_resource("MedicationRequest", med_id)
+            med_req = get_resource("MedicationRequest", med_id)
             if not med_req:
                 raise HTTPException(status_code=404, detail="Medication request not found")
             
@@ -337,7 +327,7 @@ async def get_inbox_item(
             
         else:
             # Assume it's a task
-            task = await storage.read_resource("Task", item_id)
+            task = get_resource("Task", item_id)
             if not task:
                 raise HTTPException(status_code=404, detail="Inbox item not found")
             
@@ -370,40 +360,39 @@ async def get_inbox_item(
 
 @router.post("/bulk-action")
 async def perform_bulk_action(
-    request: BulkActionRequest,
-    storage: FHIRStorageEngine = Depends(get_storage)
+    request: BulkActionRequest
 ):
     """Perform bulk actions on multiple inbox items."""
     try:
         results = []
-        
+
         for item_id in request.item_ids:
             try:
                 if request.action == "mark_read":
                     # For simplicity, we'll just return success
                     # In a real system, this would update the item status
                     results.append({"id": item_id, "success": True})
-                    
+
                 elif request.action == "mark_completed":
                     if not item_id.startswith("lab-") and not item_id.startswith("med-"):
                         # Update task status
-                        task = await storage.read_resource("Task", item_id)
+                        task = get_resource("Task", item_id)
                         if task:
                             task["status"] = "completed"
-                            await storage.update_resource("Task", item_id, task)
+                            update_resource("Task", item_id, task)
                     results.append({"id": item_id, "success": True})
-                    
+
                 elif request.action == "archive":
                     # In a real system, this would move to an archive
                     results.append({"id": item_id, "success": True})
-                    
+
                 elif request.action == "assign" and request.assignee_id:
                     if not item_id.startswith("lab-") and not item_id.startswith("med-"):
                         # Update task owner
-                        task = await storage.read_resource("Task", item_id)
+                        task = get_resource("Task", item_id)
                         if task:
                             task["owner"] = {"reference": f"Practitioner/{request.assignee_id}"}
-                            await storage.update_resource("Task", item_id, task)
+                            update_resource("Task", item_id, task)
                     results.append({"id": item_id, "success": True})
                     
                 else:
@@ -421,8 +410,7 @@ async def perform_bulk_action(
 
 @router.post("/create-task")
 async def create_task_from_inbox(
-    request: CreateTaskRequest,
-    storage: FHIRStorageEngine = Depends(get_storage)
+    request: CreateTaskRequest
 ):
     """Create a new task from inbox."""
     try:
@@ -439,24 +427,24 @@ async def create_task_from_inbox(
             "authoredOn": datetime.now(timezone.utc).isoformat(),
             "lastModified": datetime.now(timezone.utc).isoformat()
         }
-        
+
         if request.description:
             task["note"] = [{"text": request.description}]
-            
+
         if request.due_date:
             task["restriction"] = {
                 "period": {
                     "end": request.due_date.isoformat()
                 }
             }
-            
+
         if request.assigned_to:
             task["owner"] = {
                 "reference": f"Practitioner/{request.assigned_to}"
             }
-        
+
         # Create the task
-        created_task = await storage.create_resource("Task", task)
+        created_task = create_resource(task)
         
         return {
             "success": True,

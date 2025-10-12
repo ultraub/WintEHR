@@ -129,14 +129,108 @@ const searchMedicationsCatalog = async (query) => {
       item.code?.toLowerCase().includes(searchTerm)
     );
   } catch (error) {
-    console.error('Error searching medications:', error);
+    // Error searching medications
     return [];
   }
 };
 
+const checkAllergyInteractions = async (medication, patientAllergies) => {
+  // Check if the medication conflicts with patient allergies
+  const conflicts = [];
+  
+  if (!medication || !patientAllergies || patientAllergies.length === 0) {
+    return conflicts;
+  }
+  
+  const medName = medication.toLowerCase();
+  
+  for (const allergy of patientAllergies) {
+    const allergenName = (allergy.code?.text || allergy.code?.coding?.[0]?.display || '').toLowerCase();
+    const allergenCode = allergy.code?.coding?.[0]?.code || '';
+    
+    // Check for direct match or drug class match
+    if (allergenName && (medName.includes(allergenName) || allergenName.includes(medName))) {
+      conflicts.push({
+        allergen: allergy.code?.text || allergy.code?.coding?.[0]?.display,
+        severity: allergy.criticality || 'unable-to-assess',
+        reaction: allergy.reaction?.[0]?.manifestation?.[0]?.text || 'Unknown reaction',
+        medication: medication
+      });
+    }
+    
+    // Check for known drug class allergies
+    const drugClassAllergies = {
+      'penicillin': ['amoxicillin', 'ampicillin', 'penicillin'],
+      'sulfa': ['sulfamethoxazole', 'sulfadiazine', 'sulfasalazine'],
+      'nsaid': ['ibuprofen', 'naproxen', 'aspirin', 'diclofenac'],
+      'opioid': ['morphine', 'codeine', 'oxycodone', 'hydrocodone']
+    };
+    
+    for (const [allergyClass, drugs] of Object.entries(drugClassAllergies)) {
+      if (allergenName.includes(allergyClass)) {
+        for (const drug of drugs) {
+          if (medName.includes(drug)) {
+            conflicts.push({
+              allergen: allergy.code?.text || allergy.code?.coding?.[0]?.display,
+              severity: allergy.criticality || 'unable-to-assess',
+              reaction: allergy.reaction?.[0]?.manifestation?.[0]?.text || 'Unknown reaction',
+              medication: medication,
+              note: `Patient allergic to ${allergyClass} class`
+            });
+            break;
+          }
+        }
+      }
+    }
+  }
+  
+  return conflicts;
+};
+
 const checkDrugInteractions = async (medications) => {
-  // Simplified drug interaction check
-  return [];
+  // Basic drug interaction checking implementation
+  // In production, this would call an external drug interaction API
+  const interactions = [];
+  
+  if (!medications || medications.length < 2) {
+    return interactions;
+  }
+  
+  // Define known interaction pairs (simplified for demonstration)
+  const knownInteractions = [
+    { drugs: ['warfarin', 'aspirin'], severity: 'major', description: 'Increased bleeding risk' },
+    { drugs: ['metformin', 'contrast'], severity: 'major', description: 'Risk of lactic acidosis' },
+    { drugs: ['lisinopril', 'potassium'], severity: 'moderate', description: 'Risk of hyperkalemia' },
+    { drugs: ['simvastatin', 'amiodarone'], severity: 'major', description: 'Increased risk of myopathy' },
+    { drugs: ['ssri', 'nsaid'], severity: 'moderate', description: 'Increased bleeding risk' },
+    { drugs: ['digoxin', 'furosemide'], severity: 'moderate', description: 'Risk of digoxin toxicity' }
+  ];
+  
+  // Check each medication pair
+  for (let i = 0; i < medications.length - 1; i++) {
+    for (let j = i + 1; j < medications.length; j++) {
+      const med1 = medications[i].toLowerCase();
+      const med2 = medications[j].toLowerCase();
+      
+      // Check against known interactions
+      for (const interaction of knownInteractions) {
+        const drug1Lower = interaction.drugs[0].toLowerCase();
+        const drug2Lower = interaction.drugs[1].toLowerCase();
+        
+        if ((med1.includes(drug1Lower) && med2.includes(drug2Lower)) ||
+            (med1.includes(drug2Lower) && med2.includes(drug1Lower))) {
+          interactions.push({
+            medications: [medications[i], medications[j]],
+            severity: interaction.severity,
+            description: interaction.description,
+            id: `${i}-${j}`
+          });
+        }
+      }
+    }
+  }
+  
+  return interactions;
 };
 
 // Constants
@@ -221,7 +315,7 @@ const useMedicationSearch = (searchTerm) => {
       cache.set(cacheKey, formattedResults);
       setOptions(formattedResults);
     } catch (error) {
-      console.error('Error searching medications:', error);
+      // Error searching medications
       setOptions([]);
     } finally {
       setLoading(false);
@@ -260,6 +354,7 @@ const MedicationDialogEnhanced = ({
   
   // State
   const [activeStep, setActiveStep] = useState(0);
+  const [patientAllergies, setPatientAllergies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMedication, setSelectedMedication] = useState(null);
@@ -325,7 +420,7 @@ const MedicationDialogEnhanced = ({
         }));
         setSearchOptions(formatted);
       } catch (error) {
-        console.error('Error searching medications:', error);
+        // Error searching medications
         setSearchOptions([]);
       } finally {
         setSearchLoading(false);
@@ -378,6 +473,27 @@ const MedicationDialogEnhanced = ({
       fetchTrending();
     }
   }, [open, medication]);
+
+  // Fetch patient allergies when dialog opens
+  useEffect(() => {
+    const fetchAllergies = async () => {
+      if (patientId && open) {
+        try {
+          const response = await fhirClient.search('AllergyIntolerance', {
+            patient: `Patient/${patientId}`,
+            _count: 100
+          });
+          const allergies = response.resources || response.entry?.map(e => e.resource) || [];
+          setPatientAllergies(allergies);
+        } catch (error) {
+          // Failed to fetch patient allergies
+          setPatientAllergies([]);
+        }
+      }
+    };
+    
+    fetchAllergies();
+  }, [patientId, open]);
 
   // Initialize form for edit/refill mode
   useEffect(() => {
@@ -514,6 +630,22 @@ const MedicationDialogEnhanced = ({
   // Handle save
   const handleSave = async () => {
     if (!validateStep()) return;
+    
+    // Check for allergy conflicts before prescribing
+    const allergyConflicts = await checkAllergyInteractions(formData.medicationDisplay, patientAllergies);
+    if (allergyConflicts.length > 0) {
+      const conflict = allergyConflicts[0];
+      const confirmPrescribe = window.confirm(
+        `WARNING: Patient is allergic to ${conflict.allergen}.\n` +
+        `Reaction: ${conflict.reaction}\n` +
+        `Severity: ${conflict.severity}\n\n` +
+        `Are you sure you want to prescribe ${formData.medicationDisplay}?`
+      );
+      
+      if (!confirmPrescribe) {
+        return;
+      }
+    }
     
     try {
       const fhirMedication = {

@@ -9,7 +9,7 @@ import logging
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fhir.core.storage import FHIRStorageEngine
+from services.fhir_client_config import create_resource, update_resource, delete_resource
 from .models import SystemAction
 
 logger = logging.getLogger(__name__)
@@ -18,14 +18,15 @@ logger = logging.getLogger(__name__)
 class SystemActionsHandler:
     """
     Handles processing of systemActions from CDS Hooks responses
-    
+
     SystemActions allow CDS services to automatically apply changes to FHIR resources
     without requiring user interaction. This is a powerful feature in CDS Hooks 2.0
     that enables automated clinical workflows.
     """
-    
-    def __init__(self, storage_engine: FHIRStorageEngine):
-        self.storage = storage_engine
+
+    def __init__(self):
+        """Initialize SystemActionsHandler (no storage engine needed with HAPI FHIR)"""
+        pass
         
     async def process_system_actions(
         self,
@@ -101,35 +102,22 @@ class SystemActionsHandler:
         
         # Process based on action type
         if action.type == "create":
-            created_resource = await self.storage.create_resource(
-                resource_type, 
-                resource, 
-                db
-            )
-            result["resource_id"] = created_resource["id"]
+            created_resource = create_resource(resource)
+            result["resource_id"] = created_resource.get("id")
             result["status"] = "created"
-            
+
         elif action.type == "update":
             if not resource_id:
                 raise ValueError("Update action requires resource id")
-            
-            updated_resource = await self.storage.update_resource(
-                resource_type,
-                resource_id,
-                resource,
-                db
-            )
+
+            updated_resource = update_resource(resource_type, resource_id, resource)
             result["status"] = "updated"
-            
+
         elif action.type == "delete":
             if not resource_id:
                 raise ValueError("Delete action requires resource id")
-            
-            await self.storage.delete_resource(
-                resource_type,
-                resource_id,
-                db
-            )
+
+            delete_resource(resource_type, resource_id)
             result["status"] = "deleted"
             
         else:
@@ -206,10 +194,10 @@ class SystemActionsHandler:
         db: AsyncSession
     ):
         """Log system action for audit trail"""
-        
+
         # This would typically write to an audit log table
         # For now, we'll just log it
-        logger.info(f"System action executed: {json.dumps({
+        action_data = {
             'action_type': action.type,
             'resource_type': result.get('resource_type'),
             'resource_id': result.get('resource_id'),
@@ -218,7 +206,8 @@ class SystemActionsHandler:
             'patient_id': context.get('patientId'),
             'hook_instance': context.get('hookInstance'),
             'service_id': context.get('serviceId')
-        })}")
+        }
+        logger.info(f"System action executed: {json.dumps(action_data)}")
 
 
 class SystemActionsValidator:

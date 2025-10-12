@@ -7,8 +7,11 @@ Single endpoint for all clinical catalog needs.
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
+import logging
 
 from database import get_db_session
+
+logger = logging.getLogger(__name__)
 from .service import UnifiedCatalogService
 from .models import (
     MedicationCatalogItem,
@@ -201,22 +204,41 @@ async def refresh_dynamic_catalogs(
 async def get_catalog_stats(
     service: UnifiedCatalogService = Depends(get_catalog_service)
 ):
-    """Get statistics about available catalog data"""
-    # TODO: Implement catalog statistics
-    return {
-        "medications": {
-            "dynamic": 0,
-            "database": 0,
-            "static": len(service._static_catalogs.get('medications', []))
-        },
-        "lab_tests": {
-            "dynamic": 0,
-            "database": 0,
-            "static": len(service._static_catalogs.get('lab_tests', []))
-        },
-        "imaging_studies": {
-            "dynamic": 0,
-            "database": 0,
-            "static": len(service._static_catalogs.get('imaging_studies', []))
+    """Get statistics about available catalog data from all sources"""
+    try:
+        # Extract actual counts from dynamic FHIR catalogs
+        logger.info("Extracting catalog statistics from FHIR data...")
+
+        medications = await service.dynamic_service.extract_medication_catalog(limit=1000)
+        lab_tests = await service.dynamic_service.extract_lab_test_catalog(limit=1000)
+        # Note: Imaging catalog uses static data only (no dynamic extraction method)
+
+        stats = {
+            "medications": {
+                "dynamic": len(medications),
+                "database": 0,  # Database catalogs removed - using FHIR only
+                "static": len(service._static_catalogs.get('medications', []))
+            },
+            "lab_tests": {
+                "dynamic": len(lab_tests),
+                "database": 0,
+                "static": len(service._static_catalogs.get('lab_tests', []))
+            },
+            "imaging_studies": {
+                "dynamic": 0,  # No dynamic extraction available for imaging
+                "database": 0,
+                "static": len(service._static_catalogs.get('imaging_studies', []))
+            }
         }
-    }
+
+        logger.info(f"Catalog stats: {stats}")
+        return stats
+
+    except Exception as e:
+        logger.error(f"Error getting catalog stats: {e}", exc_info=True)
+        # Return zeros on error but log the issue
+        return {
+            "medications": {"dynamic": 0, "database": 0, "static": 0},
+            "lab_tests": {"dynamic": 0, "database": 0, "static": 0},
+            "imaging_studies": {"dynamic": 0, "database": 0, "static": 0}
+        }

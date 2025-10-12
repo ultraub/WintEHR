@@ -12,6 +12,7 @@ import asyncio
 from urllib.parse import quote
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from services.fhir_client_config import get_resource, search_resources
 
 logger = logging.getLogger(__name__)
 
@@ -122,134 +123,78 @@ class PrefetchEngine:
             return query, {}
     
     async def _fetch_resource_by_id(self, resource_path: str) -> Optional[Dict[str, Any]]:
-        """Fetch a specific resource by ID"""
+        """Fetch a specific resource by ID using HAPI FHIR"""
         try:
             parts = resource_path.split('/')
             if len(parts) != 2:
                 logger.warning(f"Invalid resource path: {resource_path}")
                 return None
-            
+
             resource_type, resource_id = parts
-            
-            query = text("""
-                SELECT resource 
-                FROM fhir.resources 
-                WHERE resource_type = :resource_type 
-                AND fhir_id = :resource_id
-                AND deleted = false
-                LIMIT 1
-            """)
-            
-            result = await self.db.execute(query, {
-                'resource_type': resource_type,
-                'resource_id': resource_id
-            })
-            
-            row = result.first()
-            return row.resource if row else None
-            
+
+            # Get resource from HAPI FHIR
+            resource = get_resource(resource_type, resource_id)
+
+            if resource:
+                # Convert fhirclient resource to dict
+                return resource.as_json() if hasattr(resource, 'as_json') else None
+
+            return None
+
         except Exception as e:
             logger.error(f"Error fetching resource {resource_path}: {e}")
             return None
     
-    async def _search_resources(self, 
-                              resource_type: str, 
+    async def _search_resources(self,
+                              resource_type: str,
                               params: Dict[str, str]) -> Dict[str, Any]:
-        """Search for resources based on parameters"""
+        """Search for resources based on parameters using HAPI FHIR"""
         try:
-            # Build WHERE clause based on search parameters
-            where_clauses = ["resource_type = :resource_type", "deleted = false"]
-            query_params = {'resource_type': resource_type}
-            
+            # Build search parameters for HAPI FHIR
+            search_params = {}
+
             # Handle common search parameters
             if 'patient' in params:
-                patient_id = params['patient'].replace('Patient/', '')
-                where_clauses.append("resource->'subject'->>'reference' = :patient_ref")
-                query_params['patient_ref'] = f'Patient/{patient_id}'
-            
+                search_params['patient'] = params['patient']
+
             if 'status' in params:
-                where_clauses.append("resource->>'status' = :status")
-                query_params['status'] = params['status']
-            
+                search_params['status'] = params['status']
+
             if 'clinical-status' in params:
-                where_clauses.append("""
-                    (resource->'clinicalStatus'->'coding'->0->>'code' = :clinical_status
-                     OR resource->'clinicalStatus'->>'text' = :clinical_status)
-                """)
-                query_params['clinical_status'] = params['clinical-status']
-            
+                search_params['clinical-status'] = params['clinical-status']
+
             if 'category' in params:
-                category_value = params['category']
-                if category_value == 'vital-signs':
-                    where_clauses.append("""
-                        EXISTS (
-                            SELECT 1 FROM jsonb_array_elements(resource->'category') AS cat
-                            WHERE cat->'coding'->0->>'code' = 'vital-signs'
-                        )
-                    """)
-                elif category_value == 'laboratory':
-                    where_clauses.append("""
-                        EXISTS (
-                            SELECT 1 FROM jsonb_array_elements(resource->'category') AS cat
-                            WHERE cat->'coding'->0->>'code' = 'laboratory'
-                        )
-                    """)
-            
+                search_params['category'] = params['category']
+
             # Handle date filtering
             if 'date' in params:
-                date_value = params['date']
-                if date_value.startswith('ge'):
-                    date_str = date_value[2:]
-                    where_clauses.append("resource->>'effectiveDateTime' >= :date_ge")
-                    query_params['date_ge'] = date_str
-                elif date_value.startswith('le'):
-                    date_str = date_value[2:]
-                    where_clauses.append("resource->>'effectiveDateTime' <= :date_le")
-                    query_params['date_le'] = date_str
-            
-            # Build query
-            where_clause = " AND ".join(where_clauses)
-            
-            # Handle count and sort parameters
-            count_limit = int(params.get('_count', 100))
-            order_by = ""
-            
+                search_params['date'] = params['date']
+
+            # Handle count parameter
+            if '_count' in params:
+                search_params['_count'] = params['_count']
+
+            # Handle sort parameter
             if '_sort' in params:
-                sort_field = params['_sort']
-                if sort_field.startswith('-'):
-                    order_by = f"ORDER BY resource->>'{sort_field[1:]}' DESC"
-                else:
-                    order_by = f"ORDER BY resource->>'{sort_field}' ASC"
-            else:
-                order_by = "ORDER BY last_updated DESC"
-            
-            query = text(f"""
-                SELECT resource 
-                FROM fhir.resources 
-                WHERE {where_clause}
-                {order_by}
-                LIMIT :limit
-            """)
-            
-            query_params['limit'] = count_limit
-            
-            result = await self.db.execute(query, query_params)
-            rows = result.fetchall()
-            
+                search_params['_sort'] = params['_sort']
+
+            # Search resources from HAPI FHIR
+            resources = search_resources(resource_type, search_params)
+
             # Create bundle response
             bundle = {
                 'resourceType': 'Bundle',
                 'type': 'searchset',
-                'total': len(rows),
+                'total': len(resources) if resources else 0,
                 'entry': [
                     {
-                        'resource': row.resource,
-                        'fullUrl': f"{resource_type}/{row.resource['id']}"
+                        'resource': resource.as_json() if hasattr(resource, 'as_json') else resource,
+                        'fullUrl': f"{resource_type}/{resource.id if hasattr(resource, 'id') else resource.get('id')}"
                     }
-                    for row in rows
+                    for resource in (resources or [])
                 ]
             }
-            
+
             return bundle
             
         except Exception as e:

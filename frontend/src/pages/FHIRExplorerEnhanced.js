@@ -1184,7 +1184,8 @@ function FHIRExplorerEnhanced() {
     const fetchMetadata = async () => {
       setMetadataLoading(true);
       try {
-        const response = await api.get('/fhir/R4/metadata');
+        // Updated to use HAPI FHIR metadata endpoint
+        const response = await api.get('/fhir/metadata');
         setMetadata(response.data);
       } catch (err) {
         

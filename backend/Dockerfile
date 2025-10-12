@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     # Java for Synthea
-    openjdk-17-jdk \
+    default-jdk \
     # Libraries for DICOM image processing
     libjpeg-dev \
     libopenjp2-7-dev \

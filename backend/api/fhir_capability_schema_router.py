@@ -43,22 +43,23 @@ def get_cache(key: str) -> Optional[Any]:
     return None
 
 async def fetch_capability_statement() -> Dict[str, Any]:
-    """Fetch capability statement from local FHIR server"""
+    """Fetch capability statement from HAPI FHIR server"""
     cache_key = "capability_statement"
     cached = get_cache(cache_key)
     if cached:
         return cached
-    
+
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get("http://localhost:8000/fhir/R4/metadata")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # Updated to use HAPI FHIR endpoint
+            response = await client.get("http://hapi-fhir:8080/fhir/metadata")
             if response.status_code == 200:
                 data = response.json()
                 set_cache(cache_key, data)
                 return data
     except Exception as e:
-        print(f"Error fetching capability statement: {e}")
-    
+        print(f"Error fetching capability statement from HAPI FHIR: {e}")
+
     # Return minimal capability statement if fetch fails
     return {
         "resourceType": "CapabilityStatement",

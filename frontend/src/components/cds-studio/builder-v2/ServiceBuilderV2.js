@@ -127,9 +127,9 @@ const ServiceBuilderV2 = ({
         <Grid container spacing={3}>
           {/* Standard Builder Option */}
           <Grid item xs={12} md={6}>
-            <Card 
+            <Card
               variant={builderType === BUILDER_OPTIONS.STANDARD ? "outlined" : "elevation"}
-              sx={{ 
+              sx={{
                 cursor: 'pointer',
                 border: builderType === BUILDER_OPTIONS.STANDARD ? 2 : 1,
                 borderColor: builderType === BUILDER_OPTIONS.STANDARD ? 'primary.main' : 'divider',
@@ -144,12 +144,12 @@ const ServiceBuilderV2 = ({
                     <Typography variant="h6">Standard Builder</Typography>
                     <Chip label="Proven" color="success" size="small" />
                   </Stack>
-                  
+
                   <Typography variant="body2" color="text.secondary">
                     Ideal for straightforward CDS hooks with basic conditions and alerts.
                     Uses WintEHR's proven stepper-based interface.
                   </Typography>
-                  
+
                   <Stack spacing={1}>
                     <Typography variant="caption" fontWeight="bold">Features:</Typography>
                     <Typography variant="caption">• 6-step guided workflow</Typography>
@@ -157,7 +157,7 @@ const ServiceBuilderV2 = ({
                     <Typography variant="caption">• Template system</Typography>
                     <Typography variant="caption">• Proven reliability</Typography>
                   </Stack>
-                  
+
                   <Stack spacing={1}>
                     <Typography variant="caption" fontWeight="bold">Best for:</Typography>
                     <Typography variant="caption">• Simple age/gender conditions</Typography>
@@ -171,9 +171,9 @@ const ServiceBuilderV2 = ({
 
           {/* Enhanced Builder Option */}
           <Grid item xs={12} md={6}>
-            <Card 
+            <Card
               variant={builderType === BUILDER_OPTIONS.ENHANCED ? "outlined" : "elevation"}
-              sx={{ 
+              sx={{
                 cursor: 'pointer',
                 border: builderType === BUILDER_OPTIONS.ENHANCED ? 2 : 1,
                 borderColor: builderType === BUILDER_OPTIONS.ENHANCED ? 'primary.main' : 'divider',
@@ -188,12 +188,12 @@ const ServiceBuilderV2 = ({
                     <Typography variant="h6">Enhanced Builder</Typography>
                     <Chip label="Catalog-Enabled" color="primary" size="small" />
                   </Stack>
-                  
+
                   <Typography variant="body2" color="text.secondary">
                     Advanced builder with dynamic catalog integration for complex clinical logic.
                     Production-ready CDS Hooks 2.0 services.
                   </Typography>
-                  
+
                   <Stack spacing={1}>
                     <Typography variant="caption" fontWeight="bold">Features:</Typography>
                     <Typography variant="caption">• Dynamic catalog integration</Typography>
@@ -201,7 +201,7 @@ const ServiceBuilderV2 = ({
                     <Typography variant="caption">• Advanced templates</Typography>
                     <Typography variant="caption">• Production optimization</Typography>
                   </Stack>
-                  
+
                   <Stack spacing={1}>
                     <Typography variant="caption" fontWeight="bold">Best for:</Typography>
                     <Typography variant="caption">• Lab value conditions with reference ranges</Typography>
@@ -217,10 +217,10 @@ const ServiceBuilderV2 = ({
 
         {/* Additional Options */}
         <Divider />
-        
+
         <Stack spacing={2}>
           <Typography variant="h6">Configuration Options</Typography>
-          
+
           <FormControlLabel
             control={
               <Switch
@@ -231,14 +231,14 @@ const ServiceBuilderV2 = ({
             }
             label="Enable Catalog Integration"
           />
-          
+
           {catalogIntegrationEnabled && (
             <Alert severity="info" sx={{ ml: 4 }}>
-              Catalog integration provides access to dynamic medication, condition, and lab test data 
+              Catalog integration provides access to dynamic medication, condition, and lab test data
               from your WintEHR instance for building sophisticated clinical logic.
             </Alert>
           )}
-          
+
           <FormControl sx={{ minWidth: 200 }}>
             <InputLabel>Complexity Level</InputLabel>
             <Select
@@ -259,8 +259,8 @@ const ServiceBuilderV2 = ({
               Cancel
             </Button>
           )}
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             onClick={handleBuilderSelection}
             startIcon={<AutoIcon />}
           >
@@ -271,12 +271,20 @@ const ServiceBuilderV2 = ({
     </Paper>
   );
 
-  // Always use the enhanced builder
+  // Render builder based on selection or skip selection if editing
+  if (showBuilderSelection) {
+    return renderBuilderSelection();
+  }
+
+  // Currently only Enhanced Builder is available
+  // Standard Builder can be added later when needed
   return (
     <EnhancedCDSBuilder
       onSave={onServiceSave}
       onCancel={onClose}
       editingHook={initialService}
+      catalogIntegrationEnabled={catalogIntegrationEnabled}
+      complexityLevel={complexityLevel}
     />
   );
 };

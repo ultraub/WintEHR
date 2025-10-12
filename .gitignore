@@ -104,6 +104,52 @@ postgres_data/
 docs/old/
 docs/archive/
 docs/backup/
+docs/historical/
+
+# Large deployment logs
+*-deploy-output.log
+azure-deploy-output.log
+
+# Generated data directories
+data/
+data/generated_dicoms/
+
+# Screenshots and demo media
+screenshots/
+scripts/screenshots/
+*.png
+*.jpg
+*.jpeg
+*.gif
+!docs/**/*.png
+!docs/**/*.jpg
+!docs/**/*.jpeg
+
+# Experimental and archived code
+mcp-server/
+scripts/archived/
+backend/scripts/archived*/
+
+# Root-level test, validation, and setup scripts
+# (These should be in proper test/scripts directories)
+test-*.js
+test-*.html
+test-*.sh
+validate-*.js
+validate-*.sh
+quick-*.js
+setup-*.sh
+fix-*.sh
+update-*.sh
+*-deploy-*.sh
+!deploy.sh
+
+# Backend scripts data directories
+backend/scripts/synthea/
+backend/scripts/data/
+backend/scripts/logs/
+backend/scripts/cleanup/
+backend/scripts/backend/
 
 # Dependencies that get downloaded
 node_modules/
@@ -185,3 +231,16 @@ backend/scripts/testing/QUERY_VALIDATION_SUMMARY.md
 docs/FHIR_EXPLORER_V4_ENHANCEMENTS_SUMMARY.md
 docs/performance/DATABASE_INDEX_OPTIMIZATION.md
 docs/performance/PERFORMANCE_OPTIMIZATION_SUMMARY.md
+CLINICAL_WORKSPACE_REVIEW_2025-10-04.md
+backend/CLEANUP_COMPLETE_SUMMARY_2025-10-04.md
+backend/CLEANUP_PLAN.md
+backend/CONTENT_ENCODING_FIX_2025-10-04.md
+backend/DEPLOYMENT_VERIFICATION_2025-10-04.md
+backend/FHIR_ARCHITECTURE_DECISION.md
+backend/HAPI_FHIR_DEPLOYMENT_GUIDE.md
+backend/HAPI_FHIR_FULL_REPLACEMENT_PLAN.md
+backend/HAPI_FHIR_MIGRATION_COMPLETE_2025-10-04.md
+backend/MIGRATION_COMPLETE_STATUS_2025-10-04.md
+backend/MIGRATION_SUMMARY_2025-10-04.md
+backend/PROXY_CONFIGURATION_FIX_2025-10-04.md
+backend/archived/*

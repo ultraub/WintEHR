@@ -170,6 +170,8 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentTab, setCurrentTab] = useState(0);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showExploreConfirmDialog, setShowExploreConfirmDialog] = useState(false);
+  const [pendingExploreResource, setPendingExploreResource] = useState(null);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [comparisonNodes, setComparisonNodes] = useState([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -429,16 +431,21 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
   // Get node radius based on connections - optimized with pre-calculated counts
   const getNodeRadius = useCallback((node) => {
     if (!relationshipData) return layoutSettings.nodeSize;
-    
+
     const connections = nodeConnectionCounts.get(node.id) || 0;
-    
+
     const scale = d3.scaleLinear()
       .domain([0, 10])
       .range([layoutSettings.nodeSize * 0.8, layoutSettings.nodeSize * 1.5])
       .clamp(true);
-    
+
     return scale(connections);
   }, [nodeConnectionCounts, layoutSettings.nodeSize, relationshipData]);
+
+  // Log when getNodeRadius changes
+  useEffect(() => {
+    console.log('[DEBUG] getNodeRadius callback recreated');
+  }, [getNodeRadius]);
 
   // Use ref to store the latest initialization function
   const initializeVisualizationRef = useRef(null);
@@ -943,13 +950,17 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
   // Update visualization when filters change without full re-initialization
   useEffect(() => {
+    console.log('[DEBUG] useEffect triggered - filteredData/getNodeRadius changed');
     if (relationshipData && svgRef.current && simulationRef.current && filteredData) {
       // Update the existing simulation with new data instead of re-initializing
       const svg = d3.select(svgRef.current);
       const g = svg.select('.main-group');
-      
+
+      console.log('[DEBUG] g.empty():', g.empty(), 'svgRef:', svgRef.current);
+
       if (g.empty()) {
         // Only initialize if visualization doesn't exist
+        console.log('[DEBUG] REINITIALIZING - main-group is empty!');
         if (initializeVisualizationRef.current) {
           initializeVisualizationRef.current(filteredData);
         }
@@ -1091,12 +1102,13 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
 
   // Handle node click
   const handleNodeClick = (event, node) => {
+    console.log('[DEBUG] handleNodeClick called for node:', node.id);
     // Prevent default behavior and stop propagation to avoid page refresh
     if (event) {
       event.preventDefault();
       event.stopPropagation();
     }
-    
+
     if (pathFindingMode) {
       // Path finding mode
       if (!pathSource) {
@@ -1145,6 +1157,38 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         onResourceSelect(resourceType, resourceId);
       }
     }
+  };
+
+  // Handle explicit exploration of a resource's relationships
+  const handleExploreRelationships = (resourceType, resourceId) => {
+    setPendingExploreResource({ resourceType, resourceId });
+    setShowExploreConfirmDialog(true);
+  };
+
+  // Confirm exploration and load new relationships
+  const handleConfirmExploreRelationships = () => {
+    if (pendingExploreResource) {
+      const { resourceType, resourceId } = pendingExploreResource;
+
+      // Close all dialogs
+      setShowExploreConfirmDialog(false);
+      setShowDetailsModal(false);
+
+      // Load the new resource's relationships
+      const newResourceKey = `${resourceType}/${resourceId}`;
+      if (lastLoadedResourceRef.current !== newResourceKey) {
+        loadRelationships(resourceType, resourceId);
+      }
+
+      // Reset pending state
+      setPendingExploreResource(null);
+    }
+  };
+
+  // Cancel exploration
+  const handleCancelExploreRelationships = () => {
+    setShowExploreConfirmDialog(false);
+    setPendingExploreResource(null);
   };
 
   // Update node selection styling
@@ -1877,17 +1921,32 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
           }}>
             {selectedNode && (
               <ResourceDetailsPanel
-                key={`${selectedNode.id}-${Date.now()}`} // Force new instance when node changes with timestamp
+                key={selectedNode.id} // Key by node ID only - no timestamp to prevent unnecessary remounts
                 selectedNode={selectedNode}
                 onClose={() => setShowDetailsModal(false)}
                 onResourceSelect={(resourceType, resourceId) => {
-                  // Only load if it's different from current
-                  const newResourceKey = `${resourceType}/${resourceId}`;
-                  if (lastLoadedResourceRef.current !== newResourceKey) {
-                    loadRelationships(resourceType, resourceId);
+                  // Update selectedNode to show clicked resource's details in modal
+                  // WITHOUT reloading the graph
+                  const clickedResourceId = `${resourceType}/${resourceId}`;
+
+                  // Try to find this resource in the current graph
+                  let newSelectedNode = relationshipData?.nodes?.find(n => n.id === clickedResourceId);
+
+                  // If not in graph, create a minimal node object for display
+                  if (!newSelectedNode) {
+                    newSelectedNode = {
+                      id: clickedResourceId,
+                      resourceType: resourceType,
+                      display: `${resourceType}/${resourceId}`
+                    };
                   }
-                  setShowDetailsModal(false);
+
+                  // Update selectedNode to show this resource in the modal
+                  setSelectedNode(newSelectedNode);
+                  setSelectedNodes(new Set([clickedResourceId]));
+                  updateNodeSelection(new Set([clickedResourceId]));
                 }}
+                onExploreRelationships={handleExploreRelationships}
                 onAddToComparison={(node) => {
                   setComparisonNodes(prev => [...prev, node]);
                 }}
@@ -2216,6 +2275,46 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
           />
         </Box>
       </Modal>
+
+      {/* Explore Relationships Confirmation Dialog */}
+      <Dialog
+        open={showExploreConfirmDialog}
+        onClose={handleCancelExploreRelationships}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Explore Resource Relationships?
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" paragraph>
+            This will replace the current relationship graph with relationships for:
+          </Typography>
+          {pendingExploreResource && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="subtitle2">
+                <strong>{pendingExploreResource.resourceType}</strong> / {pendingExploreResource.resourceId}
+              </Typography>
+            </Alert>
+          )}
+          <Typography variant="body2" color="text.secondary">
+            Your current graph will be replaced. Are you sure you want to continue?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelExploreRelationships}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmExploreRelationships}
+            variant="contained"
+            color="primary"
+            autoFocus
+          >
+            Explore Relationships
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

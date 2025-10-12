@@ -55,7 +55,7 @@ export const ProviderDirectoryProvider = ({ children }) => {
     setError(prev => ({ ...prev, specialties: null }));
 
     try {
-      const response = await apiClient.get('/provider-directory/specialties');
+      const response = await apiClient.get('/api/provider-directory/specialties');
       const data = response.specialties || [];
       setSpecialties(data);
       cacheTimestamps.current.specialties = Date.now();
@@ -89,7 +89,7 @@ export const ProviderDirectoryProvider = ({ children }) => {
         active_only: activeOnly.toString()
       });
 
-      const response = await apiClient.get(`/provider-directory/organizations?${params}`);
+      const response = await apiClient.get(`/api/provider-directory/organizations?${params}`);
       const data = response.organizations || [];
       setOrganizations(data);
       cacheTimestamps.current.organizations = Date.now();

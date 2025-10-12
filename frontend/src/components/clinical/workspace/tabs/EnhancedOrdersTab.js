@@ -31,7 +31,8 @@ import {
   alpha,
   Divider,
   Collapse,
-  Checkbox
+  Checkbox,
+  Tooltip
 } from '@mui/material';
 import {
   Assignment as OrderIcon,
@@ -58,10 +59,12 @@ import {
 import { useAdvancedOrderSearch } from '../../../../hooks/useAdvancedOrderSearch';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import VirtualizedList from '../../../common/VirtualizedList';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
 import { getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
+import { useOrderSelectHook } from '../../../../hooks/useCDSHooks';
 import { getStatusColor, getSeverityColor } from '../../../../themes/clinicalThemeUtils';
 import websocketService from '../../../../services/websocket';
 
@@ -102,7 +105,7 @@ import {
 // import OrderCard from './components/OrderCard';
 
 // Optimized OrderCard component with better information density
-const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAlternate = false, compact = false }) => {
+const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAlternate = false, compact = false, onNavigateToTab }) => {
   const theme = useTheme();
   // Determine order type and icon
   const getOrderIcon = () => {
@@ -192,6 +195,24 @@ const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAl
             <IconButton size="small" onClick={() => onAction(order, 'edit')} sx={{ p: 0.5 }}>
               <EditIcon fontSize="small" />
             </IconButton>
+            {/* Navigate to results for lab/imaging orders */}
+            {(order.category?.[0]?.coding?.[0]?.code === 'laboratory' ||
+              order.category?.[0]?.coding?.[0]?.code === 'imaging') &&
+              onNavigateToTab && (
+              <Tooltip title="View Results">
+                <IconButton
+                  size="small"
+                  onClick={() => navigateToTab(onNavigateToTab, TAB_IDS.RESULTS, {
+                    resourceId: order.id,
+                    resourceType: order.resourceType,
+                    action: 'filter-by-order'
+                  })}
+                  sx={{ p: 0.5 }}
+                >
+                  <LabIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
           </Stack>
         </Stack>
       </Box>
@@ -231,6 +252,24 @@ const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAl
         selected={selected}
         onSelect={(checked) => onSelect(order, checked)}
         isAlternate={isAlternate}
+        customActions={
+          (order.category?.[0]?.coding?.[0]?.code === 'laboratory' ||
+           order.category?.[0]?.coding?.[0]?.code === 'imaging') &&
+          onNavigateToTab ? (
+            <Tooltip title="View Results">
+              <IconButton
+                size="small"
+                onClick={() => navigateToTab(onNavigateToTab, TAB_IDS.RESULTS, {
+                  resourceId: order.id,
+                  resourceType: order.resourceType,
+                  action: 'filter-by-order'
+                })}
+              >
+                <LabIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          ) : null
+        }
       />
     </Box>
   );
@@ -428,7 +467,11 @@ const OrderStatisticsPanel = ({ statistics, onClose, compact = false }) => {
   );
 };
 
-const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
+const EnhancedOrdersTab = ({
+  patientId,
+  onNotificationUpdate,
+  onNavigateToTab // Cross-tab navigation support
+}) => {
   const theme = useTheme();
   const { currentPatient } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
@@ -465,6 +508,20 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
   const scrollContainerRef = useRef(null); // Added for auto-collapse on scroll
   const [selectedResult, setSelectedResult] = useState(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+
+  // CDS Hooks: order-select integration
+  // Convert selected order IDs Set to array of order objects for CDS hooks
+  const selectedOrdersArray = useMemo(() => {
+    if (selectedOrders.size === 0) return [];
+    return entries.filter(order => selectedOrders.has(order.id));
+  }, [selectedOrders, entries]);
+
+  // Trigger order-select CDS hooks when orders are selected
+  useOrderSelectHook(
+    patientId || currentPatient?.id,
+    'current-user', // TODO: Get from auth context
+    selectedOrdersArray
+  );
 
   // FHIR resources for providers, locations, and organizations
   const [availableProviders, setAvailableProviders] = useState([]);
@@ -1238,6 +1295,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
               getRelatedOrders={getRelatedOrders}
               isAlternate={index % 2 === 1}
               compact={compactView}
+              onNavigateToTab={onNavigateToTab}
             />
           )}
         />
@@ -1254,6 +1312,7 @@ const EnhancedOrdersTab = ({ patientId, onNotificationUpdate }) => {
               getRelatedOrders={getRelatedOrders}
               isAlternate={index % 2 === 1}
               compact={compactView}
+              onNavigateToTab={onNavigateToTab}
             />
           ))}
         </Box>

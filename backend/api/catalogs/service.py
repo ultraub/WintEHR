@@ -13,7 +13,7 @@ import json
 import os
 
 from api.services.clinical.dynamic_catalog_service import DynamicCatalogService
-from models.clinical.catalogs import MedicationCatalog, LabTestCatalog, ImagingStudyCatalog, ClinicalOrderSet
+# Database catalog models removed - now using FHIR-based dynamic catalogs exclusively
 from .models import (
     MedicationCatalogItem, 
     LabTestCatalogItem, 
@@ -34,7 +34,7 @@ class UnifiedCatalogService:
     
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.dynamic_service = DynamicCatalogService(db)
+        self.dynamic_service = DynamicCatalogService()  # Fixed: DynamicCatalogService doesn't accept db parameter
         self._static_catalogs = self._load_static_catalogs()
     
     def _load_static_catalogs(self) -> Dict[str, Any]:
@@ -96,43 +96,8 @@ class UnifiedCatalogService:
                 ))
         except Exception as e:
             logger.warning(f"Dynamic catalog failed: {e}")
-        
-        # 2. If not enough results, try database
-        if len(results) < limit:
-            try:
-                query = select(MedicationCatalog).where(MedicationCatalog.is_active == True)
-                if search_term:
-                    search_pattern = f"%{search_term}%"
-                    query = query.where(
-                        or_(
-                            MedicationCatalog.generic_name.ilike(search_pattern),
-                            MedicationCatalog.brand_name.ilike(search_pattern)
-                        )
-                    )
-                query = query.limit(limit - len(results))
-                
-                result = await self.db.execute(query)
-                db_meds = result.scalars().all()
-                
-                for med in db_meds:
-                    results.append(MedicationCatalogItem(
-                        id=med.id,
-                        generic_name=med.generic_name,
-                        brand_name=med.brand_name,
-                        strength=med.strength,
-                        dosage_form=med.dosage_form,
-                        route=med.route,
-                        drug_class=med.drug_class,
-                        frequency_options=med.frequency_options or [],
-                        standard_doses=med.standard_doses or [],
-                        is_controlled_substance=med.is_controlled_substance,
-                        requires_authorization=med.requires_authorization,
-                        is_formulary=med.is_formulary
-                    ))
-            except Exception as e:
-                logger.warning(f"Database catalog failed: {e}")
-        
-        # 3. If still not enough, use static catalog
+
+        # 2. If not enough results, use static catalog
         if len(results) < limit:
             static_meds = self._static_catalogs.get('medications', [])
             if search_term:
@@ -161,18 +126,26 @@ class UnifiedCatalogService:
         search_term: Optional[str] = None,
         limit: int = 50
     ) -> List[LabTestCatalogItem]:
-        """Search lab tests across all sources"""
+        """
+        Search lab tests from dynamic FHIR catalog only (no hardcoded fallbacks).
+        Returns empty array if no patient data exists - this is by design.
+
+        Uses FHIR-standard _elements parameter for efficient catalog extraction.
+        """
         results = []
-        
-        # 1. Try dynamic FHIR catalog
+
+        # Dynamic FHIR catalog - reads from actual patient data
         try:
             dynamic_tests = await self.dynamic_service.extract_lab_test_catalog(limit)
+            logger.info(f"Retrieved {len(dynamic_tests)} lab tests from FHIR catalog")
+
             if search_term:
                 dynamic_tests = [
                     test for test in dynamic_tests
                     if search_term.lower() in test.get('display', '').lower()
                 ]
-            
+                logger.debug(f"Filtered to {len(dynamic_tests)} tests matching '{search_term}'")
+
             for test in dynamic_tests[:limit]:
                 results.append(LabTestCatalogItem(
                     id=test.get('id', ''),
@@ -183,62 +156,10 @@ class UnifiedCatalogService:
                     usage_count=test.get('frequency_count', 0),
                     specimen_type=test.get('specimen_type', 'blood')
                 ))
+
         except Exception as e:
-            logger.warning(f"Dynamic lab catalog failed: {e}")
-        
-        # 2. Database fallback
-        if len(results) < limit:
-            try:
-                query = select(LabTestCatalog).where(LabTestCatalog.is_active == True)
-                if search_term:
-                    search_pattern = f"%{search_term}%"
-                    query = query.where(
-                        or_(
-                            LabTestCatalog.test_name.ilike(search_pattern),
-                            LabTestCatalog.test_code.ilike(search_pattern)
-                        )
-                    )
-                query = query.limit(limit - len(results))
-                
-                result = await self.db.execute(query)
-                db_tests = result.scalars().all()
-                
-                for test in db_tests:
-                    results.append(LabTestCatalogItem(
-                        id=test.id,
-                        test_name=test.test_name,
-                        test_code=test.test_code,
-                        test_description=test.test_description,
-                        specimen_type=test.specimen_type,
-                        loinc_code=test.loinc_code,
-                        fasting_required=test.fasting_required,
-                        special_instructions=test.special_instructions,
-                        turnaround_time=test.turnaround_time
-                    ))
-            except Exception as e:
-                logger.warning(f"Database lab catalog failed: {e}")
-        
-        # 3. Static fallback
-        if len(results) < limit:
-            static_tests = self._static_catalogs.get('lab_tests', [])
-            if search_term:
-                static_tests = [
-                    test for test in static_tests
-                    if search_term.lower() in test.get('test_name', '').lower()
-                ]
-            
-            for test in static_tests[:limit - len(results)]:
-                results.append(LabTestCatalogItem(
-                    id=test.get('id', ''),
-                    test_name=test.get('test_name', ''),
-                    test_code=test.get('test_code', ''),
-                    test_description=test.get('test_description'),
-                    specimen_type=test.get('specimen_type'),
-                    loinc_code=test.get('loinc_code'),
-                    fasting_required=test.get('fasting_required', False),
-                    special_instructions=test.get('special_instructions')
-                ))
-        
+            logger.error(f"Dynamic lab catalog failed: {e}", exc_info=True)
+
         return results
     
     async def search_conditions(

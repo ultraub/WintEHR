@@ -1,0 +1,55 @@
+{
+  "id": "test-order-select-appropriateness",
+  "title": "Test Order Select - Order Appropriateness Check",
+  "description": "Test hook for order selection workflow - checks patient conditions for order appropriateness",
+  "hook": "order-select",
+  "enabled": true,
+  "conditions": [
+    {
+      "type": "condition",
+      "operator": "in",
+      "parameters": {
+        "codes": ["73595000", "162864005"]
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "show-card",
+      "parameters": {
+        "summary": "Consider additional screening orders",
+        "detail": "Testing order-select hook integration - patient has active conditions that may require additional screening orders. Consider comprehensive metabolic panel and lipid screening.",
+        "indicator": "info",
+        "source": {
+          "label": "Order Selection Test"
+        },
+        "suggestions": [
+          {
+            "label": "Add recommended screening orders",
+            "actions": [
+              {
+                "type": "create",
+                "description": "Add comprehensive metabolic panel",
+                "resource": {
+                  "resourceType": "ServiceRequest",
+                  "status": "draft",
+                  "intent": "order",
+                  "code": {
+                    "coding": [
+                      {
+                        "system": "http://loinc.org",
+                        "code": "24323-8",
+                        "display": "Comprehensive metabolic panel"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "links": []
+      }
+    }
+  ]
+}

@@ -12,38 +12,12 @@ done
 
 echo "✅ PostgreSQL is ready!"
 
-# Initialize database schemas and tables (only if needed)
+# Check database initialization
 echo "🔧 Checking database..."
 export DATABASE_URL="postgresql+asyncpg://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}"
 
-# Check if database schema already exists
-SCHEMA_EXISTS=$(PGPASSWORD=emr_password psql -h ${DB_HOST:-postgres} -U emr_user -d ${DB_NAME:-emr_db} -tAc "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'fhir');")
-
-if [ "$SCHEMA_EXISTS" = "t" ]; then
-    echo "✅ Database schema already exists, checking tables..."
-    
-    # Check if tables have data
-    RESOURCE_COUNT=$(PGPASSWORD=emr_password psql -h ${DB_HOST:-postgres} -U emr_user -d ${DB_NAME:-emr_db} -tAc "SELECT COUNT(*) FROM fhir.resources;" 2>/dev/null || echo "0")
-    
-    if [ "$RESOURCE_COUNT" -gt "0" ]; then
-        echo "✅ Database contains $RESOURCE_COUNT resources, skipping initialization"
-    else
-        echo "⚠️ Database schema exists but no data found, will reinitialize completely"
-        python /app/scripts/setup/init_database_definitive.py --mode production || {
-            echo "❌ Database initialization failed"
-            exit 1
-        }
-    fi
-else
-    echo "🔧 Database schema not found, initializing..."
-    python /app/scripts/setup/init_database_definitive.py --mode production || {
-        echo "❌ Database initialization failed"
-        exit 1
-    }
-fi
-
-# Verify database schema is ready
-echo "🔍 Verifying database schema..."
+# Verify required schemas exist (postgres-init script should have created these)
+echo "🔍 Verifying database schemas..."
 python -c "
 import asyncio
 import asyncpg
@@ -52,24 +26,35 @@ import sys
 async def verify_schema():
     try:
         conn = await asyncpg.connect('postgresql://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}')
-        
-        # Check critical tables exist
-        tables = await conn.fetch(\"\"\"
-            SELECT table_name FROM information_schema.tables 
-            WHERE table_schema = 'fhir' 
-            AND table_name IN ('resources', 'search_params', 'resource_history', 'references', 'compartments', 'audit_logs')
+
+        # Check that required schemas exist
+        schemas = await conn.fetch(\"\"\"
+            SELECT schema_name FROM information_schema.schemata
+            WHERE schema_name IN ('auth', 'cds_hooks', 'audit')
         \"\"\")
-        
-        table_names = {row['table_name'] for row in tables}
-        required_tables = {'resources', 'search_params', 'resource_history', 'references', 'compartments', 'audit_logs'}
-        
-        if required_tables.issubset(table_names):
-            print('✅ Database schema verification passed')
+
+        schema_names = {row['schema_name'] for row in schemas}
+        required_schemas = {'auth', 'cds_hooks', 'audit'}
+
+        if required_schemas.issubset(schema_names):
+            print('✅ Database schemas verified (auth, cds_hooks, audit)')
+
+            # Check if HAPI FHIR has resources
+            try:
+                # HAPI FHIR stores resources in hfj_resource table
+                # Try to query it; if table doesn't exist yet, HAPI will create it on first startup
+                resource_count = await conn.fetchval('SELECT COUNT(*) FROM hfj_resource', timeout=5)
+                print(f'✅ HAPI FHIR initialized with {resource_count} resources')
+            except Exception as e:
+                # Table may not exist yet - HAPI FHIR will create it on startup
+                print('ℹ️ HAPI FHIR tables not yet initialized (normal on first run)')
+
             await conn.close()
             return True
         else:
-            missing = required_tables - table_names
-            print(f'❌ Missing tables: {missing}')
+            missing = required_schemas - schema_names
+            print(f'❌ Missing schemas: {missing}')
+            print('⚠️ Run postgres-init scripts to initialize database')
             await conn.close()
             return False
     except Exception as e:
@@ -80,6 +65,7 @@ success = asyncio.run(verify_schema())
 sys.exit(0 if success else 1)
 " || {
     echo "❌ Database schema verification failed"
+    echo "💡 Ensure postgres-init scripts have run to create auth, cds_hooks, and audit schemas"
     exit 1
 }
 
@@ -88,92 +74,12 @@ echo "🔍 Checking for DICOM files..."
 if [ -d "/app/data/generated_dicoms" ] && [ "$(ls -A /app/data/generated_dicoms 2>/dev/null | wc -l)" -gt 0 ]; then
     echo "✅ DICOM files already exist"
 else
-    # Check if there are any ImagingStudy resources first
-    python -c "
-import asyncio
-import asyncpg
-
-async def check_imaging_studies():
-    try:
-        conn = await asyncpg.connect('postgresql://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}')
-        count = await conn.fetchval(\"SELECT COUNT(*) FROM fhir.resources WHERE resource_type = 'ImagingStudy' AND deleted = false\")
-        await conn.close()
-        return count > 0
-    except:
-        return False
-
-has_studies = asyncio.run(check_imaging_studies())
-exit(0 if has_studies else 1)
-" && {
-        echo "📸 Generating DICOM files for imaging studies..."
-        python scripts/active/generate_dicom_for_studies.py || {
-            echo "⚠️ DICOM generation had issues but continuing..."
-        }
-    } || {
-        echo "ℹ️ No imaging studies found, skipping DICOM generation"
-    }
+    echo "ℹ️ DICOM file generation currently disabled during FHIR migration"
+    echo "💡 To generate DICOM files, run: python scripts/active/generate_dicom_for_studies.py"
 fi
 
-# Fix FHIR relationships if needed (only if data exists)
-echo "🔍 Checking FHIR relationships..."
-python -c "
-import asyncio
-import asyncpg
-
-async def check_and_fix_relationships():
-    try:
-        conn = await asyncpg.connect('postgresql://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}')
-        
-        # Check if we have data
-        resource_count = await conn.fetchval('SELECT COUNT(*) FROM fhir.resources')
-        if resource_count == 0:
-            print('ℹ️ No resources found, skipping relationship check')
-            await conn.close()
-            return
-        
-        # Check for problematic Resource/ references
-        bad_refs = await conn.fetchval(\"\"\"
-            SELECT COUNT(*) 
-            FROM fhir.resources 
-            WHERE resource::text LIKE '%\"Resource/%'
-        \"\"\")
-        
-        # Check for missing patient/subject search params
-        missing_params = await conn.fetchval(\"\"\"
-            SELECT COUNT(*) 
-            FROM fhir.resources r
-            WHERE r.resource_type IN ('Condition', 'Observation', 'MedicationRequest')
-            AND r.deleted = false
-            AND NOT EXISTS (
-                SELECT 1 FROM fhir.search_params sp
-                WHERE sp.resource_id = r.id
-                AND sp.param_name IN ('patient', 'subject')
-            )
-        \"\"\")
-        
-        await conn.close()
-        
-        if bad_refs > 0 or missing_params > 0:
-            print(f'⚠️ Found {bad_refs} bad references and {missing_params} missing search params')
-            print('🔧 Running relationship fixes...')
-            return True
-        else:
-            print('✅ FHIR relationships look good')
-            return False
-    except Exception as e:
-        print(f'⚠️ Could not check relationships: {e}')
-        return False
-
-needs_fix = asyncio.run(check_and_fix_relationships())
-exit(0 if needs_fix else 1)
-" && {
-    echo "🔧 Fixing FHIR relationships..."
-    python /app/scripts/active/fix_fhir_relationships.py || {
-        echo "⚠️ Relationship fix had issues but continuing..."
-    }
-} || {
-    echo "✅ FHIR relationships are correct"
-}
+# FHIR relationship management now handled by HAPI FHIR server
+echo "ℹ️ FHIR resource management handled by HAPI FHIR server"
 
 # Create necessary directories
 echo "Creating directories..."

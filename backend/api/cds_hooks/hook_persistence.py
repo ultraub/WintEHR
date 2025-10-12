@@ -21,56 +21,56 @@ class HookPersistenceManager:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def create_table_if_not_exists(self):
-        """Create the CDS hooks table if it doesn't exist"""
-        # Create table SQL without schema creation
-        # Table already exists with different schema - don't recreate
-        # Actual schema has: id (varchar), title, description, hook_type,
-        # conditions, actions, prefetch, enabled, created_at, updated_at, display_behavior
-        create_table_sql = """
-        CREATE TABLE IF NOT EXISTS cds_hooks.hook_configurations (
-            id SERIAL PRIMARY KEY,
-            hook_id VARCHAR(255) UNIQUE NOT NULL,
-            title VARCHAR(500),
-            description TEXT,
-            hook_type VARCHAR(100) NOT NULL,
-            prefetch JSONB DEFAULT '{}'::jsonb,
-            configuration JSONB NOT NULL,
-            enabled BOOLEAN DEFAULT true,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            display_behavior JSONB DEFAULT NULL
-        )
-        """
+    # async def create_table_if_not_exists(self):
+    #     """Create the CDS hooks table if it doesn't exist"""
+    #     # Create table SQL without schema creation
+    #     # Table already exists with different schema - don't recreate
+    #     # Actual schema has: id (varchar), title, description, hook_type,
+    #     # conditions, actions, prefetch, enabled, created_at, updated_at, display_behavior
+    #     create_table_sql = """
+    #     CREATE TABLE IF NOT EXISTS cds_hooks.hook_configurations (
+    #         id SERIAL PRIMARY KEY,
+    #         hook_id VARCHAR(255) UNIQUE NOT NULL,
+    #         title VARCHAR(500),
+    #         description TEXT,
+    #         hook_type VARCHAR(100) NOT NULL,
+    #         prefetch JSONB DEFAULT '{}'::jsonb,
+    #         configuration JSONB NOT NULL,
+    #         enabled BOOLEAN DEFAULT true,
+    #         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    #         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    #         display_behavior JSONB DEFAULT NULL
+    #     )
+    #     """
         
-        try:
-            # Create schema first
-            await self.db.execute(text("CREATE SCHEMA IF NOT EXISTS cds_hooks"))
-            await self.db.commit()
+    #     try:
+    #         # Create schema first
+    #         await self.db.execute(text("CREATE SCHEMA IF NOT EXISTS cds_hooks"))
+    #         await self.db.commit()
             
-            # Then create table
-            await self.db.execute(text(create_table_sql))
-            await self.db.commit()
+    #         # Then create table
+    #         await self.db.execute(text(create_table_sql))
+    #         await self.db.commit()
             
-            # Add display_behavior column if it doesn't exist (for existing tables)
-            try:
-                await self.db.execute(text("ALTER TABLE cds_hooks.hook_configurations ADD COLUMN IF NOT EXISTS display_behavior JSONB DEFAULT NULL"))
-                await self.db.commit()
-            except Exception as e:
-                logger.debug(f"Column display_behavior may already exist: {e}")
-                await self.db.rollback()
+    #         # Add display_behavior column if it doesn't exist (for existing tables)
+    #         try:
+    #             await self.db.execute(text("ALTER TABLE cds_hooks.hook_configurations ADD COLUMN IF NOT EXISTS display_behavior JSONB DEFAULT NULL"))
+    #             await self.db.commit()
+    #         except Exception as e:
+    #             logger.debug(f"Column display_behavior may already exist: {e}")
+    #             await self.db.rollback()
             
-            # Then create indexes - one at a time to avoid multi-statement error
-            await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_type ON cds_hooks.hook_configurations(hook_type)"))
-            await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_active ON cds_hooks.hook_configurations(enabled)"))
-            # Note: The id column in the table serves as the hook_id, no separate index needed
-            await self.db.commit()
+    #         # Then create indexes - one at a time to avoid multi-statement error
+    #         await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_type ON cds_hooks.hook_configurations(hook_type)"))
+    #         await self.db.execute(text("CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_active ON cds_hooks.hook_configurations(enabled)"))
+    #         # Note: The id column in the table serves as the hook_id, no separate index needed
+    #         await self.db.commit()
             
-            logger.debug("CDS hooks table created or verified")
-        except Exception as e:
-            logger.error(f"Error creating CDS hooks table: {e}")
-            await self.db.rollback()
-            raise
+    #         logger.debug("CDS hooks table created or verified")
+    #     except Exception as e:
+    #         logger.error(f"Error creating CDS hooks table: {e}")
+    #         await self.db.rollback()
+    #         raise
     
     async def save_hook(self, hook_config: HookConfiguration, user_id: str = "system") -> HookConfiguration:
         """Save a hook configuration to the database"""
@@ -329,7 +329,7 @@ class HookPersistenceManager:
 async def get_persistence_manager(db: AsyncSession) -> HookPersistenceManager:
     """Get a persistence manager instance and ensure table exists"""
     manager = HookPersistenceManager(db)
-    await manager.create_table_if_not_exists()
+    # await manager.create_table_if_not_exists()
     return manager
 
 async def load_hooks_from_database(db: AsyncSession) -> Dict[str, HookConfiguration]:
