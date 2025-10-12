@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 import os
 import shutil
@@ -12,7 +13,7 @@ import json
 
 from database import get_db_session as get_db
 from models.dicom_models import DICOMStudy, DICOMSeries, DICOMInstance, ImagingResult
-from models.synthea_models import Patient, ImagingStudy
+from services.hapi_fhir_client import HAPIFHIRClient
 # from api.auth import get_current_user  # Disabled for teaching purposes
 from pydantic import BaseModel
 from typing import Any, Optional, Dict
@@ -37,13 +38,23 @@ async def upload_dicom_files(
     patient_id: str = Form(...),
     imaging_study_id: Optional[str] = Form(None),
     files: List[UploadFile] = File(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     # current_user: dict = Depends(get_current_user)  # Disabled for teaching purposes
 ):
-    """Upload DICOM files for a patient"""
-    # Verify patient exists
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
-    if not patient:
+    """
+    Upload DICOM files for a patient
+
+    Migrated to HAPI FHIR (Phase 3.7):
+    - Patient validation now queries HAPI FHIR
+    - DICOM file storage still uses dicom_models (legitimate)
+    """
+    # Initialize HAPI FHIR client
+    hapi_client = HAPIFHIRClient()
+
+    # Verify patient exists in HAPI FHIR
+    try:
+        patient = await hapi_client.read("Patient", patient_id)
+    except Exception:
         raise HTTPException(status_code=404, detail="Patient not found")
     
     # Create upload session directory
@@ -83,7 +94,7 @@ async def upload_dicom_files(
                     if not study:
                         study = DICOMStudy(
                             study_instance_uid=study_uid,
-                            patient_id=patient.id,
+                            patient_id=patient.get("id"),  # FHIR Patient dict
                             imaging_study_id=imaging_study_id,
                             study_date=datetime.strptime(str(ds.StudyDate), "%Y%m%d") if hasattr(ds, 'StudyDate') else None,
                             study_time=str(ds.StudyTime) if hasattr(ds, 'StudyTime') else None,
@@ -233,8 +244,8 @@ async def upload_dicom_files(
                     )
                     db.add(result)
         
-        db.commit()
-        
+        await db.commit()
+
         return StandardResponse(
             success=True,
             message=f"Uploaded {len(files) - len(errors)} files successfully",
@@ -243,9 +254,9 @@ async def upload_dicom_files(
                 "errors": errors
             }
         )
-        
+
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         # Cleanup session directory
         shutil.rmtree(session_dir, ignore_errors=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -403,24 +414,34 @@ async def update_imaging_report(
     impression: str = Form(...),
     recommendations: Optional[str] = Form(None),
     status: str = Form("final"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     # current_user: dict = Depends(get_current_user)  # Disabled for teaching purposes
 ):
-    """Update or create an imaging report"""
+    """
+    Update or create an imaging report
+
+    Migrated to HAPI FHIR (Phase 3.7):
+    - ImagingStudy validation now queries HAPI FHIR
+    - ImagingResult storage still uses dicom_models (legitimate)
+    """
+    # Initialize HAPI FHIR client
+    hapi_client = HAPIFHIRClient()
+
     # Get or create result
-    result = db.query(ImagingResult).filter(
+    from sqlalchemy import select
+    result_query = select(ImagingResult).where(
         ImagingResult.imaging_study_id == imaging_study_id
-    ).first()
-    
+    )
+    result_exec = await db.execute(result_query)
+    result = result_exec.scalar_one_or_none()
+
     if not result:
-        # Check if imaging study exists
-        imaging_study = db.query(ImagingStudy).filter(
-            ImagingStudy.id == imaging_study_id
-        ).first()
-        
-        if not imaging_study:
+        # Check if imaging study exists in HAPI FHIR
+        try:
+            imaging_study = await hapi_client.read("ImagingStudy", imaging_study_id)
+        except Exception:
             raise HTTPException(status_code=404, detail="Imaging study not found")
-        
+
         result = ImagingResult(
             imaging_study_id=imaging_study_id
         )
@@ -433,9 +454,9 @@ async def update_imaging_report(
     result.status = status
     result.reported_by = "Demo User"  # Simplified for teaching purposes
     result.reported_at = datetime.utcnow()
-    
-    db.commit()
-    
+
+    await db.commit()
+
     return StandardResponse(
         success=True,
         message="Report updated successfully",

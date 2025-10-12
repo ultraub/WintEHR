@@ -1,6 +1,29 @@
 """
 Enhanced SQLAlchemy models for Synthea data with full FHIR R4 compliance
 Includes missing critical fields and new resources for comprehensive healthcare data
+
+⚠️ DEPRECATION WARNING (v4.2 - 2025-10-12) ⚠️
+
+This module defines staging tables that MAY no longer be needed after v4.2 pure FHIR migration.
+
+Status as of 2025-10-12:
+- ❌ NO active imports found in codebase (verified Phase 3.7)
+- ✅ Synthea pipeline POSTs directly to HAPI FHIR JPA Server (verified Phase 3.8)
+- ❓ Unclear if these tables are created during database initialization
+- ❓ Unclear if these tables serve any purpose in current architecture
+
+Investigation:
+- Phase 3 migrated all clinical workflows to HAPI FHIR (MedicationRequest, ServiceRequest, DocumentReference)
+- Phase 3.8 confirmed Synthea import scripts POST directly to HAPI FHIR via REST API
+- No code found that queries these staging tables (after Phase 3.7 migrations)
+- These tables may exist in database but are unused
+
+Next Steps:
+- Phase 7 (Fresh Deployment Test) will determine if these tables are created/needed
+- If tables are not created or used, this entire file can be safely deleted
+- Consider removing if Phase 7 shows clean deployment without these tables
+
+If you're reading this and confirmed these tables are not being used, delete this entire file.
 """
 
 from sqlalchemy import Column, String, Integer, Float, DateTime, Date, Boolean, Text, JSON, ForeignKey, UniqueConstraint, Index, CheckConstraint

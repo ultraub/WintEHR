@@ -1,6 +1,6 @@
 """
-Pharmacy Workflow API Router - HAPI FHIR Migration
-Handles medication dispensing, status tracking, and pharmacy queue management using fhirclient
+Pharmacy Workflow API Router - Pure FHIR Implementation
+Handles medication dispensing, status tracking, and pharmacy queue management using HAPI FHIR
 """
 
 from fastapi import APIRouter, HTTPException, status as http_status
@@ -9,12 +9,7 @@ from datetime import datetime, timedelta, timezone
 import uuid
 import logging
 
-from services.fhir_client_config import (
-    search_resources,
-    get_resource,
-    create_resource,
-    update_resource
-)
+from services.hapi_fhir_client import HAPIFHIRClient
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -62,25 +57,35 @@ async def get_pharmacy_queue(
 ):
     """
     Get pharmacy queue with optional filtering using HAPI FHIR
+
+    Educational notes:
+    - Queries MedicationRequest resources created by orders router
+    - Supports filtering by patient, status, and priority
+    - Automatically prioritizes based on urgency and age
     """
     try:
+        hapi_client = HAPIFHIRClient()
+
         # Build search parameters
-        search_params = {}
+        search_params = {
+            "_sort": "-authored",  # Most recent first
+            "_count": 100          # Reasonable limit for pharmacy queue
+        }
+
         if patient_id:
-            search_params['patient'] = patient_id
+            search_params['patient'] = f"Patient/{patient_id}" if not patient_id.startswith("Patient/") else patient_id
         if status:
             search_params['status'] = status
 
-        # Get medication requests from HAPI FHIR
-        med_requests = search_resources('MedicationRequest', search_params)
+        # Query HAPI FHIR for medication requests
+        bundle = await hapi_client.search('MedicationRequest', search_params)
 
         queue_items = []
-        for resource in med_requests:
-            # Convert fhirclient resource to dict
-            resource_dict = resource.as_json()
+        for entry in bundle.get("entry", []):
+            resource = entry.get("resource", {})
 
             # Extract pharmacy queue information
-            queue_item = _build_pharmacy_queue_item(resource_dict)
+            queue_item = _build_pharmacy_queue_item(resource)
 
             # Apply additional filters
             if priority and queue_item.priority != priority:
@@ -108,143 +113,118 @@ async def get_pharmacy_queue(
 async def dispense_medication(dispense_request: MedicationDispenseRequest):
     """
     Dispense medication and create MedicationDispense resource using HAPI FHIR
+
+    Educational notes:
+    - Creates complete FHIR-compliant MedicationDispense resource
+    - Links to originating MedicationRequest via authorizingPrescription
+    - Updates MedicationRequest status to completed
+    - Tracks lot number and expiration for inventory management
     """
     try:
+        hapi_client = HAPIFHIRClient()
+
         # Get the medication request from HAPI FHIR
-        med_request = get_resource('MedicationRequest', dispense_request.medication_request_id)
+        med_request = await hapi_client.read('MedicationRequest', dispense_request.medication_request_id)
         if not med_request:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Medication request not found"
             )
 
-        # Convert to dict
-        med_request_dict = med_request.as_json()
-
         # Create complete MedicationDispense FHIR resource
         dispense_id = str(uuid.uuid4())
         current_time = datetime.now(timezone.utc)
 
-        from fhirclient.models.medicationdispense import MedicationDispense
-        from fhirclient.models.codeableconcept import CodeableConcept
-        from fhirclient.models.reference import Reference
-        from fhirclient.models.quantity import Quantity
-        from fhirclient.models.annotation import Annotation
-        from fhirclient.models.meta import Meta
-        from fhirclient.models.identifier import Identifier
+        # Build MedicationDispense resource (dict format)
+        dispense_resource = {
+            "resourceType": "MedicationDispense",
+            "id": dispense_id,
+            "meta": {
+                "versionId": "1",
+                "lastUpdated": current_time.isoformat(),
+                "profile": ["http://hl7.org/fhir/StructureDefinition/MedicationDispense"]
+            },
+            "identifier": [{
+                "system": "http://example.org/pharmacy/dispense-id",
+                "value": f"DISP-{dispense_id[:8].upper()}"
+            }],
+            "status": "completed",
+            "authorizingPrescription": [{
+                "reference": f"MedicationRequest/{dispense_request.medication_request_id}"
+            }],
+            "type": {
+                "coding": [{
+                    "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+                    "code": "FF",
+                    "display": "First Fill"
+                }]
+            },
+            "quantity": {
+                "value": dispense_request.quantity,
+                "unit": med_request.get("dispenseRequest", {}).get("quantity", {}).get("unit", "units"),
+                "system": "http://unitsofmeasure.org"
+            },
+            "daysSupply": {
+                "value": 30,
+                "unit": "days",
+                "system": "http://unitsofmeasure.org",
+                "code": "d"
+            },
+            "whenPrepared": current_time.isoformat(),
+            "whenHandedOver": current_time.isoformat(),
+            "performer": [{
+                "actor": {
+                    "reference": f"Practitioner/{dispense_request.pharmacist_id or 'default-pharmacist'}",
+                    "display": "Pharmacist"
+                }
+            }]
+        }
 
-        # Build MedicationDispense using fhirclient models
-        dispense = MedicationDispense()
-        dispense.id = dispense_id
+        # Copy medication from request
+        if med_request.get("medicationCodeableConcept"):
+            dispense_resource["medicationCodeableConcept"] = med_request["medicationCodeableConcept"]
 
-        # Meta
-        meta = Meta()
-        meta.versionId = "1"
-        meta.lastUpdated = current_time.isoformat()
-        meta.profile = ["http://hl7.org/fhir/StructureDefinition/MedicationDispense"]
-        dispense.meta = meta
+        # Copy subject (patient) from request
+        if med_request.get("subject"):
+            dispense_resource["subject"] = med_request["subject"]
 
-        # Identifier
-        identifier = Identifier()
-        identifier.system = "http://example.org/pharmacy/dispense-id"
-        identifier.value = f"DISP-{dispense_id[:8].upper()}"
-        dispense.identifier = [identifier]
+        # Copy encounter/context from request
+        if med_request.get("encounter"):
+            dispense_resource["context"] = med_request["encounter"]
 
-        # Status
-        dispense.status = "completed"
+        # Copy dosage instructions from request
+        if med_request.get("dosageInstruction"):
+            dispense_resource["dosageInstruction"] = med_request["dosageInstruction"]
 
-        # Medication
-        if hasattr(med_request, 'medicationCodeableConcept'):
-            dispense.medicationCodeableConcept = med_request.medicationCodeableConcept
+        # Add lot number and expiration as extensions
+        dispense_resource["extension"] = [
+            {
+                "url": "http://wintehr.org/fhir/StructureDefinition/lot-number",
+                "valueString": dispense_request.lot_number
+            },
+            {
+                "url": "http://wintehr.org/fhir/StructureDefinition/expiration-date",
+                "valueDate": dispense_request.expiration_date
+            }
+        ]
 
-        # Subject and context
-        if hasattr(med_request, 'subject'):
-            dispense.subject = med_request.subject
-
-        if hasattr(med_request, 'encounter'):
-            dispense.context = med_request.encounter
-
-        # Performer (pharmacist)
-        from fhirclient.models.medicationdispense import MedicationDispensePerformer
-        performer = MedicationDispensePerformer()
-        actor_ref = Reference()
-        actor_ref.reference = f"Practitioner/{dispense_request.pharmacist_id or 'default-pharmacist'}"
-        actor_ref.display = "Pharmacist"
-        performer.actor = actor_ref
-        dispense.performer = [performer]
-
-        # Authorizing prescription
-        auth_ref = Reference()
-        auth_ref.reference = f"MedicationRequest/{dispense_request.medication_request_id}"
-        dispense.authorizingPrescription = [auth_ref]
-
-        # Type
-        from fhirclient.models.coding import Coding
-        type_concept = CodeableConcept()
-        type_coding = Coding()
-        type_coding.system = "http://terminology.hl7.org/CodeSystem/v3-ActCode"
-        type_coding.code = "FF"
-        type_coding.display = "First Fill"
-        type_concept.coding = [type_coding]
-        dispense.type = type_concept
-
-        # Quantity
-        quantity = Quantity()
-        quantity.value = dispense_request.quantity
-        if hasattr(med_request, 'dispenseRequest') and med_request.dispenseRequest:
-            if hasattr(med_request.dispenseRequest, 'quantity') and med_request.dispenseRequest.quantity:
-                quantity.unit = med_request.dispenseRequest.quantity.unit or 'units'
-            else:
-                quantity.unit = 'units'
-        else:
-            quantity.unit = 'units'
-        quantity.system = "http://unitsofmeasure.org"
-        dispense.quantity = quantity
-
-        # Days supply
-        days_supply = Quantity()
-        days_supply.value = 30
-        days_supply.unit = "days"
-        days_supply.system = "http://unitsofmeasure.org"
-        days_supply.code = "d"
-        dispense.daysSupply = days_supply
-
-        # When prepared/handed over
-        from fhirclient.models.fhirdate import FHIRDate
-        dispense.whenPrepared = FHIRDate(current_time.isoformat())
-        dispense.whenHandedOver = FHIRDate(current_time.isoformat())
-
-        # Dosage instruction
-        if hasattr(med_request, 'dosageInstruction'):
-            dispense.dosageInstruction = med_request.dosageInstruction
-
-        # Notes
+        # Add pharmacist notes
         if dispense_request.pharmacist_notes:
-            note = Annotation()
-            note.text = dispense_request.pharmacist_notes
-            note.time = FHIRDate(datetime.now().isoformat())
-            dispense.note = [note]
+            dispense_resource["note"] = [{
+                "text": dispense_request.pharmacist_notes,
+                "time": current_time.isoformat()
+            }]
 
         # Create the dispense resource in HAPI FHIR
-        created_dispense = create_resource(dispense)
+        created_dispense = await hapi_client.create("MedicationDispense", dispense_resource)
 
         # Update medication request status to completed
-        med_request.status = "completed"
-
-        # Add dispense event reference
-        if not hasattr(med_request, 'dispenseRequest') or not med_request.dispenseRequest:
-            from fhirclient.models.medicationrequest import MedicationRequestDispenseRequest
-            med_request.dispenseRequest = MedicationRequestDispenseRequest()
-
-        # Note: dispenseEvent is not a standard FHIR field in MedicationRequest.dispenseRequest
-        # We'll track this relationship through the MedicationDispense.authorizingPrescription
-
-        # Update the medication request
-        update_resource(med_request)
+        med_request["status"] = "completed"
+        await hapi_client.update("MedicationRequest", dispense_request.medication_request_id, med_request)
 
         return {
             "message": "Medication dispensed successfully",
-            "dispense_id": created_dispense.id,
+            "dispense_id": created_dispense.get("id"),
             "medication_request_id": dispense_request.medication_request_id
         }
 
@@ -263,70 +243,74 @@ async def update_pharmacy_status(
 ):
     """
     Update pharmacy workflow status for a medication request using HAPI FHIR
+
+    Educational notes:
+    - Uses FHIR extensions to track pharmacy-specific workflow status
+    - Maintains audit trail of status changes with timestamps
+    - Preserves standard FHIR MedicationRequest status separately
     """
     logger.info(f"Updating pharmacy status for MedicationRequest ID: {medication_request_id}")
     logger.info(f"New status: {status_update.status}")
 
     try:
+        hapi_client = HAPIFHIRClient()
+
         # Get the medication request from HAPI FHIR
-        med_request = get_resource('MedicationRequest', medication_request_id)
+        med_request = await hapi_client.read('MedicationRequest', medication_request_id)
         if not med_request:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Medication request not found"
             )
 
-        # Update pharmacy status using extension
-        from fhirclient.models.extension import Extension
+        # Initialize extensions array if needed
+        if "extension" not in med_request:
+            med_request["extension"] = []
 
         # Find or create pharmacy status extension
-        if not hasattr(med_request, 'extension') or not med_request.extension:
-            med_request.extension = []
-
         pharmacy_ext = None
-        for ext in med_request.extension:
-            if ext.url == 'http://wintehr.com/fhir/StructureDefinition/pharmacy-status':
+        for ext in med_request["extension"]:
+            if ext.get("url") == 'http://wintehr.com/fhir/StructureDefinition/pharmacy-status':
                 pharmacy_ext = ext
                 break
 
         if not pharmacy_ext:
-            pharmacy_ext = Extension()
-            pharmacy_ext.url = 'http://wintehr.com/fhir/StructureDefinition/pharmacy-status'
-            pharmacy_ext.extension = []
-            med_request.extension.append(pharmacy_ext)
+            pharmacy_ext = {
+                "url": 'http://wintehr.com/fhir/StructureDefinition/pharmacy-status',
+                "extension": []
+            }
+            med_request["extension"].append(pharmacy_ext)
 
         # Update status extension
-        pharmacy_ext.extension = []
-
-        status_ext = Extension()
-        status_ext.url = "status"
-        status_ext.valueString = status_update.status
-        pharmacy_ext.extension.append(status_ext)
-
-        timestamp_ext = Extension()
-        timestamp_ext.url = "lastUpdated"
-        timestamp_ext.valueDateTime = datetime.now().isoformat()
-        pharmacy_ext.extension.append(timestamp_ext)
+        pharmacy_ext["extension"] = [
+            {
+                "url": "status",
+                "valueString": status_update.status
+            },
+            {
+                "url": "lastUpdated",
+                "valueDateTime": datetime.now().isoformat()
+            }
+        ]
 
         if status_update.updated_by:
-            updated_by_ext = Extension()
-            updated_by_ext.url = "updatedBy"
-            updated_by_ext.valueString = status_update.updated_by
-            pharmacy_ext.extension.append(updated_by_ext)
+            pharmacy_ext["extension"].append({
+                "url": "updatedBy",
+                "valueString": status_update.updated_by
+            })
 
         # Add notes if provided
         if status_update.notes:
-            from fhirclient.models.annotation import Annotation
-            note = Annotation()
-            note.text = f"Pharmacy: {status_update.notes}"
-            note.time = datetime.now().isoformat()
+            if "note" not in med_request:
+                med_request["note"] = []
 
-            if not hasattr(med_request, 'note') or not med_request.note:
-                med_request.note = []
-            med_request.note.append(note)
+            med_request["note"].append({
+                "text": f"Pharmacy: {status_update.notes}",
+                "time": datetime.now().isoformat()
+            })
 
         # Update the resource in HAPI FHIR
-        update_resource(med_request)
+        await hapi_client.update("MedicationRequest", medication_request_id, med_request)
 
         return {
             "message": f"Pharmacy status updated to {status_update.status}",
@@ -346,27 +330,36 @@ async def update_pharmacy_status(
 async def get_pharmacy_metrics(date_range: int = 7):  # days
     """
     Get pharmacy workflow metrics and statistics using HAPI FHIR
+
+    Educational notes:
+    - Aggregates metrics across MedicationRequest and MedicationDispense resources
+    - Calculates completion rates and status breakdowns
+    - Uses FHIR search with date filtering
     """
     try:
+        hapi_client = HAPIFHIRClient()
+
         # Calculate date range
         end_date = datetime.now()
         start_date = end_date - timedelta(days=date_range)
 
         # Get medication requests in date range
         search_params = {
-            'date': f"ge{start_date.strftime('%Y-%m-%d')}"
+            'date': f"ge{start_date.strftime('%Y-%m-%d')}",
+            "_count": 1000  # Large limit for metrics
         }
 
-        med_requests = search_resources('MedicationRequest', search_params)
+        med_requests_bundle = await hapi_client.search('MedicationRequest', search_params)
 
         # Calculate metrics
-        total_requests = len(med_requests)
-
         status_counts = {}
         pharmacy_status_counts = {}
 
-        for request in med_requests:
-            request_dict = request.as_json()
+        med_requests_entries = med_requests_bundle.get("entry", [])
+        total_requests = len(med_requests_entries)
+
+        for entry in med_requests_entries:
+            request_dict = entry.get("resource", {})
 
             # Medication request status
             req_status = request_dict.get('status', 'unknown')
@@ -378,10 +371,11 @@ async def get_pharmacy_metrics(date_range: int = 7):  # days
 
         # Get dispensed medications
         dispense_search_params = {
-            'whenhandedover': f"ge{start_date.strftime('%Y-%m-%d')}"
+            'whenhandedover': f"ge{start_date.strftime('%Y-%m-%d')}",
+            "_count": 1000
         }
-        dispense_resources = search_resources('MedicationDispense', dispense_search_params)
-        dispensed_count = len(dispense_resources)
+        dispense_bundle = await hapi_client.search('MedicationDispense', dispense_search_params)
+        dispensed_count = len(dispense_bundle.get("entry", []))
 
         return {
             "date_range": {

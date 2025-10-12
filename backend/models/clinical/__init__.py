@@ -1,25 +1,17 @@
-"""Clinical models package"""
-from .notes import ClinicalNote, NoteTemplate
-from .orders import Order, MedicationOrder, LaboratoryOrder, ImagingOrder, OrderSet
-from .tasks import ClinicalTask, InboxItem, CareTeamMember, PatientList, PatientListMembership
-from .appointments import Appointment, AppointmentParticipant, AppointmentStatus, ParticipantStatus, ParticipantRequired
+"""
+Clinical models package
 
-__all__ = [
-    'ClinicalNote',
-    'NoteTemplate',
-    'Order',
-    'MedicationOrder',
-    'LaboratoryOrder',
-    'ImagingOrder',
-    'OrderSet',
-    'ClinicalTask',
-    'InboxItem',
-    'CareTeamMember',
-    'PatientList',
-    'PatientListMembership',
-    'Appointment',
-    'AppointmentParticipant',
-    'AppointmentStatus',
-    'ParticipantStatus',
-    'ParticipantRequired'
-]
+⚠️ NOTE: All clinical workflow models removed in v4.2 (Phase 5 cleanup)
+
+All clinical data now stored in HAPI FHIR as standard FHIR R4 resources:
+- Clinical Notes → FHIR DocumentReference
+- Orders → FHIR MedicationRequest / ServiceRequest
+- Tasks → FHIR Task / Communication (Phase 4)
+- Appointments → FHIR Appointment
+- Catalogs → Dynamic from HAPI FHIR data
+
+This directory is kept for potential future non-FHIR clinical models.
+Currently empty after Phase 3 pure FHIR migration (2025-10-12).
+"""
+
+__all__ = []

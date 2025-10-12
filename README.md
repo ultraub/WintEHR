@@ -13,7 +13,7 @@ WintEHR is a complete, FHIR-native Electronic Health Record system designed for 
 
 - **Complete Clinical Workflows** - Chart review, orders, results, pharmacy, and imaging modules
 - **FHIR R4 Native** - 38+ resource types with full CRUD operations and search
-- **Medical Imaging** - Integrated DICOM viewer with multi-slice CT/MRI support
+- **Medical Imaging** - Automated DICOM generation + integrated viewer with multi-modality support
 - **Clinical Decision Support** - CDS Hooks 2.0 implementation with 10+ built-in rules
 - **Real-time Updates** - WebSocket-based live clinical events and notifications
 - **Enterprise Ready** - JWT authentication, audit logging, and scalable architecture
@@ -201,10 +201,12 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for:
    - Medication history
 
 5. **Medical Imaging**
-   - DICOM viewer
-   - Multi-slice navigation
+   - DICOM viewer with multi-modality support
+   - **Automated DICOM generation** from ImagingStudy resources
+   - Multi-slice navigation (CT, MR, XR, US, DX, CR, MG)
    - Windowing controls
    - Measurement tools
+   - Realistic synthetic medical images
 
 6. **Clinical Decision Support**
    - Real-time alerts

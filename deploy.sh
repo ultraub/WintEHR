@@ -300,19 +300,33 @@ if [ "$SKIP_DATA" = false ]; then
     echo -e "${BLUE}👥 Loading patient data (${WINTEHR_DEPLOYMENT_PATIENT_COUNT} patients)...${NC}"
     echo "   This may take several minutes..."
 
-    if docker exec ${WINTEHR_SERVICES_CONTAINER_NAMES_BACKEND} \
-        python backend/scripts/synthea_to_hapi_pipeline.py \
-        --num-patients ${WINTEHR_DEPLOYMENT_PATIENT_COUNT} \
-        --state "${WINTEHR_SYNTHEA_STATE}"; then
-        echo -e "${GREEN}✅ Patient data loaded${NC}"
+    # Run the Synthea to HAPI pipeline
+    # Syntax: synthea_to_hapi_pipeline.py <count> <state>
+    if docker exec emr-backend \
+        python scripts/synthea_to_hapi_pipeline.py \
+        ${WINTEHR_DEPLOYMENT_PATIENT_COUNT} \
+        "${WINTEHR_SYNTHEA_STATE}"; then
+        echo -e "${GREEN}✅ Patient data loaded successfully${NC}"
+        echo "   Generated ${WINTEHR_DEPLOYMENT_PATIENT_COUNT} synthetic patients"
     else
         echo -e "${RED}❌ Failed to load patient data${NC}"
         echo "   Check logs: docker-compose logs backend"
+        echo "   Or run manually: docker exec emr-backend python scripts/synthea_to_hapi_pipeline.py ${WINTEHR_DEPLOYMENT_PATIENT_COUNT} ${WINTEHR_SYNTHEA_STATE}"
         exit 1
+    fi
+
+    # Generate DICOM files for ImagingStudy resources
+    echo -e "${BLUE}🏥 Generating DICOM files for imaging studies...${NC}"
+    if docker exec emr-backend \
+        python scripts/active/generate_dicom_from_hapi.py; then
+        echo -e "${GREEN}✅ DICOM files generated successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠️  DICOM generation had issues (non-critical)${NC}"
+        echo "   Imaging studies will be available without DICOM files"
     fi
     echo ""
 else
-    echo -e "${YELLOW}⏭️  Skipping patient data generation${NC}"
+    echo -e "${YELLOW}⏭️  Skipping patient data generation (--skip-data flag)${NC}"
     echo ""
 fi
 
