@@ -94,6 +94,7 @@ import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useCDS } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
 
@@ -348,6 +349,7 @@ const MedicationDialogEnhanced = ({
   mode = 'prescribe' // 'prescribe', 'edit', 'refill'
 }) => {
   const theme = useTheme();
+  const { user } = useAuth();
   const { currentPatient } = useFHIRResource();
   const { executeCDSHooks } = useCDS();
   const { publish } = useClinicalWorkflow();
@@ -673,7 +675,8 @@ const MedicationDialogEnhanced = ({
         }),
         authoredOn: new Date().toISOString(),
         requester: {
-          reference: 'Practitioner/current-user' // Would be actual user in production
+          reference: `Practitioner/${user?.id || 'unknown'}`,
+          display: user?.name || 'Unknown Practitioner'
         },
         dosageInstruction: [{
           sequence: 1,

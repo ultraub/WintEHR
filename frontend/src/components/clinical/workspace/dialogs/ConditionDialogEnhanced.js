@@ -86,6 +86,7 @@ import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useCDS } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
 
@@ -198,10 +199,11 @@ const ConditionDialogEnhanced = ({
   encounterId = null
 }) => {
   const theme = useTheme();
+  const { user } = useAuth();
   const { currentPatient } = useFHIRResource();
   const { evaluateCDS } = useCDS();
   const { publish } = useClinicalWorkflow();
-  
+
   // State
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -426,7 +428,8 @@ const ConditionDialogEnhanced = ({
         }),
         recordedDate: new Date().toISOString(),
         recorder: {
-          reference: 'Practitioner/current-user' // Would be actual user in production
+          reference: `Practitioner/${user?.id || 'unknown'}`,
+          display: user?.name || 'Unknown Practitioner'
         }
       };
 

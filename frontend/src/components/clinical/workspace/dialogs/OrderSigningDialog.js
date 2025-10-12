@@ -34,6 +34,7 @@ import {
 } from '@mui/icons-material';
 import { useCDSHooks } from '../../../../hooks/useCDSHooks';
 import { useClinical } from '../../../../contexts/ClinicalContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 import CDSCard from '../../cds/CDSCard';
 
 const getOrderIcon = (order) => {
@@ -60,19 +61,20 @@ const getOrderTitle = (order) => {
   return 'Order';
 };
 
-const OrderSigningDialog = ({ 
-  open, 
-  onClose, 
-  orders = [], 
+const OrderSigningDialog = ({
+  open,
+  onClose,
+  orders = [],
   onOrdersSigned,
   loading = false,
-  patientId 
+  patientId
 }) => {
   const [pin, setPin] = useState('');
   const [reason, setReason] = useState('Provider authorization for order execution');
   const [validationError, setValidationError] = useState('');
-  
+
   // CDS Hooks integration
+  const { user } = useAuth();
   const { cards, loading: cdsLoading, executeHook, sendCardFeedback } = useCDSHooks();
   const { currentPatient } = useClinical();
   const effectivePatientId = patientId || currentPatient?.id;
@@ -82,11 +84,11 @@ const OrderSigningDialog = ({
     if (open && orders.length > 0 && effectivePatientId) {
       executeHook('order-sign', {
         patientId: effectivePatientId,
-        userId: 'current-user', // TODO: Get from auth context
+        userId: user?.id || 'unknown',
         draftOrders: orders
       });
     }
-  }, [open, orders, effectivePatientId, executeHook]);
+  }, [open, orders, effectivePatientId, user, executeHook]);
 
   const handleSign = () => {
     if (!pin.trim()) {
