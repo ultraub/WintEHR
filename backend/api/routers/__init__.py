@@ -51,6 +51,7 @@ def register_all_routers(app: FastAPI) -> None:
     # 3. Clinical Workflows
     try:
         from api.catalogs import router as catalogs_router
+        from api.clinical.orders.orders_router import router as clinical_orders_router
         from api.clinical.pharmacy.pharmacy_router import router as pharmacy_router
         from api.clinical.tasks.router import router as clinical_tasks_router
         from api.clinical.alerts.router import router as clinical_alerts_router
@@ -63,6 +64,7 @@ def register_all_routers(app: FastAPI) -> None:
 
         app.include_router(catalogs_router, tags=["Clinical Catalogs"])
         app.include_router(dynamic_catalog_router, tags=["Dynamic Catalog (Legacy)"])
+        app.include_router(clinical_orders_router, prefix="/api", tags=["Clinical Orders (CPOE)"])
         app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
         app.include_router(medication_lists_router, tags=["Medication Lists"])
         app.include_router(drug_safety_router, prefix="/api/clinical", tags=["Drug Safety"])

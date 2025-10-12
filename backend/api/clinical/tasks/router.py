@@ -1,19 +1,20 @@
 """
 Clinical Tasks API endpoints.
 Manages clinical tasks and to-dos for healthcare providers.
+
+v4.2 - Migrated to pure FHIR architecture using HAPI FHIR JPA Server (Phase 4)
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import List, Optional
 from datetime import datetime, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
-import uuid
+import logging
 
-from database import get_db_session
 from api.auth import get_current_user
-from services.fhir_client_config import get_resource, search_resources, create_resource, update_resource, delete_resource
+from services.hapi_fhir_client import HAPIFHIRClient
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/clinical/tasks", tags=["clinical-tasks"])
 
 # Pydantic models
@@ -49,14 +50,64 @@ class TaskResponse(BaseModel):
     updated_at: datetime
     created_by: str
 
+
+def extract_task_response(fhir_task: dict) -> TaskResponse:
+    """Helper function to extract TaskResponse from FHIR Task resource"""
+    # Extract patient reference
+    patient_ref = fhir_task.get("for", {}).get("reference", "")
+    patient_id_extracted = patient_ref.replace("Patient/", "") if patient_ref else ""
+
+    # Extract description/note
+    notes = fhir_task.get("note", [])
+    description = notes[0].get("text") if notes else None
+
+    # Extract due date
+    restriction = fhir_task.get("restriction", {})
+    period = restriction.get("period", {})
+    due_date = period.get("end")
+
+    # Extract assignee
+    owner_ref = fhir_task.get("owner", {}).get("reference", "")
+    assignee_id = owner_ref.replace("Practitioner/", "") if owner_ref else None
+
+    # Extract task type
+    code = fhir_task.get("code", {})
+    codings = code.get("coding", [])
+    task_type = codings[0].get("code", "general") if codings else "general"
+
+    # Extract created by
+    requester_ref = fhir_task.get("requester", {}).get("reference", "")
+    created_by = requester_ref.replace("Practitioner/", "") if requester_ref else ""
+
+    # Extract timestamps
+    meta = fhir_task.get("meta", {})
+    created_at = meta.get("lastUpdated", datetime.now(timezone.utc).isoformat())
+
+    return TaskResponse(
+        id=fhir_task.get("id", ""),
+        patient_id=patient_id_extracted,
+        title=fhir_task.get("description", ""),
+        description=description,
+        priority=fhir_task.get("priority", "medium"),
+        status=fhir_task.get("status", "pending"),
+        due_date=due_date,
+        assignee=assignee_id,
+        task_type=task_type,
+        created_at=created_at,
+        updated_at=created_at,
+        created_by=created_by
+    )
+
+
 @router.post("/", response_model=TaskResponse)
 async def create_task(
     task: TaskCreate,
-    db: AsyncSession = Depends(get_db_session),
     current_user: dict = Depends(get_current_user)
 ):
-    """Create a new clinical task."""
-    # Create FHIR Task resource
+    """Create a new clinical task as FHIR Task resource"""
+    hapi_client = HAPIFHIRClient()
+
+    # Build FHIR Task resource
     fhir_task = {
         "resourceType": "Task",
         "status": task.status,
@@ -97,10 +148,10 @@ async def create_task(
             }]
         }
 
-    # Create resource in HAPI FHIR
+    # Create resource via HAPI FHIR
     try:
-        created_task = create_resource('Task', fhir_task)
-        task_id = created_task.id if hasattr(created_task, 'id') else str(uuid.uuid4())
+        created_resource = await hapi_client.create("Task", fhir_task)
+        task_id = created_resource["id"]
 
         return TaskResponse(
             id=task_id,
@@ -117,6 +168,7 @@ async def create_task(
             created_by=current_user.get('id', 'unknown')
         )
     except Exception as e:
+        logger.error(f"Failed to create task: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create task: {str(e)}")
 
 @router.get("/", response_model=List[TaskResponse])
@@ -124,10 +176,11 @@ async def get_tasks(
     patient_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     priority: Optional[str] = Query(None),
-    assignee: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db_session)
+    assignee: Optional[str] = Query(None)
 ):
-    """Get clinical tasks with optional filters."""
+    """Get clinical tasks with optional filters using HAPI FHIR search"""
+    hapi_client = HAPIFHIRClient()
+
     try:
         # Build search parameters
         search_params = {}
@@ -140,256 +193,118 @@ async def get_tasks(
         if assignee:
             search_params['owner'] = f'Practitioner/{assignee}'
 
-        # Search Task resources from HAPI FHIR
-        task_resources = search_resources('Task', search_params)
+        # Search HAPI FHIR - returns Bundle dict
+        bundle = await hapi_client.search("Task", search_params)
 
         tasks = []
-        if task_resources:
-            for fhir_task in task_resources:
-                # Extract patient reference
-                patient_ref = ""
-                if hasattr(fhir_task, 'for_fhir') and fhir_task.for_fhir:
-                    patient_ref = fhir_task.for_fhir.reference if hasattr(fhir_task.for_fhir, 'reference') else ""
-                patient_id_extracted = patient_ref.replace("Patient/", "") if patient_ref else ""
-
-                # Extract description/note
-                description = None
-                if hasattr(fhir_task, 'note') and fhir_task.note:
-                    first_note = fhir_task.note[0] if fhir_task.note else None
-                    if first_note and hasattr(first_note, 'text'):
-                        description = first_note.text
-
-                # Extract due date
-                due_date = None
-                if hasattr(fhir_task, 'restriction') and fhir_task.restriction:
-                    if hasattr(fhir_task.restriction, 'period') and fhir_task.restriction.period:
-                        if hasattr(fhir_task.restriction.period, 'end'):
-                            due_date = fhir_task.restriction.period.end
-
-                # Extract assignee
-                assignee_id = None
-                if hasattr(fhir_task, 'owner') and fhir_task.owner:
-                    owner_ref = fhir_task.owner.reference if hasattr(fhir_task.owner, 'reference') else ""
-                    assignee_id = owner_ref.replace("Practitioner/", "") if owner_ref else None
-
-                # Extract task type
-                task_type = "general"
-                if hasattr(fhir_task, 'code') and fhir_task.code:
-                    if hasattr(fhir_task.code, 'coding') and fhir_task.code.coding:
-                        first_coding = fhir_task.code.coding[0] if fhir_task.code.coding else None
-                        if first_coding and hasattr(first_coding, 'code'):
-                            task_type = first_coding.code
-
-                # Extract created by
-                created_by = ""
-                if hasattr(fhir_task, 'requester') and fhir_task.requester:
-                    requester_ref = fhir_task.requester.reference if hasattr(fhir_task.requester, 'reference') else ""
-                    created_by = requester_ref.replace("Practitioner/", "") if requester_ref else ""
-
-                # Build response
-                task = TaskResponse(
-                    id=fhir_task.id if hasattr(fhir_task, 'id') else "",
-                    patient_id=patient_id_extracted,
-                    title=fhir_task.description if hasattr(fhir_task, 'description') else "",
-                    description=description,
-                    priority=fhir_task.priority if hasattr(fhir_task, 'priority') else "medium",
-                    status=fhir_task.status if hasattr(fhir_task, 'status') else "pending",
-                    due_date=due_date,
-                    assignee=assignee_id,
-                    task_type=task_type,
-                    created_at=fhir_task.authoredOn.isostring if hasattr(fhir_task, 'authoredOn') and fhir_task.authoredOn else datetime.now(timezone.utc),
-                    updated_at=fhir_task.meta.lastUpdated.isostring if hasattr(fhir_task, 'meta') and fhir_task.meta and hasattr(fhir_task.meta, 'lastUpdated') else datetime.now(timezone.utc),
-                    created_by=created_by
-                )
-                tasks.append(task)
+        for entry in bundle.get("entry", []):
+            fhir_task = entry.get("resource", {})
+            task = extract_task_response(fhir_task)
+            tasks.append(task)
 
         return tasks
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch tasks: {str(e)}")
+        logger.error(f"Failed to search tasks: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to search tasks: {str(e)}")
 
 @router.get("/{task_id}", response_model=TaskResponse)
-async def get_task(
-    task_id: str,
-    db: AsyncSession = Depends(get_db_session)
-):
-    """Get a specific task by ID."""
+async def get_task(task_id: str):
+    """Get a specific clinical task by ID"""
+    hapi_client = HAPIFHIRClient()
+
     try:
-        # Get Task resource from HAPI FHIR
-        fhir_task = get_resource('Task', task_id)
+        # Read task from HAPI FHIR
+        fhir_task = await hapi_client.read("Task", task_id)
+        return extract_task_response(fhir_task)
 
-        if not fhir_task:
-            raise HTTPException(status_code=404, detail="Task not found")
-
-        # Extract patient reference
-        patient_ref = ""
-        if hasattr(fhir_task, 'for_fhir') and fhir_task.for_fhir:
-            patient_ref = fhir_task.for_fhir.reference if hasattr(fhir_task.for_fhir, 'reference') else ""
-        patient_id_extracted = patient_ref.replace("Patient/", "") if patient_ref else ""
-
-        # Extract description/note
-        description = None
-        if hasattr(fhir_task, 'note') and fhir_task.note:
-            first_note = fhir_task.note[0] if fhir_task.note else None
-            if first_note and hasattr(first_note, 'text'):
-                description = first_note.text
-
-        # Extract due date
-        due_date = None
-        if hasattr(fhir_task, 'restriction') and fhir_task.restriction:
-            if hasattr(fhir_task.restriction, 'period') and fhir_task.restriction.period:
-                if hasattr(fhir_task.restriction.period, 'end'):
-                    due_date = fhir_task.restriction.period.end
-
-        # Extract assignee
-        assignee_id = None
-        if hasattr(fhir_task, 'owner') and fhir_task.owner:
-            owner_ref = fhir_task.owner.reference if hasattr(fhir_task.owner, 'reference') else ""
-            assignee_id = owner_ref.replace("Practitioner/", "") if owner_ref else None
-
-        # Extract task type
-        task_type = "general"
-        if hasattr(fhir_task, 'code') and fhir_task.code:
-            if hasattr(fhir_task.code, 'coding') and fhir_task.code.coding:
-                first_coding = fhir_task.code.coding[0] if fhir_task.code.coding else None
-                if first_coding and hasattr(first_coding, 'code'):
-                    task_type = first_coding.code
-
-        # Extract created by
-        created_by = ""
-        if hasattr(fhir_task, 'requester') and fhir_task.requester:
-            requester_ref = fhir_task.requester.reference if hasattr(fhir_task.requester, 'reference') else ""
-            created_by = requester_ref.replace("Practitioner/", "") if requester_ref else ""
-
-        return TaskResponse(
-            id=fhir_task.id if hasattr(fhir_task, 'id') else "",
-            patient_id=patient_id_extracted,
-            title=fhir_task.description if hasattr(fhir_task, 'description') else "",
-            description=description,
-            priority=fhir_task.priority if hasattr(fhir_task, 'priority') else "medium",
-            status=fhir_task.status if hasattr(fhir_task, 'status') else "pending",
-            due_date=due_date,
-            assignee=assignee_id,
-            task_type=task_type,
-            created_at=fhir_task.authoredOn.isostring if hasattr(fhir_task, 'authoredOn') and fhir_task.authoredOn else datetime.now(timezone.utc),
-            updated_at=fhir_task.meta.lastUpdated.isostring if hasattr(fhir_task, 'meta') and fhir_task.meta and hasattr(fhir_task.meta, 'lastUpdated') else datetime.now(timezone.utc),
-            created_by=created_by
-        )
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch task: {str(e)}")
+        logger.error(f"Failed to get task {task_id}: {e}")
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
 
 @router.put("/{task_id}", response_model=TaskResponse)
 async def update_task(
     task_id: str,
-    task_update: TaskUpdate,
-    db: AsyncSession = Depends(get_db_session),
-    current_user: dict = Depends(get_current_user)
+    task_update: TaskUpdate
 ):
-    """Update a task."""
+    """Update a clinical task"""
+    hapi_client = HAPIFHIRClient()
+
     try:
-        # Get existing task from HAPI FHIR
-        fhir_task = get_resource('Task', task_id)
+        # Read existing task
+        existing_task = await hapi_client.read("Task", task_id)
 
-        if not fhir_task:
-            raise HTTPException(status_code=404, detail="Task not found")
-
-        # Convert to dict for updates
-        task_dict = fhir_task.as_json() if hasattr(fhir_task, 'as_json') else fhir_task
-
-        # Update fields
+        # Update fields in dict
         if task_update.title is not None:
-            task_dict["description"] = task_update.title
+            existing_task["description"] = task_update.title
 
         if task_update.description is not None:
-            task_dict["note"] = [{"text": task_update.description}]
+            existing_task["note"] = [{"text": task_update.description}]
 
         if task_update.priority is not None:
-            task_dict["priority"] = task_update.priority
+            existing_task["priority"] = task_update.priority
 
         if task_update.status is not None:
-            task_dict["status"] = task_update.status
+            existing_task["status"] = task_update.status
 
         if task_update.due_date is not None:
-            task_dict["restriction"] = {
+            existing_task["restriction"] = {
                 "period": {
                     "end": task_update.due_date.isoformat()
                 }
             }
 
         if task_update.assignee is not None:
-            task_dict["owner"] = {
+            existing_task["owner"] = {
                 "reference": f"Practitioner/{task_update.assignee}"
             }
 
-        # Update in HAPI FHIR
-        updated_task = update_resource('Task', task_id, task_dict)
+        # Update via HAPI FHIR
+        updated_resource = await hapi_client.update("Task", task_id, existing_task)
 
-        # Extract response data
-        patient_ref = ""
-        if hasattr(updated_task, 'for_fhir') and updated_task.for_fhir:
-            patient_ref = updated_task.for_fhir.reference if hasattr(updated_task.for_fhir, 'reference') else ""
-        patient_id_extracted = patient_ref.replace("Patient/", "") if patient_ref else ""
+        # Return updated task using helper
+        return extract_task_response(updated_resource)
 
-        description = None
-        if hasattr(updated_task, 'note') and updated_task.note:
-            first_note = updated_task.note[0] if updated_task.note else None
-            if first_note and hasattr(first_note, 'text'):
-                description = first_note.text
-
-        due_date = None
-        if hasattr(updated_task, 'restriction') and updated_task.restriction:
-            if hasattr(updated_task.restriction, 'period') and updated_task.restriction.period:
-                if hasattr(updated_task.restriction.period, 'end'):
-                    due_date = updated_task.restriction.period.end
-
-        assignee_id = None
-        if hasattr(updated_task, 'owner') and updated_task.owner:
-            owner_ref = updated_task.owner.reference if hasattr(updated_task.owner, 'reference') else ""
-            assignee_id = owner_ref.replace("Practitioner/", "") if owner_ref else None
-
-        task_type = "general"
-        if hasattr(updated_task, 'code') and updated_task.code:
-            if hasattr(updated_task.code, 'coding') and updated_task.code.coding:
-                first_coding = updated_task.code.coding[0] if updated_task.code.coding else None
-                if first_coding and hasattr(first_coding, 'code'):
-                    task_type = first_coding.code
-
-        created_by = ""
-        if hasattr(updated_task, 'requester') and updated_task.requester:
-            requester_ref = updated_task.requester.reference if hasattr(updated_task.requester, 'reference') else ""
-            created_by = requester_ref.replace("Practitioner/", "") if requester_ref else ""
-
-        return TaskResponse(
-            id=updated_task.id if hasattr(updated_task, 'id') else task_id,
-            patient_id=patient_id_extracted,
-            title=updated_task.description if hasattr(updated_task, 'description') else "",
-            description=description,
-            priority=updated_task.priority if hasattr(updated_task, 'priority') else "medium",
-            status=updated_task.status if hasattr(updated_task, 'status') else "pending",
-            due_date=due_date,
-            assignee=assignee_id,
-            task_type=task_type,
-            created_at=updated_task.authoredOn.isostring if hasattr(updated_task, 'authoredOn') and updated_task.authoredOn else datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-            created_by=created_by
-        )
-    except HTTPException:
-        raise
     except Exception as e:
+        logger.error(f"Failed to update task {task_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update task: {str(e)}")
 
 @router.delete("/{task_id}")
-async def delete_task(
-    task_id: str,
-    db: AsyncSession = Depends(get_db_session),
-    current_user: dict = Depends(get_current_user)
-):
-    """Delete a task (soft delete)."""
-    try:
-        # Delete task from HAPI FHIR
-        delete_resource('Task', task_id)
+async def delete_task(task_id: str):
+    """Delete a clinical task"""
+    hapi_client = HAPIFHIRClient()
 
+    try:
+        await hapi_client.delete("Task", task_id)
         return {"message": "Task deleted successfully"}
     except Exception as e:
+        logger.error(f"Failed to delete task {task_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete task: {str(e)}")
+
+
+@router.patch("/{task_id}/status")
+async def update_task_status(
+    task_id: str,
+    status_update: dict
+):
+    """Update task status"""
+    hapi_client = HAPIFHIRClient()
+
+    try:
+        # Read existing task
+        existing_task = await hapi_client.read("Task", task_id)
+
+        # Update status
+        existing_task["status"] = status_update.get("status")
+
+        # Update via HAPI FHIR
+        updated_resource = await hapi_client.update("Task", task_id, existing_task)
+
+        return {
+            "message": "Task status updated successfully",
+            "status": updated_resource["status"]
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to update task status {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update status: {str(e)}")
