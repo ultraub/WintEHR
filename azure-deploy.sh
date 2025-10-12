@@ -12,6 +12,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 echo -e "${GREEN}╔════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║   WintEHR Azure Deployment Script     ║${NC}"
 echo -e "${GREEN}║   HAPI FHIR Production Setup           ║${NC}"
@@ -46,19 +50,25 @@ case "$1" in
         exit 0
         ;;
     status)
+        # Load config for ports and container names
+        if [ -f "deploy/load_config.sh" ]; then
+            source deploy/load_config.sh 2>/dev/null || true
+        fi
+
+        HAPI_PORT="${WINTEHR_SERVICES_PORTS_HAPI_FHIR:-8888}"
+
         echo -e "${BLUE}WintEHR Service Status:${NC}"
         docker-compose -f docker-compose.yml ps
         echo ""
         echo -e "${BLUE}HAPI FHIR Server:${NC}"
-        curl -s http://localhost:8888/fhir/metadata | grep -q "fhirVersion" && echo "✓ HAPI FHIR is healthy" || echo "✗ HAPI FHIR is not responding"
+        curl -s "http://localhost:${HAPI_PORT}/fhir/metadata" | grep -q "fhirVersion" && echo "✓ HAPI FHIR is healthy" || echo "✗ HAPI FHIR is not responding"
         echo ""
-        echo -e "${BLUE}Resource Summary:${NC}"
-        docker exec emr-postgres psql -U emr_user -d emr_db -c "
-            SELECT resource_type, COUNT(*) as count
-            FROM fhir.resources
-            GROUP BY resource_type
-            ORDER BY count DESC
-            LIMIT 10;" 2>/dev/null || echo "Database not accessible"
+        echo -e "${BLUE}Resource Summary (via HAPI FHIR API):${NC}"
+        for resource_type in Patient Condition Observation MedicationRequest Encounter; do
+            count=$(curl -s "http://localhost:${HAPI_PORT}/fhir/${resource_type}?_summary=count" | \
+                    grep -o '"total":[0-9]*' | cut -d: -f2 || echo "0")
+            printf "  %-20s %s\n" "$resource_type:" "$count"
+        done
         exit 0
         ;;
     logs)
@@ -72,8 +82,15 @@ case "$1" in
         ;;
 esac
 
-# Configuration
-PATIENT_COUNT=${1:-50}  # Default 50 patients for production
+# Load configuration
+echo -e "${BLUE}📋 Loading configuration...${NC}"
+if [ -f "deploy/load_config.sh" ]; then
+    source deploy/load_config.sh production
+    PATIENT_COUNT=${WINTEHR_DEPLOYMENT_PATIENT_COUNT}
+else
+    echo -e "${YELLOW}⚠️  Configuration system not found, using defaults${NC}"
+    PATIENT_COUNT=${1:-50}
+fi
 
 echo "Configuration:"
 echo "  Environment: PRODUCTION (Azure)"
@@ -254,61 +271,29 @@ if [ "$PATIENT_COUNT" -gt 0 ]; then
         echo -e "${YELLOW}You can retry later with: docker exec emr-backend python scripts/synthea_to_hapi_pipeline.py $PATIENT_COUNT Massachusetts${NC}"
     fi
 
-    # Populate clinical catalogs
+    # Note: Clinical catalogs are now populated dynamically by DynamicCatalogService
+    # No pre-population needed - catalogs query HAPI FHIR API on demand
+
+    # Verify data via HAPI FHIR API
     echo ""
-    echo -e "${YELLOW}Extracting clinical catalogs...${NC}"
-    if docker exec emr-backend python scripts/active/consolidated_catalog_setup.py --extract-from-fhir; then
-        echo -e "${GREEN}✓ Clinical catalogs populated${NC}"
-    else
-        echo -e "${YELLOW}⚠ Catalog extraction completed with warnings${NC}"
-    fi
+    echo -e "${YELLOW}Verifying data import via HAPI FHIR API...${NC}"
 
-    # Verify data
+    HAPI_PORT="${WINTEHR_SERVICES_PORTS_HAPI_FHIR:-8888}"
+
+    # Get resource counts from HAPI FHIR
+    PATIENTS=$(curl -s "http://localhost:${HAPI_PORT}/fhir/Patient?_summary=count" | grep -o '"total":[0-9]*' | cut -d: -f2 || echo "0")
+    CONDITIONS=$(curl -s "http://localhost:${HAPI_PORT}/fhir/Condition?_summary=count" | grep -o '"total":[0-9]*' | cut -d: -f2 || echo "0")
+    OBSERVATIONS=$(curl -s "http://localhost:${HAPI_PORT}/fhir/Observation?_summary=count" | grep -o '"total":[0-9]*' | cut -d: -f2 || echo "0")
+    MEDICATIONS=$(curl -s "http://localhost:${HAPI_PORT}/fhir/MedicationRequest?_summary=count" | grep -o '"total":[0-9]*' | cut -d: -f2 || echo "0")
+
+    echo -e "${GREEN}✓ Data Import Summary (via HAPI FHIR API):${NC}"
+    echo -e "  • Patients: ${PATIENTS}"
+    echo -e "  • Conditions: ${CONDITIONS}"
+    echo -e "  • Observations: ${OBSERVATIONS}"
+    echo -e "  • Medication Requests: ${MEDICATIONS}"
     echo ""
-    echo -e "${YELLOW}Verifying data import...${NC}"
-    VERIFY_RESULT=$(docker exec emr-backend python -c "
-import asyncio
-import asyncpg
-import json
-
-async def check():
-    try:
-        conn = await asyncpg.connect('postgresql://emr_user:emr_password@postgres:5432/emr_db')
-
-        patient_count = await conn.fetchval('SELECT COUNT(*) FROM fhir.resources WHERE resource_type = \\'Patient\\'')
-        total_count = await conn.fetchval('SELECT COUNT(*) FROM fhir.resources')
-        med_count = await conn.fetchval('SELECT COUNT(*) FROM clinical_catalogs WHERE catalog_type = \\'medication\\'')
-        cond_count = await conn.fetchval('SELECT COUNT(*) FROM clinical_catalogs WHERE catalog_type = \\'condition\\'')
-
-        await conn.close()
-
-        result = {
-            'patients': patient_count,
-            'total_resources': total_count,
-            'medications': med_count,
-            'conditions': cond_count
-        }
-        print(json.dumps(result))
-    except Exception as e:
-        print(json.dumps({'error': str(e)}))
-
-asyncio.run(check())
-" 2>/dev/null)
-
-    if [ -n "$VERIFY_RESULT" ] && echo "$VERIFY_RESULT" | grep -q '"patients"'; then
-        PATIENTS=$(echo "$VERIFY_RESULT" | grep -o '"patients":[0-9]*' | cut -d: -f2)
-        TOTAL=$(echo "$VERIFY_RESULT" | grep -o '"total_resources":[0-9]*' | cut -d: -f2)
-        MEDS=$(echo "$VERIFY_RESULT" | grep -o '"medications":[0-9]*' | cut -d: -f2)
-        CONDS=$(echo "$VERIFY_RESULT" | grep -o '"conditions":[0-9]*' | cut -d: -f2)
-
-        echo -e "${GREEN}✓ Data Import Summary:${NC}"
-        echo -e "  • Patients: ${PATIENTS}"
-        echo -e "  • Total Resources: ${TOTAL}"
-        echo -e "  • Medication Catalog: ${MEDS} items"
-        echo -e "  • Condition Catalog: ${CONDS} items"
-    else
-        echo -e "${YELLOW}⚠ Could not verify counts${NC}"
-    fi
+    echo -e "${BLUE}ℹ️  Clinical catalogs (medications, conditions, labs) are generated"
+    echo -e "    dynamically from patient data via DynamicCatalogService${NC}"
 fi
 
 # Get public IP

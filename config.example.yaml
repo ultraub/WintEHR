@@ -1,0 +1,282 @@
+# WintEHR Deployment Configuration - Example Template
+# =====================================================================
+# Copy this file to config.yaml and customize for your deployment
+# DO NOT commit config.yaml with sensitive data - use .env for secrets
+# =====================================================================
+
+# ============================================================================
+# DEPLOYMENT SETTINGS
+# ============================================================================
+deployment:
+  # Environment type: dev, staging, production
+  # Affects logging verbosity, debug mode, and default settings
+  # - dev: Verbose logging, debug enabled, relaxed security
+  # - staging: Moderate logging, debug disabled, standard security
+  # - production: Minimal logging, debug disabled, strict security
+  environment: production
+
+  # Number of synthetic patients to generate using Synthea
+  # More patients = more realistic data but longer initial load time
+  # Recommended: 10 for dev, 50 for demos, 100+ for production testing
+  patient_count: 50
+
+  # Enable SSL/HTTPS with automatic certificate generation
+  # Requires: Valid domain name pointing to your server
+  # Uses Let's Encrypt for free SSL certificates
+  # Set to false for local development without domain
+  enable_ssl: true
+
+  # Enable monitoring and advanced logging (future feature)
+  # Currently experimental - leave false unless testing
+  enable_monitoring: false
+
+# ============================================================================
+# AZURE INFRASTRUCTURE
+# ============================================================================
+# Required for deployments to Azure Cloud
+# Can be left as-is for local Docker deployments
+
+azure:
+  # Azure resource group name
+  # The resource group that contains your VM and networking resources
+  # Must already exist - create with: az group create
+  resource_group: wintehr-rg
+
+  # Virtual machine name
+  # The name of your Azure VM running the application
+  vm_name: wintehr-vm
+
+  # Network Security Group (NSG) name
+  # Firewall rules for the VM - automatically configured by deploy script
+  # Usually attached to the VM or subnet
+  nsg_name: wintehr-nsg
+
+  # Azure region/location
+  # Choose region closest to your users
+  # List regions: az account list-locations -o table
+  # Common: eastus, eastus2, westus2, centralus, westeurope
+  location: eastus2
+
+# ============================================================================
+# SSL/TLS CONFIGURATION
+# ============================================================================
+# Required if deployment.enable_ssl is true
+
+ssl:
+  # Fully qualified domain name (FQDN)
+  # Must be a valid domain pointing to your server's public IP
+  # Azure format: <vm-name>.<region>.cloudapp.azure.com
+  # Custom domain: your-ehr.example.com
+  # IMPORTANT: DNS must be configured before SSL setup
+  domain_name: wintehr.eastus2.cloudapp.azure.com
+
+  # Admin email for SSL certificate notifications
+  # Let's Encrypt will send renewal reminders and security notices here
+  # Use a monitored email address
+  ssl_email: admin@example.com
+
+  # SSL certificate provider
+  # Options:
+  #   - letsencrypt: Free automated certificates (recommended)
+  #   - custom: Bring your own certificate files
+  provider: letsencrypt
+
+# ============================================================================
+# SERVICE CONFIGURATION
+# ============================================================================
+services:
+  # Port mappings for all services
+  # Change if ports conflict with existing services
+  # Note: Nginx (web server) must be on 80/443 for SSL to work
+  ports:
+    # Frontend React application (internal only, served via nginx)
+    frontend: 3000
+
+    # Backend FastAPI server (internal only, served via nginx)
+    backend: 8000
+
+    # HAPI FHIR server (internal only, served via nginx at /fhir/)
+    hapi_fhir: 8888
+
+    # PostgreSQL database (internal only, not exposed)
+    postgres: 5432
+
+    # Redis cache (internal only, not exposed)
+    redis: 6379
+
+    # Nginx HTTP port (public, redirects to HTTPS if SSL enabled)
+    nginx_http: 80
+
+    # Nginx HTTPS port (public, main entry point)
+    nginx_https: 443
+
+  # Docker container names
+  # Used for docker exec, logs, and service management
+  # Change if you have multiple deployments on same host
+  container_names:
+    frontend: emr-frontend
+    backend: emr-backend
+    hapi: hapi-fhir
+    postgres: emr-postgres
+    redis: emr-redis
+    nginx: emr-nginx
+
+  # Docker image tags to use
+  # Options: latest, stable, specific version (e.g., v1.2.3)
+  # Use specific versions for production stability
+  image_tags:
+    frontend: latest
+    backend: latest
+    hapi: latest
+
+# ============================================================================
+# DATABASE CONFIGURATION
+# ============================================================================
+database:
+  # Database host
+  # Use 'postgres' for Docker deployments (container name)
+  # Use 'localhost' or IP for external database
+  host: postgres
+
+  # Database port
+  # Default PostgreSQL port is 5432
+  port: 5432
+
+  # Database name
+  # The PostgreSQL database used by HAPI FHIR
+  name: emr_db
+
+  # SECURITY NOTE: Database username and password go in .env file
+  # See .env.example for required variables:
+  #   POSTGRES_USER=emr_user
+  #   POSTGRES_PASSWORD=<secure-random-password>
+
+# ============================================================================
+# HAPI FHIR SERVER SETTINGS
+# ============================================================================
+hapi_fhir:
+  # JVM memory allocation for HAPI FHIR
+  # Format: <number>g for gigabytes
+  # Recommendations:
+  #   - Small (1-50 patients): 1g
+  #   - Medium (50-500 patients): 2g
+  #   - Large (500+ patients): 4g or more
+  # Must not exceed VM memory minus 2GB for other services
+  memory: 2g
+
+  # FHIR resource validation mode
+  # Options:
+  #   - NEVER: No validation (fastest, recommended for trusted data)
+  #   - ONCE: Validate first occurrence of each resource type
+  #   - ALWAYS: Validate every resource (slowest, strictest)
+  # Synthea data is pre-validated, so NEVER is safe
+  validation_mode: NEVER
+
+  # Enable FHIR narrative text generation
+  # Generates human-readable text for resources
+  # Disable for better performance if narratives not needed
+  narrative_enabled: true
+
+  # Enable GraphQL endpoint (experimental)
+  # Provides GraphQL query interface to FHIR data
+  # at /fhir/$graphql
+  graphql_enabled: false
+
+# ============================================================================
+# SYNTHEA CONFIGURATION
+# ============================================================================
+# Synthea generates realistic synthetic patient data
+# More info: https://synthetichealth.github.io/synthea/
+
+synthea:
+  # US state for patient demographics
+  # Affects: disease prevalence, demographics, provider networks
+  # Available states: any US state name
+  # Examples: Massachusetts, California, Texas, Florida
+  state: Massachusetts
+
+  # Random seed for reproducible data generation
+  # Same seed + same patient_count = same patients every time
+  # Useful for testing and demos
+  # Set to random number or timestamp for varied data
+  seed: 12345
+
+  # Synthea JAR version to download
+  # Latest stable version is 3.2.0
+  # Check releases: https://github.com/synthetichealth/synthea/releases
+  # Format: X.Y.Z (without 'v' prefix)
+  jar_version: 3.2.0
+
+# ============================================================================
+# NETWORK SECURITY
+# ============================================================================
+security:
+  # IP address whitelist (CIDR notation)
+  # Restrict access to specific IP addresses or ranges
+  # Empty list [] = allow all (use for public demos)
+  # Examples:
+  #   - Single IP: ["203.0.113.5/32"]
+  #   - Office network: ["198.51.100.0/24"]
+  #   - Multiple: ["203.0.113.5/32", "198.51.100.0/24"]
+  # Applied to Azure NSG rules if using Azure deployment
+  allowed_ips: []
+
+  # CORS (Cross-Origin Resource Sharing) allowed origins
+  # Controls which domains can make API requests
+  # Development: Use ["*"] to allow all origins
+  # Production: Specify exact domains for security
+  # Examples:
+  #   - Allow all: ["*"]
+  #   - Specific: ["https://wintehr.com", "https://app.wintehr.com"]
+  cors_origins:
+    - "*"
+
+  # Enable rate limiting to prevent abuse
+  # Limits number of requests per IP address
+  # Currently experimental - leave false
+  rate_limiting_enabled: false
+
+# ============================================================================
+# STORAGE PATHS
+# ============================================================================
+# All paths are inside Docker containers
+# Mapped to host volumes in docker-compose
+# Only change if you have specific storage requirements
+
+paths:
+  # Persistent data directory
+  # Contains: FHIR resources, Synthea data, application state
+  data: /app/data
+
+  # Application and service logs
+  # Contains: backend logs, nginx logs, error logs
+  logs: /app/logs
+
+  # Database and configuration backups
+  # For disaster recovery and system snapshots
+  backups: /app/backups
+
+  # User uploaded files
+  # Contains: DICOM images, documents, attachments
+  uploads: /app/uploads
+
+# ============================================================================
+# ENVIRONMENT-SPECIFIC OVERRIDES
+# ============================================================================
+# You can create environment-specific config files:
+#   - config.dev.yaml: Development overrides
+#   - config.staging.yaml: Staging overrides
+#   - config.prod.yaml: Production overrides
+#
+# The deploy script will automatically merge:
+#   1. config.yaml (base)
+#   2. config.{environment}.yaml (overrides)
+#   3. Environment variables (highest priority)
+#
+# Example config.dev.yaml:
+#   deployment:
+#     patient_count: 10
+#     enable_ssl: false
+#   services:
+#     ports:
+#       frontend: 3001  # Avoid conflicts with other services

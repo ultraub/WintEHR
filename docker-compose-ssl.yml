@@ -32,7 +32,7 @@ services:
     networks:
       - emr-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U emr_user -d emr_db && psql -U emr_user -d emr_db -c 'SELECT 1 FROM fhir.resources LIMIT 1;' > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "pg_isready -U emr_user -d emr_db"]
       interval: 15s
       timeout: 10s
       retries: 10
