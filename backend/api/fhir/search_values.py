@@ -1,8 +1,6 @@
 """
 FHIR Search Parameter Distinct Values API
-Provides distinct values for token-type search parameters
-
-Updated: 2025-10-05 - Migrated to use HAPI FHIR JPA search index tables
+Provides distinct values for token-type search parameters using HAPI FHIR JPA search index tables.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -186,8 +184,6 @@ async def get_searchable_parameters(
 ):
     """
     Get all searchable parameters for a resource type from HAPI FHIR search indexes.
-
-    Updated: 2025-10-06 - Migrated from fhir.search_params to HAPI JPA indexes
     """
     try:
         # Query HAPI FHIR JPA search indexes to find available parameters

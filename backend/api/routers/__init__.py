@@ -23,8 +23,7 @@ def register_all_routers(app: FastAPI) -> None:
     """
     
     # 1. Core FHIR APIs - HAPI FHIR Proxy
-    # HAPI FHIR JPA Server replaced old custom FHIR backend (2025-10-05)
-    # This proxy forwards /fhir/R4/* requests to HAPI FHIR at http://hapi-fhir:8080
+    # Proxy forwards /fhir/R4/* requests to HAPI FHIR JPA Server at http://hapi-fhir:8080
     try:
         from api.hapi_fhir_proxy import router as hapi_fhir_proxy
 

@@ -2,7 +2,6 @@
 
 **Purpose**: Comprehensive guide for AI agents working with WintEHR's clinical workflows, decision support, and safety-critical healthcare processes.
 
-**Last Updated**: 2025-08-12  
 **Version**: 2.0
 
 > **⚠️ HEALTHCARE SAFETY CRITICAL**: This module handles patient safety workflows including medication ordering, drug interactions, clinical decision support, and pharmacy dispensing. All implementations must prioritize patient safety and data integrity.

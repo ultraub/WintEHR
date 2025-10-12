@@ -97,8 +97,11 @@ async def get_db_context() -> AsyncSession:
 
 
 async def init_db():
-    """Initialize database (create tables if needed)."""
-    # This is handled by Alembic migrations
+    """
+    Initialize database (create tables if needed).
+
+    Database schema is managed by init scripts in scripts/setup/ directory.
+    """
     pass
 
 
