@@ -39,9 +39,9 @@ class FHIRSchemaService {
       return data;
     } catch (error) {
       console.error('Error fetching capability statement:', error);
-      // Fall back to direct metadata endpoint
+      // Fall back to direct HAPI FHIR metadata endpoint (proxied through backend)
       try {
-        const response = await fetch(`${API_BASE}/fhir/R4/metadata`);
+        const response = await fetch(`${API_BASE}/fhir/metadata`);
         if (response.ok) {
           const data = await response.json();
           this.capabilityStatementCache = {
