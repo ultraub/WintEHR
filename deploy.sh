@@ -325,6 +325,16 @@ if [ "$SKIP_DATA" = false ]; then
         echo "   Imaging studies will be available without DICOM files"
     fi
 
+    # Create DICOM Endpoint resources and link to ImagingStudy resources
+    echo -e "${BLUE}🔗 Creating DICOM Endpoint resources...${NC}"
+    if docker exec emr-backend \
+        python scripts/active/create_dicom_endpoints.py; then
+        echo -e "${GREEN}✅ DICOM Endpoints created and linked successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠️  DICOM Endpoint creation had issues (non-critical)${NC}"
+        echo "   DICOM files may not be accessible through the imaging tab"
+    fi
+
     # Create demo Practitioner resources
     echo -e "${BLUE}👨‍⚕️ Creating demo Practitioner resources...${NC}"
     if docker exec emr-backend \
