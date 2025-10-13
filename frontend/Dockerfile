@@ -1,6 +1,11 @@
 # Build stage
 FROM node:18-alpine as build
 
+# Accept build arguments
+ARG REACT_APP_API_URL
+ARG REACT_APP_FHIR_ENDPOINT
+ARG REACT_APP_WS_URL
+
 WORKDIR /app
 
 # Copy package files
@@ -13,10 +18,12 @@ RUN npm install --legacy-peer-deps
 # Copy source code
 COPY . .
 
-# The api.js file is already configured properly in the source
+# Set environment variables for build
+ENV REACT_APP_API_URL=${REACT_APP_API_URL}
+ENV REACT_APP_FHIR_ENDPOINT=${REACT_APP_FHIR_ENDPOINT}
+ENV REACT_APP_WS_URL=${REACT_APP_WS_URL}
 
-# Build the application with empty API URL for relative paths
-ENV REACT_APP_API_URL=""
+# Build the application with production URLs baked in
 RUN npm run build
 
 # Production stage
