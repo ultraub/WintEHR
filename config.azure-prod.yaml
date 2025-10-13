@@ -1,0 +1,100 @@
+# WintEHR Azure Production Configuration
+# =====================================================================
+# Production deployment configuration for Azure Cloud
+# This file contains production-ready settings for Azure deployment
+# =====================================================================
+
+# ============================================================================
+# DEPLOYMENT SETTINGS - PRODUCTION
+# ============================================================================
+deployment:
+  environment: production
+  patient_count: 100              # 100 patients with DICOM images
+  enable_ssl: true                # HTTPS required for production
+  enable_monitoring: false        # Future feature
+
+# ============================================================================
+# AZURE INFRASTRUCTURE
+# ============================================================================
+azure:
+  resource_group: wintehr-rg
+  vm_name: wintehr-vm
+  nsg_name: wintehr-nsg
+  location: eastus2
+
+# ============================================================================
+# SSL/TLS CONFIGURATION
+# ============================================================================
+ssl:
+  domain_name: wintehr.eastus2.cloudapp.azure.com
+  ssl_email: admin@wintehr.com
+  provider: letsencrypt
+
+# ============================================================================
+# SERVICE CONFIGURATION
+# ============================================================================
+services:
+  ports:
+    frontend: 3000
+    backend: 8000
+    hapi_fhir: 8888
+    postgres: 5432
+    redis: 6379
+    nginx_http: 80
+    nginx_https: 443
+
+  container_names:
+    frontend: emr-frontend
+    backend: emr-backend
+    hapi: hapi-fhir
+    postgres: emr-postgres
+    redis: emr-redis
+    nginx: emr-nginx
+
+  image_tags:
+    frontend: latest
+    backend: latest
+    hapi: latest
+
+# ============================================================================
+# DATABASE CONFIGURATION
+# ============================================================================
+database:
+  host: postgres
+  port: 5432
+  name: emr_db
+
+# ============================================================================
+# HAPI FHIR SERVER SETTINGS - PRODUCTION
+# ============================================================================
+hapi_fhir:
+  memory: 4g                      # Increased for 100 patients
+  validation_mode: NEVER          # Synthea data is pre-validated
+  narrative_enabled: true
+  graphql_enabled: false
+
+# ============================================================================
+# SYNTHEA CONFIGURATION
+# ============================================================================
+synthea:
+  state: Massachusetts
+  seed: 12345
+  jar_version: 3.2.0
+
+# ============================================================================
+# NETWORK SECURITY - PRODUCTION
+# ============================================================================
+security:
+  allowed_ips: []                 # Allow all for demo/educational purposes
+  cors_origins:
+    - "*"
+  rate_limiting_enabled: false
+
+# ============================================================================
+# STORAGE PATHS
+# ============================================================================
+paths:
+  data: /app/data
+  logs: /app/logs
+  backups: /app/backups
+  uploads: /app/uploads
