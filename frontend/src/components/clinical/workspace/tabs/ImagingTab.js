@@ -81,6 +81,7 @@ import { printDocument } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import websocketService from '../../../../services/websocket';
+import { getFhirUrl } from '../../../../config/apiConfig';
 import {
   ClinicalResourceCard,
   ClinicalSummaryCard,
@@ -515,7 +516,7 @@ const ImagingTab = ({
       if (fhirStudies.length === 0) {
         console.log('[ImagingTab] Fetching ImagingStudy resources directly from HAPI FHIR...');
         try {
-          const response = await axios.get(`http://localhost:8888/fhir/ImagingStudy`, {
+          const response = await axios.get(`${getFhirUrl()}/ImagingStudy`, {
             params: {
               patient: patientId,
               _sort: '-_lastUpdated'
@@ -547,7 +548,7 @@ const ImagingTab = ({
 
               try {
                 // Fetch the Endpoint resource from HAPI FHIR
-                const endpointResponse = await axios.get(`http://localhost:8888/fhir/${endpointRef}`);
+                const endpointResponse = await axios.get(`${getFhirUrl()}/${endpointRef}`);
                 const endpoint = endpointResponse.data;
 
                 console.log('[ImagingTab] Endpoint address:', endpoint.address);

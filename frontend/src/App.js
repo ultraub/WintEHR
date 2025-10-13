@@ -15,6 +15,9 @@ import { AppProviders } from './providers/AppProviders';
 // Import quick login utility for development
 import './utils/quickLogin';
 
+// Import configuration validation
+import { validateConfiguration } from './utils/validateConfig';
+
 // Create a context for medical theme toggling
 export const MedicalThemeContext = React.createContext();
 
@@ -35,7 +38,16 @@ function ThemedApp() {
   const [autoDetectContext, setAutoDetectContext] = useState(() => {
     return localStorage.getItem('autoDetectClinicalContext') === 'true';
   });
-  
+
+  // Validate configuration on app startup
+  useEffect(() => {
+    const result = validateConfiguration();
+    if (!result.valid) {
+      console.warn('[App] Configuration validation failed. Using fallback configuration.');
+      console.warn('[App] Missing variables:', result.errors);
+    }
+  }, []);
+
   // Auto-detect clinical context
   const clinicalContext = useMemo(() => {
     if (autoDetectContext) {
