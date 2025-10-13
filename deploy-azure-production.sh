@@ -171,11 +171,11 @@ echo "Docker system prune..."
 docker system prune -af --volumes || true
 
 echo "Removing application directories..."
-rm -rf WintEHR/ || true
+sudo rm -rf WintEHR/ || true
 rm -rf /app/data/ || true
 rm -rf /app/logs/ || true
 rm -rf certbot/ || true
-rm -rf /etc/letsencrypt/ || true
+sudo rm -rf /etc/letsencrypt/ || true
 
 echo "Killing lingering processes..."
 pkill -9 node || true
