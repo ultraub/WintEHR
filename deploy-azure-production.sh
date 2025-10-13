@@ -28,7 +28,7 @@ NC='\033[0m'
 AZURE_USER="azureuser"
 AZURE_HOST="wintehr.eastus2.cloudapp.azure.com"
 SSH_KEY="${HOME}/.ssh/WintEHR-key.pem"
-REPO_URL="https://github.com/yourusername/WintEHR.git"  # Update with actual repo
+REPO_URL="https://github.com/ultraub/WintEHR.git"
 BRANCH="cleanup/post-hapi-migration"
 
 # Default mode
