@@ -22,8 +22,8 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine
 
-# Copy custom nginx config (SSL version)
-COPY nginx-ssl.conf /etc/nginx/conf.d/default.conf
+# Copy custom nginx config (non-SSL for internal frontend)
+COPY nginx-default.conf /etc/nginx/conf.d/default.conf
 
 # Copy built application from build stage
 COPY --from=build /app/build /usr/share/nginx/html
