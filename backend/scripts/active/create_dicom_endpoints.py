@@ -9,7 +9,14 @@ This script:
 4. Enables the frontend imaging tab to display DICOM images
 
 Usage:
+    # Local development
     python scripts/active/create_dicom_endpoints.py
+
+    # Azure production (use HTTPS base URL)
+    python scripts/active/create_dicom_endpoints.py \
+        --base-url https://wintehr.eastus2.cloudapp.azure.com
+
+    # Dry run to preview changes
     python scripts/active/create_dicom_endpoints.py --dry-run
 """
 
@@ -31,9 +38,10 @@ logger = logging.getLogger(__name__)
 class DicomEndpointCreator:
     """Create FHIR Endpoint resources for DICOM files"""
 
-    def __init__(self, hapi_url=None, dicom_base=None, dry_run=False):
+    def __init__(self, hapi_url=None, dicom_base=None, base_url=None, dry_run=False):
         self.hapi_url = hapi_url or os.getenv('HAPI_FHIR_URL', 'http://hapi-fhir:8080/fhir')
         self.dicom_base = Path(dicom_base or '/app/data/generated_dicoms')
+        self.base_url = base_url or os.getenv('BASE_URL', 'http://localhost:8000')
         self.dry_run = dry_run
 
         self.client = httpx.Client(base_url=self.hapi_url, timeout=30.0)
@@ -72,6 +80,10 @@ class DicomEndpointCreator:
             logger.warning(f"  ⚠️  No DICOM files found in {study_dir.name}")
             return None
 
+        # Create HTTP URL for DICOM API endpoint
+        # Use study directory name (e.g., study_abc123) for the URL
+        dicom_url = f"{self.base_url}/dicom/studies/{study_dir.name}/metadata"
+
         # Create Endpoint resource
         endpoint = {
             "resourceType": "Endpoint",
@@ -91,7 +103,7 @@ class DicomEndpointCreator:
                     "display": "DICOM"
                 }]
             }],
-            "address": f"file://{study_dir.absolute()}",
+            "address": dicom_url,
             "header": [
                 f"X-Study-ID: {study_id}",
                 f"X-File-Count: {len(dcm_files)}"
@@ -223,12 +235,17 @@ def main():
         '--dicom-dir',
         help='DICOM base directory (default: /app/data/generated_dicoms)'
     )
+    parser.add_argument(
+        '--base-url',
+        help='Base URL for DICOM API endpoints (default: http://localhost:8000 or BASE_URL env var)'
+    )
 
     args = parser.parse_args()
 
     creator = DicomEndpointCreator(
         hapi_url=args.hapi_url,
         dicom_base=args.dicom_dir,
+        base_url=args.base_url,
         dry_run=args.dry_run
     )
 
