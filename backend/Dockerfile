@@ -32,10 +32,18 @@ RUN mkdir -p /app/data /app/logs /app/synthea/output /app/uploads/dicom
 
 # Download Synthea JAR for patient data generation
 # Using version 3.2.0 (latest stable as of configuration)
-RUN mkdir -p /app/synthea/build/libs && \
-    curl -L https://github.com/synthetichealth/synthea/releases/download/v3.2.0/synthea-with-dependencies-3.2.0.jar \
-    -o /app/synthea/build/libs/synthea-with-dependencies.jar && \
-    chmod +r /app/synthea/build/libs/synthea-with-dependencies.jar
+RUN set -e && \
+    mkdir -p /app/synthea/build/libs && \
+    echo "Downloading Synthea JAR v3.2.0..." && \
+    curl -f -L --progress-bar --retry 3 --retry-delay 5 \
+        https://github.com/synthetichealth/synthea/releases/download/v3.2.0/synthea-with-dependencies-3.2.0.jar \
+        -o /app/synthea/build/libs/synthea-with-dependencies.jar && \
+    echo "Verifying Synthea JAR download..." && \
+    test -f /app/synthea/build/libs/synthea-with-dependencies.jar && \
+    test -s /app/synthea/build/libs/synthea-with-dependencies.jar && \
+    chmod +r /app/synthea/build/libs/synthea-with-dependencies.jar && \
+    ls -lh /app/synthea/build/libs/synthea-with-dependencies.jar && \
+    echo "Synthea JAR successfully downloaded and verified!"
 
 # Install postgresql client for pg_isready
 RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*

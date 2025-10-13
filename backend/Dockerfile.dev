@@ -34,10 +34,18 @@ RUN mkdir -p /app/data /app/logs /app/synthea/output /app/uploads/dicom
 
 # Download Synthea JAR for patient data generation
 # Using version 3.3.0 (latest stable as of configuration)
-RUN mkdir -p /app/synthea/build/libs && \
-    curl -L https://github.com/synthetichealth/synthea/releases/download/v3.3.0/synthea-with-dependencies.jar \
-    -o /app/synthea/build/libs/synthea-with-dependencies.jar && \
-    chmod +r /app/synthea/build/libs/synthea-with-dependencies.jar
+RUN set -e && \
+    mkdir -p /app/synthea/build/libs && \
+    echo "Downloading Synthea JAR v3.3.0..." && \
+    curl -f -L --progress-bar --retry 3 --retry-delay 5 \
+        https://github.com/synthetichealth/synthea/releases/download/v3.3.0/synthea-with-dependencies.jar \
+        -o /app/synthea/build/libs/synthea-with-dependencies.jar && \
+    echo "Verifying Synthea JAR download..." && \
+    test -f /app/synthea/build/libs/synthea-with-dependencies.jar && \
+    test -s /app/synthea/build/libs/synthea-with-dependencies.jar && \
+    chmod +r /app/synthea/build/libs/synthea-with-dependencies.jar && \
+    ls -lh /app/synthea/build/libs/synthea-with-dependencies.jar && \
+    echo "Synthea JAR successfully downloaded and verified!"
 
 # Make entrypoint executable (if it exists)
 COPY docker-entrypoint.sh* ./
