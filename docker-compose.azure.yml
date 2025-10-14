@@ -11,6 +11,16 @@ version: '3.8'
 #   docker-compose -f docker-compose.yml -f docker-compose.azure.yml up -d
 
 services:
+  # Backend - Azure production without development volume mounts
+  backend:
+    volumes:
+      # Only mount necessary data directories, not the entire /app
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./backend/data/generated_dicoms:/app/data/generated_dicoms
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+    restart: unless-stopped
+
   # Frontend - Azure production build with environment variables baked in
   frontend:
     build:
