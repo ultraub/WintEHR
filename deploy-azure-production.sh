@@ -159,7 +159,17 @@ echo "Removing all Docker containers..."
 docker ps -aq | xargs -r docker rm -f || true
 
 echo "Removing all Docker volumes..."
+# Remove named volumes explicitly first
+docker volume rm -f wintehr_postgres_data wintehr_frontend_build 2>/dev/null || true
+# Remove all other volumes
 docker volume ls -q | xargs -r docker volume rm -f || true
+
+echo "Verifying volumes removed..."
+REMAINING_VOLUMES=$(docker volume ls -q | wc -l)
+if [ "$REMAINING_VOLUMES" -gt 0 ]; then
+    echo "Warning: $REMAINING_VOLUMES volumes remain, forcing removal..."
+    docker volume ls -q | xargs -r docker volume rm -f 2>/dev/null || true
+fi
 
 echo "Removing all Docker images..."
 docker images -q | xargs -r docker rmi -f || true
@@ -167,8 +177,12 @@ docker images -q | xargs -r docker rmi -f || true
 echo "Removing all Docker networks..."
 docker network ls --filter "type=custom" -q | xargs -r docker network rm || true
 
-echo "Docker system prune..."
+echo "Docker system prune with volumes..."
 docker system prune -af --volumes || true
+
+echo "Final volume verification..."
+FINAL_VOLUMES=$(docker volume ls -q | wc -l)
+echo "Remaining volumes: $FINAL_VOLUMES (should be 0)"
 
 echo "Removing application directories..."
 sudo rm -rf WintEHR/ || true
