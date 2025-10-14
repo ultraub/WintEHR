@@ -14,7 +14,9 @@ echo "✅ PostgreSQL is ready!"
 
 # Check database initialization
 echo "🔧 Checking database..."
-export DATABASE_URL="postgresql+asyncpg://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}"
+# Use POSTGRES_PASSWORD from environment (set by docker-compose from .env)
+export DB_PASSWORD="${POSTGRES_PASSWORD:-emr_password}"
+export DATABASE_URL="postgresql+asyncpg://emr_user:${DB_PASSWORD}@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}"
 
 # Verify required schemas exist (postgres-init script should have created these)
 echo "🔍 Verifying database schemas..."
@@ -22,10 +24,12 @@ python -c "
 import asyncio
 import asyncpg
 import sys
+import os
 
 async def verify_schema():
     try:
-        conn = await asyncpg.connect('postgresql://emr_user:emr_password@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}')
+        db_password = os.environ.get('POSTGRES_PASSWORD', 'emr_password')
+        conn = await asyncpg.connect(f'postgresql://emr_user:{db_password}@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}')
 
         # Check that required schemas exist
         schemas = await conn.fetch(\"\"\"

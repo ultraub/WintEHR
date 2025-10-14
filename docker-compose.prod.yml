@@ -80,6 +80,7 @@ services:
       - ./backend/data/generated_dicoms:/app/data/generated_dicoms
     environment:
       - PYTHONUNBUFFERED=1
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-emr_password}
       - DATABASE_URL=postgresql+asyncpg://emr_user:${POSTGRES_PASSWORD:-emr_password}@postgres:5432/emr_db
       - JWT_ENABLED=false
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}

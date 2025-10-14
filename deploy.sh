@@ -71,6 +71,8 @@ VALIDATE_ONLY=false
 ENVIRONMENT=""
 SKIP_BUILD=false
 SKIP_DATA=false
+CLEAN_FIRST=false
+BASE_URL=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -91,6 +93,14 @@ while [[ $# -gt 0 ]]; do
             SKIP_DATA=true
             shift
             ;;
+        --clean-first)
+            CLEAN_FIRST=true
+            shift
+            ;;
+        --base-url)
+            BASE_URL="$2"
+            shift 2
+            ;;
         --help|-h)
             cat << EOF
 WintEHR Deployment Script
@@ -103,6 +113,8 @@ Options:
   --validate-only          Validate configuration without deploying
   --skip-build             Skip Docker image builds
   --skip-data              Skip patient data generation
+  --clean-first            Wipe server completely before deployment (MANDATORY for production)
+  --base-url URL           Base URL for DICOM endpoints (e.g., https://server.com)
   --help, -h               Show this help message
 
 Examples:
@@ -110,6 +122,7 @@ Examples:
   ./deploy.sh --environment dev        # Deploy in dev mode
   ./deploy.sh --validate-only          # Only validate config
   ./deploy.sh --skip-data              # Deploy without generating data
+  ./deploy.sh --clean-first --environment production  # Production deployment from clean slate
 
 Configuration:
   1. Copy config.example.yaml to config.yaml
@@ -134,6 +147,24 @@ echo "==========================================================================
 echo "                    WintEHR Deployment Orchestrator"
 echo "=============================================================================="
 echo ""
+
+# Execute cleanup if --clean-first flag is set
+if [ "$CLEAN_FIRST" = true ]; then
+    echo -e "${YELLOW}${BOLD}CLEANUP MODE: Wiping server before deployment${NC}"
+    echo ""
+
+    if [ -f "./cleanup-server.sh" ]; then
+        echo -e "${BLUE}Executing cleanup script...${NC}"
+        bash ./cleanup-server.sh
+        echo ""
+        echo -e "${GREEN}✅ Server wiped - ready for fresh deployment${NC}"
+        echo ""
+    else
+        echo -e "${RED}❌ Error: cleanup-server.sh not found${NC}"
+        echo "   The --clean-first flag requires cleanup-server.sh to be present"
+        exit 1
+    fi
+fi
 
 # Check prerequisites
 echo -e "${BLUE}📋 Checking prerequisites...${NC}"
@@ -323,6 +354,23 @@ if [ "$SKIP_DATA" = false ]; then
     else
         echo -e "${YELLOW}⚠️  DICOM generation had issues (non-critical)${NC}"
         echo "   Imaging studies will be available without DICOM files"
+    fi
+
+    # Create DICOM Endpoint resources and link to ImagingStudy resources
+    echo -e "${BLUE}🔗 Creating DICOM Endpoint resources...${NC}"
+
+    # Build DICOM endpoint creation command with optional base URL
+    DICOM_ENDPOINT_CMD="python scripts/active/create_dicom_endpoints.py"
+    if [ -n "$BASE_URL" ]; then
+        DICOM_ENDPOINT_CMD="$DICOM_ENDPOINT_CMD --base-url $BASE_URL"
+        echo "   Using base URL: $BASE_URL"
+    fi
+
+    if docker exec emr-backend $DICOM_ENDPOINT_CMD; then
+        echo -e "${GREEN}✅ DICOM Endpoints created and linked successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠️  DICOM Endpoint creation had issues (non-critical)${NC}"
+        echo "   DICOM files may not be accessible through the imaging tab"
     fi
 
     # Create demo Practitioner resources

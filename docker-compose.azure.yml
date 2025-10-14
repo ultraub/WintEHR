@@ -1,0 +1,43 @@
+version: '3.8'
+
+# Azure-specific Docker Compose configuration
+# This file contains Azure production deployment overrides
+# Use this in combination with docker-compose.yml for Azure deployment
+#
+# Usage on Azure VM:
+#   export AZURE_URL=https://wintehr.eastus2.cloudapp.azure.com
+#   export AZURE_WS_URL=wss://wintehr.eastus2.cloudapp.azure.com/api/ws
+#   docker-compose -f docker-compose.yml -f docker-compose.azure.yml build frontend
+#   docker-compose -f docker-compose.yml -f docker-compose.azure.yml up -d
+
+services:
+  # Backend - Azure production without development volume mounts
+  backend:
+    volumes:
+      # Only mount necessary data directories, not the entire /app
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./backend/data/generated_dicoms:/app/data/generated_dicoms
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+    restart: unless-stopped
+
+  # Frontend - Azure production build with environment variables baked in
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Azure production URLs baked into React build
+        REACT_APP_API_URL: ${AZURE_URL}
+        REACT_APP_FHIR_ENDPOINT: ${AZURE_URL}/fhir
+        REACT_APP_WS_URL: ${AZURE_WS_URL}
+    image: wintehr-frontend:azure-production
+    expose:
+      - "80"
+    networks:
+      - emr-network
+    restart: unless-stopped
+
+networks:
+  emr-network:
+    driver: bridge

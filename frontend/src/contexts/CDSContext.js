@@ -9,6 +9,7 @@ import { cdsHooksService } from '../services/cdsHooksService';
 import { cdsLogger } from '../config/logging';
 import { PRESENTATION_MODES } from '../components/clinical/cds/CDSPresentation';
 import { useStableCallback } from '../hooks/useStableReferences';
+import { useAuth } from './AuthContext';
 import { v4 as uuidv4 } from 'uuid';
 
 // Context
@@ -26,13 +27,14 @@ export const CDS_HOOK_TYPES = {
 
 // Provider component
 export const CDSProvider = ({ children }) => {
+  const { user } = useAuth();
   const [services, setServices] = useState([]);
   const [alerts, setAlerts] = useState({});
   const [loading, setLoading] = useState({});
   const [error, setError] = useState(null);
   const [servicesLoaded, setServicesLoaded] = useState(false);
   const [hookConfigurations, setHookConfigurations] = useState({});
-  
+
   // Track current patient to clear alerts on patient change
   const [currentPatientId, setCurrentPatientId] = useState(null);
   
@@ -323,11 +325,11 @@ export const CDSProvider = ({ children }) => {
     
     // Clear existing alerts when patient changes
     setAlerts({});
-    
+
     // Execute patient-view hooks
     await executeCDSHooks(CDS_HOOK_TYPES.PATIENT_VIEW, {
       patientId,
-      userId: 'current-user' // TODO: Get from auth context
+      userId: user?.id || 'unknown'
     });
   });
   

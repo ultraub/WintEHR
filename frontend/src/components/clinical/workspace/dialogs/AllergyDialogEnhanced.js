@@ -94,6 +94,7 @@ import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useCDS } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
 
@@ -319,10 +320,11 @@ const AllergyDialogEnhanced = ({
   encounterId = null
 }) => {
   const theme = useTheme();
+  const { user } = useAuth();
   const { currentPatient } = useFHIRResource();
   const { evaluateCDS } = useCDS();
   const { publish } = useClinicalWorkflow();
-  
+
   // Use consistent dialog helpers
   const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(onSave, null);
   const { errors: validationErrors, validateForm, clearErrors } = useDialogValidation();
@@ -536,12 +538,10 @@ const AllergyDialogEnhanced = ({
           onsetDateTime: formData.onsetDateTime.toISOString()
         }),
         recordedDate: formData.recordedDate.toISOString(),
-        ...(formData.recorder && {
-          recorder: {
-            reference: 'Practitioner/current-user',
-            display: formData.recorder
-          }
-        }),
+        recorder: {
+          reference: `Practitioner/${user?.id || 'unknown'}`,
+          display: user?.name || formData.recorder || 'Unknown Practitioner'
+        },
         ...(formData.asserter && {
           asserter: {
             reference: 'Patient/' + patientId,
