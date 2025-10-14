@@ -251,8 +251,44 @@ echo -e "${BOLD}STEP 4: Build and Deploy Services${NC}"
 echo "=============================================================================="
 echo ""
 
-echo "Building Docker images..."
-ssh_exec 'cd WintEHR && docker-compose -f docker-compose.prod.yml -f docker-compose.azure.yml build'
+echo "Starting Docker build in background (to avoid SSH timeout)..."
+ssh_exec 'cd WintEHR && nohup docker-compose -f docker-compose.prod.yml -f docker-compose.azure.yml build > /tmp/docker-build.log 2>&1 &'
+
+echo "Waiting for Docker build to complete..."
+ssh_exec 'bash -s' << 'EOF'
+set -e
+
+echo "Monitoring Docker build progress..."
+for i in {1..120}; do
+    # Check if build process is still running
+    if pgrep -f "docker-compose.*build" > /dev/null; then
+        if [ $((i % 10)) -eq 0 ]; then
+            echo "Build still running... ($((i / 2)) minutes elapsed)"
+            # Show last few lines of build log
+            tail -3 /tmp/docker-build.log 2>/dev/null || echo "Building..."
+        fi
+        sleep 30
+    else
+        # Build finished, check if successful
+        if tail -20 /tmp/docker-build.log 2>/dev/null | grep -q "Successfully built\|Successfully tagged"; then
+            echo "Docker build completed successfully!"
+            tail -10 /tmp/docker-build.log
+            break
+        else
+            echo "ERROR: Docker build failed!"
+            tail -50 /tmp/docker-build.log
+            exit 1
+        fi
+    fi
+
+    # Timeout after 60 minutes
+    if [ $i -eq 120 ]; then
+        echo "ERROR: Docker build timeout after 60 minutes"
+        tail -50 /tmp/docker-build.log
+        exit 1
+    fi
+done
+EOF
 
 echo "Starting services..."
 ssh_exec 'cd WintEHR && docker-compose -f docker-compose.prod.yml -f docker-compose.azure.yml up -d'
