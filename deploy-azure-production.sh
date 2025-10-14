@@ -318,7 +318,8 @@ echo ""
 echo "Waiting for HAPI FHIR (may take 10-15 minutes on Azure)..."
 ssh_exec 'bash -s' << 'EOF'
 for i in {1..300}; do
-    if curl -sf http://localhost:8888/fhir/metadata > /dev/null 2>&1; then
+    # Check HAPI from inside Docker network (it's not exposed on host)
+    if docker exec emr-backend curl -sf http://hapi-fhir:8080/fhir/metadata > /dev/null 2>&1; then
         echo "HAPI FHIR ready"
         break
     fi
