@@ -215,7 +215,7 @@ ssh_copy "config.azure-prod.yaml" "WintEHR/config.yaml"
 
 echo "Creating .env file..."
 ssh_exec 'bash -s' << 'EOF'
-cat > WintEHR/.env << 'ENVEOF'
+cat > WintEHR/.env << ENVEOF
 POSTGRES_USER=emr_user
 POSTGRES_PASSWORD=$(openssl rand -base64 32)
 POSTGRES_DB=emr_db
