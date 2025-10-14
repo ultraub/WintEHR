@@ -367,45 +367,50 @@ echo -e "${GREEN}✓ Data generation complete${NC}"
 echo ""
 
 # ============================================================================
-# STEP 7: Setup HTTPS/SSL
+# STEP 7: Setup HTTPS/SSL (Fix #15)
 # ============================================================================
 echo "=============================================================================="
 echo -e "${BOLD}STEP 7: Setup HTTPS/SSL${NC}"
 echo "=============================================================================="
 echo ""
 
-echo "Configuring SSL certificate..."
+echo "Stopping nginx to free port 80 for certificate generation..."
+ssh_exec 'cd WintEHR && docker stop emr-nginx'
+
+echo "Generating Let's Encrypt SSL certificates..."
 ssh_exec 'bash -s' << 'EOF'
 cd WintEHR
 
-# Install certbot if not present
-if ! command -v certbot &> /dev/null; then
-    sudo apt-get update
-    sudo apt-get install -y certbot python3-certbot-nginx
+# Create certbot directories
+mkdir -p certbot/conf certbot/www
+
+# Generate SSL certificate using certbot in Docker
+docker run --rm -p 80:80 \
+  -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
+  -v "$(pwd)/certbot/www:/var/www/certbot" \
+  certbot/certbot certonly --standalone \
+  --email admin@wintehr.eastus2.cloudapp.azure.com \
+  --agree-tos --no-eff-email --non-interactive \
+  -d wintehr.eastus2.cloudapp.azure.com
+
+if [ $? -eq 0 ]; then
+    echo "SSL certificates generated successfully"
+else
+    echo "ERROR: SSL certificate generation failed"
+    exit 1
 fi
-
-# Stop nginx temporarily
-docker-compose stop nginx || true
-
-# Get certificate
-sudo certbot certonly --standalone \
-    --non-interactive \
-    --agree-tos \
-    --email admin@wintehr.com \
-    --domains wintehr.eastus2.cloudapp.azure.com
-
-# Copy certificates to Docker volume
-sudo mkdir -p ./certbot/conf/live/wintehr.eastus2.cloudapp.azure.com/
-sudo cp /etc/letsencrypt/live/wintehr.eastus2.cloudapp.azure.com/* \
-    ./certbot/conf/live/wintehr.eastus2.cloudapp.azure.com/ || true
-
-# Restart with SSL
-docker-compose -f docker-compose.yml -f docker-compose-ssl.yml up -d
-
-echo "SSL configured"
 EOF
 
-echo -e "${GREEN}✓ HTTPS enabled${NC}"
+echo "Verifying certificate files..."
+ssh_exec 'cd WintEHR && ls -la certbot/conf/live/wintehr.eastus2.cloudapp.azure.com/'
+
+echo "Starting nginx with SSL configuration..."
+ssh_exec 'cd WintEHR && docker start emr-nginx && sleep 5'
+
+echo "Verifying nginx configuration..."
+ssh_exec 'docker exec emr-nginx nginx -t'
+
+echo -e "${GREEN}✓ HTTPS enabled and configured${NC}"
 echo ""
 
 # ============================================================================
