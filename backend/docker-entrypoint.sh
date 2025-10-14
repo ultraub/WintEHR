@@ -28,8 +28,11 @@ import os
 
 async def verify_schema():
     try:
+        import urllib.parse
         db_password = os.environ.get('POSTGRES_PASSWORD', 'emr_password')
-        conn = await asyncpg.connect(f'postgresql://emr_user:{db_password}@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}')
+        # URL encode password to handle special characters
+        encoded_password = urllib.parse.quote_plus(db_password)
+        conn = await asyncpg.connect(f'postgresql://emr_user:{encoded_password}@${DB_HOST:-postgres}:5432/${DB_NAME:-emr_db}')
 
         # Check that required schemas exist
         schemas = await conn.fetch(\"\"\"
