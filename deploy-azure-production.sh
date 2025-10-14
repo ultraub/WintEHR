@@ -33,12 +33,17 @@ BRANCH="cleanup/post-hapi-migration"
 
 # Default mode
 DRY_RUN=false
+SKIP_CONFIRMATION=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --dry-run)
             DRY_RUN=true
+            shift
+            ;;
+        --yes|-y)
+            SKIP_CONFIRMATION=true
             shift
             ;;
         --help|-h)
@@ -96,7 +101,13 @@ if [ "$DRY_RUN" = false ]; then
     echo -e "${YELLOW}${BOLD}WARNING: This will completely wipe and redeploy the Azure server${NC}"
     echo -e "${YELLOW}All existing data will be permanently deleted${NC}"
     echo ""
-    read -p "Type 'DEPLOY' to confirm automated deployment: " -r
+
+    if [ "$SKIP_CONFIRMATION" = false ]; then
+        read -p "Type 'DEPLOY' to confirm automated deployment: " -r
+    else
+        REPLY="DEPLOY"
+        echo "Skipping confirmation (--yes flag provided)"
+    fi
     if [[ ! $REPLY = "DEPLOY" ]]; then
         echo -e "${GREEN}Deployment cancelled${NC}"
         exit 0
