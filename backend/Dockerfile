@@ -31,12 +31,12 @@ COPY . .
 RUN mkdir -p /app/data /app/logs /app/synthea/output /app/uploads/dicom
 
 # Download Synthea JAR for patient data generation
-# Using version 3.2.0 (latest stable as of configuration)
+# Using version 3.3.0 (latest stable as of configuration)
 RUN set -e && \
     mkdir -p /app/synthea/build/libs && \
-    echo "Downloading Synthea JAR v3.2.0..." && \
+    echo "Downloading Synthea JAR v3.3.0..." && \
     curl -f -L --progress-bar --retry 3 --retry-delay 5 \
-        https://github.com/synthetichealth/synthea/releases/download/v3.2.0/synthea-with-dependencies-3.2.0.jar \
+        https://github.com/synthetichealth/synthea/releases/download/v3.3.0/synthea-with-dependencies.jar \
         -o /app/synthea/build/libs/synthea-with-dependencies.jar && \
     echo "Verifying Synthea JAR download..." && \
     test -f /app/synthea/build/libs/synthea-with-dependencies.jar && \
