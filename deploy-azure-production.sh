@@ -238,10 +238,10 @@ echo "==========================================================================
 echo ""
 
 echo "Building Docker images..."
-ssh_exec 'cd WintEHR && docker-compose -f docker-compose.yml -f docker-compose.azure.yml build'
+ssh_exec 'cd WintEHR && docker-compose -f docker-compose.prod.yml -f docker-compose.azure.yml build'
 
 echo "Starting services..."
-ssh_exec 'cd WintEHR && docker-compose -f docker-compose.yml -f docker-compose.azure.yml up -d'
+ssh_exec 'cd WintEHR && docker-compose -f docker-compose.prod.yml -f docker-compose.azure.yml up -d'
 
 echo -e "${GREEN}✓ Services deployed${NC}"
 echo ""
