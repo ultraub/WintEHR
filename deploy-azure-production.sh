@@ -281,7 +281,7 @@ for i in {1..120}; do
         sleep 30
     else
         # Build finished, check if successful
-        if tail -20 /tmp/docker-build.log 2>/dev/null | grep -q "Successfully built\|Successfully tagged"; then
+        if tail -20 /tmp/docker-build.log 2>/dev/null | grep -q "Successfully built\|Successfully tagged\| Built$"; then
             echo "Docker build completed successfully!"
             tail -10 /tmp/docker-build.log
             break
