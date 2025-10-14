@@ -254,14 +254,14 @@ echo -e "${BOLD}STEP 5: Waiting for Services${NC}"
 echo "=============================================================================="
 echo ""
 
-echo "Waiting for HAPI FHIR (may take 5-6 minutes)..."
+echo "Waiting for HAPI FHIR (may take 10-15 minutes on Azure)..."
 ssh_exec 'bash -s' << 'EOF'
-for i in {1..180}; do
+for i in {1..300}; do
     if curl -sf http://localhost:8888/fhir/metadata > /dev/null 2>&1; then
         echo "HAPI FHIR ready"
         break
     fi
-    [ $i -eq 180 ] && echo "ERROR: HAPI FHIR timeout" && exit 1
+    [ $i -eq 300 ] && echo "ERROR: HAPI FHIR timeout after 15 minutes" && exit 1
     [ $((i % 15)) -eq 0 ] && echo "Still waiting... ($((i * 3 / 60)) minutes)"
     sleep 3
 done
