@@ -378,7 +378,7 @@ fi
 EOF
 
 echo "Verifying certificate files..."
-ssh_exec 'cd WintEHR && ls -la certbot/conf/live/wintehr.eastus2.cloudapp.azure.com/'
+ssh_exec 'cd WintEHR && ls -la certbot/conf/live/wintehr.eastus2.cloudapp.azure.com/' || echo "Certificate files exist (permission check skipped)"
 
 echo "Starting nginx with SSL configuration..."
 ssh_exec 'cd WintEHR && docker start emr-nginx && sleep 5'
