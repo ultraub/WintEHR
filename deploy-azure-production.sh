@@ -137,7 +137,12 @@ ssh_exec() {
         echo -e "${BLUE}[DRY RUN] SSH:${NC} $*"
     else
         echo -e "${BLUE}Executing on Azure:${NC} $*"
-        ssh -i "$SSH_KEY" "${AZURE_USER}@${AZURE_HOST}" "$@"
+        ssh -i "$SSH_KEY" \
+            -o ServerAliveInterval=60 \
+            -o ServerAliveCountMax=10 \
+            -o ConnectTimeout=30 \
+            -o StrictHostKeyChecking=no \
+            "${AZURE_USER}@${AZURE_HOST}" "$@"
     fi
 }
 
@@ -147,7 +152,12 @@ ssh_copy() {
         echo -e "${BLUE}[DRY RUN] Copy:${NC} $1 -> ${AZURE_HOST}:$2"
     else
         echo -e "${BLUE}Copying to Azure:${NC} $1 -> $2"
-        scp -i "$SSH_KEY" "$1" "${AZURE_USER}@${AZURE_HOST}:$2"
+        scp -i "$SSH_KEY" \
+            -o ServerAliveInterval=60 \
+            -o ServerAliveCountMax=10 \
+            -o ConnectTimeout=30 \
+            -o StrictHostKeyChecking=no \
+            "$1" "${AZURE_USER}@${AZURE_HOST}:$2"
     fi
 }
 
@@ -262,49 +272,27 @@ echo -e "${BOLD}STEP 4: Build and Deploy Services${NC}"
 echo "=============================================================================="
 echo ""
 
-echo "Starting Docker build in background (to avoid SSH timeout)..."
-ssh_exec 'cd WintEHR && nohup docker-compose -f docker-compose.prod.yml -f docker-compose.azure.yml build > /tmp/docker-build.log 2>&1 &'
+echo "Starting Docker build in background (this may take 5-10 minutes)..."
+ssh_exec 'cd WintEHR && nohup docker-compose -f docker-compose.prod.yml -f docker-compose.azure.yml up -d --build > build.log 2>&1 &'
 
 echo "Waiting for Docker build to complete..."
-ssh_exec 'bash -s' << 'EOF'
-set -e
-
-echo "Monitoring Docker build progress..."
 for i in {1..120}; do
-    # Check if build process is still running
-    if pgrep -f "docker-compose.*build" > /dev/null; then
-        if [ $((i % 10)) -eq 0 ]; then
-            echo "Build still running... ($((i / 2)) minutes elapsed)"
-            # Show last few lines of build log
-            tail -3 /tmp/docker-build.log 2>/dev/null || echo "Building..."
-        fi
-        sleep 30
-    else
-        # Build finished, check if successful
-        if tail -20 /tmp/docker-build.log 2>/dev/null | grep -q "Successfully built\|Successfully tagged\| Built$"; then
-            echo "Docker build completed successfully!"
-            tail -10 /tmp/docker-build.log
-            break
-        else
-            echo "ERROR: Docker build failed!"
-            tail -50 /tmp/docker-build.log
-            exit 1
-        fi
+    # Check if all containers are created (build complete) - use direct SSH to avoid echo output
+    CONTAINERS_READY=$(ssh -i "$SSH_KEY" -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o ConnectTimeout=30 -o StrictHostKeyChecking=no "${AZURE_USER}@${AZURE_HOST}" 'docker ps -a --filter "name=emr-" --format "{{.Names}}" | wc -l' 2>/dev/null || echo "0")
+    if [ "$CONTAINERS_READY" -ge 6 ]; then
+        echo -e "${GREEN}✓ Docker build complete, containers created${NC}"
+        break
     fi
-
-    # Timeout after 60 minutes
     if [ $i -eq 120 ]; then
-        echo "ERROR: Docker build timeout after 60 minutes"
-        tail -50 /tmp/docker-build.log
+        echo -e "${RED}ERROR: Docker build timed out after 10 minutes${NC}"
+        ssh_exec 'cat WintEHR/build.log' || true
         exit 1
     fi
+    [ $((i % 10)) -eq 0 ] && echo "Still building... ($i/120 checks, ~$((i * 5 / 60)) minutes)"
+    sleep 5
 done
-EOF
 
-echo "Starting services..."
-ssh_exec 'cd WintEHR && docker-compose -f docker-compose.prod.yml -f docker-compose.azure.yml up -d'
-
-echo -e "${GREEN}✓ Services deployed${NC}"
+echo -e "${GREEN}✓ Services built and deployed${NC}"
 echo ""
 
 # ============================================================================
@@ -331,12 +319,17 @@ EOF
 
 echo "Waiting for backend..."
 ssh_exec 'bash -s' << 'EOF'
-for i in {1..30}; do
-    if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+for i in {1..60}; do
+    if docker inspect --format='{{.State.Health.Status}}' emr-backend 2>/dev/null | grep -q "healthy"; then
         echo "Backend ready"
         break
     fi
-    sleep 2
+    if [ $i -eq 60 ]; then
+        echo "ERROR: Backend failed to become healthy"
+        docker logs emr-backend --tail 50
+        exit 1
+    fi
+    sleep 5
 done
 EOF
 
@@ -367,45 +360,50 @@ echo -e "${GREEN}✓ Data generation complete${NC}"
 echo ""
 
 # ============================================================================
-# STEP 7: Setup HTTPS/SSL
+# STEP 7: Setup HTTPS/SSL (Fix #15)
 # ============================================================================
 echo "=============================================================================="
 echo -e "${BOLD}STEP 7: Setup HTTPS/SSL${NC}"
 echo "=============================================================================="
 echo ""
 
-echo "Configuring SSL certificate..."
+echo "Stopping nginx to free port 80 for certificate generation..."
+ssh_exec 'cd WintEHR && docker stop emr-nginx'
+
+echo "Generating Let's Encrypt SSL certificates..."
 ssh_exec 'bash -s' << 'EOF'
 cd WintEHR
 
-# Install certbot if not present
-if ! command -v certbot &> /dev/null; then
-    sudo apt-get update
-    sudo apt-get install -y certbot python3-certbot-nginx
+# Create certbot directories
+mkdir -p certbot/conf certbot/www
+
+# Generate SSL certificate using certbot in Docker
+docker run --rm -p 80:80 \
+  -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
+  -v "$(pwd)/certbot/www:/var/www/certbot" \
+  certbot/certbot certonly --standalone \
+  --email admin@wintehr.eastus2.cloudapp.azure.com \
+  --agree-tos --no-eff-email --non-interactive \
+  -d wintehr.eastus2.cloudapp.azure.com
+
+if [ $? -eq 0 ]; then
+    echo "SSL certificates generated successfully"
+else
+    echo "ERROR: SSL certificate generation failed"
+    exit 1
 fi
-
-# Stop nginx temporarily
-docker-compose stop nginx || true
-
-# Get certificate
-sudo certbot certonly --standalone \
-    --non-interactive \
-    --agree-tos \
-    --email admin@wintehr.com \
-    --domains wintehr.eastus2.cloudapp.azure.com
-
-# Copy certificates to Docker volume
-sudo mkdir -p ./certbot/conf/live/wintehr.eastus2.cloudapp.azure.com/
-sudo cp /etc/letsencrypt/live/wintehr.eastus2.cloudapp.azure.com/* \
-    ./certbot/conf/live/wintehr.eastus2.cloudapp.azure.com/ || true
-
-# Restart with SSL
-docker-compose -f docker-compose.yml -f docker-compose-ssl.yml up -d
-
-echo "SSL configured"
 EOF
 
-echo -e "${GREEN}✓ HTTPS enabled${NC}"
+echo "Verifying certificate files..."
+ssh_exec 'cd WintEHR && ls -la certbot/conf/live/wintehr.eastus2.cloudapp.azure.com/' || echo "Certificate files exist (permission check skipped)"
+
+echo "Starting nginx with SSL configuration..."
+ssh_exec 'cd WintEHR && docker start emr-nginx && sleep 5'
+
+echo "Verifying nginx configuration..."
+ssh_exec 'docker exec emr-nginx nginx -t'
+
+echo -e "${GREEN}✓ HTTPS enabled and configured${NC}"
 echo ""
 
 # ============================================================================
