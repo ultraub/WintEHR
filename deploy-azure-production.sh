@@ -137,7 +137,12 @@ ssh_exec() {
         echo -e "${BLUE}[DRY RUN] SSH:${NC} $*"
     else
         echo -e "${BLUE}Executing on Azure:${NC} $*"
-        ssh -i "$SSH_KEY" "${AZURE_USER}@${AZURE_HOST}" "$@"
+        ssh -i "$SSH_KEY" \
+            -o ServerAliveInterval=60 \
+            -o ServerAliveCountMax=10 \
+            -o ConnectTimeout=30 \
+            -o StrictHostKeyChecking=no \
+            "${AZURE_USER}@${AZURE_HOST}" "$@"
     fi
 }
 
@@ -147,7 +152,12 @@ ssh_copy() {
         echo -e "${BLUE}[DRY RUN] Copy:${NC} $1 -> ${AZURE_HOST}:$2"
     else
         echo -e "${BLUE}Copying to Azure:${NC} $1 -> $2"
-        scp -i "$SSH_KEY" "$1" "${AZURE_USER}@${AZURE_HOST}:$2"
+        scp -i "$SSH_KEY" \
+            -o ServerAliveInterval=60 \
+            -o ServerAliveCountMax=10 \
+            -o ConnectTimeout=30 \
+            -o StrictHostKeyChecking=no \
+            "$1" "${AZURE_USER}@${AZURE_HOST}:$2"
     fi
 }
 
