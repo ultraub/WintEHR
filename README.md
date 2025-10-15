@@ -1,6 +1,6 @@
 # WintEHR - Modern FHIR-Native Electronic Health Record System
 
-[![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg)](https://github.com/ultraub/WintEHR/releases)
+[![Version](https://img.shields.io/badge/Version-1.1.0-blue.svg)](https://github.com/ultraub/WintEHR/releases)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://opensource.org/licenses/Apache-2.0)
 [![FHIR R4](https://img.shields.io/badge/FHIR-R4-orange.svg)](http://hl7.org/fhir/R4/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-brightgreen.svg)](https://www.docker.com/)
@@ -22,72 +22,105 @@ WintEHR is a complete, FHIR-native Electronic Health Record system designed for 
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- Python 3.9+ (for configuration)
-- 8GB RAM minimum
-- 20GB free disk space
+- **Docker & Docker Compose** (20.10+ recommended)
+- **Python 3.9+** (for configuration validation)
+- **8GB RAM minimum** (16GB recommended for production)
+- **20GB free disk space** (100GB for production)
 
-### 5-Minute Setup
+### Local Development Setup (5 Minutes)
 
 ```bash
 # 1. Clone repository
 git clone https://github.com/ultraub/WintEHR.git
 cd WintEHR
 
-# 2. Configure deployment
+# 2. Copy and configure for development
 cp config.example.yaml config.yaml
-cp .env.example .env
 
-# Edit configuration (set domain, passwords, etc.)
-vim config.yaml  # Set your preferences
-vim .env         # Set secure passwords
+# 3. Edit config.yaml for local development
+#    Set: environment: dev
+#         enable_ssl: false
+#         patient_count: 20
 
-# 3. Validate configuration
-python3 deploy/validate_config.py
-
-# 4. Deploy!
+# 4. ONE COMMAND DEPLOYMENT
 ./deploy.sh
 ```
 
 The system will be available at:
-- **Clinical Portal**: https://your-domain.com (or http://localhost:3000 for dev)
-- **FHIR API**: https://your-domain.com/fhir
-- **API Documentation**: https://your-domain.com/api/docs
+- **Clinical Portal**: http://localhost:3000
+- **FHIR API**: http://localhost:8888/fhir
+- **API Documentation**: http://localhost:8000/docs
 
-### Development Mode
+### Azure Production Deployment (Fully Automated)
 
-For local testing without SSL:
-
-```bash
-# Create dev configuration
-cp config.example.yaml config.dev.yaml
-
-# Edit for development (set enable_ssl: false, patient_count: 10)
-vim config.dev.yaml
-
-# Deploy in dev mode
-./deploy.sh --environment dev
-```
-
-### Production Deployment
-
-For production with SSL and Azure:
+**Complete automated deployment with server wipe and SSL setup:**
 
 ```bash
-# 1. Configure Azure settings in config.yaml
-vim config.yaml  # Set azure.* and ssl.* sections
+# 1. Configure Azure deployment
+cp config.azure-prod.yaml config.yaml
+vim config.yaml  # Set your Azure VM details and domain
 
-# 2. Deploy
-./deploy.sh
+# 2. Setup SSH key
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/WintEHR-key.pem
+# Upload public key to your Azure VM
 
-# 3. Configure firewall (automatic)
-# Azure NSG rules configured automatically
-
-# 4. Setup SSL (automatic)
-# Let's Encrypt certificate obtained automatically
+# 3. ONE COMMAND AUTOMATED DEPLOYMENT
+./deploy-azure-production.sh --yes
 ```
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for complete configuration reference.
+**What this does automatically:**
+- ✅ Wipes server completely (fresh start guaranteed)
+- ✅ Clones latest code from GitHub
+- ✅ Builds Docker images (backend + frontend)
+- ✅ Deploys all services with health checks
+- ✅ Generates 100 synthetic patients with DICOM imaging
+- ✅ Obtains Let's Encrypt SSL certificate
+- ✅ Configures nginx with HTTPS
+- ✅ Verifies deployment success
+
+**Total time:** ~25-30 minutes for complete deployment
+
+**Access your production system:**
+```
+https://your-domain.cloudapp.azure.com
+```
+
+### Build Options
+
+#### Option 1: Quick Deploy (Recommended)
+```bash
+./deploy.sh                    # Local development
+./deploy-azure-production.sh   # Azure production (automated)
+```
+
+#### Option 2: Manual Docker Build
+```bash
+# Build backend
+docker build -t wintehr-backend:latest -f backend/Dockerfile backend/
+
+# Build frontend
+docker build -t wintehr-frontend:latest -f frontend/Dockerfile frontend/
+
+# Start services
+docker-compose up -d
+```
+
+#### Option 3: Development with Hot Reload
+```bash
+# Backend
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+
+# Frontend
+cd frontend
+npm install
+npm start
+```
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for advanced deployment options.
 
 ### Default Users
 
@@ -376,6 +409,29 @@ Apache License 2.0 - see [LICENSE](LICENSE) file for details.
 
 ## 🚦 Release Notes
 
+### Version 1.1.0 (October 2025)
+
+**Major Improvements:**
+- ✅ **Fully Automated Azure Deployment** - One-command deployment with complete server wipe
+- ✅ **Automated SSL Configuration** - Let's Encrypt certificates obtained automatically
+- ✅ **Robust Build Process** - Fixed SSH timeout issues during long Docker builds
+- ✅ **Health Check Improvements** - Reliable container health monitoring
+- ✅ **DICOM Endpoint Generation** - Automatic DICOM endpoint creation for all imaging studies
+
+**Deployment Fixes:**
+- Fix #17: Backend health check using Docker inspect instead of curl
+- Fix #18: SSH keepalive configuration prevents timeout during builds
+- Fix #19: Simplified Docker build process (removed complex heredoc)
+- Fix #20: Non-blocking SSL certificate verification
+- Fix #21: Asynchronous Docker build with background nohup
+- Fix #22: Direct SSH in polling loop avoids echo output interference
+
+**Infrastructure:**
+- Complete server wipe before every deployment (mandatory)
+- No manual interventions required
+- Automated patient data generation (100+ patients with DICOM)
+- Total deployment time: ~25-30 minutes
+
 ### Version 1.0.0 (August 2025)
 
 **Features:**
@@ -396,6 +452,6 @@ Apache License 2.0 - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**WintEHR v1.0.0** - A complete FHIR-native EHR system ready for healthcare innovation.
+**WintEHR v1.1.0** - A complete FHIR-native EHR system with fully automated deployment.
 
 Built with ❤️ for the healthcare community.
