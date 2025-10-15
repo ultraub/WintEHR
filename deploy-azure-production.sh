@@ -277,8 +277,8 @@ ssh_exec 'cd WintEHR && nohup docker-compose -f docker-compose.prod.yml -f docke
 
 echo "Waiting for Docker build to complete..."
 for i in {1..120}; do
-    # Check if all containers are created (build complete)
-    CONTAINERS_READY=$(ssh_exec 'docker ps -a --filter "name=emr-" --format "{{.Names}}" | wc -l' 2>/dev/null || echo "0")
+    # Check if all containers are created (build complete) - use direct SSH to avoid echo output
+    CONTAINERS_READY=$(ssh -i "$SSH_KEY" -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o ConnectTimeout=30 -o StrictHostKeyChecking=no "${AZURE_USER}@${AZURE_HOST}" 'docker ps -a --filter "name=emr-" --format "{{.Names}}" | wc -l' 2>/dev/null || echo "0")
     if [ "$CONTAINERS_READY" -ge 6 ]; then
         echo -e "${GREEN}✓ Docker build complete, containers created${NC}"
         break
