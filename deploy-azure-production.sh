@@ -331,12 +331,17 @@ EOF
 
 echo "Waiting for backend..."
 ssh_exec 'bash -s' << 'EOF'
-for i in {1..30}; do
-    if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+for i in {1..60}; do
+    if docker inspect --format='{{.State.Health.Status}}' emr-backend 2>/dev/null | grep -q "healthy"; then
         echo "Backend ready"
         break
     fi
-    sleep 2
+    if [ $i -eq 60 ]; then
+        echo "ERROR: Backend failed to become healthy"
+        docker logs emr-backend --tail 50
+        exit 1
+    fi
+    sleep 5
 done
 EOF
 
