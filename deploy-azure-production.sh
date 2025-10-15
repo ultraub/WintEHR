@@ -272,8 +272,25 @@ echo -e "${BOLD}STEP 4: Build and Deploy Services${NC}"
 echo "=============================================================================="
 echo ""
 
-echo "Building and starting services (this may take 5-10 minutes)..."
-ssh_exec 'cd WintEHR && docker-compose -f docker-compose.prod.yml -f docker-compose.azure.yml up -d --build'
+echo "Starting Docker build in background (this may take 5-10 minutes)..."
+ssh_exec 'cd WintEHR && nohup docker-compose -f docker-compose.prod.yml -f docker-compose.azure.yml up -d --build > build.log 2>&1 &'
+
+echo "Waiting for Docker build to complete..."
+for i in {1..120}; do
+    # Check if all containers are created (build complete)
+    CONTAINERS_READY=$(ssh_exec 'docker ps -a --filter "name=emr-" --format "{{.Names}}" | wc -l' 2>/dev/null || echo "0")
+    if [ "$CONTAINERS_READY" -ge 6 ]; then
+        echo -e "${GREEN}✓ Docker build complete, containers created${NC}"
+        break
+    fi
+    if [ $i -eq 120 ]; then
+        echo -e "${RED}ERROR: Docker build timed out after 10 minutes${NC}"
+        ssh_exec 'cat WintEHR/build.log' || true
+        exit 1
+    fi
+    [ $((i % 10)) -eq 0 ] && echo "Still building... ($i/120 checks, ~$((i * 5 / 60)) minutes)"
+    sleep 5
+done
 
 echo -e "${GREEN}✓ Services built and deployed${NC}"
 echo ""
