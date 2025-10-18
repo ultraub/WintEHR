@@ -64,6 +64,13 @@ services:
       hapi.fhir.reuse_cached_search_results_millis: 60000
       hapi.fhir.default_page_size: 20
       hapi.fhir.max_page_size: 500
+
+      # CDS Hooks and Clinical Reasoning
+      hapi.fhir.cdshooks_enabled: true
+      hapi.fhir.cr_enabled: true
+
+      # Advanced search features
+      hapi.fhir.advanced_lucene_indexing: false  # Set true if Elasticsearch added
     networks:
       - emr-network
     depends_on:

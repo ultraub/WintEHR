@@ -55,6 +55,7 @@ from .rules_engine.safety import safety_manager, FeatureFlag
 from .service_registry import service_registry, register_builtin_services
 from .service_implementations import register_example_services
 from services.fhir_client_config import get_resource, search_resources
+from .hapi_cds_integration import get_hapi_cds_integrator
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -961,79 +962,194 @@ class CDSHookEngine:
             return None
 
 
+# Helper functions for HAPI FHIR PlanDefinition conversion
+
+def _extract_extension_value(
+    resource: Dict[str, Any],
+    url: str,
+    default: Any = None
+) -> Any:
+    """
+    Extract value from FHIR extension
+
+    Args:
+        resource: FHIR resource with extensions
+        url: Extension URL to find
+        default: Default value if extension not found
+
+    Returns:
+        Extension value or default
+    """
+    extensions = resource.get("extension", [])
+    for ext in extensions:
+        if ext.get("url") == url:
+            # Try different value types
+            return (
+                ext.get("valueString") or
+                ext.get("valueBoolean") or
+                ext.get("valueCode") or
+                ext.get("valueInteger") or
+                default
+            )
+    return default
+
+
+def _plan_definition_to_cds_service(plan_def: Dict[str, Any]) -> Optional[CDSService]:
+    """
+    Convert HAPI FHIR PlanDefinition to CDS Hooks service definition
+
+    Args:
+        plan_def: PlanDefinition resource from HAPI FHIR
+
+    Returns:
+        CDSService object, or None if conversion fails
+    """
+    try:
+        # Extract hook-service-id (CDS service identifier)
+        service_id = _extract_extension_value(
+            plan_def,
+            "http://wintehr.local/fhir/StructureDefinition/hook-service-id",
+            plan_def.get("id")  # Fallback to PlanDefinition ID
+        )
+
+        # Extract hook-type (CDS hook type)
+        hook_type = _extract_extension_value(
+            plan_def,
+            "http://wintehr.local/fhir/StructureDefinition/hook-type",
+            "patient-view"  # Default hook type
+        )
+
+        # Build prefetch template from action inputs
+        prefetch = _build_prefetch_from_plan_definition(plan_def)
+
+        # Create CDS service definition
+        return CDSService(
+            id=service_id,
+            hook=hook_type,
+            title=plan_def.get("title", service_id),
+            description=plan_def.get("description", ""),
+            prefetch=prefetch,
+            usageRequirements=plan_def.get("usage", "")
+        )
+
+    except Exception as e:
+        logger.error(f"Error converting PlanDefinition to CDS service: {e}")
+        return None
+
+
+def _build_prefetch_from_plan_definition(plan_def: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Build CDS Hooks prefetch template from PlanDefinition
+
+    Extracts prefetch templates from custom extension or action inputs
+
+    Args:
+        plan_def: PlanDefinition resource
+
+    Returns:
+        Prefetch dictionary mapping keys to FHIR query templates
+    """
+    # First, try to get prefetch from custom extension
+    prefetch_extension = None
+    for ext in plan_def.get("extension", []):
+        if ext.get("url") == "http://wintehr.local/fhir/StructureDefinition/prefetch-template":
+            prefetch_extension = ext.get("valueString")
+            break
+
+    if prefetch_extension:
+        # Parse JSON prefetch template
+        try:
+            import json
+            return json.loads(prefetch_extension)
+        except Exception as e:
+            logger.warning(f"Failed to parse prefetch extension: {e}")
+
+    # Fallback: Build prefetch from action inputs (legacy approach)
+    prefetch = {}
+    actions = plan_def.get("action", [])
+    if not actions:
+        return prefetch
+
+    # Get first action's inputs
+    inputs = actions[0].get("input", [])
+    for i, input_req in enumerate(inputs):
+        if input_req.get("type") == "DataRequirement":
+            # Extract resource type from profile
+            profiles = input_req.get("profile", [])
+            if profiles:
+                resource_type = profiles[0].split("/")[-1]
+                # Create prefetch key and template
+                prefetch[f"input{i}"] = f"{resource_type}/{{{{context.patientId}}}}"
+
+    return prefetch
+
+
 # CDS Hooks Discovery Endpoint
 @router.get("/cds-services", response_model=CDSServicesResponse)
-async def discover_services(db: AsyncSession = Depends(get_db_session), use_registry: bool = False):
-    """CDS Hooks discovery endpoint - returns available services"""
-    
-    # Option to use new service registry
-    if use_registry:
-        registry_services = service_registry.list_services()
-        # Also include legacy services from database
-        try:
-            db_hooks = await load_hooks_from_database(db)
-            for hook_id, hook_config in db_hooks.items():
-                if hook_config.enabled and hook_id not in [s.id for s in registry_services]:
-                    service = CDSService(
-                        hook=hook_config.hook,
-                        title=hook_config.title,
-                        description=hook_config.description,
-                        id=hook_id,
-                        prefetch=hook_config.prefetch,
-                        usageRequirements=hook_config.usageRequirements
-                    )
-                    registry_services.append(service)
-        except Exception as e:
-            logger.error(f"Error loading legacy services: {e}")
-        
-        return CDSServicesResponse(services=registry_services)
-    
-    # Legacy discovery logic
-    services = []
-    
+async def discover_services(
+    db: AsyncSession = Depends(get_db_session),
+    service_origin: Optional[str] = None  # Filter: "built-in", "external", or None for all
+):
+    """
+    CDS Hooks discovery endpoint - returns available services from HAPI FHIR
+
+    **HAPI-Unified Architecture (v4.1+)**:
+    - All CDS services stored as PlanDefinitions in HAPI FHIR
+    - Built-in services: Migrated to HAPI with service-origin="built-in"
+    - External services: Registered with service-origin="external"
+    - No separate aggregation needed - HAPI is single source of truth
+
+    Args:
+        service_origin: Optional filter by service origin ("built-in", "external", or None for all)
+
+    Returns:
+        CDSServicesResponse with all discovered services
+    """
+    from services.hapi_fhir_client import HAPIFHIRClient
+
     try:
-        # Load hooks from database first
-        db_hooks = await load_hooks_from_database(db)
-        
-        # If no hooks in database, initialize with sample hooks
-        if not db_hooks:
-            logger.info("No hooks found in database, initializing with sample hooks")
-            await save_sample_hooks_to_database(db, SAMPLE_HOOKS)
-            db_hooks = await load_hooks_from_database(db)
-        
-        # Use database hooks if available, otherwise fall back to sample hooks
-        hooks_to_use = db_hooks if db_hooks else SAMPLE_HOOKS
-        
-        for hook_id, hook_config in hooks_to_use.items():
-            if hook_config.enabled:
-                service = CDSService(
-                    hook=hook_config.hook,
-                    title=hook_config.title,
-                    description=hook_config.description,
-                    id=hook_id,
-                    prefetch=hook_config.prefetch,
-                    usageRequirements=hook_config.usageRequirements
-                )
+        logger.info("Discovering CDS services from HAPI FHIR (unified discovery)")
+
+        hapi_client = HAPIFHIRClient()
+
+        # Build search parameters for PlanDefinitions
+        search_params = {
+            "status": "active",  # Only active services
+            "_count": 500  # Reasonable limit
+        }
+
+        # Query HAPI FHIR for all PlanDefinitions
+        bundle = await hapi_client.search("PlanDefinition", search_params)
+
+        # Convert PlanDefinitions to CDS service definitions
+        services = []
+        for entry in bundle.get("entry", []):
+            plan_def = entry.get("resource", {})
+
+            # Extract service-origin extension
+            origin = _extract_extension_value(
+                plan_def,
+                "http://wintehr.local/fhir/StructureDefinition/service-origin"
+            )
+
+            # Filter by service origin if requested
+            if service_origin and origin != service_origin:
+                continue
+
+            # Convert PlanDefinition to CDS service
+            service = _plan_definition_to_cds_service(plan_def)
+            if service:
                 services.append(service)
-        
-        logger.debug(f"Discovered {len(services)} enabled CDS services")
-        
+
+        logger.info(f"Discovered {len(services)} CDS services from HAPI FHIR" +
+                   (f" (filtered by origin={service_origin})" if service_origin else ""))
+
+        return CDSServicesResponse(services=services)
+
     except Exception as e:
-        logger.error(f"Error in service discovery: {e}")
-        # Fallback to sample hooks
-        for hook_id, hook_config in SAMPLE_HOOKS.items():
-            if hook_config.enabled:
-                service = CDSService(
-                    hook=hook_config.hook,
-                    title=hook_config.title,
-                    description=hook_config.description,
-                    id=hook_id,
-                    prefetch=hook_config.prefetch,
-                    usageRequirements=hook_config.usageRequirements
-                )
-                services.append(service)
-    
-    return CDSServicesResponse(services=services)
+        logger.error(f"Error discovering services from HAPI FHIR: {e}")
+        # Return empty services list on error
+        return CDSServicesResponse(services=[])
 
 
 # CDS Service Execution Endpoint
@@ -1041,153 +1157,140 @@ async def discover_services(db: AsyncSession = Depends(get_db_session), use_regi
 async def execute_service(
     service_id: str,
     request: CDSHookRequest,
-    db: AsyncSession = Depends(get_db_session),
-    use_rules_engine: bool = False,  # Query parameter to optionally use rules engine
-    use_registry: bool = False  # Query parameter to use service registry
+    db: AsyncSession = Depends(get_db_session)
 ):
-    """Execute a specific CDS service"""
-    
-    # Option to use service registry
-    if use_registry:
-        try:
-            # Try to execute through service registry first
-            if service_registry.get_service_definition(service_id):
-                response = await service_registry.invoke_service(service_id, request, db)
-                return response
-        except Exception as e:
-            logger.error(f"Error executing service {service_id} through registry: {e}")
-            # Fall through to legacy execution
-    # Check if we should use the rules engine for certain services
-    rules_engine_services = {
-        "medication-prescribe-v2", "patient-view-v2", "order-select-v2",
-        "encounter-start-v2", "encounter-discharge-v2"
-    }
-    
-    # Use rules engine for v2 services or if explicitly requested
-    if service_id in rules_engine_services or use_rules_engine:
-        try:
-            # Convert context to dict format expected by rules engine
-            context_dict = request.context if isinstance(request.context, dict) else request.context.dict()
-            
-            # Execute with rules engine
-            response = await cds_integration.execute_hook(
-                hook=request.hook.value,
-                context=context_dict,
-                prefetch=request.prefetch,
-                use_legacy=True  # Include legacy results for better coverage
-            )
-            
-            # Convert response to CDSHookResponse format
-            cards = []
-            for card_data in response.get("cards", []):
-                card = Card(
-                    summary=card_data.get("summary", ""),
-                    detail=card_data.get("detail", ""),
-                    indicator=IndicatorType(card_data.get("indicator", "info")),
-                    source=Source(**card_data.get("source", {"label": "CDS Rules Engine"})),
-                    uuid=card_data.get("uuid", str(uuid.uuid4()))
-                )
-                
-                if "suggestions" in card_data:
-                    card.suggestions = card_data["suggestions"]
-                if "links" in card_data:
-                    card.links = card_data["links"]
-                
-                cards.append(card)
-            
-            return CDSHookResponse(cards=cards)
-            
-        except Exception as e:
-            logger.error(f"Error executing CDS service {service_id} with rules engine: {e}")
-            # Fall through to legacy execution
-    
-    # Legacy execution path
-    # Get the hook configuration from database first, then fallback to sample hooks
+    """
+    Execute a specific CDS service with intelligent routing
+
+    **HAPI-Unified Architecture (v4.1+)**:
+    - Retrieves PlanDefinition from HAPI FHIR
+    - Routes execution based on service-origin extension:
+      - "built-in" → LocalServiceProvider (Python class execution)
+      - "external" → RemoteServiceProvider (HTTP POST with failure tracking)
+    """
+    from services.hapi_fhir_client import HAPIFHIRClient
+    from .providers import LocalServiceProvider, RemoteServiceProvider
+
     try:
-        manager = await get_persistence_manager(db)
-        hook_config = await manager.get_hook(service_id)
-        if not hook_config:
-            hook_config = SAMPLE_HOOKS.get(service_id)
-    except Exception as e:
-        logger.warning(f"Error accessing database for hook {service_id}: {e}")
-        hook_config = SAMPLE_HOOKS.get(service_id)
-    
-    if not hook_config:
-        raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
-    
-    # Check if hook is enabled
-    if not hook_config.enabled:
-        return CDSHookResponse(cards=[])
-    
-    # Validate hook type matches
-    if hook_config.hook != request.hook:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Hook type mismatch: service expects {hook_config.hook}, got {request.hook}"
+        logger.info(f"Executing CDS service: {service_id}")
+
+        hapi_client = HAPIFHIRClient()
+
+        # Get PlanDefinition from HAPI FHIR
+        # Search by hook-service-id extension
+        search_params = {
+            "status": "active",
+            "_count": 1
+        }
+
+        bundle = await hapi_client.search("PlanDefinition", search_params)
+
+        # Find matching PlanDefinition by service ID
+        plan_definition = None
+        for entry in bundle.get("entry", []):
+            plan_def = entry.get("resource", {})
+            hook_service_id = _extract_extension_value(
+                plan_def,
+                "http://wintehr.local/fhir/StructureDefinition/hook-service-id"
+            )
+            if hook_service_id == service_id:
+                plan_definition = plan_def
+                break
+
+        if not plan_definition:
+            logger.error(f"Service '{service_id}' not found in HAPI FHIR")
+            raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
+
+        # Extract service-origin to determine execution provider
+        service_origin = _extract_extension_value(
+            plan_definition,
+            "http://wintehr.local/fhir/StructureDefinition/service-origin",
+            "built-in"  # Default to built-in for backward compatibility
         )
-    
-    # Execute prefetch if configured and not provided
-    if hook_config.prefetch and not request.prefetch:
-        try:
-            prefetch_start = datetime.now()
-            request.prefetch = await execute_hook_prefetch(
-                db, 
-                hook_config.prefetch, 
-                request.context if isinstance(request.context, dict) else request.context.dict()
+
+        logger.info(f"Service {service_id} has origin: {service_origin}")
+
+        # Route to appropriate provider
+        start_time = datetime.now()
+        cards = []
+
+        if service_origin == "built-in":
+            # Use LocalServiceProvider for built-in services
+            provider = LocalServiceProvider()
+            response = await provider.execute(plan_definition, request, None)
+            cards = response.cards
+
+        elif service_origin == "external":
+            # Use RemoteServiceProvider for external services
+            # Get service metadata from external_services database
+            external_service_id = _extract_extension_value(
+                plan_definition,
+                "http://wintehr.local/fhir/StructureDefinition/external-service-id"
             )
-            prefetch_time = int((datetime.now() - prefetch_start).total_seconds() * 1000)
-            logger.debug(f"Executed prefetch for {service_id} in {prefetch_time}ms")
-        except Exception as e:
-            logger.warning(f"Prefetch execution failed for {service_id}: {e}")
-            # Continue without prefetch data
-            request.prefetch = {}
-    
-    # Create execution engine
-    engine = CDSHookEngine(db)
-    
-    # Execute hook with performance tracking
-    start_time = datetime.now()
-    execution_success = True
-    error_message = None
-    cards = []
-    
-    try:
-        cards = await engine.evaluate_hook(hook_config, request)
-        response = CDSHookResponse(cards=cards)
+
+            if not external_service_id:
+                logger.error(f"External service {service_id} missing external-service-id extension")
+                raise HTTPException(status_code=500, detail="Invalid external service configuration")
+
+            # Query external service metadata
+            query = text("""
+                SELECT id, base_url, auth_type, credentials_encrypted, auto_disabled,
+                       consecutive_failures, last_error_message
+                FROM external_services.services
+                WHERE id = :service_id
+            """)
+            result = await db.execute(query, {"service_id": external_service_id})
+            service_metadata = result.mappings().first()
+
+            if not service_metadata:
+                logger.error(f"External service metadata not found: {external_service_id}")
+                raise HTTPException(status_code=500, detail="External service not registered")
+
+            provider = RemoteServiceProvider(db)
+            response = await provider.execute(
+                plan_definition,
+                request,
+                service_metadata=dict(service_metadata)
+            )
+            cards = response.cards
+
+        else:
+            logger.error(f"Unknown service origin: {service_origin}")
+            raise HTTPException(status_code=500, detail=f"Unsupported service origin: {service_origin}")
+
+        # Calculate execution time
+        execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+
+        # Log execution (fire and forget)
+        try:
+            patient_id = request.context.get('patientId') if isinstance(request.context, dict) else None
+            user_id = request.context.get('userId') if isinstance(request.context, dict) else None
+
+            await log_hook_execution(
+                db=db,
+                service_id=service_id,
+                hook_type=request.hook.value,
+                patient_id=patient_id,
+                user_id=user_id,
+                context=request.context if isinstance(request.context, dict) else request.context.dict(),
+                request_data=request.dict(),
+                response_data={"cards": [c.dict() for c in cards]},
+                cards_returned=len(cards),
+                execution_time_ms=execution_time_ms,
+                success=True,
+                error_message=None
+            )
+        except Exception as log_error:
+            logger.warning(f"Failed to log hook execution: {log_error}")
+
+        return CDSHookResponse(cards=cards)
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error executing CDS Service {service_id}: {str(e)}")
-        execution_success = False
-        error_message = str(e)
+        logger.error(f"Error executing CDS service {service_id}: {e}")
         # CDS Hooks should be non-blocking - return empty cards on error
-        response = CDSHookResponse(cards=[])
-    
-    # Calculate execution time
-    execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-    
-    # Log the execution (fire and forget - don't block response)
-    try:
-        patient_id = request.context.get('patientId') if isinstance(request.context, dict) else None
-        user_id = request.context.get('userId') if isinstance(request.context, dict) else None
-        
-        await log_hook_execution(
-            db=db,
-            service_id=service_id,
-            hook_type=request.hook.value,
-            patient_id=patient_id,
-            user_id=user_id,
-            context=request.context if isinstance(request.context, dict) else request.context.dict(),
-            request_data=request.dict(),
-            response_data=response.dict(),
-            cards_returned=len(cards),
-            execution_time_ms=execution_time_ms,
-            success=execution_success,
-            error_message=error_message
-        )
-    except Exception as log_error:
-        logger.warning(f"Failed to log hook execution: {log_error}")
-        # Don't fail the response due to logging issues
-    
-    return response
+        return CDSHookResponse(cards=[])
 
 
 # CDS Service Feedback Endpoint

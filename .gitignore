@@ -245,3 +245,12 @@ backend/MIGRATION_SUMMARY_2025-10-04.md
 backend/PROXY_CONFIGURATION_FIX_2025-10-04.md
 backend/archived/*
 deployment_prompt.txt
+code-graph-mcp/*
+deploy-fix-23.sh
+.gitignore
+check-imaging.sh
+docs/CODE_GRAPH_MCP.md
+FIX_SUMMARY_2025-10-16.md
+HTTPS_DEPLOYMENT_SUCCESS_2025-10-14.md
+DEPLOY_NOW.md
+.mcp.json
