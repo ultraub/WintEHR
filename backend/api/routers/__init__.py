@@ -96,6 +96,7 @@ def register_all_routers(app: FastAPI) -> None:
         from api.fhir_schema_router import router as fhir_schema_router
         from api.fhir_capability_schema_router import router as fhir_capability_schema_router
         from api.external_services.router import router as external_services_router
+        from api.cds_studio.router import router as cds_studio_router
 
         app.include_router(cds_hooks_router, prefix="/api", tags=["CDS Hooks"])
         app.include_router(cds_executor_router, prefix="/api", tags=["CDS Service Executor"])
@@ -105,6 +106,7 @@ def register_all_routers(app: FastAPI) -> None:
         app.include_router(fhir_schema_router, tags=["FHIR Schemas"])
         app.include_router(fhir_capability_schema_router, tags=["FHIR Schemas V2"])
         app.include_router(external_services_router, tags=["External Services"])
+        app.include_router(cds_studio_router, tags=["CDS Management Studio"])
 
         # CDS Hooks v2.0 Complete Implementation
         try:

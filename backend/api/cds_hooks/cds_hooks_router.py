@@ -1176,37 +1176,23 @@ async def execute_service(
 
         hapi_client = HAPIFHIRClient()
 
-        # Get PlanDefinition from HAPI FHIR
-        # Search by hook-service-id extension
-        search_params = {
-            "status": "active",
-            "_count": 1
-        }
-
-        bundle = await hapi_client.search("PlanDefinition", search_params)
-
-        # Find matching PlanDefinition by service ID
-        plan_definition = None
-        for entry in bundle.get("entry", []):
-            plan_def = entry.get("resource", {})
-            hook_service_id = _extract_extension_value(
-                plan_def,
-                "http://wintehr.local/fhir/StructureDefinition/hook-service-id"
-            )
-            if hook_service_id == service_id:
-                plan_definition = plan_def
-                break
-
-        if not plan_definition:
-            logger.error(f"Service '{service_id}' not found in HAPI FHIR")
+        # Get PlanDefinition from HAPI FHIR by ID
+        try:
+            plan_definition = await hapi_client.read("PlanDefinition", service_id)
+        except Exception as e:
+            logger.error(f"Service '{service_id}' not found in HAPI FHIR: {e}")
             raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
 
-        # Extract service-origin to determine execution provider
-        service_origin = _extract_extension_value(
-            plan_definition,
-            "http://wintehr.local/fhir/StructureDefinition/service-origin",
-            "built-in"  # Default to built-in for backward compatibility
-        )
+        # Extract service-origin from nested extension structure
+        service_origin = "built-in"  # Default
+        for ext in plan_definition.get("extension", []):
+            if ext.get("url") == "http://wintehr.org/fhir/StructureDefinition/cds-hooks-service":
+                # Look for origin in nested extensions
+                for nested_ext in ext.get("extension", []):
+                    if nested_ext.get("url") == "origin":
+                        service_origin = nested_ext.get("valueString", "built-in")
+                        break
+                break
 
         logger.info(f"Service {service_id} has origin: {service_origin}")
 

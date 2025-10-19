@@ -5,7 +5,7 @@ module.exports = function(app) {
   // In Docker development, always use 'backend' service name
   const isDocker = process.env.HOST === '0.0.0.0';
   const backendTarget = isDocker
-    ? 'http://emr-backend-dev:8000'
+    ? 'http://emr-backend:8000'
     : process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
   // HAPI FHIR target (separate from backend)
@@ -58,10 +58,13 @@ module.exports = function(app) {
     });
   };
   
-  // API routes - standard proxy
+  // API routes - standard proxy (preserve /api prefix)
   app.use(
     '/api',
-    createProxy('API')
+    createProxy('API', (path, req) => {
+      // Path comes in without /api already stripped, so add it back
+      return '/api' + path;
+    })
   );
   
   // FHIR routes - proxy to HAPI FHIR server

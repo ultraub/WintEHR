@@ -532,17 +532,17 @@ async def get_available_specialties(
             # Handle both direct resources and bundle entries
             if isinstance(entry, dict):
                 role_resource = entry.get('resource', entry)
-            
-            for specialty in role_resource.get('specialty', []):
-                for coding in specialty.get('coding', []):
-                    code = coding.get('code')
-                    if code and code not in specialty_codes:
-                        specialty_codes.add(code)
-                        specialties.append({
-                            'code': code,
-                            'display': coding.get('display', code),
-                            'system': coding.get('system', '')
-                        })
+
+                for specialty in role_resource.get('specialty', []):
+                    for coding in specialty.get('coding', []):
+                        code = coding.get('code')
+                        if code and code not in specialty_codes:
+                            specialty_codes.add(code)
+                            specialties.append({
+                                'code': code,
+                                'display': coding.get('display', code),
+                                'system': coding.get('system', '')
+                            })
         
         return {
             "specialties": sorted(specialties, key=lambda x: x['display']),

@@ -389,8 +389,8 @@ else
     echo ""
 fi
 
-# Step 5: Configure Azure NSG (if Azure deployment)
-if [ -n "$WINTEHR_AZURE_RESOURCE_GROUP" ]; then
+# Step 5: Configure Azure NSG (if Azure deployment and not dev environment)
+if [ -n "$WINTEHR_AZURE_RESOURCE_GROUP" ] && [ "$WINTEHR_DEPLOYMENT_ENVIRONMENT" != "dev" ]; then
     echo -e "${BLUE}🔒 Configuring Azure Network Security Group...${NC}"
 
     if [ -f "deploy/configure-azure-nsg.sh" ]; then

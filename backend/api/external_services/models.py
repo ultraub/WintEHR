@@ -4,7 +4,7 @@ External Services Data Models
 Pydantic models for external FHIR service registration and management.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, Field, HttpUrl, validator
 from datetime import datetime
 from enum import Enum
@@ -106,7 +106,7 @@ class CDSHookConfig(BaseModel):
 
 class CDSHooksServiceCreate(ExternalServiceCreate):
     """Create CDS Hooks service"""
-    service_type: ServiceType = Field(ServiceType.CDS_HOOKS, const=True)
+    service_type: Literal[ServiceType.CDS_HOOKS] = Field(default=ServiceType.CDS_HOOKS)
     discovery_endpoint: Optional[HttpUrl] = Field(None, description="CDS discovery endpoint")
     cds_config: CDSHookConfig = Field(..., description="CDS Hooks configuration")
 
@@ -129,7 +129,7 @@ class BatchCDSHooksServiceCreate(ExternalServiceCreate):
     Example: A medication safety service that responds to both
     medication-prescribe and order-sign hooks.
     """
-    service_type: ServiceType = Field(ServiceType.CDS_HOOKS, const=True)
+    service_type: Literal[ServiceType.CDS_HOOKS] = Field(default=ServiceType.CDS_HOOKS)
     discovery_endpoint: Optional[HttpUrl] = Field(None, description="CDS discovery endpoint")
     cds_configs: List[CDSHookConfig] = Field(
         ...,
@@ -185,7 +185,7 @@ class SMARTAppConfig(BaseModel):
 
 class SMARTAppCreate(ExternalServiceCreate):
     """Create SMART app registration"""
-    service_type: ServiceType = Field(ServiceType.SMART_APP, const=True)
+    service_type: Literal[ServiceType.SMART_APP] = Field(default=ServiceType.SMART_APP)
     smart_config: SMARTAppConfig = Field(..., description="SMART app configuration")
     client_secret: Optional[str] = Field(None, description="OAuth client secret (will be encrypted)")
 
@@ -223,7 +223,7 @@ class SubscriptionConfig(BaseModel):
 
 class SubscriptionCreate(ExternalServiceCreate):
     """Create FHIR Subscription"""
-    service_type: ServiceType = Field(ServiceType.SUBSCRIPTION, const=True)
+    service_type: Literal[ServiceType.SUBSCRIPTION] = Field(default=ServiceType.SUBSCRIPTION)
     subscription_config: SubscriptionConfig = Field(..., description="Subscription configuration")
     hmac_secret: Optional[str] = Field(None, description="HMAC secret for webhook signatures")
 
@@ -237,8 +237,8 @@ class SubscriptionResponse(ExternalServiceResponse):
 
 class CQLLibraryCreate(ExternalServiceCreate):
     """Create CQL Library service"""
-    service_type: ServiceType = Field(ServiceType.CQL_LIBRARY, const=True)
-    fhir_resource_type: str = Field("Library", const=True)
+    service_type: Literal[ServiceType.CQL_LIBRARY] = Field(default=ServiceType.CQL_LIBRARY)
+    fhir_resource_type: Literal["Library"] = Field(default="Library")
     library_url: HttpUrl = Field(..., description="Library canonical URL")
     cql_content: Optional[str] = Field(None, description="CQL content (base64 encoded)")
 

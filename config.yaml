@@ -7,13 +7,14 @@
 # ============================================================================
 deployment:
   # Environment: dev, staging, production
-  environment: production
+  # Use 'dev' for local development, 'production' for Azure deployment
+  environment: dev
 
   # Number of synthetic patients to generate with Synthea
-  patient_count: 50
+  patient_count: 20
 
-  # Enable SSL/HTTPS (requires valid domain)
-  enable_ssl: true
+  # Enable SSL/HTTPS (requires valid domain - only for production)
+  enable_ssl: false
 
   # Enable monitoring and logging
   enable_monitoring: false
