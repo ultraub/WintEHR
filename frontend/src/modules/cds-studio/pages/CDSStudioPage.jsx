@@ -19,7 +19,9 @@ import {
   Cloud as CloudIcon,
   CloudDownload as DiscoveryIcon,
   VpnKey as CredentialsIcon,
-  Dashboard as DashboardIcon
+  Dashboard as DashboardIcon,
+  BuildCircle as VisualBuilderIcon,
+  ViewModule as TemplateIcon
 } from '@mui/icons-material';
 import ServicesTable from '../pages/ServicesRegistry/ServicesTable';
 import ServiceDetailPanel from '../components/ServiceDetailPanel';
@@ -28,12 +30,20 @@ import ExternalServiceDialog from '../components/ExternalServiceDialog';
 import DiscoveryImportDialog from '../components/DiscoveryImportDialog';
 import CredentialsManager from './CredentialsManager';
 import MonitoringDashboard from './MonitoringDashboard';
+import VisualBuilderWizard from '../components/builder/VisualBuilderWizard';
+import TemplateServiceBuilder from '../components/templates/TemplateServiceBuilder';
 
 const CDSStudioPage = () => {
   const [selectedService, setSelectedService] = useState(null);
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
+
+  // Builder dialog states
+  const [visualBuilderOpen, setVisualBuilderOpen] = useState(false);
+  const [templateBuilderOpen, setTemplateBuilderOpen] = useState(false);
   const [builtInDialogOpen, setBuiltInDialogOpen] = useState(false);
   const [externalDialogOpen, setExternalDialogOpen] = useState(false);
+
+  // Other dialog states
   const [discoveryImportDialogOpen, setDiscoveryImportDialogOpen] = useState(false);
   const [credentialsDialogOpen, setCredentialsDialogOpen] = useState(false);
   const [monitoringDialogOpen, setMonitoringDialogOpen] = useState(false);
@@ -54,6 +64,16 @@ const CDSStudioPage = () => {
 
   const handleCloseNewServiceMenu = () => {
     setNewServiceMenuAnchor(null);
+  };
+
+  const handleNewVisualBuilder = () => {
+    setVisualBuilderOpen(true);
+    handleCloseNewServiceMenu();
+  };
+
+  const handleNewTemplateBuilder = () => {
+    setTemplateBuilderOpen(true);
+    handleCloseNewServiceMenu();
   };
 
   const handleNewBuiltInService = () => {
@@ -122,13 +142,31 @@ const CDSStudioPage = () => {
         open={Boolean(newServiceMenuAnchor)}
         onClose={handleCloseNewServiceMenu}
       >
+        <MenuItem onClick={handleNewVisualBuilder}>
+          <ListItemIcon>
+            <VisualBuilderIcon color="primary" />
+          </ListItemIcon>
+          <ListItemText
+            primary="Visual Builder"
+            secondary="Create service with drag-and-drop interface"
+          />
+        </MenuItem>
+        <MenuItem onClick={handleNewTemplateBuilder}>
+          <ListItemIcon>
+            <TemplateIcon color="secondary" />
+          </ListItemIcon>
+          <ListItemText
+            primary="Template Builder"
+            secondary="Start from pre-built service templates"
+          />
+        </MenuItem>
         <MenuItem onClick={handleNewBuiltInService}>
           <ListItemIcon>
             <CodeIcon />
           </ListItemIcon>
           <ListItemText
-            primary="Built-in Service"
-            secondary="Python code executed within WintEHR"
+            primary="Code Builder"
+            secondary="Write Python code directly"
           />
         </MenuItem>
         <MenuItem onClick={handleNewExternalService}>
@@ -168,7 +206,30 @@ const CDSStudioPage = () => {
         onClose={handleCloseDetailPanel}
       />
 
-      {/* Built-in Service Dialog */}
+      {/* Visual Builder Wizard */}
+      <VisualBuilderWizard
+        open={visualBuilderOpen}
+        onClose={() => setVisualBuilderOpen(false)}
+        onSuccess={handleServiceCreated}
+      />
+
+      {/* Template Service Builder */}
+      <Dialog
+        open={templateBuilderOpen}
+        onClose={() => setTemplateBuilderOpen(false)}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: { height: '90vh' }
+        }}
+      >
+        <TemplateServiceBuilder
+          onClose={() => setTemplateBuilderOpen(false)}
+          onSuccess={handleServiceCreated}
+        />
+      </Dialog>
+
+      {/* Built-in Service Dialog (Code Builder) */}
       <BuiltInServiceDialog
         open={builtInDialogOpen}
         onClose={() => setBuiltInDialogOpen(false)}

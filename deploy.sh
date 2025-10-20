@@ -346,6 +346,16 @@ if [ "$SKIP_DATA" = false ]; then
         exit 1
     fi
 
+    # Load CDS services as PlanDefinition resources
+    echo -e "${BLUE}🤖 Loading CDS services to HAPI FHIR...${NC}"
+    if docker exec emr-backend \
+        python scripts/active/load_cds_services_to_hapi.py; then
+        echo -e "${GREEN}✅ CDS services loaded successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠️  CDS service loading had issues (non-critical)${NC}"
+        echo "   CDS Studio may not show pre-configured services"
+    fi
+
     # Generate DICOM files for ImagingStudy resources
     echo -e "${BLUE}🏥 Generating DICOM files for imaging studies...${NC}"
     if docker exec emr-backend \
