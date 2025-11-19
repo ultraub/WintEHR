@@ -245,3 +245,43 @@ backend/MIGRATION_SUMMARY_2025-10-04.md
 backend/PROXY_CONFIGURATION_FIX_2025-10-04.md
 backend/archived/*
 deployment_prompt.txt
+
+# Serena MCP memory files
+.serena/
+
+# Code graph MCP
+code-graph-mcp/
+
+# Claude-generated documentation (not committed)
+claudedocs/
+
+# CDS Studio work in progress
+backend/api/cds_studio/
+frontend/src/modules/cds-studio/
+
+# Temporary deployment and fix scripts
+DEPLOY_NOW.md
+FIX_SUMMARY_*.md
+HTTPS_DEPLOYMENT_*.md
+deploy-fix-*.sh
+check-*.sh
+
+# Temporary implementation summaries (move to docs/ when ready)
+backend/api/*/IMPLEMENTATION_SUMMARY.md
+
+# Backend scripts for one-off tasks
+backend/scripts/fix_*.py
+backend/scripts/update_*.py
+
+# Frontend setup notes
+frontend/MONACO_SETUP.md
+
+# Temporary pytest config (move to proper location when ready)
+backend/pytest.ini
+
+# CDS documentation (work in progress)
+docs/CDS_STUDIO_*.md
+docs/CDS_VISUAL_*.md
+docs/EXTERNAL_SERVICES_*.md
+docs/CODE_GRAPH_*.md
+docs/INDEX.md

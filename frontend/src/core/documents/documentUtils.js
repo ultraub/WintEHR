@@ -170,19 +170,13 @@ export const processDocumentForDisplay = (docRef) => {
   const content = formatDocumentForDisplay(docRef);
   
   // Extract type information
-  let noteType = 'progress';
-  let typeDisplay = 'Progress Note';
+  // Use LOINC code directly as noteType for proper UI categorization
+  let noteType = 'other';
+  let typeDisplay = 'Other';
   if (docRef.type?.coding?.[0]) {
     const code = docRef.type.coding[0].code;
+    noteType = code; // Use LOINC code directly
     typeDisplay = docRef.type.coding[0].display || typeDisplay;
-    
-    // Map LOINC code back to note type
-    for (const [key, value] of Object.entries(NOTE_TYPES || {})) {
-      if (value.code === code) {
-        noteType = key;
-        break;
-      }
-    }
   }
   
   // Extract author information
