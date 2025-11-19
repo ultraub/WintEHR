@@ -38,8 +38,9 @@ logger = logging.getLogger(__name__)
 class CDSStudioService:
     """Service for CDS Studio operations"""
 
-    def __init__(self):
+    def __init__(self, db=None):
         self.hapi_client = HAPIFHIRClient()
+        self.db = db
 
     # ========================================================================
     # Service Registry
@@ -90,8 +91,12 @@ class CDSStudioService:
                 # Get metrics from database (if available)
                 metrics = await self._get_service_metrics_summary(service_id)
 
+                # Generate stable integer ID from service_id (hash-based)
+                # For external services, use hash of UUID; for built-in, use hash of service_id
+                list_item_id = abs(hash(service_id)) % 100000
+
                 services.append(ServiceListItem(
-                    id=int(extensions.get("external-service-id", 0)) or hash(service_id) % 10000,
+                    id=list_item_id,
                     service_id=service_id,
                     title=resource.get("title", service_id),
                     hook_type=service_hook_type,
@@ -235,7 +240,7 @@ class CDSStudioService:
             )
 
             # Save to HAPI FHIR
-            created_plan_def = await self.hapi_client.create_resource("PlanDefinition", plan_def)
+            created_plan_def = await self.hapi_client.create("PlanDefinition", plan_def)
 
             # Save source code to database
             await self._save_service_source_code(
@@ -258,6 +263,10 @@ class CDSStudioService:
     async def create_external_service(self, request: CreateExternalServiceRequest) -> Dict[str, Any]:
         """
         Register an external CDS service.
+
+        Creates:
+        1. Database record in external_services.services (for execution)
+        2. PlanDefinition in HAPI FHIR (for discovery and metadata)
         """
         try:
             # Validate service ID uniqueness
@@ -265,7 +274,42 @@ class CDSStudioService:
             if existing:
                 raise ValueError(f"Service {request.service_id} already exists")
 
-            # Create PlanDefinition with external origin
+            # Generate UUIDs for external service database records
+            from sqlalchemy import text
+            external_service_uuid = str(uuid.uuid4())
+            cds_hook_uuid = str(uuid.uuid4())
+
+            # Insert into external_services.services table (parent record)
+            await self.db.execute(text("""
+                INSERT INTO external_services.services
+                (id, name, service_type, base_url, discovery_endpoint, auth_type, status, created_at)
+                VALUES (:id, :name, :service_type, :base_url, :discovery_endpoint, :auth_type, :status, NOW())
+            """), {
+                "id": external_service_uuid,
+                "name": request.title,
+                "service_type": "cds_hooks",
+                "base_url": request.base_url,
+                "discovery_endpoint": f"{request.base_url}/cds-services",
+                "auth_type": "none" if not request.credential_id else "bearer",
+                "status": "active"
+            })
+
+            # Insert into external_services.cds_hooks table (CDS Hook details)
+            await self.db.execute(text("""
+                INSERT INTO external_services.cds_hooks
+                (id, service_id, hook_type, hook_service_id, title, description, prefetch_template, created_at)
+                VALUES (:id, :service_id, :hook_type, :hook_service_id, :title, :description, :prefetch_template, NOW())
+            """), {
+                "id": cds_hook_uuid,
+                "service_id": external_service_uuid,
+                "hook_type": request.hook_type.value,
+                "hook_service_id": request.service_id,  # This is "patient-greeting"
+                "title": request.title,
+                "description": request.description,
+                "prefetch_template": json.dumps(request.prefetch_template) if request.prefetch_template else None
+            })
+
+            # Create PlanDefinition with external origin and link to database record
             plan_def = self._build_plan_definition(
                 service_id=request.service_id,
                 title=request.title,
@@ -274,18 +318,23 @@ class CDSStudioService:
                 prefetch_template=request.prefetch_template,
                 service_origin="external",
                 base_url=request.base_url,
-                credential_id=request.credential_id
+                credential_id=request.credential_id,
+                external_service_id=external_service_uuid  # Link to database record
             )
 
             # Save to HAPI FHIR
-            created_plan_def = await self.hapi_client.create_resource("PlanDefinition", plan_def)
+            created_plan_def = await self.hapi_client.create("PlanDefinition", plan_def)
+
+            await self.db.commit()
 
             return {
                 "service_id": request.service_id,
-                "plan_definition_id": created_plan_def.get("id")
+                "plan_definition_id": created_plan_def.get("id"),
+                "external_service_id": external_service_uuid
             }
 
         except Exception as e:
+            await self.db.rollback()
             logger.error(f"Failed to create external service: {e}")
             raise
 
@@ -379,14 +428,35 @@ class CDSStudioService:
     # ========================================================================
 
     async def _get_plan_definition(self, service_id: str) -> Optional[Dict[str, Any]]:
-        """Get PlanDefinition from HAPI FHIR by service ID"""
+        """
+        Get PlanDefinition from HAPI FHIR by service ID
+
+        Searches in two steps:
+        1. First try by _id (works for built-in services with matching IDs)
+        2. Fallback to searching by hook-service-id extension (works for external services)
+        """
         try:
-            # Search by service-id extension or by resource ID
+            # First attempt: Search by resource ID (built-in services)
             bundle = await self.hapi_client.search("PlanDefinition", {"_id": service_id})
             if bundle.get("total", 0) > 0:
                 return bundle["entry"][0]["resource"]
+
+            # Second attempt: Search all PlanDefinitions and filter by extension
+            # This handles external services where HAPI FHIR assigned auto-generated ID
+            all_bundle = await self.hapi_client.search("PlanDefinition", {"status": "active"})
+
+            if all_bundle.get("total", 0) > 0:
+                for entry in all_bundle.get("entry", []):
+                    resource = entry.get("resource", {})
+                    # Check extensions for hook-service-id
+                    for ext in resource.get("extension", []):
+                        if ext.get("url") == "http://wintehr.local/fhir/StructureDefinition/hook-service-id":
+                            if ext.get("valueString") == service_id:
+                                return resource
+
             return None
-        except:
+        except Exception as e:
+            logger.error(f"Error getting PlanDefinition for service_id {service_id}: {e}")
             return None
 
     def _extract_extensions(self, plan_def: Dict[str, Any]) -> Dict[str, Any]:
@@ -460,6 +530,12 @@ class CDSStudioService:
                 plan_def["extension"].append({
                     "url": "http://wintehr.local/fhir/StructureDefinition/credential-id",
                     "valueInteger": kwargs["credential_id"]
+                })
+            if kwargs.get("external_service_id"):
+                # Link to external_services.services database record
+                plan_def["extension"].append({
+                    "url": "http://wintehr.local/fhir/StructureDefinition/external-service-id",
+                    "valueString": kwargs["external_service_id"]
                 })
 
         return plan_def

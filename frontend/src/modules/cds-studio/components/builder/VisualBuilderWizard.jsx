@@ -104,6 +104,33 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
 
   const [savedServiceId, setSavedServiceId] = useState(null);
 
+  /**
+   * Format error messages for display
+   * Handles Pydantic validation errors (arrays of objects) and string errors
+   */
+  const formatError = (errorDetail) => {
+    // Handle Pydantic validation errors (array of {type, loc, msg, input})
+    if (Array.isArray(errorDetail)) {
+      return errorDetail.map(err => {
+        const location = err.loc ? err.loc.join('.') : 'unknown field';
+        return `${location}: ${err.msg}`;
+      }).join('; ');
+    }
+
+    // Handle string errors
+    if (typeof errorDetail === 'string') {
+      return errorDetail;
+    }
+
+    // Handle object errors
+    if (errorDetail && typeof errorDetail === 'object') {
+      return errorDetail.message || JSON.stringify(errorDetail);
+    }
+
+    // Fallback
+    return 'An unknown error occurred';
+  };
+
   const handleNext = async () => {
     // Validate current step before proceeding
     const validation = validateCurrentStep();
@@ -183,7 +210,8 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
       return response.data;
     } catch (err) {
       console.error('Error saving draft:', err);
-      setError(err.response?.data?.detail || 'Failed to save service');
+      const errorMessage = formatError(err.response?.data?.detail) || 'Failed to save service';
+      setError(errorMessage);
       throw err;
     } finally {
       setLoading(false);
@@ -202,16 +230,18 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
         serviceId = savedService.id;
       }
 
-      // Deploy the service
+      // Deploy the service (send empty object for ServiceDeploymentRequest)
       await axios.post(
-        `/api/cds-visual-builder/services/${serviceId}/deploy`
+        `/api/cds-visual-builder/services/${serviceId}/deploy`,
+        {}  // Required: ServiceDeploymentRequest body (deployed_by and notes are optional)
       );
 
       onSuccess?.();
       handleClose();
     } catch (err) {
       console.error('Error deploying service:', err);
-      setError(err.response?.data?.detail || 'Failed to deploy service');
+      const errorMessage = formatError(err.response?.data?.detail) || 'Failed to deploy service';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

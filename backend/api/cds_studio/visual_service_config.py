@@ -10,7 +10,7 @@ Educational notes:
 - Integrates with existing CDS hooks infrastructure
 """
 
-from sqlalchemy import Column, String, JSON, DateTime, Boolean, Text, Enum as SQLEnum
+from sqlalchemy import Column, String, JSON, DateTime, Boolean, Text, Enum as SQLEnum, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 from typing import Optional, Dict, Any, List
@@ -30,13 +30,19 @@ class ServiceStatus(str, Enum):
 
 
 class ServiceType(str, Enum):
-    """Visual service types matching frontend"""
+    """
+    Visual service types matching frontend
+
+    Note: This enum is for documentation only. The actual database field
+    is VARCHAR(100) and accepts any string value for flexibility.
+    """
     CONDITION_BASED = "condition-based"
     MEDICATION_BASED = "medication-based"
     LAB_VALUE_BASED = "lab-value-based"
     PREVENTIVE_CARE = "preventive-care"
     RISK_ASSESSMENT = "risk-assessment"
     WORKFLOW_AUTOMATION = "workflow-automation"
+    GENERAL = "general"
 
 
 class VisualServiceConfig(Base):
@@ -44,58 +50,63 @@ class VisualServiceConfig(Base):
     Database model for visual service configurations
 
     Educational aspects:
-    - Uses JSON columns for flexible schema storage
+    - Uses JSONB columns for flexible schema storage
     - Tracks creation/modification metadata
     - Supports versioning and templates
     - Links to generated Python code
-    """
-    __tablename__ = "cds_visual_service_configs"
 
-    # Primary key
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    IMPORTANT: Maps to cds_visual_builder.service_configs table
+    Created by postgres-init/06_cds_visual_builder.sql migration
+    """
+    __tablename__ = "service_configs"
+    __table_args__ = {'schema': 'cds_visual_builder'}
+
+    # Primary key - SERIAL in database (auto-incrementing integer)
+    id = Column(Integer, primary_key=True, autoincrement=True)
 
     # Service identification
     service_id = Column(String(255), unique=True, nullable=False, index=True)
-    name = Column(String(255), nullable=False)
+    name = Column(String(500), nullable=False)  # DB has VARCHAR(500)
     description = Column(Text, nullable=True)
-    version = Column(String(50), default="1.0.0")
+    version = Column(Integer, nullable=False, default=1)  # DB has INTEGER, not VARCHAR
 
     # Service type and classification
-    service_type = Column(SQLEnum(ServiceType), nullable=False, index=True)
+    service_type = Column(String(100), nullable=False, index=True)  # DB uses VARCHAR, not ENUM
     category = Column(String(100), nullable=True)
-    template_id = Column(String(100), nullable=True, index=True)
+    # Note: template_id column does NOT exist in database schema - removed
 
     # CDS Hook configuration
-    hook_type = Column(String(100), nullable=False, index=True)  # patient-view, medication-prescribe, etc.
+    hook_type = Column(String(100), nullable=False, index=True)
 
-    # Visual configuration (JSON columns)
-    conditions = Column(JSON, nullable=False)  # Nested condition structure
-    card = Column(JSON, nullable=False)  # Card design configuration
-    display_config = Column(JSON, nullable=False)  # Display behavior settings
-    prefetch = Column(JSON, nullable=True)  # FHIR prefetch templates
+    # Visual configuration (JSONB columns) - COLUMN NAME MAPPINGS
+    conditions = Column(JSON, nullable=False, server_default='[]')  # Nested condition structure
+    card_config = Column(JSON, nullable=False, name='card_config')  # DB column: card_config
+    display_config = Column(JSON, nullable=False, server_default='{}')  # Display behavior settings
+    prefetch_config = Column(JSON, nullable=True, server_default='{}', name='prefetch_config')  # DB column: prefetch_config
 
     # Generated code
-    generated_code = Column(Text, nullable=True)  # Python code for the service
-    code_hash = Column(String(64), nullable=True)  # Hash of generated code for change detection
+    generated_code = Column(Text, nullable=True)
+    code_hash = Column(String(64), nullable=True)
 
-    # Status and lifecycle
-    status = Column(SQLEnum(ServiceStatus), default=ServiceStatus.DRAFT, index=True)
-    is_active = Column(Boolean, default=False, index=True)
+    # Status and lifecycle - DB uses VARCHAR(50), not ENUM
+    status = Column(String(50), nullable=False, server_default='DRAFT', index=True)
+
+    # Note: is_active column does NOT exist in database - removed from model
 
     # Metadata
-    created_by = Column(String(100), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_by = Column(String(100), nullable=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(String(255), nullable=True)  # DB has VARCHAR(255), nullable
+    created_at = Column(DateTime(timezone=True), server_default='now()', nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default='now()', nullable=True)
 
     # Deployment tracking
-    deployed_at = Column(DateTime, nullable=True)
-    deployed_by = Column(String(100), nullable=True)
-    last_executed_at = Column(DateTime, nullable=True)
-    execution_count = Column(JSON, default=dict)  # {"total": 0, "by_date": {}}
+    last_deployed_at = Column(DateTime(timezone=True), nullable=True, name='last_deployed_at')  # DB column name
 
-    # Analytics and performance
-    analytics = Column(JSON, default=dict)  # Execution metrics, card acceptance rates, etc.
+    # Soft delete support (from DB schema)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_by = Column(String(255), nullable=True)
+
+    # Note: deployed_by, last_executed_at, execution_count, analytics columns do NOT exist in database
+    # These were in the Python model but not in the SQL migration - removed
 
     def __repr__(self):
         return f"<VisualServiceConfig(id={self.id}, service_id={self.service_id}, status={self.status})>"
@@ -178,88 +189,103 @@ class DisplayConfiguration(BaseModel):
 class VisualServiceConfigCreate(BaseModel):
     """Request model for creating a visual service configuration"""
     service_id: str = Field(..., description="Unique service identifier")
-    name: str = Field(..., description="Human-readable service name")
+    name: str = Field(..., description="Human-readable service name", max_length=500)
     description: Optional[str] = Field(None, description="Service description")
-    service_type: ServiceType = Field(..., description="Type of service")
-    category: Optional[str] = Field(None, description="Service category")
-    template_id: Optional[str] = Field(None, description="Template this was based on")
-    hook_type: str = Field(..., description="CDS Hook type")
+    service_type: str = Field(..., description="Type of service", max_length=100)  # Changed from enum to str
+    category: Optional[str] = Field(None, description="Service category", max_length=100)
+    # Note: template_id removed - not in database schema
+    hook_type: str = Field(..., description="CDS Hook type", max_length=100)
 
     conditions: List[ConditionGroup] = Field(..., description="Service conditions")
-    card: CardConfiguration = Field(..., description="Card configuration")
+    card_config: CardConfiguration = Field(..., description="Card configuration", alias="card")  # Renamed to match DB
     display_config: DisplayConfiguration = Field(..., description="Display configuration")
-    prefetch: Optional[Dict[str, str]] = Field(None, description="FHIR prefetch templates")
+    prefetch_config: Optional[Dict[str, str]] = Field(None, description="FHIR prefetch templates", alias="prefetch")  # Renamed to match DB
 
-    created_by: str = Field(..., description="User who created this")
+    created_by: Optional[str] = Field(None, description="User who created this", max_length=255)  # Made optional
+
+    class Config:
+        populate_by_name = True  # Allow both card and card_config as field names
 
 
 class VisualServiceConfigUpdate(BaseModel):
     """Request model for updating a visual service configuration"""
-    name: Optional[str] = None
+    name: Optional[str] = Field(None, max_length=500)
     description: Optional[str] = None
-    service_type: Optional[ServiceType] = None
-    category: Optional[str] = None
-    hook_type: Optional[str] = None
+    service_type: Optional[str] = Field(None, max_length=100)  # Changed from enum to str
+    category: Optional[str] = Field(None, max_length=100)
+    hook_type: Optional[str] = Field(None, max_length=100)
 
     conditions: Optional[List[ConditionGroup]] = None
-    card: Optional[CardConfiguration] = None
+    card_config: Optional[CardConfiguration] = Field(None, alias="card")  # Renamed to match DB
     display_config: Optional[DisplayConfiguration] = None
-    prefetch: Optional[Dict[str, str]] = None
+    prefetch_config: Optional[Dict[str, str]] = Field(None, alias="prefetch")  # Renamed to match DB
 
-    status: Optional[ServiceStatus] = None
-    is_active: Optional[bool] = None
+    status: Optional[str] = Field(None, max_length=50)  # Changed from enum to str
 
-    updated_by: str = Field(..., description="User making this update")
+    # Removed is_active and updated_by fields (not in DB)
+
+    class Config:
+        populate_by_name = True  # Allow both card and card_config as field names
 
 
 class VisualServiceConfigResponse(BaseModel):
     """Response model for visual service configuration"""
-    id: str
+    id: int  # Changed from str to int (SERIAL primary key)
     service_id: str
     name: str
     description: Optional[str]
-    version: str
-    service_type: ServiceType
+    version: int  # Changed from str to int
+    service_type: str  # Changed from ServiceType enum to str (DB uses VARCHAR)
     category: Optional[str]
-    template_id: Optional[str]
+    # Note: template_id removed - not in database schema
     hook_type: str
 
     conditions: List[Dict[str, Any]]
-    card: Dict[str, Any]
+    card_config: Dict[str, Any]  # Matches DB column name
     display_config: Dict[str, Any]
-    prefetch: Optional[Dict[str, str]]
+    prefetch_config: Optional[Dict[str, str]]  # Matches DB column name
 
     generated_code: Optional[str]
     code_hash: Optional[str]
 
-    status: ServiceStatus
-    is_active: bool
+    status: str  # Changed from ServiceStatus enum to str (DB uses VARCHAR)
 
-    created_by: str
-    created_at: datetime
-    updated_by: Optional[str]
-    updated_at: datetime
+    created_by: Optional[str]  # Made optional (nullable in DB)
+    created_at: Optional[datetime]  # Made optional
+    updated_at: Optional[datetime]  # Made optional
 
-    deployed_at: Optional[datetime]
-    deployed_by: Optional[str]
-    last_executed_at: Optional[datetime]
-    execution_count: Dict[str, Any]
-    analytics: Dict[str, Any]
+    last_deployed_at: Optional[datetime]  # Renamed from deployed_at
+
+    # Soft delete fields from DB
+    deleted_at: Optional[datetime]
+    deleted_by: Optional[str]
+
+    # Removed fields that don't exist in database:
+    # - is_active
+    # - updated_by
+    # - deployed_by
+    # - last_executed_at
+    # - execution_count
+    # - analytics
 
     class Config:
         orm_mode = True
 
 
 class ServiceDeploymentRequest(BaseModel):
-    """Request to deploy a visual service to production"""
-    service_id: str
-    deployed_by: str
+    """Request to deploy a visual service to production
+
+    Note: service_id comes from URL path parameter, not request body
+    """
+    deployed_by: Optional[str] = "current-user"
     notes: Optional[str] = None
 
 
 class ServiceTestRequest(BaseModel):
-    """Request to test a service with synthetic data"""
-    service_id: str
+    """Request to test a service with synthetic data
+
+    Note: service_id comes from URL path parameter, not request body
+    """
     patient_id: str
     context: Optional[Dict[str, Any]] = None
 

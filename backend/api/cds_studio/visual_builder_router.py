@@ -14,14 +14,15 @@ Educational notes:
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func
+from sqlalchemy import select, and_, or_, func, text
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import logging
 import uuid
+import json
 
 from database import get_db_session
-from api.auth.service import get_current_user
+from api.auth.service import get_current_user_or_demo
 from api.auth.models import User
 
 from .visual_service_config import (
@@ -37,9 +38,13 @@ from .visual_service_config import (
     ServiceAnalytics,
     validate_condition_structure
 )
-from .service_code_generator import ServiceCodeGenerator
-from .models import CDSHookRequest, CDSHookResponse
-from .service_registry import service_registry
+from api.cds_hooks.external_service_models import (
+    ExternalServiceRegistration,
+    ExternalServiceResponse
+)
+from api.cds_hooks.service_code_generator import ServiceCodeGenerator
+from api.cds_hooks.models import CDSHookRequest, CDSHookResponse
+from api.cds_hooks.service_registry import service_registry
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +63,7 @@ async def get_code_generator() -> ServiceCodeGenerator:
 async def create_visual_service(
     config: VisualServiceConfigCreate,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_or_demo),
     generator: ServiceCodeGenerator = Depends(get_code_generator)
 ):
     """
@@ -72,7 +77,9 @@ async def create_visual_service(
     """
     try:
         # Validate condition structure
-        is_valid, errors = validate_condition_structure(config.conditions)
+        # Convert Pydantic models to dicts for validation
+        conditions_as_dicts = [c.dict() if hasattr(c, 'dict') else c for c in config.conditions]
+        is_valid, errors = validate_condition_structure(conditions_as_dicts)
         if not is_valid:
             raise HTTPException(
                 status_code=400,
@@ -85,10 +92,10 @@ async def create_visual_service(
             "hook_type": config.hook_type,
             "name": config.name,
             "description": config.description,
-            "conditions": [c.dict() for c in config.conditions],
-            "card": config.card.dict(),
-            "display_config": config.display_config.dict(),
-            "prefetch": config.prefetch or {}
+            "conditions": [c.dict() if hasattr(c, 'dict') else c for c in config.conditions],
+            "card": config.card_config.dict() if hasattr(config.card_config, 'dict') else config.card_config,
+            "display_config": config.display_config.dict() if hasattr(config.display_config, 'dict') else config.display_config,
+            "prefetch": config.prefetch_config or {}
         }
 
         generated_code = generator.generate_service_code(
@@ -99,24 +106,20 @@ async def create_visual_service(
 
         # Create database record
         visual_service = VisualServiceConfig(
-            id=str(uuid.uuid4()),
             service_id=config.service_id,
             name=config.name,
             description=config.description,
             service_type=config.service_type,
             category=config.category,
-            template_id=config.template_id,
             hook_type=config.hook_type,
-            conditions=[c.dict() for c in config.conditions],
-            card=config.card.dict(),
-            display_config=config.display_config.dict(),
-            prefetch=config.prefetch,
+            conditions=[c.dict() if hasattr(c, 'dict') else c for c in config.conditions],
+            card_config=config.card_config.dict() if hasattr(config.card_config, 'dict') else config.card_config,
+            display_config=config.display_config.dict() if hasattr(config.display_config, 'dict') else config.display_config,
+            prefetch_config=config.prefetch_config,
             generated_code=generated_code,
             code_hash=code_hash,
-            status=ServiceStatus.DRAFT,
-            is_active=False,
-            created_by=config.created_by,
-            created_at=datetime.utcnow()
+            status='DRAFT',
+            created_by=config.created_by
         )
 
         db.add(visual_service)
@@ -144,7 +147,7 @@ async def list_visual_services(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(50, ge=1, le=100, description="Maximum number of records"),
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_or_demo)
 ):
     """
     List visual CDS service configurations with filtering
@@ -197,7 +200,7 @@ async def list_visual_services(
 async def get_visual_service(
     service_id: str,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_or_demo)
 ):
     """
     Get a specific visual CDS service configuration
@@ -233,7 +236,7 @@ async def update_visual_service(
     service_id: str,
     update: VisualServiceConfigUpdate,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_or_demo),
     generator: ServiceCodeGenerator = Depends(get_code_generator)
 ):
     """
@@ -281,32 +284,30 @@ async def update_visual_service(
             needs_code_regen = True
 
         if update.conditions is not None:
-            # Validate new conditions
-            is_valid, errors = validate_condition_structure(update.conditions)
+            # Validate new conditions (convert to dicts first)
+            conditions_as_dicts = [c.dict() if hasattr(c, 'dict') else c for c in update.conditions]
+            is_valid, errors = validate_condition_structure(conditions_as_dicts)
             if not is_valid:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Invalid condition structure: {', '.join(errors)}"
                 )
-            service.conditions = [c.dict() for c in update.conditions]
+            service.conditions = conditions_as_dicts
             needs_code_regen = True
 
-        if update.card is not None:
-            service.card = update.card.dict()
+        if update.card_config is not None:
+            service.card_config = update.card_config.dict() if hasattr(update.card_config, 'dict') else update.card_config
             needs_code_regen = True
 
         if update.display_config is not None:
-            service.display_config = update.display_config.dict()
+            service.display_config = update.display_config.dict() if hasattr(update.display_config, 'dict') else update.display_config
 
-        if update.prefetch is not None:
-            service.prefetch = update.prefetch
+        if update.prefetch_config is not None:
+            service.prefetch_config = update.prefetch_config
             needs_code_regen = True
 
         if update.status is not None:
             service.status = update.status
-
-        if update.is_active is not None:
-            service.is_active = update.is_active
 
         # Regenerate code if needed
         if needs_code_regen:
@@ -316,9 +317,9 @@ async def update_visual_service(
                 "name": service.name,
                 "description": service.description,
                 "conditions": service.conditions,
-                "card": service.card,
+                "card": service.card_config,
                 "display_config": service.display_config,
-                "prefetch": service.prefetch or {}
+                "prefetch": service.prefetch_config or {}
             }
 
             generated_code = generator.generate_service_code(
@@ -330,8 +331,7 @@ async def update_visual_service(
             service.generated_code = generated_code
             service.code_hash = code_hash
 
-        # Update metadata
-        service.updated_by = update.updated_by
+        # Update metadata (updated_at is automatically set by database)
         service.updated_at = datetime.utcnow()
 
         await db.commit()
@@ -353,7 +353,7 @@ async def update_visual_service(
 async def delete_visual_service(
     service_id: str,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_or_demo)
 ):
     """
     Delete a visual CDS service configuration
@@ -377,15 +377,16 @@ async def delete_visual_service(
             )
 
         # Prevent deletion of active services
-        if service.is_active:
+        if service.status == 'ACTIVE':
             raise HTTPException(
                 status_code=400,
                 detail="Cannot delete active service. Deactivate first."
             )
 
         # Soft delete - mark as archived
-        service.status = ServiceStatus.ARCHIVED
-        service.is_active = False
+        service.status = 'ARCHIVED'
+        service.deleted_at = datetime.utcnow()
+        service.deleted_by = current_user.id
 
         await db.commit()
 
@@ -405,7 +406,7 @@ async def delete_visual_service(
 async def get_generated_code(
     service_id: str,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_or_demo)
 ):
     """
     Get the generated Python code for a visual service
@@ -437,7 +438,7 @@ async def get_generated_code(
                 "hook_type": service.hook_type,
                 "name": service.name,
                 "description": service.description,
-                "prefetch": service.prefetch
+                "prefetch": service.prefetch_config
             },
             class_name
         )
@@ -462,7 +463,7 @@ async def get_generated_code(
 async def regenerate_service_code(
     service_id: str,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_or_demo),
     generator: ServiceCodeGenerator = Depends(get_code_generator)
 ):
     """
@@ -493,9 +494,9 @@ async def regenerate_service_code(
             "name": service.name,
             "description": service.description,
             "conditions": service.conditions,
-            "card": service.card,
+            "card": service.card_config,
             "display_config": service.display_config,
-            "prefetch": service.prefetch or {}
+            "prefetch": service.prefetch_config or {}
         }
 
         generated_code = generator.generate_service_code(
@@ -536,7 +537,7 @@ async def test_visual_service(
     service_id: str,
     test_request: ServiceTestRequest,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_or_demo)
 ):
     """
     Test a visual service with synthetic patient data
@@ -585,13 +586,16 @@ async def test_visual_service(
             # For now, simulate execution
             warnings.append("Test execution simulated - actual execution not yet implemented")
 
+            # Get card config (handle both dict and potential None)
+            card_data = service.card_config if isinstance(service.card_config, dict) else {}
+
             # Create sample card based on configuration
             cards.append({
                 "uuid": str(uuid.uuid4()),
-                "summary": service.card.get("summary", "Test card"),
-                "detail": service.card.get("detail", "This is a test execution"),
-                "indicator": service.card.get("indicator", "info"),
-                "source": service.card.get("source", {"label": service.name})
+                "summary": card_data.get("summary", "Test card"),
+                "detail": card_data.get("detail", "This is a test execution"),
+                "indicator": card_data.get("indicator", "info"),
+                "source": card_data.get("source", {"label": service.name})
             })
 
         except Exception as e:
@@ -599,14 +603,10 @@ async def test_visual_service(
 
         execution_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-        # Update execution metrics
-        if not service.execution_count:
-            service.execution_count = {"total": 0, "by_date": {}}
-
-        service.execution_count["total"] = service.execution_count.get("total", 0) + 1
-        service.last_executed_at = datetime.utcnow()
-
-        await db.commit()
+        # Note: execution_count and last_executed_at don't exist in database schema
+        # Analytics should be tracked in separate service_analytics table
+        # For now, skip metrics update
+        # await db.commit()  # No changes to commit
 
         return ServiceTestResponse(
             service_id=service_id,
@@ -632,7 +632,7 @@ async def deploy_visual_service(
     service_id: str,
     deployment: ServiceDeploymentRequest,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_or_demo)
 ):
     """
     Deploy a visual service to production
@@ -644,11 +644,25 @@ async def deploy_visual_service(
     - Validates before deployment
     """
     try:
-        query = select(VisualServiceConfig).where(
-            VisualServiceConfig.service_id == service_id
-        )
-        result = await db.execute(query)
-        service = result.scalar_one_or_none()
+        # Try to find service by ID (integer) or service_id (string)
+        # Frontend passes database ID, so try that first
+        service = None
+
+        # First attempt: treat as database ID (integer)
+        if service_id.isdigit():
+            query = select(VisualServiceConfig).where(
+                VisualServiceConfig.id == int(service_id)
+            )
+            result = await db.execute(query)
+            service = result.scalar_one_or_none()
+
+        # Second attempt: treat as service_id (string identifier)
+        if not service:
+            query = select(VisualServiceConfig).where(
+                VisualServiceConfig.service_id == service_id
+            )
+            result = await db.execute(query)
+            service = result.scalar_one_or_none()
 
         if not service:
             raise HTTPException(
@@ -663,24 +677,62 @@ async def deploy_visual_service(
                 detail="Service has no generated code"
             )
 
+        # Create PlanDefinition in HAPI FHIR for service registry integration
+        from services.hapi_fhir_client import HAPIFHIRClient
+        hapi_client = HAPIFHIRClient()
+
+        # Build PlanDefinition resource
+        plan_definition = {
+            "resourceType": "PlanDefinition",
+            "status": "active",
+            "title": service.name,
+            "description": service.description,
+            "extension": [
+                {
+                    "url": "http://wintehr.local/fhir/StructureDefinition/service-origin",
+                    "valueString": "visual-builder"
+                },
+                {
+                    "url": "http://wintehr.local/fhir/StructureDefinition/hook-type",
+                    "valueString": service.hook_type
+                },
+                {
+                    "url": "http://wintehr.local/fhir/StructureDefinition/hook-service-id",
+                    "valueString": service.service_id
+                },
+                {
+                    "url": "http://wintehr.local/fhir/StructureDefinition/visual-service-id",
+                    "valueInteger": service.id
+                },
+                {
+                    "url": "http://wintehr.local/fhir/StructureDefinition/version",
+                    "valueString": str(service.version)
+                }
+            ]
+        }
+
+        # Create or update PlanDefinition in HAPI FHIR
+        try:
+            created_plan = await hapi_client.create("PlanDefinition", plan_definition)
+            logger.info(f"Created PlanDefinition {created_plan.get('id')} for visual service {service.service_id}")
+        except Exception as e:
+            logger.error(f"Failed to create PlanDefinition: {e}")
+            # Continue deployment even if HAPI FHIR creation fails
+
         # Update deployment status
-        service.status = ServiceStatus.ACTIVE
-        service.is_active = True
-        service.deployed_at = datetime.utcnow()
-        service.deployed_by = deployment.deployed_by
+        service.status = 'ACTIVE'
+        service.last_deployed_at = datetime.utcnow()
+        # Note: deployed_by field doesn't exist in schema - using deployment notes instead
 
         await db.commit()
 
         logger.info(f"Deployed visual service: {service_id} by {deployment.deployed_by}")
 
-        # TODO: Actually register service with service_registry
-        # This would involve dynamic code execution which requires careful security
-
         return {
-            "service_id": service_id,
+            "service_id": service.service_id,
             "deployed": True,
-            "deployed_at": service.deployed_at,
-            "deployed_by": service.deployed_by,
+            "deployed_at": service.last_deployed_at,
+            "deployed_by": deployment.deployed_by,
             "status": service.status,
             "notes": deployment.notes
         }
@@ -697,7 +749,7 @@ async def deploy_visual_service(
 async def deactivate_visual_service(
     service_id: str,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_or_demo)
 ):
     """
     Deactivate a deployed visual service
@@ -720,8 +772,7 @@ async def deactivate_visual_service(
                 detail=f"Visual service '{service_id}' not found"
             )
 
-        service.status = ServiceStatus.INACTIVE
-        service.is_active = False
+        service.status = 'INACTIVE'
 
         await db.commit()
 
@@ -747,7 +798,7 @@ async def deactivate_visual_service(
 async def get_service_analytics(
     service_id: str,
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_or_demo)
 ):
     """
     Get analytics for a visual service
@@ -771,19 +822,20 @@ async def get_service_analytics(
                 detail=f"Visual service '{service_id}' not found"
             )
 
-        analytics_data = service.analytics or {}
-        execution_count = service.execution_count or {"total": 0, "by_date": {}}
+        # Note: Analytics should be fetched from service_analytics table
+        # For now, return empty analytics until we implement the analytics tracking
+        # See postgres-init/06_cds_visual_builder.sql for service_analytics schema
 
         return ServiceAnalytics(
             service_id=service_id,
-            total_executions=execution_count.get("total", 0),
-            cards_shown=analytics_data.get("cards_shown", 0),
-            cards_accepted=analytics_data.get("cards_accepted", 0),
-            cards_dismissed=analytics_data.get("cards_dismissed", 0),
-            acceptance_rate=analytics_data.get("acceptance_rate", 0.0),
-            average_execution_time_ms=analytics_data.get("avg_execution_time_ms", 0.0),
-            execution_by_date=execution_count.get("by_date", {}),
-            top_override_reasons=analytics_data.get("override_reasons", [])
+            total_executions=0,
+            cards_shown=0,
+            cards_accepted=0,
+            cards_dismissed=0,
+            acceptance_rate=0.0,
+            average_execution_time_ms=0.0,
+            execution_by_date={},
+            top_override_reasons=[]
         )
 
     except HTTPException:
@@ -791,3 +843,86 @@ async def get_service_analytics(
     except Exception as e:
         logger.error(f"Error getting service analytics: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# External Service Registration
+
+@router.post("/external-services/register", response_model=ExternalServiceResponse)
+async def register_external_service(
+    registration: ExternalServiceRegistration,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user_or_demo)
+):
+    """
+    Register an external CDS Hooks service discovered from a remote server
+
+    Educational aspects:
+    - External service integration patterns
+    - Automatic base_url derivation from full URL
+    - Multi-table storage (services + cds_hooks)
+    - Service discovery workflow
+
+    The base_url field is automatically derived from the url if not provided,
+    allowing frontends to send only the full service URL from discovery.
+
+    Example:
+        url: "https://sandbox-services.cds-hooks.org/patient-greeting"
+        → base_url: "https://sandbox-services.cds-hooks.org" (auto-derived)
+    """
+    try:
+        # Generate UUIDs for service records
+        service_uuid = str(uuid.uuid4())
+        cds_hook_uuid = str(uuid.uuid4())
+
+        # Insert into external_services.services table
+        service_insert = text("""
+            INSERT INTO external_services.services
+            (id, name, service_type, base_url, discovery_endpoint, auth_type, created_at)
+            VALUES (:id, :name, :service_type, :base_url, :discovery_endpoint, :auth_type, NOW())
+        """)
+
+        await db.execute(service_insert, {
+            "id": service_uuid,
+            "name": registration.title,
+            "service_type": "cds_hooks",
+            "base_url": registration.base_url,  # Auto-derived by Pydantic validator
+            "discovery_endpoint": f"{registration.base_url}/cds-services",
+            "auth_type": "none" if not registration.credentials_id else "bearer"
+        })
+
+        # Insert into external_services.cds_hooks table
+        cds_hook_insert = text("""
+            INSERT INTO external_services.cds_hooks
+            (id, service_id, hook_type, hook_service_id, title, description, prefetch_template, created_at)
+            VALUES (:id, :service_id, :hook_type, :hook_service_id, :title, :description, :prefetch_template, NOW())
+        """)
+
+        await db.execute(cds_hook_insert, {
+            "id": cds_hook_uuid,
+            "service_id": service_uuid,
+            "hook_type": registration.hook_type,
+            "hook_service_id": registration.service_id,
+            "title": registration.title,
+            "description": registration.description,
+            "prefetch_template": json.dumps(registration.prefetch_template) if registration.prefetch_template else None
+        })
+
+        await db.commit()
+
+        logger.info(f"Registered external CDS service: {registration.service_id} from {registration.base_url}")
+
+        return ExternalServiceResponse(
+            id=service_uuid,
+            service_id=registration.service_id,
+            title=registration.title,
+            hook_type=registration.hook_type,
+            base_url=registration.base_url,
+            url=registration.url,
+            status=registration.status,
+            created_at=datetime.utcnow()
+        )
+
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error registering external service: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to register external service: {str(e)}")

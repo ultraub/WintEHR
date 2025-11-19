@@ -1177,21 +1177,42 @@ async def execute_service(
         hapi_client = HAPIFHIRClient()
 
         # Get PlanDefinition from HAPI FHIR by ID
+        # Uses two-step lookup: first by _id, then by hook-service-id extension
+        plan_definition = None
         try:
+            # First attempt: Direct read by ID (works for built-in services)
             plan_definition = await hapi_client.read("PlanDefinition", service_id)
         except Exception as e:
-            logger.error(f"Service '{service_id}' not found in HAPI FHIR: {e}")
+            logger.info(f"Direct read failed for {service_id}, trying extension search: {e}")
+
+            # Second attempt: Search by hook-service-id extension (for external services)
+            try:
+                bundle = await hapi_client.search("PlanDefinition", {"status": "active"})
+                if bundle.get("total", 0) > 0:
+                    for entry in bundle.get("entry", []):
+                        resource = entry.get("resource", {})
+                        # Check extensions for hook-service-id
+                        for ext in resource.get("extension", []):
+                            if ext.get("url") == "http://wintehr.local/fhir/StructureDefinition/hook-service-id":
+                                if ext.get("valueString") == service_id:
+                                    plan_definition = resource
+                                    logger.info(f"Found service {service_id} via extension search")
+                                    break
+                        if plan_definition:
+                            break
+            except Exception as search_error:
+                logger.error(f"Extension search also failed for {service_id}: {search_error}")
+
+        if not plan_definition:
+            logger.error(f"Service '{service_id}' not found in HAPI FHIR")
             raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
 
-        # Extract service-origin from nested extension structure
+        # Extract service-origin from extension
+        # Current format: flat extension with service-origin URL
         service_origin = "built-in"  # Default
         for ext in plan_definition.get("extension", []):
-            if ext.get("url") == "http://wintehr.org/fhir/StructureDefinition/cds-hooks-service":
-                # Look for origin in nested extensions
-                for nested_ext in ext.get("extension", []):
-                    if nested_ext.get("url") == "origin":
-                        service_origin = nested_ext.get("valueString", "built-in")
-                        break
+            if ext.get("url") == "http://wintehr.local/fhir/StructureDefinition/service-origin":
+                service_origin = ext.get("valueString", "built-in")
                 break
 
         logger.info(f"Service {service_id} has origin: {service_origin}")
@@ -1218,12 +1239,22 @@ async def execute_service(
                 logger.error(f"External service {service_id} missing external-service-id extension")
                 raise HTTPException(status_code=500, detail="Invalid external service configuration")
 
-            # Query external service metadata
+            # Query external service metadata (join with cds_hooks to build service URL)
             query = text("""
-                SELECT id, base_url, auth_type, credentials_encrypted, auto_disabled,
-                       consecutive_failures, last_error_message
-                FROM external_services.services
-                WHERE id = :service_id
+                SELECT
+                    s.id,
+                    s.base_url,
+                    s.auth_type,
+                    s.credentials_encrypted,
+                    s.auto_disabled,
+                    s.consecutive_failures,
+                    s.last_error_message,
+                    h.hook_service_id,
+                    s.base_url || '/cds-services/' || h.hook_service_id AS service_url
+                FROM external_services.services s
+                JOIN external_services.cds_hooks h ON s.id = h.service_id
+                WHERE s.id = :service_id
+                LIMIT 1
             """)
             result = await db.execute(query, {"service_id": external_service_id})
             service_metadata = result.mappings().first()
@@ -1237,6 +1268,42 @@ async def execute_service(
                 plan_definition,
                 request,
                 service_metadata=dict(service_metadata)
+            )
+            cards = response.cards
+
+        elif service_origin == "visual-builder":
+            # Use VisualServiceProvider for visual builder services
+            # Get visual service ID from PlanDefinition extension
+            visual_service_id = _extract_extension_value(
+                plan_definition,
+                "http://wintehr.local/fhir/StructureDefinition/visual-service-id"
+            )
+
+            if not visual_service_id:
+                logger.error(f"Visual service {service_id} missing visual-service-id extension")
+                raise HTTPException(status_code=500, detail="Invalid visual service configuration")
+
+            # Query visual service configuration
+            from api.cds_studio.visual_service_config import VisualServiceConfig
+            from sqlalchemy import select
+
+            query = select(VisualServiceConfig).where(
+                VisualServiceConfig.id == int(visual_service_id)
+            )
+            result = await db.execute(query)
+            visual_config = result.scalar_one_or_none()
+
+            if not visual_config:
+                logger.error(f"Visual service configuration not found: {visual_service_id}")
+                raise HTTPException(status_code=500, detail="Visual service not configured")
+
+            # Execute visual service
+            from api.cds_studio.visual_service_provider import VisualServiceProvider
+            provider = VisualServiceProvider(db)
+            response = await provider.execute(
+                visual_config,
+                request,
+                plan_definition
             )
             cards = response.cards
 

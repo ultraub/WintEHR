@@ -38,9 +38,9 @@ router = APIRouter(prefix="/api/cds-studio", tags=["cds-studio"])
 
 
 # Dependency injection
-def get_studio_service() -> CDSStudioService:
-    """Get CDS Studio service instance"""
-    return CDSStudioService()
+async def get_studio_service(db: AsyncSession = Depends(get_db_session)) -> CDSStudioService:
+    """Get CDS Studio service instance with database session"""
+    return CDSStudioService(db)
 
 
 # ============================================================================

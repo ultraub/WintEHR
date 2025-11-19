@@ -6,7 +6,7 @@ Pydantic models for CDS Studio API requests and responses.
 
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from enum import Enum
 
 
@@ -15,6 +15,7 @@ class ServiceOrigin(str, Enum):
     BUILT_IN = "built-in"
     EXTERNAL = "external"
     CUSTOM = "custom"
+    VISUAL_BUILDER = "visual-builder"
 
 
 class ServiceStatus(str, Enum):
@@ -124,12 +125,30 @@ class CreateExternalServiceRequest(BaseModel):
     hook_type: HookType
     title: str
     description: Optional[str] = None
-    base_url: str
+    url: str = Field(..., description="Full service URL from discovery")
+    base_url: Optional[str] = Field(None, description="Base URL (auto-derived from url if not provided)")
     credential_id: Optional[int] = Field(
         None,
         description="ID of credential to use (or None for no auth)"
     )
     prefetch_template: Optional[Dict[str, str]] = None
+    status: Optional[str] = Field("draft", description="Service status")
+    version_notes: Optional[str] = Field(None, description="Version or import notes")
+
+    @validator('base_url', always=True)
+    def derive_base_url(cls, v, values):
+        """
+        Automatically derive base_url from url if not provided
+
+        Example:
+            url: "https://sandbox-services.cds-hooks.org/patient-greeting"
+            base_url: "https://sandbox-services.cds-hooks.org" (auto-derived)
+        """
+        if v is None and 'url' in values:
+            from urllib.parse import urlparse
+            parsed = urlparse(values['url'])
+            return f"{parsed.scheme}://{parsed.netloc}"
+        return v
 
 
 # ============================================================================

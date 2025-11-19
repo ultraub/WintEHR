@@ -89,8 +89,7 @@ def register_all_routers(app: FastAPI) -> None:
     # 5. Integration Services
     try:
         from api.cds_hooks.cds_hooks_router import router as cds_hooks_router
-        from api.cds_hooks.service_executor_router import router as cds_executor_router
-        from api.cds_hooks.visual_builder_router import router as visual_builder_router
+        from api.cds_studio.visual_builder_router import router as visual_builder_router
         from api.ui_composer import router as ui_composer_router
         from api.websocket.websocket_router import router as websocket_router
         from api.websocket.monitoring import router as websocket_monitoring_router
@@ -100,7 +99,6 @@ def register_all_routers(app: FastAPI) -> None:
         from api.cds_studio.router import router as cds_studio_router
 
         app.include_router(cds_hooks_router, prefix="/api", tags=["CDS Hooks"])
-        app.include_router(cds_executor_router, prefix="/api", tags=["CDS Service Executor"])
         app.include_router(visual_builder_router, tags=["CDS Visual Builder"])
         app.include_router(ui_composer_router, tags=["UI Composer"])
         app.include_router(websocket_router, prefix="/api", tags=["WebSocket"])
@@ -110,13 +108,6 @@ def register_all_routers(app: FastAPI) -> None:
         app.include_router(external_services_router, tags=["External Services"])
         app.include_router(cds_studio_router, tags=["CDS Management Studio"])
 
-        # CDS Hooks v2.0 Complete Implementation
-        try:
-            from api.cds_hooks.cds_hooks_v2_complete import router as cds_hooks_v2_router
-            app.include_router(cds_hooks_v2_router, prefix="/api", tags=["CDS Hooks v2.0"])
-            logger.info("✓ CDS Hooks v2.0 router registered")
-        except Exception as v2_error:
-            logger.warning(f"CDS Hooks v2.0 router not available: {v2_error}")
 
         logger.info("✓ Integration service routers registered")
     except Exception as e:
