@@ -115,7 +115,7 @@ const useChartReviewResources = (patientId, options = {}) => {
         const directSearchPromises = allResourceTypes.map(async (type) => {
           try {
             const searchParams = { patient: patientId };
-            
+
             if (type === 'Observation') {
               searchParams._count = '200';
               searchParams._sort = '-date';
@@ -131,14 +131,19 @@ const useChartReviewResources = (patientId, options = {}) => {
             } else {
               searchParams._count = '100';
             }
-            
+
             return await contextRefs.current.searchFHIRResources(type, searchParams);
           } catch (err) {
+            console.warn(`[useChartReviewResources] Failed to search ${type}:`, err);
             return [];
           }
         });
-        
+
+        // Wait for all searches to complete before proceeding
         await Promise.allSettled(directSearchPromises);
+
+        // Small delay to ensure cache is fully updated (fixes race condition)
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
 
       // Enhanced resource retrieval with fallback mechanism

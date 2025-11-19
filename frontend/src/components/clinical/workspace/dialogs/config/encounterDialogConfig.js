@@ -145,7 +145,7 @@ export const parseResource = (encounter) => {
       reasonForVisit: '',
       chiefComplaint: '',
       provider: '',
-      location: 'main-clinic',
+      location: '', // Made optional - no default location to avoid referencing non-existent Location resources
       scheduledDate: new Date().toISOString().split('T')[0],
       scheduledTime: new Date().toTimeString().split(' ')[0].slice(0, 5),
       duration: 30,
@@ -163,7 +163,7 @@ export const parseResource = (encounter) => {
     reasonForVisit: encounter.reason?.[0]?.text || encounter.reasonCode?.[0]?.text || '',
     chiefComplaint: encounter.reason?.[0]?.coding?.[0]?.display || encounter.reasonCode?.[0]?.coding?.[0]?.display || '',
     provider: encounter.participant?.find(p => p.type?.[0]?.coding?.[0]?.code === 'ATND')?.individual?.display || '',
-    location: encounter.location?.[0]?.location?.display || 'main-clinic',
+    location: encounter.location?.[0]?.location?.display || '', // Only set if exists in encounter
     scheduledDate: encounter.period?.start ? new Date(encounter.period.start).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     scheduledTime: encounter.period?.start ? new Date(encounter.period.start).toTimeString().split(' ')[0].slice(0, 5) : new Date().toTimeString().split(' ')[0].slice(0, 5),
     duration: encounter.period?.end && encounter.period?.start ? 
@@ -373,7 +373,7 @@ export const initialValues = {
   reasonForVisit: '',
   chiefComplaint: '',
   provider: '',
-  location: 'main-clinic',
+  location: '', // Made optional - no default location to avoid referencing non-existent Location resources
   scheduledDate: new Date().toISOString().split('T')[0],
   scheduledTime: new Date().toTimeString().split(' ')[0].slice(0, 5),
   duration: 30,

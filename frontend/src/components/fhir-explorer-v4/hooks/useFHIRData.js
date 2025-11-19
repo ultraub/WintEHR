@@ -84,24 +84,31 @@ export const useFHIRData = () => {
             // Use context search if available
             let result;
             if (context && context.searchResources) {
-              result = await context.searchResources(resourceType, { _count: 20, _summary: 'count' });
+              // Use _summary=count to get accurate total without retrieving resources
+              result = await context.searchResources(resourceType, { _summary: 'count' });
             } else {
               // Fallback if context not available
               console.warn(`FHIRResourceContext not available for ${resourceType}, falling back to empty result`);
               result = { resources: [], total: 0, bundle: { entry: [] } };
             }
-            
+
             const total = result.total || 0;
-            const entries = result.bundle?.entry || result.resources?.map(r => ({ resource: r })) || [];
-            
+
+            // If we got a count, fetch a small sample separately for display purposes
+            let sampleResources = [];
+            if (total > 0 && context && context.searchResources) {
+              const sampleResult = await context.searchResources(resourceType, { _count: 10 });
+              sampleResources = sampleResult.resources || [];
+            }
+
             metadata[resourceType] = {
               total,
-              sample: entries.length,
+              sample: sampleResources.length,
               lastUpdated: new Date().toISOString()
             };
 
             // Store sample resources for quick access
-            resources[resourceType] = entries.map(entry => entry.resource || entry);
+            resources[resourceType] = sampleResources;
           } catch (err) {
             console.warn(`Failed to load ${resourceType}:`, err);
             metadata[resourceType] = { total: 0, sample: 0, error: err.message };
