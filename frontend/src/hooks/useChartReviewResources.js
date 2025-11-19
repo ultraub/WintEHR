@@ -98,20 +98,26 @@ const useChartReviewResources = (patientId, options = {}) => {
       setError(null);
 
       // Enhanced data loading strategy to fix hard refresh and resource limit issues
-      
+
       // Check cache warmth for all resource types we need
       const allResourceTypes = ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Immunization', 'Observation', 'Procedure', 'Encounter', 'CarePlan', 'DocumentReference'];
-      const isWarm = contextRefs.current.isCacheWarm(patientId, allResourceTypes);
-      
-      // Force comprehensive data loading on hard refresh or when cache is cold
-      if (!isWarm) {
+
+      // OPTIMIZATION: Check cache warmth with a minimum threshold to avoid redundant fetches
+      // after setCurrentPatient has already loaded critical data via fetchPatientEverything
+      const criticalTypes = ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Observation', 'Encounter'];
+      const hasCriticalData = contextRefs.current.isCacheWarm(patientId, criticalTypes);
+
+      // Only fetch if we don't have critical data - this prevents redundant $everything calls
+      // after setCurrentPatient has already loaded core resources
+      if (!hasCriticalData) {
         try {
           await contextRefs.current.fetchPatientBundle(patientId, false, 'all');
         } catch (bundleError) {
           // Silently fallback to individual resource fetches
         }
-        
-        // Direct search fallback for comprehensive coverage
+
+        // Direct search fallback for comprehensive coverage (only when cache is cold)
+        // This ensures we get ALL resources, not just the limited set from fetchPatientEverything
         const directSearchPromises = allResourceTypes.map(async (type) => {
           try {
             const searchParams = { patient: patientId };
@@ -127,7 +133,7 @@ const useChartReviewResources = (patientId, options = {}) => {
               searchParams._sort = '-recorded-date';
             } else if (type === 'MedicationRequest') {
               searchParams._count = '100';
-              searchParams._sort = '-authored';
+              searchParams._sort = '-authoredon';
             } else {
               searchParams._count = '100';
             }

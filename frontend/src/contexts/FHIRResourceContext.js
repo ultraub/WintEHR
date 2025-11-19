@@ -1113,7 +1113,7 @@ export function FHIRResourceProvider({ children }) {
               params.set('_sort', '-date');
               params.set('_count', priority === 'all' ? '100' : '10');
             } else if (resourceType === 'MedicationRequest') {
-              params.set('_sort', '-authored');
+              params.set('_sort', '-authoredon');
               // Increased count for comprehensive medication history
               if (priority === 'all') {
                 params.set('_count', '100');
@@ -1382,7 +1382,7 @@ export function FHIRResourceProvider({ children }) {
                 params.append('_sort', '-recorded-date');
               } else if (resourceType === 'MedicationRequest') {
                 params.append('_count', '50'); // Get all medications
-                params.append('_sort', '-authored');
+                params.append('_sort', '-authoredon');
               } else if (resourceType === 'AllergyIntolerance') {
                 params.append('_count', '20'); // Get all allergies
                 params.append('_sort', '-date');
@@ -1559,7 +1559,7 @@ export function FHIRResourceProvider({ children }) {
             params._sort = '-date';
             break;
           case 'MedicationRequest':
-            params._sort = '-authored';
+            params._sort = '-authoredon';
             break;
           case 'Condition':
             params._sort = '-recorded-date';
@@ -1813,7 +1813,7 @@ export function usePatientResources(patientId, resourceType = null) {
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
         params.date = `ge${sixMonthsAgo.toISOString().split('T')[0]}`;
       } else if (resourceType === 'MedicationRequest') {
-        params._sort = '-authored';
+        params._sort = '-authoredon';
         params.status = 'active,on-hold'; // Only active medications
       } else if (resourceType === 'Condition') {
         params._sort = '-recorded-date';

@@ -191,7 +191,7 @@ export const OrderProvider = ({ children }) => {
       const result = await fhirClient.search('ServiceRequest', {
         patient: patientId,
         status: 'active,on-hold',
-        _sort: '-authored'
+        _sort: '-authoredon'
       });
       
       const orders = (result.resources || []).map(transformFHIRServiceRequest);

@@ -46,7 +46,7 @@ export function useSummaryResources(patientId) {
           patient: patientId,
           status: 'active,on-hold',
           _count: 10,
-          _sort: '-authored'
+          _sort: '-authoredon'
         }),
         
         // All allergies (usually few)
@@ -117,7 +117,7 @@ export function useChartReviewResources(patientId) {
       searchResources('MedicationRequest', {
         patient: patientId,
         _count: 20,
-        _sort: '-authored'
+        _sort: '-authoredon'
       }),
       
       // All allergies
@@ -226,7 +226,7 @@ export function useOrdersResources(patientId) {
         patient: patientId,
         status: 'draft,active,on-hold',
         _count: 20,
-        _sort: '-authored'
+        _sort: '-authoredon'
       }),
       
       // Pending medication orders
@@ -234,7 +234,7 @@ export function useOrdersResources(patientId) {
         patient: patientId,
         status: 'draft,on-hold',
         _count: 10,
-        _sort: '-authored'
+        _sort: '-authoredon'
       })
     ]);
   }, [patientId, searchResources]);
@@ -273,7 +273,7 @@ export function useMedicationsResources(patientId) {
       searchWithInclude('MedicationRequest', {
         patient: patientId,
         _count: 30,
-        _sort: '-authored'
+        _sort: '-authoredon'
       }, ['MedicationRequest:medication']),
       
       // Medication statements (patient reported)

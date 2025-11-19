@@ -94,7 +94,7 @@ const searchServiceRequests = async (query) => {
     // Search for services from existing ServiceRequest resources
     const searchParams = {
       _count: 100,
-      _sort: '-authored'
+      _sort: '-authoredon'
     };
     
     if (query) {
@@ -387,7 +387,7 @@ const ServiceRequestDialogEnhanced = ({
     try {
       const recentRequests = await fhirClient.search('ServiceRequest', {
         _count: 100,
-        _sort: '-authored',
+        _sort: '-authoredon',
         status: 'active,completed',
       });
 

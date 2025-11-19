@@ -1380,18 +1380,19 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
     const paramStrings = parameters
       .filter(p => p.key && p.value)
       .map(p => {
-        let paramStr = p.key;
-        
-        // Add modifier if present
+        let paramName = p.key;
+        let modifier = '';
+
+        // Add modifier if present (don't encode the colon - it's part of FHIR syntax)
         if (p.modifier) {
           const paramConfig = FHIR_RESOURCES[resource]?.searchParams?.[p.key] || SPECIAL_FHIR_PARAMS[p.key];
           const paramType = paramConfig?.type || 'string';
           const modifierSymbol = SEARCH_MODIFIERS[paramType]?.[p.modifier]?.symbol;
           if (modifierSymbol) {
-            paramStr += modifierSymbol;
+            modifier = modifierSymbol;  // Keep modifier separate to avoid encoding the colon
           }
         }
-        
+
         // Build value with comparator
         let value = p.value;
         if (p.comparator && p.comparator !== 'eq') {
@@ -1400,8 +1401,9 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
             value = comparatorSymbol + value;
           }
         }
-        
-        return `${encodeURIComponent(paramStr)}=${encodeURIComponent(value)}`;
+
+        // Only encode the parameter name and value, not the modifier (colon)
+        return `${encodeURIComponent(paramName)}${modifier}=${encodeURIComponent(value)}`;
       });
     
     if (paramStrings.length > 0) {
