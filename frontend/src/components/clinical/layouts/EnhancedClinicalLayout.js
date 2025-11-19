@@ -38,12 +38,12 @@ const MODULES = {
   timeline: { id: 'timeline', label: 'Timeline', index: 9 }
 };
 
-const EnhancedClinicalLayout = ({ 
+const EnhancedClinicalLayout = ({
   children,
   activeModule = 'summary',
   onModuleChange,
   subContext = null,
-  department = 'Emergency',
+  department = 'Clinic',
   shift = 'Day',
   navigationContext = {}
 }) => {

@@ -6,6 +6,7 @@ import React, { createContext, useContext, useState } from 'react';
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { useClinical } from './ClinicalContext';
 import { useFHIRResource } from './FHIRResourceContext';
+import { useAuth } from './AuthContext';
 import api from '../services/api';
 
 const OrderContext = createContext(undefined);
@@ -21,6 +22,7 @@ export const useOrders = () => {
 export const OrderProvider = ({ children }) => {
   const { currentPatient, currentEncounter } = useClinical();
   const { refreshPatientResources } = useFHIRResource();
+  const { user } = useAuth();
   const [activeOrders, setActiveOrders] = useState([]);
   const [pendingOrders] = useState([]);
   const [orderSets, setOrderSets] = useState([]);
@@ -275,6 +277,7 @@ export const OrderProvider = ({ children }) => {
         priority: orderDetails.priority || 'routine',
         code: orderDetails.code,
         display: orderDetails.name || orderDetails.display,
+        requester: user?.id, // Set requester to current user's ID (matches Practitioner ID)
         medicationDetails: {
           medicationName: orderDetails.name,
           dosage: orderDetails.dosage,
@@ -366,6 +369,7 @@ export const OrderProvider = ({ children }) => {
         priority: orderDetails.priority || 'routine',
         code: orderDetails.code,
         display: orderDetails.name || orderDetails.display,
+        requester: user?.id, // Set requester to current user's ID (matches Practitioner ID)
         specimen: orderDetails.specimen,
         instructions: orderDetails.instructions,
         reason: orderDetails.reason
@@ -404,6 +408,7 @@ export const OrderProvider = ({ children }) => {
         priority: orderDetails.priority || 'routine',
         code: orderDetails.code,
         display: orderDetails.name || orderDetails.display,
+        requester: user?.id, // Set requester to current user's ID (matches Practitioner ID)
         bodySite: orderDetails.bodySite,
         instructions: orderDetails.instructions,
         reason: orderDetails.reason
