@@ -20,10 +20,6 @@ import {
   IconButton,
   Tooltip,
   Button,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
   Tab,
   Tabs,
   Alert
@@ -32,16 +28,12 @@ import {
   Close as CloseIcon,
   Edit as EditIcon,
   LocalHospital as HospitalIcon,
-  Person as PersonIcon,
   Schedule as ScheduleIcon,
   Assignment as AssignmentIcon,
-  Medication as MedicationIcon,
-  Science as ScienceIcon,
   Add as AddIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { fhirClient } from '../core/fhir/services/fhirClient';
-import api from '../services/api';
 
 function TabPanel({ children, value, index, ...other }) {
   return (

@@ -2,53 +2,35 @@
  * PatientSummaryV4 Component
  * Beautiful, modern patient summary with clinical workspace integration
  */
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Grid,
   Paper,
   Typography,
-  Card,
-  CardContent,
   Button,
   Chip,
   Stack,
   Alert,
   CircularProgress,
-  IconButton,
   Avatar,
   List,
   ListItem,
   ListItemText,
-  ListItemIcon,
-  Divider,
-  Badge,
-  Fab,
   useTheme,
-  alpha,
-  Tooltip
+  alpha
 } from '@mui/material';
 import {
-  Person as PersonIcon,
   Assignment as WorkspaceIcon,
   LocalHospital as ConditionIcon,
   Medication as MedicationIcon,
   Warning as WarningIcon,
   Science as LabIcon,
   MonitorHeart as VitalsIcon,
-  Phone as PhoneIcon,
-  Email as EmailIcon,
-  Home as AddressIcon,
   Edit as EditIcon,
   Timeline as TimelineIcon,
-  EventNote as EncounterIcon,
-  CalendarToday as CalendarIcon,
-  Star as StarIcon,
-  Launch as LaunchIcon,
-  Psychology as CDSIcon,
-  Info as InfoIcon,
-  Error as ErrorIcon
+  EventNote as EncounterIcon
 } from '@mui/icons-material';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';

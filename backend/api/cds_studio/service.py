@@ -28,8 +28,8 @@ from .models import (
     RollbackRequest,
     ServiceOrigin,
     ServiceStatus,
-    HookType
 )
+from api.cds_hooks.models import HookType  # Canonical source
 from services.hapi_fhir_client import HAPIFHIRClient
 
 logger = logging.getLogger(__name__)

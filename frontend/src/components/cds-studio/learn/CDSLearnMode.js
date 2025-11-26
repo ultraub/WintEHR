@@ -15,7 +15,6 @@ import {
   Alert
 } from '@mui/material';
 import {
-  School as LearnIcon,
   PlayArrow as StartIcon
 } from '@mui/icons-material';
 

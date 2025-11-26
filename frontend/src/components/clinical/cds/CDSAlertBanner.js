@@ -13,13 +13,11 @@ import {
   Badge,
   Tooltip,
   Stack,
-  Divider,
   Alert,
   Button
 } from '@mui/material';
 import {
   Notifications as NotificationsIcon,
-  Close as CloseIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Warning as WarningIcon,
@@ -27,7 +25,7 @@ import {
   Info as InfoIcon
 } from '@mui/icons-material';
 import CDSCard from './CDSCard';
-import { useCDS, CDS_HOOK_TYPES } from '../../../contexts/CDSContext';
+import { useCDS } from '../../../contexts/CDSContext';
 import { useClinical } from '../../../contexts/ClinicalContext';
 
 const CDSAlertBanner = ({ hookType = 'patient-view' }) => {

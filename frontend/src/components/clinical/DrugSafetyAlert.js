@@ -19,7 +19,6 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Divider,
   Paper
 } from '@mui/material';
 import {
@@ -27,7 +26,6 @@ import {
   Warning as WarningIcon,
   Error as ErrorIcon,
   Info as InfoIcon,
-  CheckCircle as CheckIcon,
   LocalPharmacy as PharmacyIcon,
   Healing as AllergyIcon,
   Block as ContraindicationIcon,

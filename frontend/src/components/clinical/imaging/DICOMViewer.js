@@ -15,7 +15,6 @@ import {
   CircularProgress,
   Alert,
   ButtonGroup,
-  Button,
   FormControl,
   InputLabel,
   Select,
@@ -31,9 +30,6 @@ import {
   Pause as PauseIcon,
   SkipPrevious as PrevIcon,
   SkipNext as NextIcon,
-  Fullscreen as FullscreenIcon,
-  GetApp as DownloadIcon,
-  Settings as SettingsIcon,
   Info as InfoIcon,
   Close as CloseIcon
 } from '@mui/icons-material';

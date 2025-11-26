@@ -14,9 +14,7 @@ import {
   Tooltip,
   Popover,
   Typography,
-  Divider,
   Button,
-  Alert,
   useTheme,
   alpha,
   Collapse,
@@ -31,17 +29,15 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
-import { useCDS, CDS_HOOK_TYPES } from '../../../contexts/CDSContext';
+import { useCDS } from '../../../contexts/CDSContext';
 import { useClinical } from '../../../contexts/ClinicalContext';
-import CDSCard from './CDSCard';
-import CDSPresentation, { PRESENTATION_MODES } from './CDSPresentation';
 
 const CDSAlertPills = ({ maxVisible = 3, hookType = 'patient-view' }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
   const [expandedCard, setExpandedCard] = useState(null);
   const { currentPatient } = useClinical();
-  const { getAlerts, loading: allLoading, executeCDSHooks } = useCDS();
+  const { getAlerts, loading: allLoading } = useCDS();
   const loading = allLoading[hookType] || false;
   
   // Get alerts from CDSContext

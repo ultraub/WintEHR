@@ -15,7 +15,6 @@ import {
   ToggleButtonGroup,
   useTheme,
   alpha,
-  Grid,
   Card,
   CardContent,
   CardActionArea
@@ -29,8 +28,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
-  Legend,
-  AreaChart
+  Legend
 } from 'recharts';
 import { format, parseISO, subDays, isWithinInterval } from 'date-fns';
 import {

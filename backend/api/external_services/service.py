@@ -25,6 +25,7 @@ from shared.exceptions import (
     FHIRConnectionError,
     FHIRResourceNotFoundError,
 )
+from api.cds_hooks.constants import ExtensionURLs
 
 from .models import (
     ExternalServiceCreate,
@@ -199,13 +200,13 @@ class ExternalServiceRegistry:
                 "usage": f"CDS Hooks service: {cds_config.hook_type}",
                 # Store service metadata in extension
                 "extension": [{
-                    "url": "http://wintehr.com/fhir/StructureDefinition/external-service",
+                    "url": ExtensionURLs.EXTERNAL_SERVICE,
                     "valueString": service_id
                 }, {
-                    "url": "http://wintehr.com/fhir/StructureDefinition/hook-type",
+                    "url": ExtensionURLs.HOOK_TYPE,
                     "valueString": cds_config.hook_type
                 }, {
-                    "url": "http://wintehr.com/fhir/StructureDefinition/hook-service-id",
+                    "url": ExtensionURLs.HOOK_SERVICE_ID,
                     "valueString": cds_config.hook_service_id
                 }],
                 # Store prefetch template in extension
@@ -222,7 +223,7 @@ class ExternalServiceRegistry:
             # Add prefetch template if provided
             if cds_config.prefetch_template:
                 plan_definition["extension"].append({
-                    "url": "http://wintehr.com/fhir/StructureDefinition/prefetch-template",
+                    "url": ExtensionURLs.PREFETCH_TEMPLATE,
                     "valueString": json.dumps(cds_config.prefetch_template)
                 })
 
@@ -284,7 +285,7 @@ class ExternalServiceRegistry:
                     "header": []
                 },
                 "extension": [{
-                    "url": "http://wintehr.com/fhir/StructureDefinition/external-service",
+                    "url": ExtensionURLs.EXTERNAL_SERVICE,
                     "valueString": service_id
                 }]
             }

@@ -30,10 +30,7 @@ import {
   Add as AddIcon,
   Refresh as RefreshIcon,
   People as PeopleIcon,
-  PersonSearch as PersonSearchIcon,
-  Download as DownloadIcon,
-  ViewList as ViewListIcon,
-  GridView as GridViewIcon
+  Download as DownloadIcon
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { format } from 'date-fns';

@@ -16,6 +16,8 @@ import asyncio
 
 from services.hapi_fhir_client import HAPIFHIRClient
 from .models import CDSService, CDSServicesResponse, CDSHookResponse, Card
+from .constants import ExtensionURLs
+from .utils import extract_extension_value
 
 logger = logging.getLogger(__name__)
 
@@ -95,16 +97,16 @@ class HAPICDSIntegrator:
             CDSService object
         """
         # Extract service ID from extensions or use PlanDefinition ID
-        service_id = self._extract_extension_value(
+        service_id = extract_extension_value(
             plan_def,
-            "http://wintehr.com/fhir/StructureDefinition/cds-hooks-service-id",
+            ExtensionURLs.SERVICE_ID,
             plan_def.get("id")
         )
 
         # Extract hook type from extensions
-        hook_type = self._extract_extension_value(
+        hook_type = extract_extension_value(
             plan_def,
-            "http://wintehr.com/fhir/StructureDefinition/cds-hooks-hook-type",
+            ExtensionURLs.HOOK_TYPE,
             "patient-view"  # Default
         )
 
@@ -120,36 +122,6 @@ class HAPICDSIntegrator:
             prefetch=prefetch,
             usageRequirements=plan_def.get("usage", "")
         )
-
-    def _extract_extension_value(
-        self,
-        resource: Dict[str, Any],
-        url: str,
-        default: Any = None
-    ) -> Any:
-        """
-        Extract value from FHIR extension
-
-        Args:
-            resource: FHIR resource with extensions
-            url: Extension URL to find
-            default: Default value if extension not found
-
-        Returns:
-            Extension value or default
-        """
-        extensions = resource.get("extension", [])
-        for ext in extensions:
-            if ext.get("url") == url:
-                # Try different value types
-                return (
-                    ext.get("valueString") or
-                    ext.get("valueBoolean") or
-                    ext.get("valueCode") or
-                    ext.get("valueInteger") or
-                    default
-                )
-        return default
 
     def _build_prefetch_from_action(self, plan_def: Dict[str, Any]) -> Dict[str, str]:
         """
@@ -260,9 +232,9 @@ class HAPICDSIntegrator:
             # Find matching service
             for entry in bundle.get("entry", []):
                 plan_def = entry.get("resource", {})
-                plan_def_service_id = self._extract_extension_value(
+                plan_def_service_id = extract_extension_value(
                     plan_def,
-                    "http://wintehr.com/fhir/StructureDefinition/cds-hooks-service-id"
+                    ExtensionURLs.SERVICE_ID
                 )
 
                 if plan_def_service_id == service_id:

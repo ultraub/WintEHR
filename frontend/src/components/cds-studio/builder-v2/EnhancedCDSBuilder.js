@@ -42,8 +42,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Tooltip,
-  Badge,
   useTheme
 } from '@mui/material';
 import {
@@ -77,7 +75,6 @@ import PrefetchQueryBuilder from '../../clinical/workspace/cds/PrefetchQueryBuil
 import CDSCardDisplay from '../../clinical/workspace/cds/CDSCardDisplay';
 
 // Import services
-import { cdsHooksClient } from '../../../services/cdsHooksClient';
 import { cdsHooksService } from '../../../services/cdsHooksService';
 import { catalogIntegrationService } from '../../../services/CatalogIntegrationService';
 

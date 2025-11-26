@@ -39,6 +39,7 @@ from services.hapi_fhir_client import HAPIFHIRClient
 # v3.0 Architecture imports
 from api.cds_hooks.registry import get_registry, ServiceRegistry
 from api.cds_hooks.services import register_builtin_services
+from api.cds_hooks.constants import ExtensionURLs, PlanDefinitionURLs
 
 logging.basicConfig(
     level=logging.INFO,
@@ -198,7 +199,7 @@ class CDSToPlanDefinitionMigrator:
         # Build PlanDefinition
         plan_definition = {
             "resourceType": "PlanDefinition",
-            "url": f"http://wintehr.com/fhir/PlanDefinition/{service_id}",
+            "url": PlanDefinitionURLs.get_service_url(service_id),
             "version": "1.0.0",
             "name": service_id.replace('-', '_'),
             "title": title,
@@ -220,11 +221,11 @@ class CDSToPlanDefinitionMigrator:
             # Extensions for CDS Hooks metadata
             "extension": [
                 {
-                    "url": "http://wintehr.com/fhir/StructureDefinition/cds-hooks-service-id",
+                    "url": ExtensionURLs.SERVICE_ID,
                     "valueString": service_id
                 },
                 {
-                    "url": "http://wintehr.com/fhir/StructureDefinition/cds-hooks-hook-type",
+                    "url": ExtensionURLs.HOOK_TYPE,
                     "valueString": hook_type
                 }
             ],

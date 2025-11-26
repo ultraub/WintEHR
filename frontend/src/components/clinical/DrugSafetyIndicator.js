@@ -15,7 +15,6 @@ import {
   Paper,
   Typography,
   Button,
-  Collapse,
   List,
   ListItem,
   ListItemIcon,
@@ -28,7 +27,6 @@ import {
   Warning as WarningIcon,
   Error as DangerIcon,
   Info as InfoIcon,
-  ExpandMore as ExpandIcon,
   Refresh as RefreshIcon,
   Visibility as ViewIcon
 } from '@mui/icons-material';

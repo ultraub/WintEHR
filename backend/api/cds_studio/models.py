@@ -9,6 +9,9 @@ from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field, validator
 from enum import Enum
 
+# Import HookType from canonical source (CDS Hooks models)
+from api.cds_hooks.models import HookType
+
 
 class ServiceOrigin(str, Enum):
     """Source of CDS service"""
@@ -24,16 +27,6 @@ class ServiceStatus(str, Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"
     FAILING = "failing"
-
-
-class HookType(str, Enum):
-    """CDS Hooks hook types"""
-    PATIENT_VIEW = "patient-view"
-    MEDICATION_PRESCRIBE = "medication-prescribe"
-    ORDER_SELECT = "order-select"
-    ORDER_SIGN = "order-sign"
-    ENCOUNTER_START = "encounter-start"
-    ENCOUNTER_DISCHARGE = "encounter-discharge"
 
 
 # ============================================================================

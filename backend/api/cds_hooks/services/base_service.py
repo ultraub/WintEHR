@@ -12,31 +12,11 @@ Educational Focus:
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
-from enum import Enum
 import logging
 
-from ..models import Card, IndicatorType, Source, Suggestion, Link
+from ..models import Card, IndicatorType, Source, Suggestion, Link, HookType
 
 logger = logging.getLogger(__name__)
-
-
-class HookType(str, Enum):
-    """
-    CDS Hooks 2.0 hook types.
-
-    Each hook type corresponds to a specific clinical workflow trigger point.
-    """
-    PATIENT_VIEW = "patient-view"
-    ORDER_SELECT = "order-select"
-    ORDER_SIGN = "order-sign"
-    MEDICATION_PRESCRIBE = "medication-prescribe"
-    ORDER_DISPATCH = "order-dispatch"
-    ENCOUNTER_START = "encounter-start"
-    ENCOUNTER_DISCHARGE = "encounter-discharge"
-    APPOINTMENT_BOOK = "appointment-book"
-    ORDER_REVIEW = "order-review"
-    PROBLEM_LIST_UPDATE = "problem-list-update"
-    CUSTOM = "custom"
 
 
 class CDSService(ABC):

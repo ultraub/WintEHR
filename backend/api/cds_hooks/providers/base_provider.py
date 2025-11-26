@@ -8,6 +8,8 @@ All service providers (local, remote) must implement this interface.
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 from ..models import CDSHookRequest, CDSHookResponse, Card
+from ..utils import extract_extension_value as _extract_ext
+from ..constants import ExtensionURLs
 
 
 class BaseServiceProvider(ABC):
@@ -83,19 +85,7 @@ class BaseServiceProvider(ABC):
         Returns:
             Extension value or default
         """
-        extensions = resource.get("extension", [])
-        for ext in extensions:
-            if ext.get("url") == url:
-                # Try different value types
-                return (
-                    ext.get("valueString") or
-                    ext.get("valueBoolean") or
-                    ext.get("valueCode") or
-                    ext.get("valueInteger") or
-                    ext.get("valueUri") or
-                    default
-                )
-        return default
+        return _extract_ext(resource, url, default)
 
     def extract_prefetch_template(
         self,
@@ -142,7 +132,7 @@ class BaseServiceProvider(ABC):
         """
         return self.extract_extension_value(
             plan_definition,
-            "http://wintehr.local/fhir/StructureDefinition/hook-type",
+            ExtensionURLs.HOOK_TYPE,
             "patient-view"  # Default
         )
 
@@ -158,6 +148,6 @@ class BaseServiceProvider(ABC):
         """
         return self.extract_extension_value(
             plan_definition,
-            "http://wintehr.local/fhir/StructureDefinition/service-origin",
+            ExtensionURLs.SERVICE_ORIGIN,
             "built-in"  # Default
         )

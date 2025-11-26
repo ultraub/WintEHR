@@ -20,12 +20,9 @@ import {
   Chip,
   Stack,
   TextField,
-  Divider,
   IconButton,
   Tooltip,
   CircularProgress,
-  Card,
-  CardContent,
   Badge
 } from '@mui/material';
 import {
@@ -39,13 +36,11 @@ import {
   Download as DownloadIcon,
   Refresh as RefreshIcon
 } from '@mui/icons-material';
-import { 
-  validateCompleteService, 
+import {
+  validateCompleteService,
   validateCDSRequest,
-  validateCDSResponse,
-  validateCDSCard
+  validateCDSResponse
 } from '../../../utils/cdsHooksValidator';
-import { cdsHooksService } from '../../../services/cdsHooksService';
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
 
 const CDSHooksValidator = ({ service, onValidationComplete }) => {

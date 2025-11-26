@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.fhir_client_config import create_resource, update_resource, delete_resource
 from ..models import SystemAction
+from ..constants import ExtensionURLs
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +176,7 @@ class SystemActionsHandler:
             resource["extension"] = []
 
         resource["extension"].append({
-            "url": "https://wintehr.com/fhir/StructureDefinition/cds-system-action",
+            "url": ExtensionURLs.CDS_SYSTEM_ACTION,
             "valueObject": {
                 "timestamp": datetime.utcnow().isoformat(),
                 "userId": context.get("userId"),

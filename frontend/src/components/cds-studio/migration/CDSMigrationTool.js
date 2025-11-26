@@ -21,11 +21,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Stack,
   Divider,
   CircularProgress,
@@ -41,14 +36,13 @@ import {
   CheckCircle as CheckIcon,
   Warning as WarningIcon,
   Error as ErrorIcon,
-  Info as InfoIcon,
   ArrowForward as MigrateIcon,
   Visibility as ViewIcon,
   ExpandMore as ExpandIcon,
   ExpandLess as CollapseIcon
 } from '@mui/icons-material';
 import { cdsHooksService } from '../../../services/cdsHooksService';
-import { HOOK_TYPES, validateCDSService } from '../../../models/cdsService';
+import { HOOK_TYPES } from '../../../models/cdsService';
 
 const CDSMigrationTool = ({ onComplete }) => {
   const [hooks, setHooks] = useState([]);

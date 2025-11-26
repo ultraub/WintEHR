@@ -18,7 +18,8 @@ Module Structure:
         └── __init__.py      # Screening, medication, lab services
 """
 
-from .base_service import CDSService, SimpleCDSService, HookType
+from .base_service import CDSService, SimpleCDSService
+from ..models import HookType  # Canonical source for HookType
 
 # Import builtin services for convenience
 from .builtin import (

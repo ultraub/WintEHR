@@ -11,11 +11,9 @@ import {
   TextField,
   Autocomplete,
   Button,
-  Stack,
   Alert,
   CircularProgress,
   Grid,
-  Chip,
   FormControl,
   InputLabel,
   Select,
@@ -23,9 +21,7 @@ import {
   Divider
 } from '@mui/material';
 import {
-  Add as AddIcon,
   Send as SendIcon,
-  Security as SafetyIcon,
   CheckCircle as CheckIcon
 } from '@mui/icons-material';
 import DrugSafetyIndicator from './DrugSafetyIndicator';

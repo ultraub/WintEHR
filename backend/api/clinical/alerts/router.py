@@ -13,6 +13,7 @@ import uuid
 from database import get_db_session
 from api.auth import get_current_user
 from services.fhir_client_config import get_resource, search_resources, create_resource, update_resource
+from api.cds_hooks.constants import ExtensionURLs
 
 router = APIRouter(prefix="/api/clinical/alerts", tags=["clinical-alerts"])
 
@@ -221,7 +222,7 @@ async def create_test_alerts(
             "status": "in-progress",  # Not yet acknowledged
             "category": [{
                 "coding": [{
-                    "system": "http://wintehr.com/fhir/communication-category",
+                    "system": ExtensionURLs.COMMUNICATION_CATEGORY_SYSTEM,
                     "code": "alert",
                     "display": "Clinical Alert"
                 }]
@@ -239,7 +240,7 @@ async def create_test_alerts(
             "sent": datetime.now(timezone.utc).isoformat(),
             "reasonCode": [{
                 "coding": [{
-                    "system": "http://wintehr.com/fhir/alert-type",
+                    "system": ExtensionURLs.ALERT_TYPE_SYSTEM,
                     "code": alert_data["alert_type"],
                     "display": alert_data["alert_type"].replace("-", " ").title()
                 }]

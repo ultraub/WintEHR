@@ -4,7 +4,7 @@
  * Removes duplicate headers and integrates with EnhancedClinicalLayout
  */
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   CircularProgress,
@@ -13,8 +13,6 @@ import {
   Button,
   useTheme,
   Snackbar,
-  Chip,
-  alpha,
   Typography
 } from '@mui/material';
 import {
@@ -32,7 +30,6 @@ import {
 } from '@mui/icons-material';
 
 // Contexts
-import { useFHIRResource } from '../../contexts/FHIRResourceContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { decodeFhirId } from '../../core/navigation/navigationUtils';
 import { useClinicalWorkflow } from '../../contexts/ClinicalWorkflowContext';

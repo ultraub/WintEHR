@@ -3,16 +3,13 @@
  * Improved clinical workspace layout with integrated navigation
  * Now uses horizontal tab navigation matching older design
  */
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   useTheme,
-  useMediaQuery,
   CssBaseline,
-  Drawer,
-  IconButton
+  Drawer
 } from '@mui/material';
-import { Menu as MenuIcon } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import ClinicalAppBar from '../navigation/ClinicalAppBar';
 import ClinicalTabs from '../navigation/ClinicalTabs';

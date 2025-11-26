@@ -11,6 +11,7 @@ import logging
 
 from services.hapi_fhir_client import HAPIFHIRClient
 from pydantic import BaseModel
+from api.cds_hooks.constants import ExtensionURLs
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/clinical/pharmacy", tags=["pharmacy"])
@@ -270,13 +271,13 @@ async def update_pharmacy_status(
         # Find or create pharmacy status extension
         pharmacy_ext = None
         for ext in med_request["extension"]:
-            if ext.get("url") == 'http://wintehr.com/fhir/StructureDefinition/pharmacy-status':
+            if ext.get("url") == ExtensionURLs.PHARMACY_STATUS:
                 pharmacy_ext = ext
                 break
 
         if not pharmacy_ext:
             pharmacy_ext = {
-                "url": 'http://wintehr.com/fhir/StructureDefinition/pharmacy-status',
+                "url": ExtensionURLs.PHARMACY_STATUS,
                 "extension": []
             }
             med_request["extension"].append(pharmacy_ext)
@@ -488,7 +489,7 @@ def _get_pharmacy_status(medication_request: Dict[str, Any]) -> str:
     extensions = medication_request.get('extension', [])
 
     for ext in extensions:
-        if ext.get('url') == 'http://wintehr.com/fhir/StructureDefinition/pharmacy-status':
+        if ext.get('url') == ExtensionURLs.PHARMACY_STATUS:
             for sub_ext in ext.get('extension', []):
                 if sub_ext.get('url') == 'status':
                     return sub_ext.get('valueString', 'pending')

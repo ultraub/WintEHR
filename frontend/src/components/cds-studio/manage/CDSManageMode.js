@@ -40,20 +40,14 @@ import {
   Switch,
   FormControlLabel,
   CircularProgress,
-  Snackbar,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
+  Snackbar
 } from '@mui/material';
 import {
   Search as SearchIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   ContentCopy as DuplicateIcon,
-  MoreVert as MoreIcon,
   Analytics as AnalyticsIcon,
-  Group as TeamIcon,
   History as HistoryIcon,
   Add as AddIcon,
   Webhook as WebhookIcon,

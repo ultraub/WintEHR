@@ -27,8 +27,8 @@ from .models import (
     RollbackRequest,
     ServiceStatus,
     ServiceOrigin,
-    HookType
 )
+from api.cds_hooks.models import HookType  # Canonical source
 from .service import CDSStudioService
 from services.hapi_fhir_client import HAPIFHIRClient
 
