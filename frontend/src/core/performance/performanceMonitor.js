@@ -104,7 +104,7 @@ class PerformanceMonitor {
 
     const timer = this.timers.get(operationName);
     if (!timer) {
-      
+      this.debug(`Timer '${operationName}' not found`);
       return;
     }
 
@@ -134,12 +134,10 @@ class PerformanceMonitor {
     this.metrics.get(operationName).push(metric);
 
     // Log result
-    const memoryDelta = metric.memory.delta ? 
+    const memoryDelta = metric.memory.delta ?
       ` (${(metric.memory.delta / 1024 / 1024).toFixed(2)}MB)` : '';
-    
-    }ms${memoryDelta}`,
-      additionalData
-    );
+
+    this.debug(`[${operationName}] ${metric.duration.toFixed(2)}ms${memoryDelta}`, additionalData);
 
     // Cleanup
     this.timers.delete(operationName);

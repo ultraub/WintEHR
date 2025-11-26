@@ -32,8 +32,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
 import httpx
 from services.hapi_fhir_client import HAPIFHIRClient
-from api.cds_hooks.service_registry import service_registry, register_builtin_services
-from api.cds_hooks.service_implementations import register_example_services
+
+# v3.0 Architecture imports
+from api.cds_hooks.registry import get_registry, ServiceRegistry
+from api.cds_hooks.services import get_builtin_services, register_builtin_services
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,13 +70,13 @@ class BuiltinCDSServiceInitializer:
         if self.dry_run:
             logger.info("🔍 DRY RUN MODE - No changes will be made")
 
-        # Register all built-in services in ServiceRegistry
-        logger.info("📋 Loading built-in services from ServiceRegistry...")
-        register_builtin_services()
-        register_example_services(service_registry)
+        # Register all built-in services using v3.0 Architecture
+        logger.info("📋 Loading built-in services from ServiceRegistry (v3.0)...")
+        registry = get_registry()
+        register_builtin_services(registry)
 
-        # Get all registered services
-        services = service_registry.list_services()
+        # Get all registered services from the v3.0 registry
+        services = registry.list_services()
 
         if not services:
             logger.warning("⚠️  No services found in ServiceRegistry")
@@ -83,12 +85,12 @@ class BuiltinCDSServiceInitializer:
         logger.info(f"✓ Found {len(services)} services in ServiceRegistry")
         logger.info("")
 
-        # Convert and create each service
-        for service_def in services:
+        # Convert and create each service (v3.0 uses CDSService instances)
+        for service in services:
             try:
-                await self._create_or_update_service(service_def)
+                await self._create_or_update_service(service)
             except Exception as e:
-                logger.error(f"❌ Error processing service {service_def.id}: {e}")
+                logger.error(f"❌ Error processing service {service.service_id}: {e}")
                 self.error_count += 1
 
         # Return summary
@@ -97,13 +99,13 @@ class BuiltinCDSServiceInitializer:
         self._print_summary(summary)
         return summary
 
-    async def _create_or_update_service(self, service_def):
-        """Create or update a single service in HAPI FHIR"""
-        service_id = service_def.id
+    async def _create_or_update_service(self, service):
+        """Create or update a single service in HAPI FHIR (v3.0 CDSService)"""
+        service_id = service.service_id
 
         logger.info(f"Processing: {service_id}")
-        logger.info(f"  Title: {service_def.title}")
-        logger.info(f"  Hook: {service_def.hook}")
+        logger.info(f"  Title: {service.title}")
+        logger.info(f"  Hook: {service.hook_type.value}")
 
         # Check if PlanDefinition already exists
         try:
@@ -125,8 +127,8 @@ class BuiltinCDSServiceInitializer:
             logger.warning(f"  ⚠️  Error checking existing: {e}")
             action = "create"
 
-        # Convert to PlanDefinition
-        plan_definition = self._convert_to_plandefinition(service_def)
+        # Convert to PlanDefinition (v3.0 CDSService to FHIR PlanDefinition)
+        plan_definition = self._convert_to_plandefinition(service)
 
         # Create/Update in HAPI FHIR
         if not self.dry_run:
@@ -171,26 +173,27 @@ class BuiltinCDSServiceInitializer:
             logger.debug(f"Error searching for existing PlanDefinition: {e}")
             return None
 
-    def _convert_to_plandefinition(self, service_def) -> Dict[str, Any]:
+    def _convert_to_plandefinition(self, service) -> Dict[str, Any]:
         """
-        Convert CDS Hooks ServiceDefinition to FHIR PlanDefinition
+        Convert v3.0 CDSService to FHIR PlanDefinition
 
         Maps CDS Hooks concepts to PlanDefinition:
-        - service.id → identifier
-        - service.hook → action.trigger
+        - service.service_id → identifier
+        - service.hook_type → action.trigger
         - service.title → title
         - service.description → description
-        - service.prefetch → action.input (data requirements)
+        - service.prefetch_templates → action.input (data requirements)
         """
+        hook_value = service.hook_type.value
 
         plan_definition = {
             "resourceType": "PlanDefinition",
             "identifier": [{
                 "system": "http://wintehr.org/cds-service",
-                "value": service_def.id
+                "value": service.service_id
             }],
-            "name": self._to_camel_case(service_def.id),
-            "title": service_def.title or service_def.id,
+            "name": self._to_camel_case(service.service_id),
+            "title": service.title or service.service_id,
             "type": {
                 "coding": [{
                     "system": "http://terminology.hl7.org/CodeSystem/plan-definition-type",
@@ -201,9 +204,9 @@ class BuiltinCDSServiceInitializer:
             "status": "active",
             "date": datetime.utcnow().isoformat(),
             "publisher": "WintEHR Educational Platform",
-            "description": service_def.description,
-            "purpose": f"CDS Hooks service for {service_def.hook} hook",
-            "usage": service_def.usageRequirements or f"Triggered by {service_def.hook} hook",
+            "description": service.description,
+            "purpose": f"CDS Hooks service for {hook_value} hook",
+            "usage": service.usageRequirements or f"Triggered by {hook_value} hook",
 
             # CDS Hooks specific extensions
             "extension": [
@@ -212,11 +215,11 @@ class BuiltinCDSServiceInitializer:
                     "extension": [
                         {
                             "url": "hook",
-                            "valueString": service_def.hook
+                            "valueString": hook_value
                         },
                         {
                             "url": "serviceId",
-                            "valueString": service_def.id
+                            "valueString": service.service_id
                         },
                         {
                             "url": "origin",
@@ -228,17 +231,17 @@ class BuiltinCDSServiceInitializer:
 
             # Define the clinical action
             "action": [{
-                "title": service_def.title or service_def.id,
-                "description": service_def.description,
+                "title": service.title or service.service_id,
+                "description": service.description,
 
                 # Hook trigger
                 "trigger": [{
                     "type": "named-event",
-                    "name": service_def.hook
+                    "name": hook_value
                 }],
 
                 # Prefetch as input data requirements
-                "input": self._convert_prefetch_to_inputs(service_def.prefetch) if service_def.prefetch else []
+                "input": self._convert_prefetch_to_inputs(service.prefetch_templates) if service.prefetch_templates else []
             }]
         }
 

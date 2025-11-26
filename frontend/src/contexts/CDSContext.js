@@ -8,7 +8,7 @@ import { cdsHooksClient } from '../services/cdsHooksClient';
 import { cdsHooksService } from '../services/cdsHooksService';
 import { cdsLogger } from '../config/logging';
 import { PRESENTATION_MODES } from '../components/clinical/cds/CDSPresentation';
-import { useStableCallback } from '../hooks/useStableReferences';
+import { useStableCallback } from '../hooks/ui/useStableReferences';
 import { useAuth } from './AuthContext';
 import { v4 as uuidv4 } from 'uuid';
 

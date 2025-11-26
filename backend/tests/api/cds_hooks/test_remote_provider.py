@@ -11,8 +11,8 @@ Tests the external service execution provider including:
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from sqlalchemy import text
-from backend.api.cds_hooks.providers import RemoteServiceProvider
-from backend.api.cds_hooks.models import CDSHookRequest, HookType
+from api.cds_hooks.providers import RemoteServiceProvider
+from api.cds_hooks.models import CDSHookRequest, HookType
 
 
 class TestRemoteServiceProvider:

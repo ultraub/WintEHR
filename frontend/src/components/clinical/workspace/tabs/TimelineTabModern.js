@@ -255,7 +255,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../core/export/printUtils';
 import { getMedicationName, getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
-import { resourceBelongsToPatient } from '../../../../utils/fhirReferenceUtils';
+import { resourceBelongsToPatient } from '../../../../utils/fhir';
 import websocketService from '../../../../services/websocket';
 
 // Import shared clinical components

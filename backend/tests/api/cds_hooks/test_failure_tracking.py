@@ -12,16 +12,18 @@ Tests the failure tracking system including:
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime
-from backend.api.cds_hooks.providers import RemoteServiceProvider
+from api.cds_hooks.providers import RemoteServiceProvider
+
+
+# Module-level fixture for RemoteServiceProvider
+@pytest.fixture
+def provider(test_db):
+    """Create RemoteServiceProvider with test db"""
+    return RemoteServiceProvider(test_db)
 
 
 class TestFailureTracking:
     """Test failure tracking functionality"""
-
-    @pytest.fixture
-    def provider(self, test_db):
-        """Create RemoteServiceProvider with test db"""
-        return RemoteServiceProvider(test_db)
 
     @pytest.mark.asyncio
     async def test_track_first_failure(

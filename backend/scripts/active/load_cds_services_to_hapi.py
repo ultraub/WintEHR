@@ -1,10 +1,15 @@
 """
-Load CDS Services as FHIR PlanDefinition Resources to HAPI FHIR
+Load CDS Services as FHIR PlanDefinition Resources to HAPI FHIR (v3.0 Architecture)
 
 This script converts registered CDS Hooks services to FHIR PlanDefinition resources
 and posts them to HAPI FHIR. This makes them visible in the CDS Studio UI.
 
 Educational purpose: Demonstrates bridging CDS Hooks services with FHIR-based service registry.
+
+Updated for v3.0 Architecture:
+- Uses CDSService base class pattern
+- Uses ServiceRegistry from registry module
+- Uses get_builtin_services from services module
 """
 
 import asyncio
@@ -17,8 +22,9 @@ from datetime import datetime
 # Add parent directories to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from api.cds_hooks.service_registry import service_registry, register_builtin_services
-from api.cds_hooks.service_implementations import register_example_services
+# v3.0 Architecture imports
+from api.cds_hooks.registry import get_registry, ServiceRegistry
+from api.cds_hooks.services import get_builtin_services, register_builtin_services
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,15 +32,16 @@ logger = logging.getLogger(__name__)
 HAPI_FHIR_URL = "http://hapi-fhir:8080/fhir"
 
 
-def service_to_plandefinition(service_def) -> dict:
+def service_to_plandefinition(service) -> dict:
     """
-    Convert a CDS service definition to a FHIR PlanDefinition resource.
+    Convert a v3.0 CDSService to a FHIR PlanDefinition resource.
 
     Educational notes:
     - PlanDefinition is the FHIR resource for clinical protocols/guidelines
     - Maps CDS Hooks metadata to FHIR structure
     - Stores prefetch templates as extensions
     """
+    hook_value = service.hook_type.value
 
     # Map hook type to FHIR jurisdiction/topic codes
     hook_type_mapping = {
@@ -48,7 +55,7 @@ def service_to_plandefinition(service_def) -> dict:
 
     plan_def = {
         "resourceType": "PlanDefinition",
-        "id": service_def.id,
+        "id": service.service_id,
         "meta": {
             "profile": ["http://hl7.org/fhir/StructureDefinition/PlanDefinition"],
             "tag": [{
@@ -57,14 +64,14 @@ def service_to_plandefinition(service_def) -> dict:
                 "display": "CDS Hook Service"
             }]
         },
-        "url": f"http://wintehr.org/PlanDefinition/{service_def.id}",
+        "url": f"http://wintehr.org/PlanDefinition/{service.service_id}",
         "identifier": [{
             "system": "http://wintehr.org/cds-services",
-            "value": service_def.id
+            "value": service.service_id
         }],
         "version": "1.0.0",
-        "name": service_def.id.replace("-", "_"),
-        "title": service_def.title or service_def.id,
+        "name": service.service_id.replace("-", "_"),
+        "title": service.title or service.service_id,
         "type": {
             "coding": [{
                 "system": "http://terminology.hl7.org/CodeSystem/plan-definition-type",
@@ -76,46 +83,46 @@ def service_to_plandefinition(service_def) -> dict:
         "experimental": True,
         "date": datetime.utcnow().isoformat() + "Z",
         "publisher": "WintEHR Educational Platform",
-        "description": service_def.description,
+        "description": service.description,
         "purpose": "Clinical decision support via CDS Hooks integration",
-        "usage": service_def.usageRequirements or "Triggered by clinical workflow hooks"
+        "usage": service.usageRequirements or "Triggered by clinical workflow hooks"
     }
 
     # Add hook type as topic
-    topic_code = hook_type_mapping.get(service_def.hook, "other")
+    topic_code = hook_type_mapping.get(hook_value, "other")
     plan_def["topic"] = [{
         "coding": [{
             "system": "http://terminology.hl7.org/CodeSystem/definition-topic",
             "code": topic_code,
             "display": topic_code.title()
         }],
-        "text": f"CDS Hook: {service_def.hook}"
+        "text": f"CDS Hook: {hook_value}"
     }]
 
     # Store CDS Hooks metadata as extensions
     plan_def["extension"] = [
         {
             "url": "http://wintehr.org/fhir/StructureDefinition/cds-hook-type",
-            "valueString": service_def.hook
+            "valueString": hook_value
         },
         {
             "url": "http://wintehr.org/fhir/StructureDefinition/cds-service-id",
-            "valueString": service_def.id
+            "valueString": service.service_id
         }
     ]
 
     # Store prefetch templates
-    if service_def.prefetch:
+    if service.prefetch_templates:
         plan_def["extension"].append({
             "url": "http://wintehr.org/fhir/StructureDefinition/cds-prefetch-templates",
-            "valueString": str(service_def.prefetch)
+            "valueString": str(service.prefetch_templates)
         })
 
     # Add action to represent the service execution
     plan_def["action"] = [{
         "id": "execute-cds-service",
-        "title": f"Execute {service_def.title or service_def.id}",
-        "description": service_def.description,
+        "title": f"Execute {service.title or service.service_id}",
+        "description": service.description,
         "type": {
             "coding": [{
                 "system": "http://terminology.hl7.org/CodeSystem/action-type",
@@ -125,7 +132,7 @@ def service_to_plandefinition(service_def) -> dict:
         },
         "trigger": [{
             "type": "named-event",
-            "name": service_def.hook
+            "name": hook_value
         }]
     }]
 
@@ -133,15 +140,15 @@ def service_to_plandefinition(service_def) -> dict:
 
 
 async def load_services_to_hapi():
-    """Load all registered CDS services to HAPI FHIR as PlanDefinitions"""
+    """Load all registered CDS services to HAPI FHIR as PlanDefinitions (v3.0)"""
 
-    # Register all built-in and example services
-    logger.info("Registering CDS services...")
-    register_builtin_services()
-    register_example_services(service_registry)
+    # Register all built-in services using v3.0 architecture
+    logger.info("Registering CDS services (v3.0 Architecture)...")
+    registry = get_registry()
+    register_builtin_services(registry)
 
     # Get all registered services
-    services = service_registry.list_services()
+    services = registry.list_services()
     logger.info(f"Found {len(services)} registered CDS services")
 
     if not services:
@@ -157,16 +164,10 @@ async def load_services_to_hapi():
 
         for service in services:
             try:
-                # Find service definition
-                service_def = service_registry.get_service_definition(service.id)
-                if not service_def:
-                    logger.warning(f"No definition found for service: {service.id}")
-                    continue
+                # Convert to PlanDefinition (v3.0 uses CDSService directly)
+                plan_def = service_to_plandefinition(service)
 
-                # Convert to PlanDefinition
-                plan_def = service_to_plandefinition(service_def)
-
-                logger.info(f"Loading service: {service.id} ({service.title})")
+                logger.info(f"Loading service: {service.service_id} ({service.title})")
 
                 # Post to HAPI FHIR
                 url = f"{HAPI_FHIR_URL}/PlanDefinition/{plan_def['id']}"
@@ -177,14 +178,14 @@ async def load_services_to_hapi():
                 )
 
                 if response.status_code in [200, 201]:
-                    logger.info(f"✓ Successfully loaded: {service.id}")
+                    logger.info(f"✓ Successfully loaded: {service.service_id}")
                     loaded_count += 1
                 else:
-                    logger.error(f"✗ Failed to load {service.id}: {response.status_code} - {response.text[:200]}")
+                    logger.error(f"✗ Failed to load {service.service_id}: {response.status_code} - {response.text[:200]}")
                     failed_count += 1
 
             except Exception as e:
-                logger.error(f"✗ Error loading service {service.id}: {e}")
+                logger.error(f"✗ Error loading service {service.service_id}: {e}")
                 failed_count += 1
 
         # Summary
@@ -208,7 +209,7 @@ async def load_services_to_hapi():
 
 async def main():
     """Main entry point"""
-    logger.info("Starting CDS Services to HAPI FHIR loader...")
+    logger.info("Starting CDS Services to HAPI FHIR loader (v3.0 Architecture)...")
     logger.info(f"Target HAPI FHIR server: {HAPI_FHIR_URL}")
 
     try:

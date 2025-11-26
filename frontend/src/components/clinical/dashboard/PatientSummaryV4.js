@@ -52,7 +52,7 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
-import { useInitializationGuard } from '../../../hooks/useStableReferences';
+import { useInitializationGuard } from '../../../hooks/ui/useStableReferences';
 import { getClinicalContext } from '../../../themes/clinicalThemeUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import CDSPresentation, { PRESENTATION_MODES } from '../cds/CDSPresentation';

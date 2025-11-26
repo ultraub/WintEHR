@@ -2,7 +2,7 @@
  * LayoutV3 Component
  * Modern application layout with improved navigation, search, and workflow support
  */
-import React, { useState, useContext, useMemo } from 'react';
+import React, { useState, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
@@ -23,20 +23,14 @@ import {
   MenuItem,
   Chip,
   Avatar,
-  Badge,
-  InputBase,
-  Paper,
   Tooltip,
   Stack,
   Card,
   CardContent,
   Collapse,
   ListSubheader,
-  alpha,
   Breadcrumbs,
   Link,
-  Button,
-  Fab,
   SpeedDial,
   SpeedDialAction,
   SpeedDialIcon
@@ -45,35 +39,26 @@ import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
   People as PeopleIcon,
-  EventNote as EventNoteIcon,
   LocalPharmacy as PharmacyIcon,
-  Science as ScienceIcon,
   TrendingUp as TrendingUpIcon,
   Api as ApiIcon,
-  Lightbulb as LightbulbIcon,
   Webhook as WebhookIcon,
   Assessment as AssessmentIcon,
   AccountCircle as AccountCircleIcon,
   Logout as LogoutIcon,
   Security as SecurityIcon,
-  Search as SearchIcon,
-  Notifications as NotificationsIcon,
   Settings as SettingsIcon,
   Help as HelpIcon,
   ExpandLess,
   ExpandMore,
   Home as HomeIcon,
   Add as AddIcon,
-  Edit as EditIcon,
-  Assignment as AssignmentIcon,
   Timeline as TimelineIcon,
-  Groups as GroupsIcon,
   MedicalServices as MedicalIcon,
   Analytics as AnalyticsIcon,
   CloudUpload as UploadIcon,
   Download as DownloadIcon,
-  Refresh as RefreshIcon,
-  DashboardCustomize as DashboardCustomizeIcon
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { MedicalThemeContext } from '../App';
@@ -281,7 +266,8 @@ function LayoutV3({ children }) {
     tools: false,
     admin: false
   });
-  const medicalThemeContext = useContext(MedicalThemeContext);
+  // MedicalThemeContext available via useContext if needed
+  useContext(MedicalThemeContext);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);

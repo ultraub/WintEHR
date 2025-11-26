@@ -36,7 +36,9 @@ from sqlalchemy import select
 
 from database import get_db_session
 from services.hapi_fhir_client import HAPIFHIRClient
-from api.cds_hooks.service_registry import ServiceRegistry
+# v3.0 Architecture imports
+from api.cds_hooks.registry import get_registry, ServiceRegistry
+from api.cds_hooks.services import register_builtin_services
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,7 +53,10 @@ class CDSToPlanDefinitionMigrator:
     def __init__(self, dry_run: bool = False):
         self.dry_run = dry_run
         self.hapi_client = HAPIFHIRClient()
-        self.service_registry = ServiceRegistry()
+        # v3.0: Use get_registry() to get singleton registry
+        self.service_registry = get_registry()
+        # Register builtin services
+        register_builtin_services(self.service_registry)
         self.migrated_count = 0
         self.skipped_count = 0
         self.error_count = 0
@@ -68,8 +73,8 @@ class CDSToPlanDefinitionMigrator:
         if self.dry_run:
             logger.info("DRY RUN MODE - No changes will be made")
 
-        # Get all registered CDS services
-        services = self.service_registry.get_all_services()
+        # Get all registered CDS services (v3.0: use list_services())
+        services = self.service_registry.list_services()
 
         if not services:
             logger.info("No CDS services found to migrate")
@@ -77,12 +82,12 @@ class CDSToPlanDefinitionMigrator:
 
         logger.info(f"Found {len(services)} CDS services to migrate")
 
-        # Migrate each service
-        for service_def in services:
+        # Migrate each service (v3.0: services are CDSService instances)
+        for service in services:
             try:
-                await self._migrate_service(service_def)
+                await self._migrate_service(service)
             except Exception as e:
-                logger.error(f"Error migrating service {service_def.id}: {e}")
+                logger.error(f"Error migrating service {service.service_id}: {e}")
                 self.error_count += 1
 
         # Return summary
@@ -101,21 +106,21 @@ class CDSToPlanDefinitionMigrator:
         Returns:
             True if migration successful
         """
-        # Find service
-        service_def = self.service_registry.get_service(service_id)
-        if not service_def:
-            # Try finding by hook service ID
-            for service in self.service_registry.get_all_services():
-                if hasattr(service, 'hook_service_id') and service.hook_service_id == service_id:
-                    service_def = service
+        # Find service (v3.0: use get_service())
+        service = self.service_registry.get_service(service_id)
+        if not service:
+            # Try finding by service_id in list
+            for svc in self.service_registry.list_services():
+                if svc.service_id == service_id:
+                    service = svc
                     break
 
-        if not service_def:
+        if not service:
             logger.error(f"Service not found: {service_id}")
             return False
 
         try:
-            return await self._migrate_service(service_def, force=force)
+            return await self._migrate_service(service, force=force)
         except Exception as e:
             logger.error(f"Error migrating service {service_id}: {e}")
             self.error_count += 1
@@ -123,30 +128,31 @@ class CDSToPlanDefinitionMigrator:
 
     async def _migrate_service(
         self,
-        service_def: Any,
+        service: Any,
         force: bool = False
     ) -> bool:
         """
-        Migrate a single CDS service to PlanDefinition
+        Migrate a single CDS service to PlanDefinition (v3.0 CDSService)
 
         Args:
-            service_def: Service definition from registry
+            service: CDSService instance from registry
             force: Force re-migration
 
         Returns:
             True if migrated successfully
         """
-        service_id = service_def.id
-        logger.info(f"Migrating service: {service_id} - {service_def.title}")
+        # v3.0: Use service_id attribute
+        service_id = service.service_id
+        logger.info(f"Migrating service: {service_id} - {service.title}")
 
         # Check if already migrated (has FHIR resource ID)
-        if hasattr(service_def, 'fhir_resource_id') and service_def.fhir_resource_id and not force:
-            logger.info(f"Service {service_id} already has PlanDefinition: {service_def.fhir_resource_id}")
+        if hasattr(service, 'fhir_resource_id') and service.fhir_resource_id and not force:
+            logger.info(f"Service {service_id} already has PlanDefinition: {service.fhir_resource_id}")
             self.skipped_count += 1
             return False
 
-        # Build PlanDefinition resource
-        plan_definition = self._build_plan_definition(service_def)
+        # Build PlanDefinition resource (v3.0: pass CDSService)
+        plan_definition = self._build_plan_definition(service)
 
         if self.dry_run:
             logger.info(f"DRY RUN: Would create PlanDefinition for {service_id}")
@@ -172,22 +178,22 @@ class CDSToPlanDefinitionMigrator:
             self.error_count += 1
             return False
 
-    def _build_plan_definition(self, service_def: Any) -> Dict[str, Any]:
+    def _build_plan_definition(self, service: Any) -> Dict[str, Any]:
         """
-        Build PlanDefinition resource from CDS service definition
+        Build PlanDefinition resource from CDS service (v3.0 CDSService)
 
         Args:
-            service_def: Service definition from registry
+            service: CDSService instance from registry
 
         Returns:
             PlanDefinition resource dict
         """
-        # Extract service metadata
-        service_id = service_def.id
-        hook_type = getattr(service_def, 'hook', 'unknown')
-        title = getattr(service_def, 'title', service_id)
-        description = getattr(service_def, 'description', '')
-        prefetch = getattr(service_def, 'prefetch', {})
+        # Extract service metadata (v3.0 attribute names)
+        service_id = service.service_id
+        hook_type = service.hook_type.value if hasattr(service.hook_type, 'value') else str(service.hook_type)
+        title = getattr(service, 'title', service_id)
+        description = getattr(service, 'description', '')
+        prefetch = getattr(service, 'prefetch_templates', {}) or {}
 
         # Build PlanDefinition
         plan_definition = {
@@ -209,7 +215,7 @@ class CDSToPlanDefinitionMigrator:
             "publisher": "WintEHR",
             "description": description or f"CDS Hooks service for {hook_type}",
             "purpose": f"Clinical decision support for {hook_type} workflow",
-            "usage": getattr(service_def, 'usageRequirements', ''),
+            "usage": getattr(service, 'usageRequirements', ''),
 
             # Extensions for CDS Hooks metadata
             "extension": [

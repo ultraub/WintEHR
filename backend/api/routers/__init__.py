@@ -25,13 +25,13 @@ def register_all_routers(app: FastAPI) -> None:
     # 1. Core FHIR APIs - HAPI FHIR Proxy
     # Proxy forwards /fhir/R4/* requests to HAPI FHIR JPA Server at http://hapi-fhir:8080
     try:
-        from api.hapi_fhir_proxy import router as hapi_fhir_proxy
+        from api.fhir.proxy import router as hapi_fhir_proxy
 
         app.include_router(hapi_fhir_proxy, tags=["FHIR R4 (HAPI Proxy)"])
         logger.info("✓ HAPI FHIR proxy router registered")
 
         # Keep FHIR relationship and search value routers (may still be useful)
-        from api.fhir_relationships_router import relationships_router
+        from api.fhir.routers.relationships import relationships_router
         from api.fhir.search_values import router as search_values_router
 
         app.include_router(relationships_router, prefix="/api", tags=["FHIR Relationships"])
@@ -93,8 +93,8 @@ def register_all_routers(app: FastAPI) -> None:
         from api.ui_composer import router as ui_composer_router
         from api.websocket.websocket_router import router as websocket_router
         from api.websocket.monitoring import router as websocket_monitoring_router
-        from api.fhir_schema_router import router as fhir_schema_router
-        from api.fhir_capability_schema_router import router as fhir_capability_schema_router
+        from api.fhir.routers.schema import router as fhir_schema_router
+        from api.fhir.routers.capability import router as fhir_capability_schema_router
         from api.external_services.router import router as external_services_router
         from api.cds_studio.router import router as cds_studio_router
 
@@ -146,7 +146,7 @@ def register_all_routers(app: FastAPI) -> None:
     
     # 9. Monitoring & Performance
     try:
-        from api.monitoring import monitoring_router
+        from api.system.monitoring import monitoring_router
         app.include_router(monitoring_router, tags=["Monitoring"])
         logger.info("✓ Monitoring router registered")
     except Exception as e:
@@ -156,7 +156,7 @@ def register_all_routers(app: FastAPI) -> None:
     try:
         import os
         if os.getenv("DEBUG", "false").lower() == "true":
-            from api.debug_router import debug_router
+            from api.system.debug_router import debug_router
             app.include_router(debug_router, tags=["Debug"])
             logger.info("✓ Debug router registered (DEBUG mode)")
     except Exception as e:

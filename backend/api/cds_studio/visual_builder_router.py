@@ -44,7 +44,8 @@ from api.cds_hooks.external_service_models import (
 )
 from api.cds_hooks.service_code_generator import ServiceCodeGenerator
 from api.cds_hooks.models import CDSHookRequest, CDSHookResponse
-from api.cds_hooks.service_registry import service_registry
+# v3.0: Use new registry module
+from api.cds_hooks.registry import get_registry
 
 logger = logging.getLogger(__name__)
 

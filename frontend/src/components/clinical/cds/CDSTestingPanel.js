@@ -132,7 +132,9 @@ const CDSTestingPanel = ({ patientId, onClose }) => {
           alerts = await cdsHooksClient.fireOrderSign(patientId, 'test-user', []);
           break;
         default:
-          if (debugMode) 
+          if (debugMode) {
+            console.debug(`Unknown workflow trigger: ${trigger}`);
+          }
       }
       
       setTestResults({
@@ -428,10 +430,14 @@ const CDSTestingPanel = ({ patientId, onClose }) => {
               currentHook="patient-view"
               debugMode={debugMode}
               onHookFired={(hookType, alerts) => {
-                if (debugMode) 
+                if (debugMode) {
+                  console.debug(`Hook fired: ${hookType}`, alerts);
+                }
               }}
               onAlertAction={(alert, action, suggestion) => {
-                if (debugMode) 
+                if (debugMode) {
+                  console.debug(`Alert action: ${action}`, { alert, suggestion });
+                }
               }}
             />
           </AccordionDetails>

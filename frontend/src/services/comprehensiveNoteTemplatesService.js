@@ -292,7 +292,7 @@ export class ComprehensiveNoteTemplatesService {
     if (recentEncounter?.reasonCode?.length > 0) {
       return `CHIEF COMPLAINT:\n${recentEncounter.reasonCode[0].text || recentEncounter.reasonCode[0].coding?.[0]?.display || 'Patient visit'}`;
     }
-    return 'CHIEF COMPLAINT:\n[Patient's primary concern for this visit]';
+    return 'CHIEF COMPLAINT:\n[Patient\'s primary concern for this visit]';
   }
 
   async getReviewOfSystemsSection(data) {

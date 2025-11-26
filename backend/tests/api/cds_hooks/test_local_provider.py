@@ -10,8 +10,8 @@ Tests the built-in service execution provider including:
 
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
-from backend.api.cds_hooks.providers import LocalServiceProvider
-from backend.api.cds_hooks.models import CDSHookRequest, HookType
+from api.cds_hooks.providers import LocalServiceProvider
+from api.cds_hooks.models import CDSHookRequest, HookType
 
 
 class TestLocalServiceProvider:

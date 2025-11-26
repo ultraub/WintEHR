@@ -9,15 +9,22 @@ from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, and_, or_, func
 from sqlalchemy.sql import text
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError, OperationalError
 from datetime import datetime, timedelta
 import httpx
 import logging
 import json
 import hashlib
 import hmac
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 import base64
 import os
+
+from shared.exceptions import (
+    DatabaseQueryError,
+    FHIRConnectionError,
+    FHIRResourceNotFoundError,
+)
 
 from .models import (
     ExternalServiceCreate,
@@ -114,8 +121,20 @@ class ExternalServiceRegistry:
             logger.info(f"Registered external service: {service_id}, FHIR resource: {fhir_resource_id}")
             return service_id, fhir_resource_id
 
-        except Exception as e:
-            logger.error(f"Error registering external service: {e}")
+        except (SQLAlchemyError, OperationalError, IntegrityError) as e:
+            logger.error(f"Database error registering external service: {e}")
+            raise DatabaseQueryError(message="Failed to register external service", cause=e)
+        except httpx.HTTPStatusError as e:
+            logger.error(f"FHIR server error registering external service: {e.response.status_code}")
+            raise FHIRConnectionError(message="FHIR server error during registration", cause=e)
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            logger.error(f"Connection error registering external service: {e}")
+            raise FHIRConnectionError(message="Connection error during registration", cause=e)
+        except InvalidToken as e:
+            logger.error(f"Encryption error registering external service: {e}")
+            raise ValueError(f"Invalid encryption credentials: {e}")
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
+            logger.error(f"Data error registering external service: {e}")
             raise
 
     async def _create_service_record(
@@ -223,8 +242,14 @@ class ExternalServiceRegistry:
                     logger.error(f"Failed to create PlanDefinition: {response.status_code} {response.text}")
                     return None
 
-        except Exception as e:
-            logger.error(f"Error creating PlanDefinition: {e}")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"FHIR server error creating PlanDefinition: {e.response.status_code}")
+            return None
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            logger.error(f"Connection error creating PlanDefinition: {e}")
+            return None
+        except (ValueError, TypeError, KeyError, AttributeError, json.JSONDecodeError) as e:
+            logger.error(f"Data error creating PlanDefinition: {e}")
             return None
 
     async def _create_library_resource(
@@ -288,8 +313,14 @@ class ExternalServiceRegistry:
                     logger.error(f"Failed to create Subscription: {response.status_code} {response.text}")
                     return None
 
-        except Exception as e:
-            logger.error(f"Error creating Subscription: {e}")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"FHIR server error creating Subscription: {e.response.status_code}")
+            return None
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            logger.error(f"Connection error creating Subscription: {e}")
+            return None
+        except (ValueError, TypeError, KeyError, AttributeError, json.JSONDecodeError) as e:
+            logger.error(f"Data error creating Subscription: {e}")
             return None
 
     async def _update_fhir_resource_link(self, service_id: str, fhir_resource_id: str):
@@ -450,8 +481,14 @@ class ExternalServiceRegistry:
             await self.db.commit()
             return True
 
-        except Exception as e:
-            logger.error(f"Error deleting service {service_id}: {e}")
+        except (SQLAlchemyError, OperationalError, IntegrityError) as e:
+            logger.error(f"Database error deleting service {service_id}: {e}")
+            return False
+        except httpx.HTTPStatusError as e:
+            logger.error(f"FHIR server error deleting service {service_id}: {e.response.status_code}")
+            return False
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            logger.error(f"Connection error deleting service {service_id}: {e}")
             return False
 
     async def _delete_fhir_resource(self, resource_type: str, resource_id: str):
@@ -466,8 +503,10 @@ class ExternalServiceRegistry:
                 if response.status_code not in [200, 204]:
                     logger.warning(f"Failed to delete FHIR resource {resource_type}/{resource_id}: {response.status_code}")
 
-        except Exception as e:
-            logger.error(f"Error deleting FHIR resource: {e}")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"FHIR server error deleting resource {resource_type}/{resource_id}: {e.response.status_code}")
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            logger.error(f"Connection error deleting FHIR resource {resource_type}/{resource_id}: {e}")
 
     async def health_check(self, service_id: str) -> HealthCheckResult:
         """Perform health check on external service"""
@@ -528,13 +567,29 @@ class ExternalServiceRegistry:
                 timestamp=datetime.utcnow(),
                 error_message="Health check timeout"
             )
-        except Exception as e:
+        except httpx.HTTPStatusError as e:
             await self._update_health_status(service_id, HealthStatus.UNHEALTHY)
             return HealthCheckResult(
                 service_id=service_id,
                 status=HealthStatus.UNHEALTHY,
                 timestamp=datetime.utcnow(),
-                error_message=str(e)
+                error_message=f"HTTP error: {e.response.status_code}"
+            )
+        except httpx.RequestError as e:
+            await self._update_health_status(service_id, HealthStatus.UNHEALTHY)
+            return HealthCheckResult(
+                service_id=service_id,
+                status=HealthStatus.UNHEALTHY,
+                timestamp=datetime.utcnow(),
+                error_message=f"Connection error: {e}"
+            )
+        except (SQLAlchemyError, OperationalError, IntegrityError) as e:
+            logger.error(f"Database error during health check for service {service_id}: {e}")
+            return HealthCheckResult(
+                service_id=service_id,
+                status=HealthStatus.UNKNOWN,
+                timestamp=datetime.utcnow(),
+                error_message=f"Database error: {e}"
             )
 
     async def _update_health_status(self, service_id: str, status: HealthStatus):
@@ -629,8 +684,20 @@ class ExternalServiceRegistry:
 
             return service_id, plan_definition_ids
 
-        except Exception as e:
-            logger.error(f"Error in batch CDS registration: {e}")
+        except (SQLAlchemyError, OperationalError, IntegrityError) as e:
+            logger.error(f"Database error in batch CDS registration: {e}")
+            raise DatabaseQueryError(message="Failed to register batch CDS service", cause=e)
+        except httpx.HTTPStatusError as e:
+            logger.error(f"FHIR server error in batch CDS registration: {e.response.status_code}")
+            raise FHIRConnectionError(message="FHIR server error during batch registration", cause=e)
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            logger.error(f"Connection error in batch CDS registration: {e}")
+            raise FHIRConnectionError(message="Connection error during batch registration", cause=e)
+        except InvalidToken as e:
+            logger.error(f"Encryption error in batch CDS registration: {e}")
+            raise ValueError(f"Invalid encryption credentials: {e}")
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
+            logger.error(f"Data error in batch CDS registration: {e}")
             raise
 
     async def add_hook_to_service(
@@ -683,7 +750,7 @@ class ExternalServiceRegistry:
             )
 
             if not plan_def_id:
-                raise Exception("Failed to create PlanDefinition in HAPI FHIR")
+                raise FHIRConnectionError(message="Failed to create PlanDefinition in HAPI FHIR")
 
             # Store hook configuration in database
             await self._store_cds_hook_config(
@@ -696,9 +763,22 @@ class ExternalServiceRegistry:
 
             return plan_def_id
 
-        except Exception as e:
-            logger.error(f"Error adding hook to service: {e}")
+        except (SQLAlchemyError, OperationalError, IntegrityError) as e:
+            logger.error(f"Database error adding hook to service: {e}")
+            raise DatabaseQueryError(message="Failed to add hook to service", cause=e)
+        except (FHIRConnectionError, FHIRResourceNotFoundError):
             raise
+        except httpx.HTTPStatusError as e:
+            logger.error(f"FHIR server error adding hook to service: {e.response.status_code}")
+            raise FHIRConnectionError(message="FHIR server error adding hook", cause=e)
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            logger.error(f"Connection error adding hook to service: {e}")
+            raise FHIRConnectionError(message="Connection error adding hook", cause=e)
+        except ValueError:
+            raise
+        except (TypeError, KeyError, AttributeError) as e:
+            logger.error(f"Data error adding hook to service: {e}")
+            raise ValueError(f"Invalid hook configuration: {e}")
 
     async def list_service_hooks(self, service_id: str) -> List[CDSHooksServiceResponse]:
         """
@@ -763,8 +843,11 @@ class ExternalServiceRegistry:
 
             return hooks
 
-        except Exception as e:
-            logger.error(f"Error listing service hooks: {e}")
+        except (SQLAlchemyError, OperationalError, IntegrityError) as e:
+            logger.error(f"Database error listing service hooks: {e}")
+            raise DatabaseQueryError(message="Failed to list service hooks", cause=e)
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
+            logger.error(f"Data error listing service hooks: {e}")
             raise
 
     async def get_batch_cds_service(self, service_id: str) -> BatchCDSHooksServiceResponse:
@@ -813,9 +896,16 @@ class ExternalServiceRegistry:
 
             return batch_response
 
-        except Exception as e:
-            logger.error(f"Error getting batch CDS service: {e}")
+        except DatabaseQueryError:
             raise
+        except (SQLAlchemyError, OperationalError, IntegrityError) as e:
+            logger.error(f"Database error getting batch CDS service: {e}")
+            raise DatabaseQueryError(message="Failed to get batch CDS service", cause=e)
+        except ValueError:
+            raise
+        except (TypeError, KeyError, AttributeError) as e:
+            logger.error(f"Data error getting batch CDS service: {e}")
+            raise ValueError(f"Invalid service data: {e}")
 
     async def get_cds_service(
         self,
@@ -880,9 +970,14 @@ class ExternalServiceRegistry:
                 )
             )
 
-        except Exception as e:
-            logger.error(f"Error getting CDS service hook: {e}")
+        except (SQLAlchemyError, OperationalError, IntegrityError) as e:
+            logger.error(f"Database error getting CDS service hook: {e}")
+            raise DatabaseQueryError(message="Failed to get CDS service hook", cause=e)
+        except ValueError:
             raise
+        except (TypeError, KeyError, AttributeError) as e:
+            logger.error(f"Data error getting CDS service hook: {e}")
+            raise ValueError(f"Invalid hook data: {e}")
 
     # ========================================================================
     # Helper Methods for Multi-Hook Registration
@@ -981,8 +1076,14 @@ class ExternalServiceRegistry:
                     logger.error(f"Failed to create PlanDefinition: {response.status_code} {response.text}")
                     return None
 
-        except Exception as e:
-            logger.error(f"Error creating PlanDefinition for hook: {e}")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"FHIR server error creating PlanDefinition for hook: {e.response.status_code}")
+            return None
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            logger.error(f"Connection error creating PlanDefinition for hook: {e}")
+            return None
+        except (ValueError, TypeError, KeyError, AttributeError, json.JSONDecodeError) as e:
+            logger.error(f"Data error creating PlanDefinition for hook: {e}")
             return None
 
     async def _store_cds_hook_config(

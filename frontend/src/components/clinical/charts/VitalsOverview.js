@@ -114,18 +114,8 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
       normalRanges: { value: [97.0, 99.5] },
       color: chartColors.vitals.temperature
     },
-    'Body temperature': {
-      name: 'Temperature (Body)',
-      unit: '°F',
-      normalRanges: { value: [97.0, 99.5] },
-      color: chartColors.vitals.temperature
-    },
-    'Oxygen Saturation': {
-      name: 'O2 Saturation',
-      unit: '%',
-      normalRanges: { value: [95, 100] },
-      color: chartColors.vitals.respiratoryRate
-    },
+    // 'Body temperature' already defined above
+    // 'Oxygen Saturation' already defined above
     'Pulse Oximetry': {
       name: 'O2 Saturation (Pulse)',
       unit: '%',

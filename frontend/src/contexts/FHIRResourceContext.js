@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { intelligentCache } from '../core/fhir/utils/intelligentCache';
-import { useStableCallback } from '../hooks/useStableReferences';
+import { useStableCallback } from '../hooks/ui/useStableReferences';
 import performanceMonitor from '../utils/performanceMonitor';
 
 // Action Types

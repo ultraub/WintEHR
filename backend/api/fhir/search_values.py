@@ -1,16 +1,31 @@
 """
 FHIR Search Parameter Distinct Values API
-Provides distinct values for token-type search parameters using HAPI FHIR JPA search index tables.
+
+Provides distinct values for token-type search parameters using FHIR API operations.
+
+Architecture:
+- Uses SearchValueCache service for all search value operations
+- SearchValueCache uses HAPIFHIRClient for FHIR API operations (no direct DB access)
+- Results are cached with TTL for performance
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import List, Dict, Optional
+from typing import Optional
 import logging
-from sqlalchemy import text
-from database import get_db_session
+
+from api.services.fhir.search_value_cache import (
+    get_search_value_cache,
+    SearchValueCache,
+)
+from shared.exceptions import FHIRConnectionError
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/fhir/search-values", tags=["fhir-search-values"])
+
+
+def get_cache() -> SearchValueCache:
+    """Get the search value cache service instance."""
+    return get_search_value_cache()
 
 
 @router.get("/{resource_type}/{parameter_name}")
@@ -18,157 +33,36 @@ async def get_distinct_values(
     resource_type: str,
     parameter_name: str,
     limit: int = Query(default=100, description="Maximum number of distinct values to return"),
-    db = Depends(get_db_session)
+    cache: SearchValueCache = Depends(get_cache)
 ):
     """
     Get distinct values for a specific search parameter.
-    
+
     This is particularly useful for token-type parameters like gender, status, etc.
+    Uses FHIR API operations through SearchValueCache service.
+
+    Args:
+        resource_type: FHIR resource type (e.g., "Patient", "Observation")
+        parameter_name: Search parameter name (e.g., "gender", "status")
+        limit: Maximum number of distinct values to return (default: 100)
+
+    Returns:
+        Dict with resource_type, parameter, values list, and total count
     """
     try:
-        # Map common parameter aliases
-        param_aliases = {
-            'patient': 'subject',  # patient is often an alias for subject
-            'subject': 'patient'   # and vice versa
-        }
-
-        # Query HAPI FHIR search index tables (updated 2025-10-05)
-        # Try token index first (most common for parameters like status, gender, code)
-        query = text("""
-            SELECT DISTINCT
-                sp.sp_value as value,
-                COUNT(*) as usage_count
-            FROM hfj_spidx_token sp
-            WHERE sp.res_type = :resource_type
-            AND sp.sp_name = :param_name
-            AND sp.sp_value IS NOT NULL
-            GROUP BY sp.sp_value
-            ORDER BY usage_count DESC
-            LIMIT :limit
-        """)
-
-        result = await db.execute(
-            query,
-            {
-                "resource_type": resource_type,
-                "param_name": parameter_name,
-                "limit": limit
-            }
+        result = await cache.get_distinct_values(
+            resource_type=resource_type,
+            parameter_name=parameter_name,
+            limit=limit
         )
+        return result
 
-        values = []
-        for row in result:
-            value = row.value
-            if value:
-                # Clean up the value
-                # Remove prefixes like "urn:uuid:" or resource type prefixes
-                if value.startswith("urn:uuid:"):
-                    continue  # Skip UUIDs
-                if "/" in value:
-                    value = value.split("/", 1)[1]  # Get just the ID part
-
-                values.append({
-                    "value": value,
-                    "display": value.replace("-", " ").replace("_", " ").title(),
-                    "count": row.usage_count
-                })
-
-        # If no results from token index, try string index (for name, address, etc.)
-        if not values:
-            string_query = text("""
-                SELECT DISTINCT
-                    sp.sp_value_normalized as value,
-                    COUNT(*) as usage_count
-                FROM hfj_spidx_string sp
-                WHERE sp.res_type = :resource_type
-                AND sp.sp_name = :param_name
-                AND sp.sp_value_normalized IS NOT NULL
-                GROUP BY sp.sp_value_normalized
-                ORDER BY usage_count DESC
-                LIMIT :limit
-            """)
-
-            result = await db.execute(
-                string_query,
-                {
-                    "resource_type": resource_type,
-                    "param_name": parameter_name,
-                    "limit": limit
-                }
-            )
-
-            for row in result:
-                value = row.value
-                if value:
-                    values.append({
-                        "value": value,
-                        "display": value.title() if value.islower() else value,
-                        "count": row.usage_count
-                    })
-        
-        # For certain well-known parameters, add standard values if not present
-        standard_values = {
-            "gender": [
-                {"value": "male", "display": "Male", "count": 0},
-                {"value": "female", "display": "Female", "count": 0},
-                {"value": "other", "display": "Other", "count": 0},
-                {"value": "unknown", "display": "Unknown", "count": 0}
-            ],
-            "status": {
-                "Patient": [
-                    {"value": "active", "display": "Active", "count": 0},
-                    {"value": "inactive", "display": "Inactive", "count": 0}
-                ],
-                "Observation": [
-                    {"value": "registered", "display": "Registered", "count": 0},
-                    {"value": "preliminary", "display": "Preliminary", "count": 0},
-                    {"value": "final", "display": "Final", "count": 0},
-                    {"value": "amended", "display": "Amended", "count": 0},
-                    {"value": "corrected", "display": "Corrected", "count": 0},
-                    {"value": "cancelled", "display": "Cancelled", "count": 0},
-                    {"value": "entered-in-error", "display": "Entered in Error", "count": 0}
-                ],
-                "MedicationRequest": [
-                    {"value": "active", "display": "Active", "count": 0},
-                    {"value": "on-hold", "display": "On Hold", "count": 0},
-                    {"value": "cancelled", "display": "Cancelled", "count": 0},
-                    {"value": "completed", "display": "Completed", "count": 0},
-                    {"value": "entered-in-error", "display": "Entered in Error", "count": 0},
-                    {"value": "stopped", "display": "Stopped", "count": 0},
-                    {"value": "draft", "display": "Draft", "count": 0}
-                ]
-            },
-            "clinical-status": [
-                {"value": "active", "display": "Active", "count": 0},
-                {"value": "recurrence", "display": "Recurrence", "count": 0},
-                {"value": "relapse", "display": "Relapse", "count": 0},
-                {"value": "inactive", "display": "Inactive", "count": 0},
-                {"value": "remission", "display": "Remission", "count": 0},
-                {"value": "resolved", "display": "Resolved", "count": 0}
-            ]
-        }
-        
-        # Merge with standard values if applicable
-        if parameter_name in standard_values:
-            std_vals = standard_values[parameter_name]
-            if isinstance(std_vals, dict):
-                std_vals = std_vals.get(resource_type, [])
-            
-            # Create a map of existing values
-            existing_values = {v["value"]: v for v in values}
-            
-            # Add standard values that aren't already present
-            for std_val in std_vals:
-                if std_val["value"] not in existing_values:
-                    values.append(std_val)
-        
-        return {
-            "resource_type": resource_type,
-            "parameter": parameter_name,
-            "values": values,
-            "total": len(values)
-        }
-        
+    except FHIRConnectionError as e:
+        logger.error(f"FHIR connection error getting distinct values: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="FHIR server unavailable"
+        )
     except Exception as e:
         logger.error(f"Error getting distinct values: {str(e)}")
         raise HTTPException(
@@ -180,51 +74,62 @@ async def get_distinct_values(
 @router.get("/{resource_type}")
 async def get_searchable_parameters(
     resource_type: str,
-    db = Depends(get_db_session)
+    cache: SearchValueCache = Depends(get_cache)
 ):
     """
-    Get all searchable parameters for a resource type from HAPI FHIR search indexes.
+    Get all searchable parameters for a resource type.
+
+    Queries the FHIR server's CapabilityStatement to get supported
+    search parameters for the specified resource type.
+
+    Args:
+        resource_type: FHIR resource type (e.g., "Patient", "Observation")
+
+    Returns:
+        Dict with resource_type, parameters list, and total count
     """
     try:
-        # Query HAPI FHIR JPA search indexes to find available parameters
-        # Combine token and string indexes for comprehensive parameter list
-        query = text("""
-            SELECT DISTINCT sp_name as param_name
-            FROM (
-                SELECT DISTINCT sp_name FROM hfj_spidx_token
-                WHERE res_type = :resource_type
-                UNION
-                SELECT DISTINCT sp_name FROM hfj_spidx_string
-                WHERE res_type = :resource_type
-                UNION
-                SELECT DISTINCT sp_name FROM hfj_spidx_date
-                WHERE res_type = :resource_type
-                UNION
-                SELECT DISTINCT sp_name FROM hfj_spidx_number
-                WHERE res_type = :resource_type
-                UNION
-                SELECT DISTINCT sp_name FROM hfj_spidx_quantity
-                WHERE res_type = :resource_type
-                UNION
-                SELECT DISTINCT sp_name FROM hfj_spidx_uri
-                WHERE res_type = :resource_type
-            ) AS all_params
-            ORDER BY param_name
-        """)
+        result = await cache.get_searchable_parameters(resource_type=resource_type)
+        return result
 
-        result = await db.execute(query, {"resource_type": resource_type})
-
-        parameters = [row.param_name for row in result]
-
-        return {
-            "resource_type": resource_type,
-            "parameters": parameters,
-            "total": len(parameters)
-        }
-
+    except FHIRConnectionError as e:
+        logger.error(f"FHIR connection error getting searchable parameters: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="FHIR server unavailable"
+        )
     except Exception as e:
         logger.error(f"Error getting searchable parameters: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get searchable parameters: {str(e)}"
         )
+
+
+@router.post("/cache/invalidate")
+async def invalidate_search_value_cache(
+    resource_type: Optional[str] = None,
+    parameter_name: Optional[str] = None,
+    cache: SearchValueCache = Depends(get_cache)
+):
+    """
+    Invalidate cached search values.
+
+    Use this endpoint when data has changed and cached values
+    need to be refreshed.
+
+    Args:
+        resource_type: Optional - invalidate all cache for this resource type
+        parameter_name: Optional - if resource_type also given, invalidate specific parameter
+
+    Returns:
+        Confirmation message
+    """
+    cache.invalidate_cache(resource_type=resource_type, parameter_name=parameter_name)
+
+    if resource_type and parameter_name:
+        return {"message": f"Cache invalidated for {resource_type}.{parameter_name}"}
+    elif resource_type:
+        return {"message": f"Cache invalidated for all {resource_type} parameters"}
+    else:
+        return {"message": "All search value cache cleared"}

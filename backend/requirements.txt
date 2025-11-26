@@ -39,6 +39,7 @@ PyJWT==2.8.0
 pytest==7.4.3
 pytest-cov==4.1.0
 pytest-asyncio==0.21.1
+aiosqlite>=0.19.0  # Async SQLite for test fixtures
 
 # FHIR specific
 fhir.resources==7.1.0

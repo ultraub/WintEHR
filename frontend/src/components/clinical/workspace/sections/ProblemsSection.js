@@ -47,11 +47,8 @@ import { ClinicalResourceCard } from '../../shared/cards';
 import { ClinicalDataList } from '../../shared/tables';
 import { ClinicalFilterBar } from '../../shared/inputs';
 import { useTabFilters, useTabSearch } from '../../../../hooks/clinical';
-import {
-  getStatusColor,
-  getSeverityColor,
-  formatDate
-} from '../../../../utils/clinicalHelpers';
+import { getStatusColor, getSeverityColor } from '../../../../utils/status';
+import { formatDate } from '../../../../utils/date';
 import { 
   getConditionStatus, 
   isConditionActive, 

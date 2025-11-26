@@ -1,24 +1,51 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    // Target modern browsers
+    "target": "ES2020",
     "lib": [
       "dom",
       "dom.iterable",
-      "esnext"
+      "ES2020"
     ],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "strict": false,
-    "forceConsistentCasingInFileNames": true,
-    "noFallthroughCasesInSwitch": true,
+
+    // Module system
     "module": "esnext",
     "moduleResolution": "node",
-    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "isolatedModules": true,
-    "noEmit": true,
+    "resolveJsonModule": true,
+
+    // JSX support
     "jsx": "react-jsx",
+
+    // JavaScript interop (for gradual migration)
+    "allowJs": true,
+    "checkJs": false,
+
+    // Type checking strictness (progressive strictness plan)
+    // Phase 1 (Weeks 1-4): Start with relaxed settings - COMPLETED
+    // Phase 2 (Weeks 5-8): Enable noImplicitAny - ACTIVE
+    "strict": false,
+    "noImplicitAny": true,
+    "strictNullChecks": false,
+    // Phase 3 (Weeks 9-12): Enable strictNullChecks
+    // Phase 4 (Post): Full strict: true
+
+    // Additional type safety (enabled from start)
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
+    "noUncheckedIndexedAccess": false,
+
+    // Build settings
+    "skipLibCheck": true,
+    "noEmit": true,
+    "incremental": true,
+
+    // Path mapping
     "baseUrl": "src",
     "paths": {
       "@/*": ["./*"],
@@ -28,11 +55,20 @@
       "@/utils/*": ["utils/*"],
       "@/constants/*": ["constants/*"],
       "@/contexts/*": ["contexts/*"],
-      "@/core/*": ["core/*"]
-    }
+      "@/core/*": ["core/*"],
+      "@/types/*": ["types/*"]
+    },
+
+    // Declaration files
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": true
   },
   "include": [
-    "src"
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.js",
+    "src/**/*.jsx"
   ],
   "exclude": [
     "node_modules",
@@ -42,6 +78,10 @@
     "acceptance-tests",
     "webpack",
     "jest",
-    "src/setupTests.ts"
+    "src/setupTests.ts",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
   ]
 }

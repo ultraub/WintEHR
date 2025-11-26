@@ -12,7 +12,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
-from backend.api.cds_hooks.cds_hooks_router import router
+from api.cds_hooks.cds_hooks_router import router
 
 
 class TestCDSHooksDiscovery:
@@ -311,7 +311,7 @@ class TestPlanDefinitionConversion:
 
     def test_extract_extension_value_string(self, sample_plan_definition):
         """Test extracting string extension value"""
-        from backend.api.cds_hooks.cds_hooks_router import _extract_extension_value
+        from api.cds_hooks.cds_hooks_router import _extract_extension_value
 
         value = _extract_extension_value(
             sample_plan_definition,
@@ -322,7 +322,7 @@ class TestPlanDefinitionConversion:
 
     def test_extract_extension_value_code(self, sample_plan_definition):
         """Test extracting code extension value"""
-        from backend.api.cds_hooks.cds_hooks_router import _extract_extension_value
+        from api.cds_hooks.cds_hooks_router import _extract_extension_value
 
         value = _extract_extension_value(
             sample_plan_definition,
@@ -333,7 +333,7 @@ class TestPlanDefinitionConversion:
 
     def test_extract_extension_value_default(self, sample_plan_definition):
         """Test extension extraction with default value"""
-        from backend.api.cds_hooks.cds_hooks_router import _extract_extension_value
+        from api.cds_hooks.cds_hooks_router import _extract_extension_value
 
         value = _extract_extension_value(
             sample_plan_definition,
@@ -345,7 +345,7 @@ class TestPlanDefinitionConversion:
 
     def test_plan_definition_to_cds_service(self, sample_plan_definition):
         """Test converting PlanDefinition to CDSService"""
-        from backend.api.cds_hooks.cds_hooks_router import _plan_definition_to_cds_service
+        from api.cds_hooks.cds_hooks_router import _plan_definition_to_cds_service
 
         service = _plan_definition_to_cds_service(sample_plan_definition)
 
@@ -357,7 +357,7 @@ class TestPlanDefinitionConversion:
 
     def test_build_prefetch_from_plan_definition(self, sample_plan_definition):
         """Test building prefetch template from PlanDefinition"""
-        from backend.api.cds_hooks.cds_hooks_router import _build_prefetch_from_plan_definition
+        from api.cds_hooks.cds_hooks_router import _build_prefetch_from_plan_definition
 
         prefetch = _build_prefetch_from_plan_definition(sample_plan_definition)
 
@@ -367,7 +367,7 @@ class TestPlanDefinitionConversion:
 
     def test_build_prefetch_with_custom_extension(self):
         """Test building prefetch from custom extension"""
-        from backend.api.cds_hooks.cds_hooks_router import _build_prefetch_from_plan_definition
+        from api.cds_hooks.cds_hooks_router import _build_prefetch_from_plan_definition
 
         plan_def = {
             "resourceType": "PlanDefinition",
