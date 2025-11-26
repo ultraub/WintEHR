@@ -5,6 +5,7 @@
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { parseISO, addDays, isAfter } from 'date-fns';
+import { EXTENSION_URLS } from '../constants/fhirExtensions';
 
 class PrescriptionRefillService {
   constructor() {
@@ -92,7 +93,7 @@ class PrescriptionRefillService {
         // Add refill tracking extension
         extension: [
           {
-            url: 'http://example.org/fhir/refill-request',
+            url: EXTENSION_URLS.REFILL_REQUEST,
             extension: [
               {
                 url: 'originalPrescription',
@@ -202,7 +203,7 @@ class PrescriptionRefillService {
         extension: [
           ...(refillRequest.extension || []),
           {
-            url: 'http://example.org/fhir/refill-approval',
+            url: EXTENSION_URLS.REFILL_APPROVAL,
             extension: [
               {
                 url: 'approvedBy',
@@ -608,7 +609,7 @@ class PrescriptionRefillService {
    */
   extractRefillInfo(medicationRequest) {
     const refillExtension = medicationRequest.extension?.find(
-      ext => ext.url === 'http://example.org/fhir/refill-request'
+      ext => ext.url === EXTENSION_URLS.REFILL_REQUEST
     );
 
     if (!refillExtension) {

@@ -53,6 +53,7 @@ class ExtensionURLs:
     COMMUNICATION_CATEGORY_SYSTEM = "http://wintehr.local/fhir/communication-category"
     ALERT_TYPE_SYSTEM = "http://wintehr.local/fhir/alert-type"
     TASK_TYPE_SYSTEM = "http://wintehr.local/fhir/task-type"
+    RECONCILIATION_STATUS_SYSTEM = "http://wintehr.local/fhir/reconciliation-status"
 
 
 class PlanDefinitionURLs:

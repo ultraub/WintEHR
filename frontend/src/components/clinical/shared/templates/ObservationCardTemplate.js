@@ -116,9 +116,9 @@ const ObservationCardTemplate = ({
   
   // Method (how the observation was made)
   if (observation.method?.text || observation.method?.coding?.[0]?.display) {
-    details.push({ 
-      label: 'Method', 
-      value: observation.method.text || observation.method.coding[0].display 
+    details.push({
+      label: 'Method',
+      value: observation.method?.text || observation.method?.coding?.[0]?.display || 'Unknown'
     });
   }
   
@@ -154,9 +154,9 @@ const ObservationCardTemplate = ({
   
   // Body site
   if (observation.bodySite?.text || observation.bodySite?.coding?.[0]?.display) {
-    details.push({ 
-      label: 'Body site', 
-      value: observation.bodySite.text || observation.bodySite.coding[0].display 
+    details.push({
+      label: 'Body site',
+      value: observation.bodySite?.text || observation.bodySite?.coding?.[0]?.display || 'Unknown'
     });
   }
   

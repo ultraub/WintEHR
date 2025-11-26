@@ -16,8 +16,7 @@ import {
   Button,
   Menu,
   MenuItem,
-  useTheme,
-  alpha
+  useTheme
 } from '@mui/material';
 import {
   Medication as MedicationIcon,

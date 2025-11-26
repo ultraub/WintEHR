@@ -55,8 +55,7 @@ import {
   Medication as MedicationIcon,
   NotificationImportant as AlertIcon
 } from '@mui/icons-material';
-import { format, parseISO, differenceInDays, isAfter, addDays } from 'date-fns';
-import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
+import { format, parseISO } from 'date-fns';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import { prescriptionRefillService } from '../../../services/prescriptionRefillService';
 import { useMedicationResolver } from '../../../hooks/useMedicationResolver';

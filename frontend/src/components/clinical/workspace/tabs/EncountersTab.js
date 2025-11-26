@@ -23,14 +23,11 @@ import {
   InputLabel,
   CircularProgress,
   Alert,
-  useTheme,
-  alpha,
   Snackbar,
   Badge,
   Grid,
   ToggleButton,
-  ToggleButtonGroup,
-  Collapse
+  ToggleButtonGroup
 } from '@mui/material';
 import {
   LocalHospital as HospitalIcon,

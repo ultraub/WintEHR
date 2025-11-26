@@ -11,7 +11,6 @@ import {
   Chip,
   Stack,
   IconButton,
-  Collapse,
   Avatar,
   Badge,
   Tooltip,
@@ -19,7 +18,6 @@ import {
   alpha,
   Grid,
   Divider,
-  LinearProgress,
   useMediaQuery
 } from '@mui/material';
 import {

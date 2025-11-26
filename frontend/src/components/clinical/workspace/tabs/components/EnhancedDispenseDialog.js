@@ -32,7 +32,6 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   IconButton,
-  Collapse,
   InputAdornment,
   FormControlLabel,
   Checkbox,

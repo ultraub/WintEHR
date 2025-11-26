@@ -132,24 +132,45 @@ async def dispense_medication(dispense_request: MedicationDispenseRequest):
                 detail="Medication request not found"
             )
 
+        # FHIR R4: subject is required (1..1) - validate it exists in the request
+        if not med_request.get("subject") or not med_request.get("subject", {}).get("reference"):
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail="MedicationRequest is missing required subject reference"
+            )
+
+        # FHIR R4: performer is required - pharmacist_id must be provided
+        if not dispense_request.pharmacist_id:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail="pharmacist_id is required for medication dispensing"
+            )
+
+        # Extract patient_id from the medication request subject
+        patient_ref = med_request["subject"]["reference"]
+
         # Create complete MedicationDispense FHIR resource
         dispense_id = str(uuid.uuid4())
         current_time = datetime.now(timezone.utc)
 
+        # Get dispense unit from request or default
+        dispense_unit = med_request.get("dispenseRequest", {}).get("quantity", {}).get("unit", "units")
+        dispense_unit_code = med_request.get("dispenseRequest", {}).get("quantity", {}).get("code", "{Unit}")
+
         # Build MedicationDispense resource (dict format)
+        # Note: id and versionId are managed by HAPI FHIR server
         dispense_resource = {
             "resourceType": "MedicationDispense",
-            "id": dispense_id,
             "meta": {
-                "versionId": "1",
-                "lastUpdated": current_time.isoformat(),
                 "profile": ["http://hl7.org/fhir/StructureDefinition/MedicationDispense"]
             },
             "identifier": [{
-                "system": "http://example.org/pharmacy/dispense-id",
+                "system": f"{ExtensionURLs.BASE_URL}/pharmacy/dispense-id",
                 "value": f"DISP-{dispense_id[:8].upper()}"
             }],
             "status": "completed",
+            # FHIR R4: subject is required (1..1)
+            "subject": med_request["subject"],
             "authorizingPrescription": [{
                 "reference": f"MedicationRequest/{dispense_request.medication_request_id}"
             }],
@@ -162,8 +183,9 @@ async def dispense_medication(dispense_request: MedicationDispenseRequest):
             },
             "quantity": {
                 "value": dispense_request.quantity,
-                "unit": med_request.get("dispenseRequest", {}).get("quantity", {}).get("unit", "units"),
-                "system": "http://unitsofmeasure.org"
+                "unit": dispense_unit,
+                "system": "http://unitsofmeasure.org",
+                "code": dispense_unit_code
             },
             "daysSupply": {
                 "value": 30,
@@ -175,7 +197,7 @@ async def dispense_medication(dispense_request: MedicationDispenseRequest):
             "whenHandedOver": current_time.isoformat(),
             "performer": [{
                 "actor": {
-                    "reference": f"Practitioner/{dispense_request.pharmacist_id or 'default-pharmacist'}",
+                    "reference": f"Practitioner/{dispense_request.pharmacist_id}",
                     "display": "Pharmacist"
                 }
             }]
@@ -200,11 +222,11 @@ async def dispense_medication(dispense_request: MedicationDispenseRequest):
         # Add lot number and expiration as extensions
         dispense_resource["extension"] = [
             {
-                "url": "http://wintehr.org/fhir/StructureDefinition/lot-number",
+                "url": f"{ExtensionURLs.BASE_URL}/lot-number",
                 "valueString": dispense_request.lot_number
             },
             {
-                "url": "http://wintehr.org/fhir/StructureDefinition/expiration-date",
+                "url": f"{ExtensionURLs.BASE_URL}/expiration-date",
                 "valueDate": dispense_request.expiration_date
             }
         ]

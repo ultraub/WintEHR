@@ -37,9 +37,7 @@ import {
   DialogContent,
   DialogActions,
   Badge,
-  LinearProgress,
   useTheme,
-  alpha,
   Tabs,
   Tab,
   Snackbar,
@@ -47,8 +45,7 @@ import {
   ToggleButtonGroup,
   Collapse,
   Avatar,
-  AvatarGroup,
-  Skeleton
+  AvatarGroup
 } from '@mui/material';
 import {
   Medication as PharmacyIcon,

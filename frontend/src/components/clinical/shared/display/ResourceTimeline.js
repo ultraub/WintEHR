@@ -17,8 +17,7 @@ import {
   Skeleton,
   useTheme,
   alpha,
-  Zoom,
-  Fade
+  Zoom
 } from '@mui/material';
 import {
   ZoomIn as ZoomInIcon,

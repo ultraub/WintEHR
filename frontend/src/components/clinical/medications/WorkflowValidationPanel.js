@@ -36,14 +36,12 @@ import {
   Warning as WarningIcon,
   Info as InfoIcon,
   Assessment as ValidationIcon,
-  Security as IntegrityIcon,
   AccountTree as WorkflowIcon,
   Autorenew as AutoFixIcon,
   Autorenew as AutorenewIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Refresh as RefreshIcon,
-  Build as FixIcon,
   Timeline as ProcessIcon,
   DataUsage as DataIcon,
   Medication as MedicationIcon,
@@ -126,12 +124,12 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
 
   const handleAutoFix = async () => {
     if (!validationReport) return;
-    
+
     setAutoFixing(true);
     try {
-      const fixResults = await medicationWorkflowValidator.autoFixConsistencyIssues(validationReport);
-      
-      // Show fix results and re-run validation
+      await medicationWorkflowValidator.autoFixConsistencyIssues(validationReport);
+
+      // Re-run validation after auto-fix
       await runValidation();
       
       if (onRefresh) {

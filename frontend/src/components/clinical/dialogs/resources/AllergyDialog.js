@@ -25,8 +25,7 @@ import {
   FormControlLabel,
   FormGroup,
   Checkbox,
-  useTheme,
-  alpha
+  useTheme
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import SimplifiedClinicalDialog from '../../common/SimplifiedClinicalDialog';

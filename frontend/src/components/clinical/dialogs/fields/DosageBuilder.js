@@ -95,7 +95,6 @@ const DosageBuilder = ({
     ...value
   });
 
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [showCalculatorPanel, setShowCalculatorPanel] = useState(false);
   const [calculatedDose, setCalculatedDose] = useState(null);
   const [warnings, setWarnings] = useState([]);

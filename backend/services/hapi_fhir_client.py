@@ -253,6 +253,168 @@ class HAPIFHIRClient:
             logger.error(f"HAPI FHIR connection error: {e}")
             raise Exception(f"Failed to connect to FHIR server: {str(e)}")
 
+    async def search_with_includes(
+        self,
+        resource_type: str,
+        params: Optional[Dict[str, Any]] = None,
+        include: Optional[List[str]] = None,
+        revinclude: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Search for FHIR resources with _include and _revinclude support.
+
+        This method reduces N+1 query patterns by fetching related resources
+        in a single request. HAPI FHIR handles the joins efficiently.
+
+        Args:
+            resource_type: FHIR resource type (e.g., "MedicationRequest")
+            params: Search parameters as dict (e.g., {"patient": "Patient/123"})
+            include: List of _include paths to fetch referenced resources
+                Example: ["MedicationRequest:medication", "MedicationRequest:requester"]
+            revinclude: List of _revinclude paths to fetch resources referencing results
+                Example: ["Provenance:target", "AuditEvent:entity"]
+
+        Returns:
+            FHIR Bundle dict with search results and included resources
+
+        Example:
+            # Fetch MedicationRequests with their Medication and Practitioner resources
+            bundle = await client.search_with_includes(
+                "MedicationRequest",
+                {"patient": "Patient/123", "status": "active"},
+                include=["MedicationRequest:medication", "MedicationRequest:requester"]
+            )
+
+            # The bundle will contain both MedicationRequest and included resources
+            for entry in bundle.get("entry", []):
+                resource = entry.get("resource", {})
+                if resource.get("resourceType") == "MedicationRequest":
+                    # Process the medication request
+                    pass
+                elif resource.get("resourceType") == "Medication":
+                    # This is an included resource
+                    pass
+
+        Educational notes:
+            - _include fetches resources that the search results reference
+            - _revinclude fetches resources that reference the search results
+            - Format: ResourceType:searchParameter (e.g., MedicationRequest:medication)
+            - Can use :iterate for chained includes
+            - Significantly reduces N+1 query patterns
+        """
+        url = f"{self.base_url}/{resource_type}"
+
+        # Build search params with includes
+        search_params = dict(params) if params else {}
+
+        # Add _include parameters
+        if include:
+            # httpx handles list params correctly for FHIR
+            if len(include) == 1:
+                search_params["_include"] = include[0]
+            else:
+                # Multiple includes need to be passed as multiple params
+                search_params["_include"] = include
+
+        # Add _revinclude parameters
+        if revinclude:
+            if len(revinclude) == 1:
+                search_params["_revinclude"] = revinclude[0]
+            else:
+                search_params["_revinclude"] = revinclude
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(url, params=search_params)
+                response.raise_for_status()
+                return response.json()
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HAPI FHIR search_with_includes error for {resource_type}: {e.response.status_code} - {e.response.text}")
+            raise Exception(f"FHIR search with includes failed: {e.response.status_code}")
+        except httpx.RequestError as e:
+            logger.error(f"HAPI FHIR connection error: {e}")
+            raise Exception(f"Failed to connect to FHIR server: {str(e)}")
+
+    def extract_resources_by_type(
+        self,
+        bundle: Dict[str, Any],
+        resource_type: Optional[str] = None
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Extract resources from a Bundle, optionally grouped by resource type.
+
+        Useful for processing bundles returned by search_with_includes.
+
+        Args:
+            bundle: FHIR Bundle from search operation
+            resource_type: Optional filter for specific resource type
+
+        Returns:
+            Dict mapping resource type to list of resources
+
+        Example:
+            bundle = await client.search_with_includes(...)
+            resources_by_type = client.extract_resources_by_type(bundle)
+
+            # Access specific resource types
+            medication_requests = resources_by_type.get("MedicationRequest", [])
+            medications = resources_by_type.get("Medication", [])
+        """
+        result: Dict[str, List[Dict[str, Any]]] = {}
+
+        for entry in bundle.get("entry", []):
+            resource = entry.get("resource", {})
+            res_type = resource.get("resourceType")
+
+            if res_type:
+                if resource_type is None or res_type == resource_type:
+                    if res_type not in result:
+                        result[res_type] = []
+                    result[res_type].append(resource)
+
+        return result
+
+    def build_resource_map(
+        self,
+        bundle: Dict[str, Any],
+        resource_types: Optional[List[str]] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Build a lookup map of resources by their full reference path.
+
+        Useful for resolving references from search results with includes.
+
+        Args:
+            bundle: FHIR Bundle from search operation
+            resource_types: Optional list of resource types to include in map
+
+        Returns:
+            Dict mapping "ResourceType/id" to resource dict
+
+        Example:
+            bundle = await client.search_with_includes(...)
+            resource_map = client.build_resource_map(bundle)
+
+            # Resolve a medication reference
+            med_ref = med_request.get("medicationReference", {}).get("reference")
+            if med_ref and med_ref in resource_map:
+                medication = resource_map[med_ref]
+        """
+        result: Dict[str, Dict[str, Any]] = {}
+
+        for entry in bundle.get("entry", []):
+            resource = entry.get("resource", {})
+            res_type = resource.get("resourceType")
+            res_id = resource.get("id")
+
+            if res_type and res_id:
+                if resource_types is None or res_type in resource_types:
+                    ref_path = f"{res_type}/{res_id}"
+                    result[ref_path] = resource
+
+        return result
+
     async def operation(
         self,
         operation_path: str,

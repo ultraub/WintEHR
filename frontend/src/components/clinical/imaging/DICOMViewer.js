@@ -35,6 +35,7 @@ import {
 } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 import { apiClient } from '../../../services/api';
+import { EXTENSION_URLS } from '../../../constants/fhirExtensions';
 
 const DICOMViewer = ({ study, onClose }) => {
   const theme = useTheme();
@@ -160,7 +161,7 @@ const DICOMViewer = ({ study, onClose }) => {
     // Check for DICOM directory in extensions
     if (studyObj.extension) {
       const dicomDirExt = studyObj.extension.find(
-        ext => ext.url === 'http://example.org/fhir/StructureDefinition/dicom-directory'
+        ext => ext.url === EXTENSION_URLS.DICOM_DIRECTORY
       );
       if (dicomDirExt && dicomDirExt.valueString) {
         return dicomDirExt.valueString;

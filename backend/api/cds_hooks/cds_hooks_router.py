@@ -89,6 +89,8 @@ router = APIRouter(tags=["CDS Hooks"])
 # Built-in services will be registered via services/builtin/ module
 _registry = get_registry()
 _orchestrator = get_orchestrator()
+# Alias for backward compatibility with code using service_registry name
+service_registry = _registry
 
 # Include action execution router
 from .actions import router as action_router

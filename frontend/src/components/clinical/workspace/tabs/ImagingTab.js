@@ -37,8 +37,7 @@ import {
   useTheme,
   alpha,
   ImageList,
-  ImageListItem,
-  Fade
+  ImageListItem
 } from '@mui/material';
 import {
   Image as ImagingIcon,
@@ -78,6 +77,7 @@ import ImagingReportDialog from '../../imaging/ImagingReportDialog';
 import DownloadDialog from '../../imaging/DownloadDialog';
 import ShareDialog from '../../imaging/ShareDialog';
 import { printDocument } from '../../../../core/export/printUtils';
+import { EXTENSION_URLS } from '../../../../constants/fhirExtensions';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import websocketService from '../../../../services/websocket';
@@ -1045,7 +1045,7 @@ const ImagingTab = ({
     // Check for DICOM directory in extensions
     if (studyObj.extension) {
       const dicomDirExt = studyObj.extension.find(
-        ext => ext.url === 'http://example.org/fhir/StructureDefinition/dicom-directory'
+        ext => ext.url === EXTENSION_URLS.DICOM_DIRECTORY
       );
       if (dicomDirExt && dicomDirExt.valueString) {
         return dicomDirExt.valueString;

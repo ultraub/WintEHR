@@ -12,7 +12,6 @@ import {
   CardContent,
   Typography,
   Grid,
-  LinearProgress,
   Chip,
   IconButton,
   Collapse,
@@ -89,20 +88,6 @@ const PerformanceDashboard = () => {
         return 'error';
       default:
         return 'default';
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'optimized':
-      case 'healthy':
-        return <CheckIcon />;
-      case 'warning':
-      case 'needs-improvement':
-      case 'critical':
-        return <WarningIcon />;
-      default:
-        return null;
     }
   };
 

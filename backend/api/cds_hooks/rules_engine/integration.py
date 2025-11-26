@@ -13,28 +13,33 @@ from .core import RulesEngine, RuleCategory, RulePriority, rules_engine
 from .clinical_rules import ClinicalRulesLibrary
 from .data_adapters import FHIRDataAdapter
 from .safety import safety_manager, FeatureFlag
-from ..cds_services import (
-    DiabetesManagementService,
-    HypertensionManagementService,
-    DrugInteractionService,
-    PreventiveCareService
-)
+
+# NOTE: Legacy CDS services removed during v3.0 migration
+# The rules engine is now the primary CDS evaluation system.
+# Legacy fallback services are no longer maintained - the rules engine
+# handles all CDS logic with proper fallback to empty cards.
+# See services/builtin/ for the new v3.0 service architecture.
 
 logger = logging.getLogger(__name__)
 
 
 class CDSRulesIntegration:
-    """Integrates the rules engine with existing CDS services"""
-    
+    """
+    Integrates the rules engine with CDS Hooks infrastructure.
+
+    v3.0 Migration Notes:
+    - Legacy service fallbacks removed in favor of rules engine
+    - Rules engine is now the primary CDS evaluation system
+    - Empty legacy_services dict maintained for API compatibility
+    - Fallback logic gracefully returns empty cards when needed
+    """
+
     def __init__(self):
         self.rules_engine = rules_engine
         self.fhir_adapter = FHIRDataAdapter()
-        self.legacy_services = {
-            "diabetes-management": DiabetesManagementService(),
-            "hypertension-management": HypertensionManagementService(),
-            "drug-drug-interaction": DrugInteractionService(),
-            "preventive-care": PreventiveCareService()
-        }
+        # Legacy services removed in v3.0 - rules engine handles all CDS logic
+        # Empty dict ensures fallback code paths return empty cards gracefully
+        self.legacy_services: Dict[str, Any] = {}
         self._initialize_rules()
     
     def _initialize_rules(self):

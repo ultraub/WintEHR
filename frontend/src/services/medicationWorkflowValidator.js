@@ -8,6 +8,7 @@ import { medicationListManagementService } from './medicationListManagementServi
 import { prescriptionRefillService } from './prescriptionRefillService';
 import { medicationEffectivenessService } from './medicationEffectivenessService';
 import { differenceInDays, parseISO } from 'date-fns';
+import { EXTENSION_URLS } from '../constants/fhirExtensions';
 
 class MedicationWorkflowValidator {
   constructor() {
@@ -71,7 +72,7 @@ class MedicationWorkflowValidator {
           // Discontinuation records should match medication status
           const medicationStatus = medicationRequest.status;
           const discType = discontinuation.extension?.find(
-            ext => ext.url === 'http://example.org/fhir/discontinuation-type'
+            ext => ext.url === EXTENSION_URLS.DISCONTINUATION_TYPE
           )?.valueString;
 
           if (discType === 'immediate' && medicationStatus !== 'stopped') {
@@ -98,7 +99,7 @@ class MedicationWorkflowValidator {
 
               const hasPlan = (monitoringPlans.resources || []).some(plan => {
                 const medicationExt = plan.extension?.find(
-                  ext => ext.url === 'http://example.org/fhir/medication-monitoring'
+                  ext => ext.url === EXTENSION_URLS.MEDICATION_MONITORING
                 );
                 const medRef = medicationExt?.extension?.find(
                   ext => ext.url === 'originalMedication'
@@ -359,7 +360,7 @@ class MedicationWorkflowValidator {
   async validateDiscontinuationWorkflow(medication, medicationData, validation) {
     const relatedDiscontinuations = medicationData.discontinuations.filter(disc => {
       const medicationRef = disc.extension?.find(
-        ext => ext.url === 'http://example.org/fhir/original-medication'
+        ext => ext.url === EXTENSION_URLS.ORIGINAL_MEDICATION
       )?.valueReference?.reference;
       return medicationRef === `MedicationRequest/${medication.id}`;
     });
@@ -411,7 +412,7 @@ class MedicationWorkflowValidator {
     // Check for recent effectiveness assessments
     const relatedAssessments = medicationData.effectivenessAssessments.filter(assessment => {
       const medicationExt = assessment.extension?.find(
-        ext => ext.url === 'http://example.org/fhir/medication-assessment'
+        ext => ext.url === EXTENSION_URLS.MEDICATION_ASSESSMENT
       );
       const medicationRef = medicationExt?.extension?.find(
         ext => ext.url === 'medicationReference'

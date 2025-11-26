@@ -26,7 +26,6 @@ import {
   Step,
   StepLabel,
   StepContent,
-  Divider,
   List,
   ListItem,
   ListItemText,
@@ -37,14 +36,11 @@ import {
   Tooltip,
   Fade,
   Zoom,
-  Skeleton,
   InputAdornment,
   Radio,
   RadioGroup,
-  Rating,
   Badge,
-  useTheme,
-  alpha,
+  useTheme
 } from '@mui/material';
 import {
   Close as CloseIcon,

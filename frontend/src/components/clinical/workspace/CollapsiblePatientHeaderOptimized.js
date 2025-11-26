@@ -22,8 +22,6 @@ import {
   LinearProgress,
   useTheme,
   useMediaQuery,
-  Fade,
-  Slide,
   Menu,
   MenuItem
 } from '@mui/material';

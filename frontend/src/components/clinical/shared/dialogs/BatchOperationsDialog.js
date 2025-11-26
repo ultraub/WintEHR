@@ -53,9 +53,6 @@ import {
   InputLabel,
   FormControlLabel,
   Switch,
-  Collapse,
-  Fade,
-  Zoom,
   Grid,
   Card,
   CardContent,
@@ -67,6 +64,7 @@ import {
   AccordionDetails,
   Tab,
   Tabs,
+  Fade,
   alpha,
   useTheme
 } from '@mui/material';

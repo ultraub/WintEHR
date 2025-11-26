@@ -14,6 +14,7 @@ import uuid
 
 from database import get_db_session
 from services.hapi_fhir_client import HAPIFHIRClient
+from api.cds_hooks.constants import ExtensionURLs
 
 router = APIRouter(prefix="/api/clinical/medication-lists", tags=["medication-lists"])
 
@@ -379,7 +380,7 @@ async def reconcile_medication_lists(
                 # Medication appears in multiple lists
                 entry["flag"] = {
                     "coding": [{
-                        "system": "http://example.org/reconciliation-status",
+                        "system": ExtensionURLs.RECONCILIATION_STATUS_SYSTEM,
                         "code": "review-needed",
                         "display": "Review needed - appears in multiple lists"
                     }]
@@ -388,7 +389,7 @@ async def reconcile_medication_lists(
                 # Medication in single list
                 entry["flag"] = {
                     "coding": [{
-                        "system": "http://example.org/reconciliation-status",
+                        "system": ExtensionURLs.RECONCILIATION_STATUS_SYSTEM,
                         "code": "confirmed",
                         "display": "Confirmed"
                     }]

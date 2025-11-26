@@ -17,7 +17,6 @@ import {
   TableHead,
   TableRow,
   Button,
-  IconButton,
   Chip,
   Stack,
   Alert,
@@ -35,17 +34,10 @@ import {
   CardContent,
   CardHeader,
   Badge,
-  Tooltip,
   LinearProgress,
   Accordion,
   AccordionSummary,
-  AccordionDetails,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  ListItemSecondaryAction,
-  Divider
+  AccordionDetails
 } from '@mui/material';
 import {
   Medication as MedicationIcon,

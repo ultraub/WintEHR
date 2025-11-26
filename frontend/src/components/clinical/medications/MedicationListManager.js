@@ -41,7 +41,6 @@ import {
   CompareArrows as ReconcileIcon,
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
@@ -100,8 +99,6 @@ const MedicationListManager = ({
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [lists, setLists] = useState({});
-  const [selectedMedication, setSelectedMedication] = useState(null);
-  const [menuAnchor, setMenuAnchor] = useState(null);
   const [reconcileDialogOpen, setReconcileDialogOpen] = useState(false);
   const [reconciling, setReconciling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);

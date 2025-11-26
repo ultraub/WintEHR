@@ -4,6 +4,7 @@
  */
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
+import { CODE_SYSTEM_URLS } from '../constants/fhirExtensions';
 
 class MedicationListManagementService {
   constructor() {
@@ -66,7 +67,7 @@ class MedicationListManagementService {
       // Search for existing list
       const existingLists = await fhirClient.search('List', {
         patient: patientId,
-        code: `http://example.org/medication-list-types|${listType}`,
+        code: `${CODE_SYSTEM_URLS.MEDICATION_LIST_TYPES}|${listType}`,
         status: 'current'
       });
 
@@ -82,7 +83,7 @@ class MedicationListManagementService {
         title,
         code: {
           coding: [{
-            system: 'http://example.org/medication-list-types',
+            system: CODE_SYSTEM_URLS.MEDICATION_LIST_TYPES,
             code: listType,
             display: title
           }]
@@ -257,7 +258,7 @@ class MedicationListManagementService {
       const newEntry = {
         flag: {
           coding: [{
-            system: 'http://example.org/medication-list-flags',
+            system: CODE_SYSTEM_URLS.MEDICATION_LIST_FLAGS,
             code: reasonCode
           }]
         },

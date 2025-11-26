@@ -39,24 +39,48 @@ export const useMedicationResolver = (medicationRequests = []) => {
         setError(null);
         const resolved = {};
 
+        // Helper function to resolve contained resource
+        const resolveContainedMedication = (req, containedRef) => {
+          if (!req.contained || !Array.isArray(req.contained)) {
+            return null;
+          }
+          // Remove the leading '#' from the reference
+          const containedId = containedRef.substring(1);
+          return req.contained.find(
+            resource => resource.resourceType === 'Medication' && resource.id === containedId
+          );
+        };
+
         // Extract unique medication references
         const medicationRefs = new Set();
         medicationRequests.forEach(req => {
           // Skip null/undefined requests or requests without IDs
           if (!req || typeof req !== 'object' || !req.id) return;
-          
+
           // Handle different medication structures from Synthea
           if (req.medication?.reference?.reference) {
             // Handle nested reference structure from Synthea
             const ref = req.medication.reference.reference;
-            if (ref.startsWith('urn:uuid:')) {
+            if (ref.startsWith('#')) {
+              // Contained resource - resolve from contained[] array
+              const containedMed = resolveContainedMedication(req, ref);
+              if (containedMed) {
+                medicationCache.set(`contained:${req.id}:${ref}`, containedMed);
+              }
+            } else if (ref.startsWith('urn:uuid:')) {
               const id = ref.substring(9);
               medicationRefs.add(id);
             }
           } else if (req.medicationReference?.reference) {
             // Handle standard FHIR structure
             const ref = req.medicationReference.reference;
-            if (ref.startsWith('Medication/')) {
+            if (ref.startsWith('#')) {
+              // Contained resource - resolve from contained[] array
+              const containedMed = resolveContainedMedication(req, ref);
+              if (containedMed) {
+                medicationCache.set(`contained:${req.id}:${ref}`, containedMed);
+              }
+            } else if (ref.startsWith('Medication/')) {
               const id = ref.substring(11);
               medicationRefs.add(id);
             }
@@ -107,18 +131,25 @@ export const useMedicationResolver = (medicationRequests = []) => {
         medicationRequests.forEach(req => {
           // Skip null/undefined requests or requests without IDs
           if (!req || typeof req !== 'object' || !req.id) return;
-          
+
           let medicationId = null;
-          
+          let containedCacheKey = null;
+
           // Handle reference-based medications
           if (req.medication?.reference?.reference) {
             const ref = req.medication.reference.reference;
-            if (ref.startsWith('urn:uuid:')) {
+            if (ref.startsWith('#')) {
+              // Contained resource reference
+              containedCacheKey = `contained:${req.id}:${ref}`;
+            } else if (ref.startsWith('urn:uuid:')) {
               medicationId = ref.substring(9);
             }
           } else if (req.medicationReference?.reference) {
             const ref = req.medicationReference.reference;
-            if (ref.startsWith('Medication/')) {
+            if (ref.startsWith('#')) {
+              // Contained resource reference
+              containedCacheKey = `contained:${req.id}:${ref}`;
+            } else if (ref.startsWith('Medication/')) {
               medicationId = ref.substring(11);
             }
           }
@@ -134,10 +165,26 @@ export const useMedicationResolver = (medicationRequests = []) => {
             return; // Skip further processing for this request
           }
 
+          // Handle contained resource references
+          if (containedCacheKey && medicationCache.has(containedCacheKey)) {
+            const medication = medicationCache.get(containedCacheKey);
+            if (medication) {
+              const medName = medication.code?.text || medication.code?.coding?.[0]?.display || 'Unknown medication';
+              resolved[req.id] = {
+                name: medName,
+                code: medication.code,
+                form: medication.form,
+                ingredient: medication.ingredient,
+                medication: medication
+              };
+            }
+            return; // Skip further processing for this request
+          }
+
           if (medicationId) {
             if (medicationCache.has(medicationId)) {
               const medication = medicationCache.get(medicationId);
-              
+
               if (medication) {
                 const medName = medication.code?.text || medication.code?.coding?.[0]?.display || 'Unknown medication';
                 resolved[req.id] = {
@@ -151,8 +198,8 @@ export const useMedicationResolver = (medicationRequests = []) => {
             }
           } else if (req.medicationCodeableConcept) {
             // Fallback to medicationCodeableConcept if available
-            const medName = req.medicationCodeableConcept.text || 
-                          req.medicationCodeableConcept.coding?.[0]?.display || 
+            const medName = req.medicationCodeableConcept.text ||
+                          req.medicationCodeableConcept.coding?.[0]?.display ||
                           'Unknown medication';
             resolved[req.id] = {
               name: medName,
@@ -216,7 +263,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
         concept: medicationRequest.medication.concept
       };
     }
-    
+
     // Detect R4 format
     if (medicationRequest.medicationCodeableConcept) {
       return {
@@ -224,15 +271,48 @@ export const useMedicationResolver = (medicationRequests = []) => {
         concept: medicationRequest.medicationCodeableConcept
       };
     }
-    
-    // Reference format
-    if (medicationRequest.medicationReference) {
+
+    // Reference format - check for contained first
+    if (medicationRequest.medicationReference?.reference) {
+      const ref = medicationRequest.medicationReference.reference;
+      if (ref.startsWith('#')) {
+        // Contained resource reference
+        const containedMed = medicationRequest.contained?.find(
+          resource => resource.resourceType === 'Medication' && resource.id === ref.substring(1)
+        );
+        if (containedMed) {
+          return {
+            format: 'contained',
+            reference: medicationRequest.medicationReference,
+            medication: containedMed,
+            concept: containedMed.code
+          };
+        }
+      }
       return {
         format: 'reference',
         reference: medicationRequest.medicationReference
       };
     }
-    
+
+    // Also check medication.reference for R5-like structures
+    if (medicationRequest.medication?.reference?.reference) {
+      const ref = medicationRequest.medication.reference.reference;
+      if (ref.startsWith('#')) {
+        const containedMed = medicationRequest.contained?.find(
+          resource => resource.resourceType === 'Medication' && resource.id === ref.substring(1)
+        );
+        if (containedMed) {
+          return {
+            format: 'contained',
+            reference: medicationRequest.medication.reference,
+            medication: containedMed,
+            concept: containedMed.code
+          };
+        }
+      }
+    }
+
     return { format: 'unknown', concept: null };
   }, []);
 

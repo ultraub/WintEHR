@@ -29,7 +29,6 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Badge,
-  LinearProgress,
   Fade,
   Collapse,
   useTheme,

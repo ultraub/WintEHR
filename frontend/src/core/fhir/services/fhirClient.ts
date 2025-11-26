@@ -13,11 +13,11 @@
  */
 
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
-import type { 
-  FHIRResource, 
-  Patient, 
-  Condition, 
-  MedicationRequest, 
+import type {
+  FHIRResource,
+  Patient,
+  Condition,
+  MedicationRequest,
   AllergyIntolerance,
   Observation,
   Encounter,
@@ -28,9 +28,11 @@ import type {
   Coverage,
   Bundle,
   BundleEntry,
+  BundleLink,
   OperationOutcome,
   Reference,
   SearchResult,
+  PaginationInfo,
   ResourceType
 } from '../types';
 
@@ -619,6 +621,41 @@ class FHIRClient {
   }
 
   /**
+   * Extract pagination information from a FHIR Bundle
+   *
+   * FHIR bundles include pagination links with standard relations:
+   * - 'self': Current page URL
+   * - 'next': Next page URL (if more results exist)
+   * - 'previous': Previous page URL (if not on first page)
+   * - 'first': First page URL
+   * - 'last': Last page URL
+   *
+   * @param bundle - FHIR Bundle to extract pagination from
+   * @returns PaginationInfo with all pagination URLs and flags
+   */
+  private extractPaginationInfo(bundle: Bundle): PaginationInfo {
+    const links = bundle.link || [];
+
+    const getLink = (relation: string): string | null => {
+      const link = links.find((l: BundleLink) => l.relation === relation);
+      return link?.url || null;
+    };
+
+    const nextUrl = getLink('next');
+    const prevUrl = getLink('previous') || getLink('prev');
+
+    return {
+      hasNextPage: nextUrl !== null,
+      hasPrevPage: prevUrl !== null,
+      nextUrl,
+      prevUrl,
+      selfUrl: getLink('self'),
+      firstUrl: getLink('first'),
+      lastUrl: getLink('last')
+    };
+  }
+
+  /**
    * Create a unique key for request deduplication
    */
   private createRequestKey(method: string, url: string, params?: any): string {
@@ -1036,11 +1073,15 @@ class FHIRClient {
           // Otherwise, handle as a regular FHIR Bundle
           const bundle = response.data as Bundle;
           const resources = (bundle.entry?.map(entry => entry.resource) || []) as T[];
-          
+
+          // Extract pagination info from bundle links
+          const pagination = this.extractPaginationInfo(bundle);
+
           const result: SearchResult<T> = {
             resources,
             total: bundle.total || resources.length,
-            bundle
+            bundle,
+            pagination
           };
           
           // Cache with appropriate TTL based on resource type and search
@@ -1067,10 +1108,12 @@ class FHIRClient {
         } catch (error: any) {
           // Handle 404 for unsupported resource types
           if (error.response?.status === 404) {
+            const emptyBundle: Bundle = { resourceType: 'Bundle', type: 'searchset', entry: [] };
             const emptyResult: SearchResult<T> = {
               resources: [],
               total: 0,
-              bundle: { resourceType: 'Bundle', type: 'searchset', entry: [] }
+              bundle: emptyBundle,
+              pagination: this.extractPaginationInfo(emptyBundle)
             };
             return emptyResult;
           }
@@ -1078,6 +1121,129 @@ class FHIRClient {
         }
       })
     );
+  }
+
+  /**
+   * Fetch the next page of search results using the pagination URL
+   *
+   * FHIR R4 bundle pagination: When a search returns more results than
+   * fit in a single page, the server includes a 'next' link in the bundle.
+   * This method follows that link to fetch the next page.
+   *
+   * Educational note: This implements FHIR R4 pagination per the spec at
+   * https://hl7.org/fhir/http.html#paging
+   *
+   * @param previousResult - The SearchResult from the previous page
+   * @returns SearchResult for the next page, or null if no next page exists
+   */
+  async fetchNextPage<T extends FHIRResource>(
+    previousResult: SearchResult<T>
+  ): Promise<SearchResult<T> | null> {
+    const nextUrl = previousResult.pagination.nextUrl;
+
+    if (!nextUrl) {
+      return null;
+    }
+
+    // Create request key for deduplication
+    const requestKey = this.createRequestKey('GET', nextUrl);
+
+    return this.executeWithDeduplication(requestKey, () =>
+      this.queueRequest(async () => {
+        // The next URL is a full URL from the server, fetch it directly
+        const response = await this.httpClient.get<Bundle>(nextUrl);
+        const bundle = response.data;
+        const resources = (bundle.entry?.map(entry => entry.resource) || []) as T[];
+        const pagination = this.extractPaginationInfo(bundle);
+
+        return {
+          resources,
+          total: bundle.total || resources.length,
+          bundle,
+          pagination
+        };
+      })
+    );
+  }
+
+  /**
+   * Fetch all pages of search results automatically
+   *
+   * This method will follow all 'next' links in paginated results until
+   * all pages are retrieved or the maxPages limit is reached.
+   *
+   * WARNING: Use with caution on large result sets. Consider using
+   * fetchNextPage() for manual pagination control instead.
+   *
+   * Educational note: While convenient, fetching all pages can be
+   * resource-intensive. In production, prefer server-side limiting
+   * with _count parameter or implement client-side lazy loading.
+   *
+   * @param resourceType - FHIR resource type to search
+   * @param params - Search parameters
+   * @param options - Options for controlling pagination behavior
+   * @returns Combined SearchResult with all resources from all pages
+   */
+  async searchAllPages<T extends FHIRResource>(
+    resourceType: T['resourceType'],
+    params: SearchParams = {},
+    options: {
+      maxPages?: number;      // Maximum number of pages to fetch (default: 10)
+      pageSize?: number;      // Override _count parameter (default: use params or server default)
+      onPageFetched?: (page: SearchResult<T>, pageNumber: number) => void;  // Callback for progress tracking
+    } = {}
+  ): Promise<SearchResult<T>> {
+    const maxPages = options.maxPages ?? 10;
+    const allResources: T[] = [];
+    let currentPage = 0;
+    let totalCount = 0;
+
+    // Set page size if specified
+    const searchParams = { ...params };
+    if (options.pageSize) {
+      searchParams._count = options.pageSize;
+    }
+
+    // Fetch first page
+    let currentResult = await this.search<T>(resourceType, searchParams);
+    allResources.push(...currentResult.resources);
+    totalCount = currentResult.total;
+    currentPage++;
+
+    // Notify caller of first page
+    if (options.onPageFetched) {
+      options.onPageFetched(currentResult, currentPage);
+    }
+
+    // Fetch remaining pages
+    while (currentResult.pagination.hasNextPage && currentPage < maxPages) {
+      const nextResult = await this.fetchNextPage<T>(currentResult);
+
+      if (!nextResult) {
+        break;
+      }
+
+      allResources.push(...nextResult.resources);
+      currentResult = nextResult;
+      currentPage++;
+
+      // Notify caller of page progress
+      if (options.onPageFetched) {
+        options.onPageFetched(nextResult, currentPage);
+      }
+    }
+
+    // Create combined result with final pagination state
+    return {
+      resources: allResources,
+      total: totalCount,
+      bundle: currentResult.bundle, // Last bundle for reference
+      pagination: {
+        ...currentResult.pagination,
+        // Update flags based on whether we hit maxPages limit
+        hasNextPage: currentResult.pagination.hasNextPage && currentPage >= maxPages
+      }
+    };
   }
 
   /**

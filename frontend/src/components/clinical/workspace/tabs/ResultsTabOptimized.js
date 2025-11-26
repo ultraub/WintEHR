@@ -44,7 +44,6 @@ import {
   Tabs,
   Tab,
   Badge,
-  LinearProgress,
   ToggleButton,
   ToggleButtonGroup,
   Dialog,
@@ -54,8 +53,7 @@ import {
   useTheme,
   alpha,
   Checkbox,
-  FormControlLabel,
-  Snackbar
+  FormControlLabel
 } from '@mui/material';
 import {
   Science as LabIcon,

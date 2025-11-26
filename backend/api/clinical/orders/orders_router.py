@@ -8,6 +8,7 @@ import logging
 from services.hapi_fhir_client import HAPIFHIRClient
 from api.auth.service import get_current_user
 from api.auth.models import User
+from api.cds_hooks.constants import ExtensionURLs
 
 logger = logging.getLogger(__name__)
 
@@ -255,15 +256,44 @@ async def create_medication_order(
                 },
                 "asNeededBoolean": order.medication_details.prn,
                 "route": {
+                    "coding": [{
+                        "system": "http://snomed.info/sct",
+                        "display": order.medication_details.route
+                    }],
                     "text": order.medication_details.route
                 },
                 "doseAndRate": [{
+                    "type": {
+                        "coding": [{
+                            "system": "http://terminology.hl7.org/CodeSystem/dose-rate-type",
+                            "code": "ordered",
+                            "display": "Ordered"
+                        }]
+                    },
                     "doseQuantity": {
                         "value": order.medication_details.dose,
-                        "unit": order.medication_details.dose_unit
+                        "unit": order.medication_details.dose_unit,
+                        "system": "http://unitsofmeasure.org",
+                        "code": order.medication_details.dose_unit
                     }
                 }]
-            }]
+            }],
+            # FHIR R4: dispenseRequest is required for pharmacy workflows
+            "dispenseRequest": {
+                "numberOfRepeatsAllowed": order.medication_details.refills,
+                "quantity": {
+                    "value": order.medication_details.dispense_quantity or 30,
+                    "unit": order.medication_details.dispense_unit or "units",
+                    "system": "http://unitsofmeasure.org",
+                    "code": order.medication_details.dispense_unit or "{Unit}"
+                },
+                "expectedSupplyDuration": {
+                    "value": 30,
+                    "unit": "days",
+                    "system": "http://unitsofmeasure.org",
+                    "code": "d"
+                }
+            }
         }
 
         # Add PRN reason if specified
@@ -272,24 +302,11 @@ async def create_medication_order(
                 "text": order.medication_details.prn_reason
             }
 
-        # Add dispense request if specified
-        if order.medication_details.dispense_quantity:
-            medication_request["dispenseRequest"] = {
-                "numberOfRepeatsAllowed": order.medication_details.refills,
-                "quantity": {
-                    "value": order.medication_details.dispense_quantity,
-                    "unit": order.medication_details.dispense_unit or "units"
-                },
-                "expectedSupplyDuration": {
-                    "value": 30,  # Default 30 days
-                    "unit": "days"
-                }
+        # Add pharmacy notes to dispenseRequest if specified
+        if order.medication_details.pharmacy_notes:
+            medication_request["dispenseRequest"]["performer"] = {
+                "display": order.medication_details.pharmacy_notes
             }
-
-            if order.medication_details.pharmacy_notes:
-                medication_request["dispenseRequest"]["performer"] = {
-                    "display": order.medication_details.pharmacy_notes
-                }
 
         # Add substitution (generic allowed)
         medication_request["substitution"] = {
@@ -307,24 +324,24 @@ async def create_medication_order(
 
         if order.indication:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/order-indication",
+                "url": f"{ExtensionURLs.BASE_URL}/order-indication",
                 "valueString": order.indication
             })
 
         if order.clinical_information:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/clinical-information",
+                "url": f"{ExtensionURLs.BASE_URL}/clinical-information",
                 "valueString": order.clinical_information
             })
 
         # If alerts were overridden, document that
         if alerts and order.override_alerts:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/alerts-overridden",
+                "url": f"{ExtensionURLs.BASE_URL}/alerts-overridden",
                 "valueBoolean": True
             })
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/overridden-alerts",
+                "url": f"{ExtensionURLs.BASE_URL}/overridden-alerts",
                 "valueString": str(alerts)
             })
 
@@ -421,19 +438,19 @@ async def create_laboratory_order(
 
         if order.laboratory_details.specimen_type:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/specimen-type",
+                "url": f"{ExtensionURLs.BASE_URL}/specimen-type",
                 "valueString": order.laboratory_details.specimen_type
             })
 
         if order.laboratory_details.specimen_source:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/specimen-source",
+                "url": f"{ExtensionURLs.BASE_URL}/specimen-source",
                 "valueString": order.laboratory_details.specimen_source
             })
 
         if order.laboratory_details.fasting_required:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/fasting-required",
+                "url": f"{ExtensionURLs.BASE_URL}/fasting-required",
                 "valueBoolean": True
             })
 
@@ -449,7 +466,7 @@ async def create_laboratory_order(
 
         if order.clinical_information:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/clinical-information",
+                "url": f"{ExtensionURLs.BASE_URL}/clinical-information",
                 "valueString": order.clinical_information
             })
 
@@ -557,19 +574,19 @@ async def create_imaging_order(
         extensions = []
 
         extensions.append({
-            "url": "http://wintehr.org/fhir/StructureDefinition/imaging-modality",
+            "url": f"{ExtensionURLs.BASE_URL}/imaging-modality",
             "valueString": order.imaging_details.modality
         })
 
         if order.imaging_details.contrast:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/contrast-required",
+                "url": f"{ExtensionURLs.BASE_URL}/contrast-required",
                 "valueBoolean": True
             })
 
         if order.imaging_details.transport_mode:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/transport-mode",
+                "url": f"{ExtensionURLs.BASE_URL}/transport-mode",
                 "valueString": order.imaging_details.transport_mode
             })
 
@@ -586,7 +603,7 @@ async def create_imaging_order(
 
         if order.clinical_information:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/clinical-information",
+                "url": f"{ExtensionURLs.BASE_URL}/clinical-information",
                 "valueString": order.clinical_information
             })
 
@@ -727,7 +744,7 @@ async def get_orders(
                 extensions = resource.get("extension", [])
                 clinical_info = None
                 for ext in extensions:
-                    if ext.get("url") == "http://wintehr.org/fhir/StructureDefinition/clinical-information":
+                    if ext.get("url") == f"{ExtensionURLs.BASE_URL}/clinical-information":
                         clinical_info = ext.get("valueString")
                         break
 
@@ -816,7 +833,7 @@ async def discontinue_order(
             resource["extension"] = []
 
         resource["extension"].append({
-            "url": "http://wintehr.org/fhir/StructureDefinition/discontinued-by",
+            "url": f"{ExtensionURLs.BASE_URL}/discontinued-by",
             "valueReference": {
                 "reference": f"Practitioner/{current_user.id}",
                 "display": current_user.username
@@ -824,7 +841,7 @@ async def discontinue_order(
         })
 
         resource["extension"].append({
-            "url": "http://wintehr.org/fhir/StructureDefinition/discontinued-at",
+            "url": f"{ExtensionURLs.BASE_URL}/discontinued-at",
             "valueDateTime": datetime.utcnow().isoformat()
         })
 

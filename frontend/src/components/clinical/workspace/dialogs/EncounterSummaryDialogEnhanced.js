@@ -30,7 +30,6 @@ import {
   ListItemSecondaryAction,
   Avatar,
   AvatarGroup,
-  LinearProgress,
   Badge,
   Tooltip,
   useTheme,

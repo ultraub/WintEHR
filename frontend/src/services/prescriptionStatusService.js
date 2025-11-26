@@ -4,6 +4,7 @@
  */
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
+import { EXTENSION_URLS } from '../constants/fhirExtensions';
 
 class PrescriptionStatusService {
   constructor() {
@@ -138,7 +139,7 @@ class PrescriptionStatusService {
 
     // Check extension for detailed status
     const statusExtension = medicationRequest.extension?.find(
-      ext => ext.url === 'http://example.org/fhir/prescription-status'
+      ext => ext.url === EXTENSION_URLS.PRESCRIPTION_STATUS
     );
     const detailedStatus = statusExtension?.valueCode;
 
@@ -251,11 +252,11 @@ class PrescriptionStatusService {
       }
 
       const statusExtIndex = medicationRequest.extension.findIndex(
-        ext => ext.url === 'http://example.org/fhir/prescription-status'
+        ext => ext.url === EXTENSION_URLS.PRESCRIPTION_STATUS
       );
 
       const statusExtension = {
-        url: 'http://example.org/fhir/prescription-status',
+        url: EXTENSION_URLS.PRESCRIPTION_STATUS,
         valueCode: newStatus
       };
 
@@ -267,7 +268,7 @@ class PrescriptionStatusService {
 
       // Add status history
       const historyExtension = {
-        url: 'http://example.org/fhir/prescription-status-history',
+        url: EXTENSION_URLS.PRESCRIPTION_STATUS_HISTORY,
         extension: [
           {
             url: 'status',
@@ -323,7 +324,7 @@ class PrescriptionStatusService {
       
       // Extract status history from extensions
       const historyExtensions = medicationRequest.extension?.filter(
-        ext => ext.url === 'http://example.org/fhir/prescription-status-history'
+        ext => ext.url === EXTENSION_URLS.PRESCRIPTION_STATUS_HISTORY
       ) || [];
 
       historyExtensions.forEach(ext => {

@@ -18,6 +18,8 @@ Features:
 - Development vs production mode (stack traces)
 """
 
+from __future__ import annotations
+
 import logging
 import traceback
 import os

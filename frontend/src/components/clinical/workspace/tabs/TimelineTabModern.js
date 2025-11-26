@@ -60,18 +60,10 @@ import {
   CardContent,
   CardMedia,
   LinearProgress,
-  Fade,
-  Zoom,
   Grid,
   Tab,
   Tabs,
-  SpeedDial,
-  SpeedDialAction,
-  SpeedDialIcon,
-  Container,
-  Backdrop,
-  Rating,
-  Drawer
+  Container
 } from '@mui/material';
 import {
   CalendarMonth as CalendarIcon,

@@ -139,15 +139,178 @@ export const getResourceDisplayText = (resource) => {
 /**
  * Get CodeableConcept display text with fallback patterns
  * @param {Object} codeableConcept - FHIR CodeableConcept
- * @returns {string} - Display text or 'Unknown'
+ * @param {string} defaultValue - Default value if no display found (default: 'Unknown')
+ * @returns {string} - Display text or default value
  */
-export const getCodeableConceptDisplay = (codeableConcept) => {
-  if (!codeableConcept) return 'Unknown';
-  
-  return codeableConcept.text || 
-         codeableConcept.coding?.[0]?.display || 
+export const getCodeableConceptDisplay = (codeableConcept, defaultValue = 'Unknown') => {
+  if (!codeableConcept) return defaultValue;
+
+  return codeableConcept.text ||
+         codeableConcept.coding?.[0]?.display ||
          codeableConcept.coding?.[0]?.code ||
-         'Unknown';
+         defaultValue;
+};
+
+/**
+ * Safely extract the first coding code from a CodeableConcept
+ *
+ * Educational note: FHIR CodeableConcept can have multiple codings
+ * from different code systems. This function safely returns the first
+ * coding's code value, or null if none exists.
+ *
+ * @param {Object} codeableConcept - FHIR CodeableConcept
+ * @returns {string|null} - First coding code or null
+ */
+export const getCodeableConceptCode = (codeableConcept) => {
+  if (!codeableConcept) return null;
+  if (!Array.isArray(codeableConcept.coding) || codeableConcept.coding.length === 0) {
+    return null;
+  }
+  return codeableConcept.coding[0]?.code ?? null;
+};
+
+/**
+ * Safely extract the first coding system from a CodeableConcept
+ *
+ * @param {Object} codeableConcept - FHIR CodeableConcept
+ * @returns {string|null} - First coding system URI or null
+ */
+export const getCodeableConceptSystem = (codeableConcept) => {
+  if (!codeableConcept) return null;
+  if (!Array.isArray(codeableConcept.coding) || codeableConcept.coding.length === 0) {
+    return null;
+  }
+  return codeableConcept.coding[0]?.system ?? null;
+};
+
+/**
+ * Safely extract a coding from a specific system
+ *
+ * Educational note: When working with FHIR data, you often need to find
+ * a code from a specific code system (e.g., LOINC, SNOMED CT, RxNorm).
+ * This function finds the first coding matching the specified system.
+ *
+ * @param {Object} codeableConcept - FHIR CodeableConcept
+ * @param {string} system - The code system URI to find (e.g., 'http://loinc.org')
+ * @returns {Object|null} - The matching Coding object or null
+ */
+export const getCodingBySystem = (codeableConcept, system) => {
+  if (!codeableConcept || !system) return null;
+  if (!Array.isArray(codeableConcept.coding) || codeableConcept.coding.length === 0) {
+    return null;
+  }
+  return codeableConcept.coding.find(coding => coding?.system === system) ?? null;
+};
+
+/**
+ * Safely extract all codings from a CodeableConcept
+ *
+ * @param {Object} codeableConcept - FHIR CodeableConcept
+ * @returns {Array} - Array of Coding objects (empty array if none)
+ */
+export const getAllCodings = (codeableConcept) => {
+  if (!codeableConcept) return [];
+  if (!Array.isArray(codeableConcept.coding)) return [];
+  return codeableConcept.coding.filter(Boolean);
+};
+
+/**
+ * Check if a CodeableConcept contains a specific code
+ *
+ * @param {Object} codeableConcept - FHIR CodeableConcept
+ * @param {string} code - The code to search for
+ * @param {string} system - Optional: restrict search to specific system
+ * @returns {boolean} - True if the code is found
+ */
+export const hasCode = (codeableConcept, code, system = null) => {
+  if (!codeableConcept || !code) return false;
+  if (!Array.isArray(codeableConcept.coding) || codeableConcept.coding.length === 0) {
+    return false;
+  }
+
+  return codeableConcept.coding.some(coding => {
+    if (!coding) return false;
+    const codeMatch = coding.code === code;
+    const systemMatch = system === null || coding.system === system;
+    return codeMatch && systemMatch;
+  });
+};
+
+/**
+ * Safely extract display text from the first element of a CodeableConcept array
+ *
+ * Educational note: Many FHIR fields are arrays of CodeableConcept (e.g., category,
+ * reasonCode). This function safely handles array access.
+ *
+ * @param {Array} codeableConceptArray - Array of CodeableConcept
+ * @param {number} index - Index to access (default: 0)
+ * @param {string} defaultValue - Default if not found
+ * @returns {string} - Display text or default
+ */
+export const getCodeableConceptArrayDisplay = (codeableConceptArray, index = 0, defaultValue = 'Unknown') => {
+  if (!Array.isArray(codeableConceptArray) || codeableConceptArray.length === 0) {
+    return defaultValue;
+  }
+  if (index < 0 || index >= codeableConceptArray.length) {
+    return defaultValue;
+  }
+  return getCodeableConceptDisplay(codeableConceptArray[index], defaultValue);
+};
+
+/**
+ * Safely extract code from the first element of a CodeableConcept array
+ *
+ * @param {Array} codeableConceptArray - Array of CodeableConcept
+ * @param {number} index - Index to access (default: 0)
+ * @returns {string|null} - Code or null
+ */
+export const getCodeableConceptArrayCode = (codeableConceptArray, index = 0) => {
+  if (!Array.isArray(codeableConceptArray) || codeableConceptArray.length === 0) {
+    return null;
+  }
+  if (index < 0 || index >= codeableConceptArray.length) {
+    return null;
+  }
+  return getCodeableConceptCode(codeableConceptArray[index]);
+};
+
+/**
+ * Extract all display texts from a CodeableConcept array
+ *
+ * @param {Array} codeableConceptArray - Array of CodeableConcept
+ * @returns {Array<string>} - Array of display texts
+ */
+export const getAllCodeableConceptDisplays = (codeableConceptArray) => {
+  if (!Array.isArray(codeableConceptArray)) return [];
+  return codeableConceptArray
+    .filter(Boolean)
+    .map(cc => getCodeableConceptDisplay(cc, null))
+    .filter(Boolean);
+};
+
+/**
+ * Create a CodeableConcept from simple values
+ *
+ * Educational note: This helper creates a properly structured FHIR
+ * CodeableConcept from individual values, useful for creating new
+ * resources or search parameters.
+ *
+ * @param {string} code - The code value
+ * @param {string} display - Human-readable display (optional)
+ * @param {string} system - The code system URI (optional)
+ * @param {string} text - The text representation (optional)
+ * @returns {Object} - A properly structured CodeableConcept
+ */
+export const createCodeableConcept = (code, display = null, system = null, text = null) => {
+  const coding = { code };
+  if (display) coding.display = display;
+  if (system) coding.system = system;
+
+  const result = { coding: [coding] };
+  if (text) result.text = text;
+  else if (display) result.text = display;
+
+  return result;
 };
 
 /**

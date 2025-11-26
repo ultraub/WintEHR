@@ -23,8 +23,7 @@ import {
   List,
   ListItem,
   ListItemIcon,
-  ListItemText,
-  Badge
+  ListItemText
 } from '@mui/material';
 import {
   Assignment as OrderIcon,
