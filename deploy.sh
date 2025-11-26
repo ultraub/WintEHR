@@ -23,7 +23,20 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Default profile
+# Read environment from config.yaml if present (before setting PROFILE)
+# Maps: production -> prod, development -> dev
+if [ -z "$ENVIRONMENT" ] && [ -f "config.yaml" ]; then
+    CONFIG_ENV=$(grep -E "^\s*environment:" config.yaml | head -1 | sed 's/.*environment:\s*//' | tr -d ' "'"'"'')
+    if [ -n "$CONFIG_ENV" ]; then
+        case "$CONFIG_ENV" in
+            production) ENVIRONMENT="prod" ;;
+            development) ENVIRONMENT="dev" ;;
+            prod|dev) ENVIRONMENT="$CONFIG_ENV" ;;
+        esac
+    fi
+fi
+
+# Default profile (now respects config.yaml)
 PROFILE="${ENVIRONMENT:-dev}"
 
 # Docker compose command with profile
