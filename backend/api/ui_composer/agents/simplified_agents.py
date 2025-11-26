@@ -83,11 +83,12 @@ class FHIRDataAgent:
         return list(resources)
         
     async def _fetch_resources(self, resource_types: List[str], context: Dict[str, Any]) -> Dict[str, Any]:
-        """Fetch FHIR resources from database"""
-        from services.fhir_client_config import search_resources
+        """Fetch FHIR resources from HAPI FHIR server"""
+        from services.hapi_fhir_client import HAPIFHIRClient
 
         data = {}
         patient_id = context.get("patient_id")
+        hapi_client = HAPIFHIRClient()
 
         for resource_type in resource_types:
             try:
@@ -102,7 +103,7 @@ class FHIRDataAgent:
                     params["_sort"] = "-date"
                     params["_count"] = "100"
 
-                bundle = search_resources(resource_type, params)
+                bundle = await hapi_client.search(resource_type, params)
 
                 # Handle bundle response format from HAPI FHIR
                 if isinstance(bundle, dict) and bundle.get("entry"):

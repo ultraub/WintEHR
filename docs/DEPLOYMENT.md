@@ -178,7 +178,7 @@ REACT_APP_WS_URL=wss://wintehr.yourdomain.com/ws
 
 **Step 3: Start Services** (~1 minute)
 - Infrastructure: PostgreSQL, Redis
-- FHIR Server: HAPI FHIR (pinned v7.4.0)
+- FHIR Server: HAPI FHIR (pinned v8.6.0)
 - Application: Backend, Frontend
 - Proxy: Nginx (production only)
 

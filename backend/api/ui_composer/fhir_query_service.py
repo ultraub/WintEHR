@@ -6,7 +6,7 @@ Provides FHIR data access for UI Composer agents to make informed decisions
 import logging
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from services.fhir_client_config import search_resources, get_resource
+from services.hapi_fhir_client import HAPIFHIRClient
 from datetime import datetime, timedelta
 import json
 
@@ -21,29 +21,31 @@ class FHIRQueryService:
     async def get_patient_summary(self, patient_id: str) -> Dict[str, Any]:
         """Get comprehensive patient summary including available resources"""
         try:
+            hapi_client = HAPIFHIRClient()
+
             # Get patient demographics
-            patient = get_resource("Patient", patient_id)
+            patient = await hapi_client.read("Patient", patient_id)
             if not patient:
                 return {"error": f"Patient {patient_id} not found"}
-            
+
             # Get resource counts for this patient
             resource_types = [
-                "Condition", "MedicationRequest", "Observation", 
+                "Condition", "MedicationRequest", "Observation",
                 "Procedure", "AllergyIntolerance", "Immunization",
                 "DiagnosticReport", "CarePlan", "Encounter"
             ]
-            
+
             summary = {
                 "patient": patient,
                 "resourceCounts": {},
                 "recentData": {}
             }
-            
+
             for resource_type in resource_types:
                 try:
                     # Get count
                     search_params = {"patient": patient_id, "_summary": "count"}
-                    bundle = search_resources(resource_type, search_params)
+                    bundle = await hapi_client.search(resource_type, search_params)
                     count = bundle.get("total", 0) if isinstance(bundle, dict) else 0
                     summary["resourceCounts"][resource_type] = count
 
@@ -54,7 +56,7 @@ class FHIRQueryService:
                             "_count": "3",
                             "_sort": "-_lastUpdated"
                         }
-                        sample_bundle = search_resources(resource_type, search_params)
+                        sample_bundle = await hapi_client.search(resource_type, search_params)
                         if isinstance(sample_bundle, dict) and sample_bundle.get("entry"):
                             summary["recentData"][resource_type] = [
                                 entry.get("resource", entry) for entry in sample_bundle["entry"]
@@ -62,49 +64,50 @@ class FHIRQueryService:
                 except Exception as e:
                     logger.warning(f"Error querying {resource_type}: {e}")
                     summary["resourceCounts"][resource_type] = 0
-            
+
             return summary
-            
+
         except Exception as e:
             logger.error(f"Error getting patient summary: {e}")
             return {"error": str(e)}
     
-    async def search_observations_by_code(self, code: str, value_quantity: Optional[str] = None, 
+    async def search_observations_by_code(self, code: str, value_quantity: Optional[str] = None,
                                          patient_id: Optional[str] = None) -> Dict[str, Any]:
         """Search for observations by LOINC code with optional value filters"""
         try:
+            hapi_client = HAPIFHIRClient()
             search_params = {"code": code}
-            
+
             if patient_id:
                 search_params["patient"] = patient_id
-            
+
             # Handle value queries like ">8" for A1C
             if value_quantity:
                 # Parse the value query
-                if value_quantity.startswith(">"):
-                    search_params["value-quantity"] = f"gt{value_quantity[1:]}"
-                elif value_quantity.startswith("<"):
-                    search_params["value-quantity"] = f"lt{value_quantity[1:]}"
-                elif value_quantity.startswith(">="):
+                if value_quantity.startswith(">="):
                     search_params["value-quantity"] = f"ge{value_quantity[2:]}"
                 elif value_quantity.startswith("<="):
                     search_params["value-quantity"] = f"le{value_quantity[2:]}"
+                elif value_quantity.startswith(">"):
+                    search_params["value-quantity"] = f"gt{value_quantity[1:]}"
+                elif value_quantity.startswith("<"):
+                    search_params["value-quantity"] = f"lt{value_quantity[1:]}"
                 else:
                     search_params["value-quantity"] = value_quantity
-            
-            bundle = search_resources("Observation", search_params)
+
+            bundle = await hapi_client.search("Observation", search_params)
 
             # Handle case where bundle might be a string or have error
             if isinstance(bundle, str):
                 logger.error(f"Unexpected string response from FHIR client: {bundle}")
                 return {"error": "Invalid response format", "total": 0, "observations": []}
-            
+
             # Extract useful information
             results = {
                 "total": bundle.get("total", 0) if isinstance(bundle, dict) else 0,
                 "observations": []
             }
-            
+
             if isinstance(bundle, dict) and bundle.get("entry"):
                 for entry in bundle["entry"]:
                     obs = entry.get("resource", entry)
@@ -116,9 +119,9 @@ class FHIRQueryService:
                         "date": obs.get("effectiveDateTime"),
                         "status": obs.get("status")
                     })
-            
+
             return results
-            
+
         except Exception as e:
             logger.error(f"Error searching observations: {e}")
             return {"error": str(e), "total": 0, "observations": []}
@@ -127,13 +130,14 @@ class FHIRQueryService:
                                          condition_text: Optional[str] = None) -> List[str]:
         """Get list of patient IDs with a specific condition"""
         try:
+            hapi_client = HAPIFHIRClient()
             search_params = {}
             if condition_code:
                 search_params["code"] = condition_code
             if condition_text:
                 search_params["_text"] = condition_text
-            
-            bundle = search_resources("Condition", search_params)
+
+            bundle = await hapi_client.search("Condition", search_params)
 
             # Handle case where bundle might be a string or have error
             if isinstance(bundle, str):
@@ -148,9 +152,9 @@ class FHIRQueryService:
                     if patient_ref:
                         patient_id = patient_ref.split("/")[-1]
                         patient_ids.add(patient_id)
-            
+
             return list(patient_ids)
-            
+
         except Exception as e:
             logger.error(f"Error getting patients with condition: {e}")
             return []

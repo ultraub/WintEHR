@@ -7,26 +7,19 @@
  * @since 2025-01-21
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
   Stack,
   Typography,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Chip,
   Button,
   Paper,
   Alert,
-  Divider,
-  FormHelperText,
   Autocomplete,
-  useTheme,
-  alpha
+  useTheme
 } from '@mui/material';
 import { Send as SendIcon } from '@mui/icons-material';
 import SimplifiedClinicalDialog from '../common/SimplifiedClinicalDialog';

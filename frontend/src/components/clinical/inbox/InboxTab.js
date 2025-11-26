@@ -12,12 +12,8 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  ListItemButton,
-  Button,
   IconButton,
   Chip,
-  Alert,
-  Badge,
   Card,
   CardContent,
   Divider,
@@ -32,7 +28,6 @@ import {
   MoreVert as MoreIcon,
   MarkEmailRead as MarkReadIcon,
   Delete as DeleteIcon,
-  Warning as WarningIcon,
   Info as InfoIcon,
   Error as ErrorIcon
 } from '@mui/icons-material';

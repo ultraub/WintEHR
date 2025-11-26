@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 import uuid
 
 from database import get_db_session
-from services.fhir_client_config import search_resources, get_resource, update_resource, create_resource
+from services.hapi_fhir_client import HAPIFHIRClient
 
 router = APIRouter(prefix="/api/clinical/medication-lists", tags=["medication-lists"])
 
@@ -76,6 +76,8 @@ async def get_patient_medication_lists(
 ):
     """Get all medication lists for a patient"""
     try:
+        hapi_client = HAPIFHIRClient()
+
         # Search for List resources for this patient via HAPI FHIR
         search_params = {
             "patient": f"Patient/{patient_id}",
@@ -88,7 +90,8 @@ async def get_patient_medication_lists(
             if type_code:
                 search_params["code"] = type_code
 
-        lists = search_resources("List", search_params)
+        bundle = await hapi_client.search("List", search_params)
+        lists = [entry.get("resource", {}) for entry in bundle.get("entry", [])]
 
         # Filter to only medication lists based on LOINC codes
         medication_lists = []
@@ -160,10 +163,11 @@ async def create_medication_list(
                 "text": request.note
             }]
 
-        # Create the resource via HAPI FHIR
-        created_list = create_resource(list_resource)
+        # Create the resource via HAPI FHIR using async client
+        hapi_client = HAPIFHIRClient()
+        created_list = await hapi_client.create("List", list_resource)
 
-        return {"id": created_list["id"], "resource": created_list}
+        return {"id": created_list.get("id"), "resource": created_list}
         
     except HTTPException:
         raise
@@ -182,8 +186,10 @@ async def add_medication_to_list(
 ):
     """Add a medication to a list"""
     try:
+        hapi_client = HAPIFHIRClient()
+
         # Get the current list
-        list_resource = get_resource("List", list_id)
+        list_resource = await hapi_client.read("List", list_id)
         if not list_resource:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
@@ -224,8 +230,8 @@ async def add_medication_to_list(
             list_resource["entry"] = []
         list_resource["entry"].append(new_entry)
 
-        # Update the list via HAPI FHIR
-        updated_list = update_resource("List", list_id, list_resource)
+        # Update the list via HAPI FHIR using async client
+        await hapi_client.update("List", list_id, list_resource)
 
         return {
             "message": "Medication added to list",
@@ -250,8 +256,10 @@ async def remove_medication_from_list(
 ):
     """Remove a medication from a list (marks as deleted, doesn't actually remove)"""
     try:
+        hapi_client = HAPIFHIRClient()
+
         # Get the current list
-        list_resource = get_resource("List", list_id)
+        list_resource = await hapi_client.read("List", list_id)
         if not list_resource:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
@@ -275,8 +283,8 @@ async def remove_medication_from_list(
                 detail=f"Medication {medication_request_id} not found in list"
             )
 
-        # Update the list via HAPI FHIR
-        updated_list = update_resource("List", list_id, list_resource)
+        # Update the list via HAPI FHIR using async client
+        await hapi_client.update("List", list_id, list_resource)
 
         return {
             "message": "Medication marked as deleted from list",
@@ -300,12 +308,14 @@ async def reconcile_medication_lists(
 ):
     """Perform medication reconciliation across multiple lists"""
     try:
+        hapi_client = HAPIFHIRClient()
+
         # Get all source lists
         source_lists = []
         all_medications = {}  # Track all unique medications
 
         for list_id in request.source_lists:
-            list_resource = get_resource("List", list_id)
+            list_resource = await hapi_client.read("List", list_id)
             if list_resource:
                 source_lists.append(list_resource)
 
@@ -386,11 +396,11 @@ async def reconcile_medication_lists(
 
             reconciliation_list["entry"].append(entry)
 
-        # Create the reconciliation list via HAPI FHIR
-        created_list = create_resource(reconciliation_list)
+        # Create the reconciliation list via HAPI FHIR using async client
+        created_list = await hapi_client.create("List", reconciliation_list)
 
         return {
-            "reconciliation_list_id": created_list["id"],
+            "reconciliation_list_id": created_list.get("id"),
             "medications_reviewed": len(all_medications),
             "source_lists_count": len(source_lists),
             "conflicts_found": sum(1 for m in all_medications.values() if len(m["lists"]) > 1)

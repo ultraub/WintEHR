@@ -19,9 +19,6 @@ import {
   Chip,
   Stack,
   Alert,
-  Card,
-  CardContent,
-  CardActions,
   Table,
   TableBody,
   TableCell,
@@ -39,11 +36,10 @@ import {
   Settings as SettingsIcon,
   TestTube as TestIcon,
   Visibility as ViewIcon,
-  Download as DownloadIcon,
-  Upload as UploadIcon
+  Download as DownloadIcon
 } from '@mui/icons-material';
 
-import CDSHookManager, { WORKFLOW_TRIGGERS, HOOK_PRESENTATION_CONFIG } from './CDSHookManager';
+import CDSHookManager, { WORKFLOW_TRIGGERS } from './CDSHookManager';
 import CDSPresentation, { PRESENTATION_MODES } from './CDSPresentation';
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
 

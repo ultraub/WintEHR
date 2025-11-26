@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
-from services.fhir_client_config import get_resource, create_resource, update_resource, delete_resource
+from services.hapi_fhir_client import HAPIFHIRClient
 from ..models import Action, ActionType, Suggestion
 
 logger = logging.getLogger(__name__)
@@ -106,9 +106,12 @@ class ActionExecutor:
 
     async def _validate_action(self, request: ActionExecutionRequest, action_data: Dict[str, Any]) -> None:
         """Validate that the action can be executed"""
+        # Use async HAPIFHIRClient
+        hapi_client = HAPIFHIRClient()
+
         # Check if patient exists
         try:
-            patient = get_resource("Patient", request.patient_id)
+            patient = await hapi_client.read("Patient", request.patient_id)
             if not patient:
                 raise ValueError(f"Patient {request.patient_id} not found")
         except Exception as e:
@@ -117,7 +120,7 @@ class ActionExecutor:
         # Check if encounter exists (if provided)
         if request.encounter_id:
             try:
-                encounter = get_resource("Encounter", request.encounter_id)
+                encounter = await hapi_client.read("Encounter", request.encounter_id)
                 if not encounter:
                     raise ValueError(f"Encounter {request.encounter_id} not found")
             except Exception as e:
@@ -164,8 +167,9 @@ class ActionExecutor:
         ]:
             resource_data["requester"] = {"reference": f"Practitioner/{request.user_id}"}
 
-        # Create the resource
-        created_resource = create_resource(resource_data)
+        # Create the resource using async HAPIFHIRClient
+        hapi_client = HAPIFHIRClient()
+        created_resource = await hapi_client.create(resource_type, resource_data)
         resource_id = created_resource.get("id")
 
         return ActionExecutionResult(
@@ -194,8 +198,11 @@ class ActionExecutor:
         if not resource_type or not resource_id:
             raise ValueError("Resource type and ID are required for update action")
 
+        # Use async HAPIFHIRClient
+        hapi_client = HAPIFHIRClient()
+
         # Get existing resource
-        existing_resource = get_resource(resource_type, resource_id)
+        existing_resource = await hapi_client.read(resource_type, resource_id)
         if not existing_resource:
             raise ValueError(f"{resource_type} {resource_id} not found")
 
@@ -208,7 +215,7 @@ class ActionExecutor:
         }
 
         # Update the resource
-        updated_result = update_resource(resource_type, resource_id, updated_resource)
+        await hapi_client.update(resource_type, resource_id, updated_resource)
 
         return ActionExecutionResult(
             execution_id="",  # Will be set by caller
@@ -236,8 +243,9 @@ class ActionExecutor:
 
         resource_type, resource_id = resource_ref.split("/", 1)
 
-        # Soft delete the resource
-        delete_resource(resource_type, resource_id)
+        # Delete the resource using async HAPIFHIRClient
+        hapi_client = HAPIFHIRClient()
+        await hapi_client.delete(resource_type, resource_id)
 
         return ActionExecutionResult(
             execution_id="",  # Will be set by caller
@@ -388,8 +396,9 @@ class ActionExecutor:
                     }]
                 })
 
-            # Store audit log
-            create_resource("AuditEvent", log_entry)
+            # Store audit log using async HAPIFHIRClient
+            hapi_client = HAPIFHIRClient()
+            await hapi_client.create("AuditEvent", log_entry)
 
         except Exception as e:
             logger.warning(f"Failed to log action execution: {str(e)}")

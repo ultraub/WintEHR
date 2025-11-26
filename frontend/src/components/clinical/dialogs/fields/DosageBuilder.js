@@ -2,7 +2,7 @@
  * DosageBuilder Component
  * Interactive dosage builder with calculations, common presets, and safety checks
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
@@ -12,16 +12,11 @@ import {
   FormControl,
   InputLabel,
   Button,
-  ButtonGroup,
   Chip,
   Typography,
   Alert,
-  AlertTitle,
-  Divider,
   Stack,
   Paper,
-  Tooltip,
-  IconButton,
   Collapse,
   InputAdornment,
   useTheme,
@@ -30,11 +25,6 @@ import {
 import {
   Calculate as CalculateIcon,
   Warning as WarningIcon,
-  Info as InfoIcon,
-  Schedule as ScheduleIcon,
-  LocalPharmacy as PharmacyIcon,
-  ExpandMore as ExpandIcon,
-  ExpandLess as CollapseIcon,
   Science as LabIcon
 } from '@mui/icons-material';
 import { dosageCalculator } from '../../../../services/dosageCalculatorService';

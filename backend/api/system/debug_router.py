@@ -99,11 +99,12 @@ async def test_fhir_client(
     db: AsyncSession = Depends(get_db_session)
 ):
     """Test HAPI FHIR client connectivity."""
-    from services.fhir_client_config import get_resource
+    from services.hapi_fhir_client import HAPIFHIRClient
 
-    # Try to read the patient
+    # Try to read the patient using async HAPIFHIRClient
     try:
-        resource = get_resource("Patient", patient_id)
+        hapi_client = HAPIFHIRClient()
+        resource = await hapi_client.read("Patient", patient_id)
         return {
             "fhir_client_result": "Found" if resource else "Not found",
             "resource": resource if resource else None

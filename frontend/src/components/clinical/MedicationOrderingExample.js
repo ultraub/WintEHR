@@ -64,8 +64,7 @@ const MedicationOrderingExample = ({ patientId }) => {
     safetyData,
     loading: safetyLoading,
     checkSingleMedication,
-    getSeverityLevel,
-    isSafeToProceed
+    getSeverityLevel
   } = useDrugSafety(patientId);
 
   // Check safety when medication changes

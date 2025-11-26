@@ -65,7 +65,7 @@ const EncounterDetail = ({
     procedures: [],
     provider: null
   });
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
 
   useEffect(() => {
     if (open && encounter) {
@@ -75,7 +75,7 @@ const EncounterDetail = ({
 
   const fetchEncounterData = async () => {
     if (!encounter) return;
-    
+
     try {
       setLoading(true);
       

@@ -33,7 +33,7 @@ from ..models import (
     ActionType,
 )
 from ..hooks import medication_prescribe_hooks
-from services.fhir_client_config import get_resource, search_resources
+from services.hapi_fhir_client import HAPIFHIRClient
 
 logger = logging.getLogger(__name__)
 
@@ -156,14 +156,15 @@ class CDSHookEngine:
     async def _check_patient_age(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
         """Check patient age condition using HAPI FHIR"""
         try:
-            # Get patient data from HAPI FHIR
-            patient = get_resource('Patient', patient_id)
+            # Get patient data from HAPI FHIR using async client
+            hapi_client = HAPIFHIRClient()
+            patient = await hapi_client.read('Patient', patient_id)
 
             if not patient:
                 logger.warning(f"Patient {patient_id} not found in HAPI FHIR")
                 return False
 
-            birth_date_str = patient.birthDate.isostring if hasattr(patient, 'birthDate') else None
+            birth_date_str = patient.get('birthDate')
 
             if not birth_date_str:
                 logger.warning(f"No birthDate for patient {patient_id}")
@@ -222,14 +223,15 @@ class CDSHookEngine:
     async def _check_patient_gender(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
         """Check patient gender condition using HAPI FHIR"""
         try:
-            # Get patient data from HAPI FHIR
-            patient = get_resource('Patient', patient_id)
+            # Get patient data from HAPI FHIR using async client
+            hapi_client = HAPIFHIRClient()
+            patient = await hapi_client.read('Patient', patient_id)
 
             if not patient:
                 return False
 
             target_gender = parameters.get('value', '').lower()
-            patient_gender = (patient.gender or '').lower() if hasattr(patient, 'gender') else ''
+            patient_gender = (patient.get('gender') or '').lower()
 
             return patient_gender == target_gender
 
@@ -270,10 +272,12 @@ class CDSHookEngine:
 
             logger.debug(f"Checking diagnosis codes {codes} for patient {patient_id}")
 
-            # Search conditions from HAPI FHIR for this patient
-            conditions = search_resources('Condition', {
+            # Search conditions from HAPI FHIR for this patient using async client
+            hapi_client = HAPIFHIRClient()
+            bundle = await hapi_client.search('Condition', {
                 'patient': f'Patient/{patient_id}'
             })
+            conditions = [entry.get("resource", {}) for entry in bundle.get("entry", [])]
 
             if not conditions:
                 logger.debug(f"No conditions found for patient {patient_id}")
@@ -282,12 +286,13 @@ class CDSHookEngine:
             # Check if any condition has matching codes
             found_count = 0
             for condition in conditions:
-                if hasattr(condition, 'code') and condition.code:
-                    if hasattr(condition.code, 'coding'):
-                        for coding in condition.code.coding:
-                            if hasattr(coding, 'code') and coding.code in codes:
-                                found_count += 1
-                                break
+                code_obj = condition.get('code')
+                if code_obj:
+                    codings = code_obj.get('coding', [])
+                    for coding in codings:
+                        if coding.get('code') in codes:
+                            found_count += 1
+                            break
 
             logger.debug(f"Found {found_count} matching conditions for patient {patient_id}")
 
@@ -341,13 +346,17 @@ class CDSHookEngine:
             # Get operator (default to 'in' for backward compatibility)
             operator = parameters.get('operator', 'in')
 
+            # Use async HAPI client for all searches
+            hapi_client = HAPIFHIRClient()
+
             # Handle special 'any' case - just check if patient has any active medications
             if codes == ['any'] or operator == 'any':
-                medications = search_resources('MedicationRequest', {
+                bundle = await hapi_client.search('MedicationRequest', {
                     'patient': f'Patient/{patient_id}',
                     'status': 'active'
                 })
-                return len(medications) > 0 if medications else False
+                medications = [entry.get("resource", {}) for entry in bundle.get("entry", [])]
+                return len(medications) > 0
 
             # Require codes for other operators
             if not codes:
@@ -355,10 +364,11 @@ class CDSHookEngine:
                 return False
 
             # Search medication requests from HAPI FHIR
-            medications = search_resources('MedicationRequest', {
+            bundle = await hapi_client.search('MedicationRequest', {
                 'patient': f'Patient/{patient_id}',
                 'status': 'active'
             })
+            medications = [entry.get("resource", {}) for entry in bundle.get("entry", [])]
 
             if not medications:
                 # No medications found
@@ -369,23 +379,25 @@ class CDSHookEngine:
             matched_codes = set()
 
             for med in medications:
-                if hasattr(med, 'medicationCodeableConcept') and med.medicationCodeableConcept:
-                    if hasattr(med.medicationCodeableConcept, 'coding'):
-                        for coding in med.medicationCodeableConcept.coding:
-                            if hasattr(coding, 'code'):
-                                # Check for matches based on operator
-                                if operator == 'contains':
-                                    # Partial match (code contains any of the search codes)
-                                    if any(search_code.lower() in coding.code.lower() for search_code in codes):
-                                        found_count += 1
-                                        matched_codes.add(coding.code)
-                                        break
-                                else:
-                                    # Exact match
-                                    if coding.code in codes:
-                                        found_count += 1
-                                        matched_codes.add(coding.code)
-                                        break
+                med_codeable = med.get('medicationCodeableConcept')
+                if med_codeable:
+                    codings = med_codeable.get('coding', [])
+                    for coding in codings:
+                        code_val = coding.get('code')
+                        if code_val:
+                            # Check for matches based on operator
+                            if operator == 'contains':
+                                # Partial match (code contains any of the search codes)
+                                if any(search_code.lower() in code_val.lower() for search_code in codes):
+                                    found_count += 1
+                                    matched_codes.add(code_val)
+                                    break
+                            else:
+                                # Exact match
+                                if code_val in codes:
+                                    found_count += 1
+                                    matched_codes.add(code_val)
+                                    break
 
             logger.debug(f"Found {found_count} matching medications for patient {patient_id}: {matched_codes}")
 
@@ -449,13 +461,15 @@ class CDSHookEngine:
 
             logger.info(f"Lab value check: patient={patient_id}, code={code}, operator={operator}, value={value}, timeframe={timeframe} days, cutoff_date={cutoff_date}")
 
-            # Search observations from HAPI FHIR
-            observations = search_resources('Observation', {
+            # Search observations from HAPI FHIR using async client
+            hapi_client = HAPIFHIRClient()
+            bundle = await hapi_client.search('Observation', {
                 'patient': f'Patient/{patient_id}',
                 'category': 'laboratory',
                 'code': code,
                 'date': f'ge{cutoff_date}'
             })
+            observations = [entry.get("resource", {}) for entry in bundle.get("entry", [])]
 
             if not observations:
                 logger.info(f"No lab values found for code {code} within {timeframe} days for patient {patient_id}")
@@ -467,11 +481,13 @@ class CDSHookEngine:
             if not obs:
                 return operator == 'missing'
 
-            # Get value from observation
+            # Get value from observation using dict access
             lab_value = None
-            if hasattr(obs, 'valueQuantity') and obs.valueQuantity:
-                if hasattr(obs.valueQuantity, 'value'):
-                    lab_value = float(obs.valueQuantity.value)
+            value_quantity = obs.get('valueQuantity')
+            if value_quantity:
+                val = value_quantity.get('value')
+                if val is not None:
+                    lab_value = float(val)
 
             if lab_value is None:
                 logger.debug(f"No valueQuantity found in observation for patient {patient_id}")
@@ -522,13 +538,15 @@ class CDSHookEngine:
 
             cutoff_date = (datetime.now() - timedelta(days=timeframe)).isoformat()
 
-            # Search vital signs from HAPI FHIR
-            observations = search_resources('Observation', {
+            # Search vital signs from HAPI FHIR using async client
+            hapi_client = HAPIFHIRClient()
+            bundle = await hapi_client.search('Observation', {
                 'patient': f'Patient/{patient_id}',
                 'category': 'vital-signs',
                 'code': vital_type,
                 'date': f'ge{cutoff_date}'
             })
+            observations = [entry.get("resource", {}) for entry in bundle.get("entry", [])]
 
             if not observations:
                 return False
@@ -541,27 +559,34 @@ class CDSHookEngine:
 
             vital_value = None
 
-            # Handle blood pressure components
-            if vital_type == '85354-9' and hasattr(obs, 'component'):
+            # Handle blood pressure components using dict access
+            components = obs.get('component', [])
+            if vital_type == '85354-9' and components:
                 component = parameters.get('component', 'systolic')
-                for comp in obs.component:
+                for comp in components:
                     comp_code = None
-                    if hasattr(comp, 'code') and hasattr(comp.code, 'coding'):
-                        comp_code = comp.code.coding[0].code if comp.code.coding else None
+                    code_obj = comp.get('code', {})
+                    codings = code_obj.get('coding', [])
+                    if codings:
+                        comp_code = codings[0].get('code')
 
                     if ((component == 'systolic' and comp_code == '8480-6') or
                         (component == 'diastolic' and comp_code == '8462-4')):
-                        if hasattr(comp, 'valueQuantity') and hasattr(comp.valueQuantity, 'value'):
-                            vital_value = float(comp.valueQuantity.value)
+                        value_qty = comp.get('valueQuantity', {})
+                        val = value_qty.get('value')
+                        if val is not None:
+                            vital_value = float(val)
                             break
 
                 if vital_value is None:
                     return False
 
-            # Regular vital signs
-            elif hasattr(obs, 'valueQuantity') and obs.valueQuantity:
-                if hasattr(obs.valueQuantity, 'value'):
-                    vital_value = float(obs.valueQuantity.value)
+            # Regular vital signs using dict access
+            else:
+                value_qty = obs.get('valueQuantity', {})
+                val = value_qty.get('value')
+                if val is not None:
+                    vital_value = float(val)
 
             if vital_value is None:
                 return False

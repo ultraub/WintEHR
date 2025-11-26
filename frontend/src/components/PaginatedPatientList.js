@@ -63,9 +63,8 @@ function PaginatedPatientList() {
   // UI state
   const [openNewPatient, setOpenNewPatient] = useState(false);
   const [activeTab, setActiveTab] = useState(1); // 0: My Patients, 1: All Patients
-  const [myPatientsCount, setMyPatientsCount] = useState(0);
+  const [, setMyPatientsCount] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 
   // Responsive columns configuration
   const columns = [

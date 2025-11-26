@@ -21,13 +21,9 @@ import {
   AlertTitle,
   Collapse,
   LinearProgress,
-  Chip,
-  Tooltip,
   useTheme,
   useMediaQuery,
-  alpha,
-  Fade,
-  Zoom
+  alpha
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -35,15 +31,11 @@ import {
   SaveAlt as DraftIcon,
   Preview as PreviewIcon,
   Warning as WarningIcon,
-  Info as InfoIcon,
-  KeyboardVoice as VoiceIcon,
   Undo as UndoIcon,
   Redo as RedoIcon,
   Help as HelpIcon,
   CheckCircle as ValidIcon,
-  Error as ErrorIcon,
-  ExpandMore as ExpandIcon,
-  ExpandLess as CollapseIcon
+  Error as ErrorIcon
 } from '@mui/icons-material';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useClinicalTheme } from '../../../../themes/clinicalThemeProvider';

@@ -10,9 +10,6 @@ import {
   Tabs,
   Tab,
   List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
   Button,
   IconButton,
   Chip,
@@ -27,10 +24,8 @@ import {
   MenuItem,
   Alert,
   Grid,
-  Divider,
   Card,
-  CardContent,
-  CardActions
+  CardContent
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -38,7 +33,6 @@ import {
   Science as LabIcon,
   CameraAlt as ImagingIcon,
   Assignment as ProcedureIcon,
-  Edit as EditIcon,
   Delete as DeleteIcon,
   CheckCircle as ActiveIcon,
   Schedule as DraftIcon,
@@ -63,7 +57,7 @@ const FHIROrdersTab = () => {
     imaging: [],
     procedures: []
   });
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [showNewOrderDialog, setShowNewOrderDialog] = useState(false);
   const [orderType, setOrderType] = useState('medication');
   const [newOrder, setNewOrder] = useState({
@@ -346,16 +340,6 @@ const FHIROrdersTab = () => {
         ))}
       </List>
     );
-  };
-
-  const getOrderTypeIcon = (type) => {
-    switch (type) {
-      case 'medication': return <MedicationIcon />;
-      case 'lab': return <LabIcon />;
-      case 'imaging': return <ImagingIcon />;
-      case 'procedure': return <ProcedureIcon />;
-      default: return <ProcedureIcon />;
-    }
   };
 
   return (

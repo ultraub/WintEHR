@@ -47,12 +47,9 @@ import {
   EventNote as EncounterIcon,
   FavoriteBorder as CarePlanIcon,
   Description as DocumentIcon,
-  TrendingUp as TrendIcon,
   Visibility as ViewIcon,
-  Timeline as TimelineIcon,
   AccountTree as NetworkIcon,
-  Info as InfoIcon,
-  Warning as WarningIcon
+  Info as InfoIcon
 } from '@mui/icons-material';
 
 import { clinicalCrossReferenceService } from '../../../services/clinicalCrossReferenceService';

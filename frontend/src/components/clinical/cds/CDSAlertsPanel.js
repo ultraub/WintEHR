@@ -22,7 +22,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  CircularProgress,
   Badge,
   Tooltip
 } from '@mui/material';
@@ -40,8 +39,7 @@ import {
   Lightbulb as SuggestionIcon
 } from '@mui/icons-material';
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
-import CDSHookManager, { WORKFLOW_TRIGGERS } from './CDSHookManager';
-import CDSPresentation, { PRESENTATION_MODES } from './CDSPresentation';
+import CDSHookManager from './CDSHookManager';
 import CDSDocumentationPrompts from './CDSDocumentationPrompts';
 import { cdsLogger } from '../../../config/logging';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
@@ -80,7 +78,6 @@ const CDSAlertsPanel = ({
   const [showDocumentationPrompts, setShowDocumentationPrompts] = useState(true);
   const { publish } = useClinicalWorkflow();
   const isMountedRef = useRef(true);
-  const lastFetchRef = useRef(null);
   const contextRef = useRef(context);
   const lastPatientIdRef = useRef(patientId);
   const compactRef = useRef(null);
@@ -347,10 +344,6 @@ const CDSAlertsPanel = ({
     // Don't show anything if there are no alerts
     return null;
   }
-
-  // Determine presentation mode based on props and context
-  const determinedPresentationMode = presentationMode || 
-    (compact ? PRESENTATION_MODES.COMPACT : PRESENTATION_MODES.INLINE);
 
   // Use enhanced hook manager if enabled
   if (useEnhancedHooks) {

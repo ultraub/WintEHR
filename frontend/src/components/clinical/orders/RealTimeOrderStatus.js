@@ -6,7 +6,6 @@
 import React, { useState } from 'react';
 import {
   Box,
-  Typography,
   Chip,
   LinearProgress,
   Fade
@@ -19,8 +18,8 @@ import {
 } from '@mui/icons-material';
 
 const RealTimeOrderStatus = ({ orderId, initialStatus }) => {
-  const [status, setStatus] = useState(initialStatus);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [status] = useState(initialStatus);
+  const [isUpdating] = useState(false);
 
   // Status updates would need to be handled by parent component refreshing
 

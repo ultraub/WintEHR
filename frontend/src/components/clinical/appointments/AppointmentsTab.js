@@ -44,7 +44,6 @@ function AppointmentsTab() {
   const navigate = useNavigate();
   const { currentPatient } = useClinical();
   const {
-    appointments,
     loading,
     error,
     getAppointmentsByPatient,

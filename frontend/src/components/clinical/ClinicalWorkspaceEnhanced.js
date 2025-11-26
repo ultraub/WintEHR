@@ -11,7 +11,6 @@ import {
   Alert,
   AlertTitle,
   Button,
-  useTheme,
   Snackbar,
   Typography
 } from '@mui/material';
@@ -119,7 +118,6 @@ const ClinicalWorkspaceEnhanced = ({
   navigationContext = {},
   onNavigateToTab
 }) => {
-  const theme = useTheme();
   const navigate = useNavigate();
   
   // Route params - still needed for CDS alerts and direct navigation

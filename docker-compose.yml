@@ -66,7 +66,7 @@ services:
   # ============================================================
 
   hapi-fhir:
-    image: hapiproject/hapi:v7.4.0
+    image: hapiproject/hapi:v8.6.0-1
     container_name: emr-hapi-fhir
     profiles: ["dev", "prod"]
     restart: ${RESTART_POLICY:-no}

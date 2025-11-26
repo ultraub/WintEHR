@@ -515,15 +515,15 @@ const CDSPresentation = ({
           
           if (!isVisible) return null;
           
-          const { content, actions } = renderAlert(alert, true);
+          const { content } = renderAlert(alert, true);
           return (
-            <Slide 
+            <Slide
               key={`toast-${alert.summary}-${index}`}
-              direction="left" 
+              direction="left"
               in={isVisible}
               timeout={300}
             >
-              <Alert 
+              <Alert
                 severity={getSeverityColor(alert.indicator)}
                 onClose={() => handleAlertAction(alert, 'dismiss')}
                 sx={{ 
@@ -650,12 +650,12 @@ const CDSPresentation = ({
               {visibleAlerts.map((alert, index) => {
                 const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
                 const isAcknowledged = acknowledgedAlerts.has(alertId);
-                const { content, actions } = renderAlert(alert);
-                
+                const { content } = renderAlert(alert);
+
                 return (
-                  <Card 
-                    key={`critical-dialog-${alert.summary}-${index}`} 
-                    variant="outlined" 
+                  <Card
+                    key={`critical-dialog-${alert.summary}-${index}`}
+                    variant="outlined"
                     sx={{ 
                       border: '2px solid', 
                       borderColor: isAcknowledged ? 'success.main' : 'error.main',
@@ -789,7 +789,6 @@ const CDSPresentation = ({
   if (mode === PRESENTATION_MODES.COMPACT) {
     const criticalCount = visibleAlerts.filter(a => a.indicator === 'critical').length;
     const warningCount = visibleAlerts.filter(a => a.indicator === 'warning').length;
-    const infoCount = visibleAlerts.filter(a => a.indicator === 'info').length;
     const totalCount = visibleAlerts.length;
 
     return (
@@ -862,10 +861,9 @@ const CDSPresentation = ({
       <Stack spacing={2}>
         {visibleAlerts.map((alert, index) => {
           const { content, actions } = renderAlert(alert);
-          const alertKey = `${alert.serviceId}-${alert.summary}`;
-          
+
           return (
-            <Card 
+            <Card
               key={`card-${alert.summary}-${index}`}
               elevation={3}
               sx={{
@@ -1148,8 +1146,7 @@ const CDSPresentation = ({
               color="primary"
               onClick={async () => {
                 const alert = currentOverride.alert;
-                const alertKey = `${alert.serviceId}-${alert.summary}`;
-                
+
                 if (currentOverride.requiresReason) {
                   // Validate reason is provided
                   if (!overrideReasonCode || (overrideReasonCode === 'other' && !overrideUserComment.trim())) {

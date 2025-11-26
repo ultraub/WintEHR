@@ -10,18 +10,12 @@ import {
   Button,
   Chip,
   Stack,
-  Divider,
   Alert,
   CircularProgress,
   IconButton,
   Tooltip,
   Collapse,
-  TextField,
   Checkbox,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Table,
   TableBody,
   TableCell,
@@ -29,17 +23,13 @@ import {
   TableHead,
   TableRow,
   Avatar,
-  Badge,
   Stepper,
   Step,
   StepLabel
 } from '@mui/material';
 import {
   Medication as MedicationIcon,
-  Compare as CompareIcon,
   CheckCircle as ApprovedIcon,
-  Warning as WarningIcon,
-  Error as ErrorIcon,
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
@@ -419,7 +409,6 @@ const MedicationReconciliation = ({ patientId, encounterId, mode = 'admission' }
   const [dischargeMedications, setDischargeMedications] = useState([]);
   const [activeStep, setActiveStep] = useState(0);
   const [selectedMedications, setSelectedMedications] = useState({});
-  const [reconciliationComplete, setReconciliationComplete] = useState(false);
 
   const reconciliationSteps = [
     { label: 'Collect Home Medications', description: 'Gather patient\'s home medication list' },
@@ -474,7 +463,6 @@ const MedicationReconciliation = ({ patientId, encounterId, mode = 'admission' }
   };
 
   const categorizeMedications = (medications) => {
-    const now = new Date();
     const categorized = {
       home: [],
       hospital: [],
@@ -528,8 +516,7 @@ const MedicationReconciliation = ({ patientId, encounterId, mode = 'admission' }
       // Create documentation of the reconciliation process
       
       
-      // For demo purposes, just mark as complete
-      setReconciliationComplete(true);
+      // Mark as complete by advancing to final step
       setActiveStep(4);
       
     } catch (err) {

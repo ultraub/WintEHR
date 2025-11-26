@@ -95,13 +95,7 @@ class ServiceCodeGenerator:
             'from datetime import datetime, date, timedelta',
             'import uuid',
             'import logging',
-            'from services.fhir_client_config import (',
-            '    get_patient,',
-            '    search_conditions,',
-            '    search_medications,',
-            '    search_observations,',
-            '    search_allergies',
-            ')',
+            'from services.hapi_fhir_client import HAPIFHIRClient',
             '',
             'logger = logging.getLogger(__name__)'
         ]
@@ -160,12 +154,28 @@ class ServiceCodeGenerator:
             Educational notes:
             - Converts visual conditions to Python logic
             - Handles nested condition groups
-            - Integrates with FHIR data
+            - Integrates with FHIR data via HAPIFHIRClient
             """
             try:
                 patient_id = context.get('patientId', '').replace('Patient/', '')
                 if not patient_id:
                     return False
+
+                # Initialize HAPI FHIR client and fetch needed data
+                hapi_client = HAPIFHIRClient()
+                patient = await hapi_client.read('Patient', patient_id)
+                if not patient:
+                    return False
+
+                # Fetch clinical data for condition evaluation
+                conditions_bundle = await hapi_client.search('Condition', {'patient': f'Patient/{patient_id}', 'clinical-status': 'active'})
+                patient_conditions = [entry.get('resource', {}) for entry in conditions_bundle.get('entry', [])]
+
+                medications_bundle = await hapi_client.search('MedicationRequest', {'patient': f'Patient/{patient_id}', 'status': 'active'})
+                patient_medications = [entry.get('resource', {}) for entry in medications_bundle.get('entry', [])]
+
+                observations_bundle = await hapi_client.search('Observation', {'patient': f'Patient/{patient_id}'})
+                patient_observations = [entry.get('resource', {}) for entry in observations_bundle.get('entry', [])]
         ''').strip()
 
         # Generate condition evaluation logic
@@ -275,7 +285,8 @@ class ServiceCodeGenerator:
     def _evaluate_age_condition(self, operator: str, value: Any) -> str:
         """Generate age comparison code"""
 
-        age_calc = "(datetime.now().date() - parser.parse(patient.birthDate.as_json()).date()).days // 365"
+        # Uses 'patient' variable fetched asynchronously in should_execute
+        age_calc = "(datetime.now().date() - parser.parse(patient.get('birthDate', '')).date()).days // 365 if patient.get('birthDate') else 0"
 
         op_map = {
             ">=": ">=",
@@ -296,16 +307,17 @@ class ServiceCodeGenerator:
     ) -> str:
         """Generate condition existence check code"""
 
+        # Uses 'patient_conditions' variable fetched asynchronously in should_execute
         if operator == "exists":
             condition_code = catalog_selection.get("code", "")
             condition_display = catalog_selection.get("display", "")
 
-            return f"any('{condition_display.lower()}' in (c.code.text.lower() if c.code and c.code.text else '') for c in search_conditions(patient_id, status='active'))"
+            return f"any('{condition_display.lower()}' in (c.get('code', {{}}).get('text', '').lower() if c.get('code') else '') for c in patient_conditions)"
         elif operator == "notExists":
             condition_code = catalog_selection.get("code", "")
             condition_display = catalog_selection.get("display", "")
 
-            return f"not any('{condition_display.lower()}' in (c.code.text.lower() if c.code and c.code.text else '') for c in search_conditions(patient_id, status='active'))"
+            return f"not any('{condition_display.lower()}' in (c.get('code', {{}}).get('text', '').lower() if c.get('code') else '') for c in patient_conditions)"
         else:
             return "True"
 
@@ -316,12 +328,13 @@ class ServiceCodeGenerator:
     ) -> str:
         """Generate medication check code"""
 
+        # Uses 'patient_medications' variable fetched asynchronously in should_execute
         med_display = catalog_selection.get("display", "")
 
         if operator == "taking":
-            return f"any('{med_display.lower()}' in (m.medicationCodeableConcept.text.lower() if m.medicationCodeableConcept and m.medicationCodeableConcept.text else '') for m in search_medications(patient_id, status='active'))"
+            return f"any('{med_display.lower()}' in (m.get('medicationCodeableConcept', {{}}).get('text', '').lower() if m.get('medicationCodeableConcept') else '') for m in patient_medications)"
         elif operator == "notTaking":
-            return f"not any('{med_display.lower()}' in (m.medicationCodeableConcept.text.lower() if m.medicationCodeableConcept and m.medicationCodeableConcept.text else '') for m in search_medications(patient_id, status='active'))"
+            return f"not any('{med_display.lower()}' in (m.get('medicationCodeableConcept', {{}}).get('text', '').lower() if m.get('medicationCodeableConcept') else '') for m in patient_medications)"
         else:
             return "True"
 
@@ -333,6 +346,7 @@ class ServiceCodeGenerator:
     ) -> str:
         """Generate lab value comparison code"""
 
+        # Uses 'patient_observations' variable fetched asynchronously in should_execute
         lab_code = catalog_selection.get("code", "4548-4")  # Default to HbA1c
 
         op_map = {
@@ -345,7 +359,7 @@ class ServiceCodeGenerator:
 
         python_op = op_map.get(operator, ">=")
 
-        return f"any(obs.valueQuantity and obs.valueQuantity.value and obs.valueQuantity.value {python_op} {value} for obs in search_observations(patient_id, code='{lab_code}'))"
+        return f"any(obs.get('valueQuantity', {{}}).get('value') and obs.get('valueQuantity', {{}}).get('value') {python_op} {value} for obs in patient_observations if any(c.get('code') == '{lab_code}' for c in obs.get('code', {{}}).get('coding', [])))"
 
     def _evaluate_vital_sign(
         self,
@@ -355,6 +369,7 @@ class ServiceCodeGenerator:
     ) -> str:
         """Generate vital sign evaluation code"""
 
+        # Uses 'patient_observations' variable fetched asynchronously in should_execute
         vital_code = catalog_selection.get("code", "")
 
         op_map = {
@@ -366,7 +381,7 @@ class ServiceCodeGenerator:
 
         python_op = op_map.get(operator, ">=")
 
-        return f"any(obs.valueQuantity and obs.valueQuantity.value and obs.valueQuantity.value {python_op} {value} for obs in search_observations(patient_id, code='{vital_code}', category='vital-signs'))"
+        return f"any(obs.get('valueQuantity', {{}}).get('value') and obs.get('valueQuantity', {{}}).get('value') {python_op} {value} for obs in patient_observations if any(c.get('code') == '{vital_code}' for c in obs.get('code', {{}}).get('coding', [])))"
 
     def _evaluate_screening_gap(
         self,
@@ -376,11 +391,12 @@ class ServiceCodeGenerator:
     ) -> str:
         """Generate screening gap evaluation code"""
 
+        # Uses 'patient_observations' variable fetched asynchronously in should_execute
         screening_code = catalog_selection.get("code", "")
         days = int(value)
 
         if operator == "olderThanDays":
-            return f"not any((datetime.now().date() - parser.parse(obs.effectiveDateTime.as_json()).date()).days < {days} for obs in search_observations(patient_id, code='{screening_code}'))"
+            return f"not any((datetime.now().date() - parser.parse(obs.get('effectiveDateTime', '')).date()).days < {days} for obs in patient_observations if obs.get('effectiveDateTime') and any(c.get('code') == '{screening_code}' for c in obs.get('code', {{}}).get('coding', [])))"
         else:
             return "True"
 
@@ -419,8 +435,9 @@ class ServiceCodeGenerator:
                 if not patient_id:
                     return {{"cards": []}}
 
-                # Fetch patient data
-                patient = get_patient(patient_id)
+                # Fetch patient data using async HAPIFHIRClient
+                hapi_client = HAPIFHIRClient()
+                patient = await hapi_client.read('Patient', patient_id)
                 if not patient:
                     return {{"cards": []}}
         ''').strip()

@@ -182,12 +182,8 @@ class PrefetchEngine:
     def fhir_client(self):
         """Get the FHIR client, lazily loading if needed."""
         if self._fhir_client is None:
-            try:
-                from services.fhir_client_config import get_resource, search_resources
-                self._fhir_client = FHIRClientWrapper(get_resource, search_resources)
-            except ImportError:
-                logger.warning("FHIR client not available, prefetch will return empty results")
-                self._fhir_client = NoOpFHIRClient()
+            # Use HAPIFHIRPrefetchClient for async HAPI FHIR integration
+            self._fhir_client = HAPIFHIRPrefetchClient()
         return self._fhir_client
 
     async def execute_prefetch(

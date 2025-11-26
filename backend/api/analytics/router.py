@@ -16,7 +16,7 @@ import logging
 from datetime import datetime
 
 from database import get_db_session
-from services.fhir_client_config import search_resources
+from services.hapi_fhir_client import HAPIFHIRClient
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,9 @@ async def get_patient_demographics():
     - Race distribution
     """
     try:
-        # Search for all patients
-        response = search_resources("Patient", {"_count": 1000})
+        # Search for all patients using async HAPIFHIRClient
+        hapi_client = HAPIFHIRClient()
+        response = await hapi_client.search("Patient", {"_count": 1000})
         entries = response.get('entry', []) if isinstance(response, dict) else []
         patients = [entry.get('resource', entry) for entry in entries]
         
@@ -111,8 +112,9 @@ async def get_disease_prevalence(limit: int = 20):
     Returns top conditions by frequency.
     """
     try:
-        # Search for all active conditions
-        response = search_resources("Condition", {"clinical-status": "active", "_count": 5000})
+        # Search for all active conditions using async HAPIFHIRClient
+        hapi_client = HAPIFHIRClient()
+        response = await hapi_client.search("Condition", {"clinical-status": "active", "_count": 5000})
         entries = response.get('entry', []) if isinstance(response, dict) else []
         conditions = [entry.get('resource', entry) for entry in entries]
         total = len(conditions)
@@ -164,8 +166,9 @@ async def get_medication_patterns(limit: int = 20):
     - Medication class distribution
     """
     try:
-        # Search for all medication requests
-        response = search_resources("MedicationRequest", {"status": "active", "_count": 5000})
+        # Search for all medication requests using async HAPIFHIRClient
+        hapi_client = HAPIFHIRClient()
+        response = await hapi_client.search("MedicationRequest", {"status": "active", "_count": 5000})
         entries = response.get('entry', []) if isinstance(response, dict) else []
         med_requests = [entry.get('resource', entry) for entry in entries]
         total = len(med_requests)
@@ -249,24 +252,26 @@ async def get_comprehensive_dashboard():
     - Polypharmacy analysis
     """
     try:
-        # Get comprehensive analytics data
-        patient_response = search_resources("Patient", {"_count": 1000})
+        # Get comprehensive analytics data using async HAPIFHIRClient
+        hapi_client = HAPIFHIRClient()
+
+        patient_response = await hapi_client.search("Patient", {"_count": 1000})
         patient_entries = patient_response.get('entry', []) if isinstance(patient_response, dict) else []
         patients = [entry.get('resource', entry) for entry in patient_entries]
 
-        condition_response = search_resources("Condition", {"clinical-status": "active", "_count": 5000})
+        condition_response = await hapi_client.search("Condition", {"clinical-status": "active", "_count": 5000})
         condition_entries = condition_response.get('entry', []) if isinstance(condition_response, dict) else []
         conditions = [entry.get('resource', entry) for entry in condition_entries]
 
-        med_response = search_resources("MedicationRequest", {"status": "active", "_count": 5000})
+        med_response = await hapi_client.search("MedicationRequest", {"status": "active", "_count": 5000})
         med_entries = med_response.get('entry', []) if isinstance(med_response, dict) else []
         medications = [entry.get('resource', entry) for entry in med_entries]
 
-        encounter_response = search_resources("Encounter", {"_count": 5000})
+        encounter_response = await hapi_client.search("Encounter", {"_count": 5000})
         encounter_entries = encounter_response.get('entry', []) if isinstance(encounter_response, dict) else []
         encounters = [entry.get('resource', entry) for entry in encounter_entries]
 
-        obs_response = search_resources("Observation", {"_count": 5000})
+        obs_response = await hapi_client.search("Observation", {"_count": 5000})
         obs_entries = obs_response.get('entry', []) if isinstance(obs_response, dict) else []
         observations = [entry.get('resource', entry) for entry in obs_entries]
         
@@ -401,18 +406,20 @@ async def get_clinical_outcomes():
     - Procedure outcomes
     """
     try:
+        hapi_client = HAPIFHIRClient()
+
         # Get observations for lab results and vital signs
-        obs_response = search_resources("Observation", {"_count": 5000})
+        obs_response = await hapi_client.search("Observation", {"_count": 5000})
         obs_entries = obs_response.get('entry', []) if isinstance(obs_response, dict) else []
         observations = [entry.get('resource', entry) for entry in obs_entries]
         obs_total = len(observations)
 
-        proc_response = search_resources("Procedure", {"_count": 2000})
+        proc_response = await hapi_client.search("Procedure", {"_count": 2000})
         proc_entries = proc_response.get('entry', []) if isinstance(proc_response, dict) else []
         procedures = [entry.get('resource', entry) for entry in proc_entries]
         proc_total = len(procedures)
 
-        enc_response = search_resources("Encounter", {"_count": 3000})
+        enc_response = await hapi_client.search("Encounter", {"_count": 3000})
         enc_entries = enc_response.get('entry', []) if isinstance(enc_response, dict) else []
         encounters = [entry.get('resource', entry) for entry in enc_entries]
         enc_total = len(encounters)

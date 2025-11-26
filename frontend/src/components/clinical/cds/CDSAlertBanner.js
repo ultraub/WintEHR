@@ -32,8 +32,7 @@ const CDSAlertBanner = ({ hookType = 'patient-view' }) => {
   const [expanded, setExpanded] = useState(false);
   const [hiddenCards, setHiddenCards] = useState(new Set());
   const { currentPatient } = useClinical();
-  const { getAlerts, loading: allLoading, executeCDSHooks } = useCDS();
-  const loading = allLoading[hookType] || false;
+  const { getAlerts, executeCDSHooks } = useCDS();
   
   // Get alerts for this hook type from CDSContext
   const contextAlerts = getAlerts(hookType);

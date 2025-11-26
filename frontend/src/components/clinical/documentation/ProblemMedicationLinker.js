@@ -10,7 +10,6 @@ import {
   Typography,
   Button,
   IconButton,
-  Collapse,
   List,
   ListItem,
   ListItemText,
@@ -36,7 +35,6 @@ import {
   Schedule as ClockIcon,
   Assignment as NoteIcon,
   ExpandMore as ExpandMoreIcon,
-  Link as LinkIcon,
   Timeline as TimelineIcon
 } from '@mui/icons-material';
 
@@ -55,7 +53,6 @@ const ProblemMedicationLinker = ({
   const [loading, setLoading] = useState(false);
   const [expandedProblems, setExpandedProblems] = useState(true);
   const [expandedMedications, setExpandedMedications] = useState(true);
-  const [selectedItem, setSelectedItem] = useState(null);
   const { publish } = useClinicalWorkflow();
 
   // Load problems and medications with documentation status

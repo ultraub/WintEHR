@@ -13,10 +13,6 @@ import {
   Tooltip,
   Alert,
   Divider,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Chip,
   Stack
 } from '@mui/material';
@@ -24,7 +20,6 @@ import {
   Save as SaveIcon,
   CheckCircle as SignIcon,
   Psychology as SmartPhraseIcon,
-  History as HistoryIcon,
   Info as InfoIcon,
   Warning as WarningIcon
 } from '@mui/icons-material';
@@ -39,7 +34,6 @@ const SOAPEditor = ({ noteId, onSave, onSign }) => {
     isDirty,
     isSaving,
     updateSOAPSection,
-    updateNoteField,
     saveNote,
     signNote,
     expandSmartPhrase,

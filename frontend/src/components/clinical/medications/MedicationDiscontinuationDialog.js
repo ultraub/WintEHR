@@ -29,20 +29,14 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Divider,
-  Autocomplete,
   Grid,
   Paper,
-  IconButton,
-  Tooltip,
   Collapse,
   CircularProgress
 } from '@mui/material';
 import {
   Warning as WarningIcon,
-  Info as InfoIcon,
   Schedule as ScheduleIcon,
-  Person as PersonIcon,
   Medication as MedicationIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,

@@ -9,7 +9,7 @@ import logging
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.fhir_client_config import create_resource, update_resource, delete_resource
+from services.hapi_fhir_client import HAPIFHIRClient
 from ..models import SystemAction
 from ..constants import ExtensionURLs
 
@@ -101,9 +101,11 @@ class SystemActionsHandler:
             result["message"] = "Action validated but not applied (dry run)"
             return result
 
-        # Process based on action type
+        # Process based on action type using async HAPIFHIRClient
+        hapi_client = HAPIFHIRClient()
+
         if action.type == "create":
-            created_resource = create_resource(resource)
+            created_resource = await hapi_client.create(resource_type, resource)
             result["resource_id"] = created_resource.get("id")
             result["status"] = "created"
 
@@ -111,14 +113,14 @@ class SystemActionsHandler:
             if not resource_id:
                 raise ValueError("Update action requires resource id")
 
-            updated_resource = update_resource(resource_type, resource_id, resource)
+            await hapi_client.update(resource_type, resource_id, resource)
             result["status"] = "updated"
 
         elif action.type == "delete":
             if not resource_id:
                 raise ValueError("Delete action requires resource id")
 
-            delete_resource(resource_type, resource_id)
+            await hapi_client.delete(resource_type, resource_id)
             result["status"] = "deleted"
 
         else:

@@ -19,16 +19,14 @@ import {
   Step,
   StepLabel,
   StepContent,
-  IconButton,
-  Tooltip
+  IconButton
 } from '@mui/material';
 import {
   Close as CloseIcon,
   Security as SafetyIcon,
   CheckCircle as CheckIcon,
   Warning as WarningIcon,
-  Error as ErrorIcon,
-  Refresh as RefreshIcon
+  Error as ErrorIcon
 } from '@mui/icons-material';
 import DrugSafetyAlert from '../DrugSafetyAlert';
 import { useDrugSafety } from '../../../hooks/useDrugSafety';

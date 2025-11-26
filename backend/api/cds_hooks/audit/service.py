@@ -9,7 +9,7 @@ import logging
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.fhir_client_config import search_resources, get_resource
+from services.hapi_fhir_client import HAPIFHIRClient
 from .models import (
     AuditEventDetail, AuditHistoryResponse, AuditAnalytics,
     DetailedAuditQuery, AuditEventEnriched, AuditTrailSummary,
@@ -49,8 +49,9 @@ class AuditService:
             if query.patient_id:
                 search_params["patient"] = f"Patient/{query.patient_id}"
 
-            # Get audit events
-            response = search_resources("AuditEvent", search_params)
+            # Get audit events using async HAPIFHIRClient
+            hapi_client = HAPIFHIRClient()
+            response = await hapi_client.search("AuditEvent", search_params)
             entries = response.get('entry', []) if isinstance(response, dict) else []
             audit_events = [entry.get('resource', entry) for entry in entries]
             total = len(audit_events)
@@ -112,7 +113,9 @@ class AuditService:
             if patient_id:
                 search_params["patient"] = f"Patient/{patient_id}"
 
-            response = search_resources("AuditEvent", search_params)
+            # Use async HAPIFHIRClient
+            hapi_client = HAPIFHIRClient()
+            response = await hapi_client.search("AuditEvent", search_params)
             entries = response.get('entry', []) if isinstance(response, dict) else []
             audit_events = [entry.get('resource', entry) for entry in entries]
 
@@ -133,7 +136,9 @@ class AuditService:
     async def get_enriched_audit_event(self, audit_event_id: str) -> Optional[AuditEventEnriched]:
         """Get a single audit event with full enrichment"""
         try:
-            event = get_resource("AuditEvent", audit_event_id)
+            # Use async HAPIFHIRClient
+            hapi_client = HAPIFHIRClient()
+            event = await hapi_client.read("AuditEvent", audit_event_id)
             if not event or not await self._is_cds_action_event(event):
                 return None
 
@@ -179,7 +184,9 @@ class AuditService:
             elif context_type == "user":
                 search_params["agent"] = f"Practitioner/{context_id}"
 
-            response = search_resources("AuditEvent", search_params)
+            # Use async HAPIFHIRClient
+            hapi_client = HAPIFHIRClient()
+            response = await hapi_client.search("AuditEvent", search_params)
             entries = response.get('entry', []) if isinstance(response, dict) else []
             audit_events = [entry.get('resource', entry) for entry in entries]
 
@@ -399,7 +406,9 @@ class AuditService:
     async def _get_patient_info(self, patient_id: str) -> Optional[Dict[str, Any]]:
         """Get basic patient information for enrichment"""
         try:
-            patient = get_resource("Patient", patient_id)
+            # Use async HAPIFHIRClient
+            hapi_client = HAPIFHIRClient()
+            patient = await hapi_client.read("Patient", patient_id)
             if not patient:
                 return None
 
@@ -416,7 +425,9 @@ class AuditService:
     async def _get_user_info(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get basic user information for enrichment"""
         try:
-            practitioner = get_resource("Practitioner", user_id)
+            # Use async HAPIFHIRClient
+            hapi_client = HAPIFHIRClient()
+            practitioner = await hapi_client.read("Practitioner", user_id)
             if not practitioner:
                 return {"id": user_id, "name": "Unknown User"}
 
@@ -443,10 +454,13 @@ class AuditService:
         """Get details about resources created/updated/deleted"""
         details = []
 
+        # Use async HAPIFHIRClient
+        hapi_client = HAPIFHIRClient()
+
         # Add created resources
         for resource in event.created_resources:
             try:
-                resource_data = get_resource(
+                resource_data = await hapi_client.read(
                     resource["resourceType"],
                     resource["id"]
                 )

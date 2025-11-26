@@ -7,11 +7,8 @@ import React, { useState } from 'react';
 import {
   Box,
   Paper,
-  Typography,
-  Button,
-  Stack
+  Typography
 } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
 import MedicationListManager from './MedicationListManager';
 import MedicationDialogEnhanced from '../workspace/dialogs/MedicationDialogEnhanced';
 

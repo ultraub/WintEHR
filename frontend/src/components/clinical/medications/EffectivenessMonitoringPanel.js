@@ -22,24 +22,20 @@ import {
   Tooltip,
   Badge,
   Collapse,
-  Divider,
   LinearProgress,
-  useTheme,
-  alpha
+  useTheme
 } from '@mui/material';
 import {
   Assessment as AssessmentIcon,
   Schedule as ScheduleIcon,
   Warning as WarningIcon,
   Info as InfoIcon,
-  CheckCircle as CompletedIcon,
   TrendingUp as EffectiveIcon,
   Timeline as MonitoringIcon,
   Medication as MedicationIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
-  Notifications as AlertIcon,
-  CalendarToday as CalendarIcon
+  Notifications as AlertIcon
 } from '@mui/icons-material';
 import { format, parseISO, differenceInDays, isAfter } from 'date-fns';
 import { medicationEffectivenessService } from '../../../services/medicationEffectivenessService';

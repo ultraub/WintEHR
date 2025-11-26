@@ -77,7 +77,7 @@ from .models import (
 from .hooks import medication_prescribe_hooks
 from .rules_engine.integration import cds_integration
 from .rules_engine.safety import safety_manager, FeatureFlag
-from services.fhir_client_config import get_resource, search_resources
+from services.hapi_fhir_client import HAPIFHIRClient
 from .hapi_cds_integration import get_hapi_cds_integrator
 
 # Configure logging

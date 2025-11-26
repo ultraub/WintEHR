@@ -18,8 +18,6 @@ import {
   RadioGroup,
   Radio,
   Checkbox,
-  Slider,
-  Alert,
   Card,
   CardContent,
   Chip,
@@ -27,15 +25,9 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Divider,
   Grid,
-  Paper,
   LinearProgress,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  useTheme,
-  alpha
+  useTheme
 } from '@mui/material';
 import {
   CheckCircle as EffectiveIcon,
@@ -46,13 +38,11 @@ import {
   Assignment as AssessmentIcon,
   TrendingUp as ImprovementIcon,
   TrendingDown as DeclineIcon,
-  ExpandMore as ExpandMoreIcon,
-  Medication as MedicationIcon,
   Timeline as TimelineIcon,
   QuestionAnswer as QuestionIcon
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { format, addWeeks } from 'date-fns';
+import { addWeeks } from 'date-fns';
 import { useMedicationResolver } from '../../../hooks/useMedicationResolver';
 
 // Effectiveness scale options
