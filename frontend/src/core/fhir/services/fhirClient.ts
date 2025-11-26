@@ -319,20 +319,82 @@ class FHIRClient {
 
   /**
    * Enhance error with more context
+   *
+   * HAPI FHIR v8.6.0+ returns OperationOutcome for error responses
+   * including HTTP 401, instead of plain text. This method extracts
+   * diagnostic information from OperationOutcome when available.
    */
   private enhanceError(error: AxiosError): Error {
+    const data = error.response?.data as any;
+
+    // Check if response contains FHIR OperationOutcome (HAPI FHIR v8.6.0+)
+    const operationOutcome = this.extractOperationOutcome(data);
+
     if (error.response?.status === 400) {
-      const detail = (error.response.data as any)?.detail || error.message;
+      const detail = operationOutcome || data?.detail || error.message;
       return new Error(`FHIR Validation Error: ${detail}`);
     } else if (error.response?.status === 404) {
-      return new Error('Resource not found');
+      const detail = operationOutcome || 'Resource not found';
+      return new Error(detail);
     } else if (error.response?.status === 401) {
-      return new Error('Unauthorized - please check authentication');
+      // HAPI FHIR v8.6.0+ returns OperationOutcome for 401 errors
+      const detail = operationOutcome || 'please check authentication';
+      return new Error(`Unauthorized - ${detail}`);
     } else if (error.response?.status === 403) {
-      return new Error('Forbidden - insufficient permissions');
+      const detail = operationOutcome || 'insufficient permissions';
+      return new Error(`Forbidden - ${detail}`);
+    } else if (error.response?.status === 409) {
+      const detail = operationOutcome || 'Resource conflict';
+      return new Error(`Conflict: ${detail}`);
+    } else if (error.response?.status === 422) {
+      const detail = operationOutcome || 'Unprocessable entity';
+      return new Error(`Validation Error: ${detail}`);
+    } else if (operationOutcome) {
+      // For other errors with OperationOutcome, include the diagnostic
+      return new Error(`FHIR Error: ${operationOutcome}`);
     }
-    
+
     return error as any;
+  }
+
+  /**
+   * Extract diagnostic information from FHIR OperationOutcome
+   *
+   * OperationOutcome is the FHIR standard for error responses.
+   * HAPI FHIR v8.6.0+ returns OperationOutcome for HTTP error responses.
+   *
+   * @param data - Response data that may contain OperationOutcome
+   * @returns Diagnostic message or null if not an OperationOutcome
+   */
+  private extractOperationOutcome(data: any): string | null {
+    if (!data || data.resourceType !== 'OperationOutcome') {
+      return null;
+    }
+
+    const issues = data.issue;
+    if (!Array.isArray(issues) || issues.length === 0) {
+      return null;
+    }
+
+    // Extract diagnostic messages from issues
+    const diagnostics = issues
+      .map((issue: any) => {
+        const severity = issue.severity || 'error';
+        const code = issue.code || 'unknown';
+        const details = issue.diagnostics || issue.details?.text || '';
+        const location = issue.location?.join(', ') || '';
+
+        // Build informative message
+        let message = details;
+        if (!message && issue.details?.coding?.[0]?.display) {
+          message = issue.details.coding[0].display;
+        }
+
+        return message || `${severity}: ${code}${location ? ` at ${location}` : ''}`;
+      })
+      .filter(Boolean);
+
+    return diagnostics.length > 0 ? diagnostics.join('; ') : null;
   }
 
   /**
@@ -1174,9 +1236,14 @@ class FHIRClient {
    */
   static extractId(reference: string | Reference | undefined): string | null {
     if (!reference) return null;
-    
+
     // Handle string references
     if (typeof reference === 'string') {
+      // Handle contained resource references (HAPI FHIR v8+)
+      // In v8.x, contained resources have IDs like "med-123" but references use "#med-123"
+      if (reference.startsWith('#')) {
+        return reference.substring(1);
+      }
       // Handle absolute URLs
       if (reference.startsWith('http://') || reference.startsWith('https://')) {
         const parts = reference.split('/');

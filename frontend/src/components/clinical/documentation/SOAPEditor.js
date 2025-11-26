@@ -41,7 +41,6 @@ const SOAPEditor = ({ noteId, onSave, onSign }) => {
     createNewNote
   } = useDocumentation();
 
-  const [activeSection, setActiveSection] = useState('subjective');
   const [showSmartPhrases, setShowSmartPhrases] = useState(false);
   const [error, setError] = useState(null);
 

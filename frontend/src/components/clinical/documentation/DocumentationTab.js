@@ -56,7 +56,6 @@ const DocumentationTab = () => {
     loadNoteTemplates,
     createNewNote,
     loadNote,
-    clearCurrentNote,
     createAddendum
   } = useDocumentation();
 

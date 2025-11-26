@@ -10,13 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 import httpx
 import logging
+import os
 
 from database import get_db_session
 
 router = APIRouter(prefix="/api/imaging/studies", tags=["imaging-studies"])
 logger = logging.getLogger(__name__)
 
-HAPI_FHIR_BASE = "http://hapi-fhir:8080/fhir"
+# Use environment variable for HAPI FHIR URL (standardized for HAPI FHIR v8.6.0 upgrade)
+HAPI_FHIR_BASE = os.getenv('HAPI_FHIR_URL', 'http://hapi-fhir:8080/fhir')
 
 class ImagingStudy(BaseModel):
     id: str

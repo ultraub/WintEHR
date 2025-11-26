@@ -5,7 +5,7 @@
  * 
  * @since 2025-01-21
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
@@ -31,14 +31,10 @@ import {
   StepLabel,
   StepContent,
   Fade,
-  Collapse,
-  List,
   ListItem,
   ListItemText,
   ListItemIcon,
-  LinearProgress,
-  IconButton,
-  Tooltip
+  LinearProgress
 } from '@mui/material';
 import {
   Medication as MedicationIcon,
@@ -56,11 +52,10 @@ import { notificationService } from '../../../../services/notificationService';
 import { getClinicalCatalog } from '../../../../services/cdsClinicalDataService';
 import { clinicalCDSService } from '../../../../services/clinicalCDSService';
 import { addDays, format } from 'date-fns';
-import { 
-  getBorderRadius, 
-  getElevationShadow, 
-  getSmoothTransition,
-  getClinicalCardStyles
+import {
+  getBorderRadius,
+  getElevationShadow,
+  getSmoothTransition
 } from '../../../../themes/clinicalThemeUtils';
 import { clinicalTokens } from '../../../../themes/clinicalTheme';
 import type { MedicationRequest } from '../../../../core/fhir/types';

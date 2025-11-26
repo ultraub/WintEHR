@@ -97,16 +97,14 @@ const ClinicalDialog = ({
   ...props
 }) => {
   const theme = useTheme();
-  const { getClinicalColor } = useClinicalTheme();
+  useClinicalTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
-  
+
   const [validationState, setValidationState] = useState(VALIDATION_STATES.IDLE);
   const [validationErrors, setValidationErrors] = useState([]);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
+  const [isDirty] = useState(false);
   const [showHelperPanel, setShowHelperPanel] = useState(false);
-  const [history, setHistory] = useState([]);
+  const [history] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   
   const formRef = useRef(null);

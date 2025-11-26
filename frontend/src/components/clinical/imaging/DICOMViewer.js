@@ -44,7 +44,7 @@ const DICOMViewer = ({ study, onClose }) => {
   const [instances, setInstances] = useState([]);
   const [currentInstanceIndex, setCurrentInstanceIndex] = useState(0);
   const [currentImage, setCurrentImage] = useState(null);
-  const [viewerConfig, setViewerConfig] = useState(null);
+  const [, setViewerConfig] = useState(null);
   
   // Viewer state
   const [windowCenter, setWindowCenter] = useState(128);
@@ -399,8 +399,6 @@ const DICOMViewer = ({ study, onClose }) => {
       </Alert>
     );
   }
-
-  const currentInstance = instances[currentInstanceIndex];
 
   return (
     <Box sx={{ 

@@ -703,26 +703,27 @@ class ProviderDirectoryService:
     async def search_providers_by_organization(self, organization_id: str) -> List[Dict]:
         """Search for all providers associated with an organization."""
         try:
+            hapi_client = HAPIFHIRClient()
             search_params = {
                 'organization': f"Organization/{organization_id}"
             }
-            
-            roles_response = search_resources('PractitionerRole', search_params)
+
+            roles_response = await hapi_client.search('PractitionerRole', search_params)
             providers = []
-            
-            for entry in roles_response.get('entry', []):
-                role_resource = entry['resource']
-                
+
+            for entry in roles_response.get('entry', []) if isinstance(roles_response, dict) else []:
+                role_resource = entry.get('resource', entry)
+
                 practitioner_ref = role_resource.get('practitioner', {}).get('reference', '')
                 if practitioner_ref:
                     practitioner_id = practitioner_ref.split('/')[-1]
                     provider_profile = await self.get_provider_profile(practitioner_id)
-                    
+
                     if provider_profile:
                         providers.append(provider_profile)
-            
+
             return providers
-            
+
         except Exception as e:
             logger.error(f"Error searching providers by organization {organization_id}: {e}")
             return []

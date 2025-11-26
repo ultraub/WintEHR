@@ -10,12 +10,15 @@ Educational Focus:
 - Card merging and prioritization
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import logging
 import asyncio
 
 from services.hapi_fhir_client import HAPIFHIRClient
-from .models import CDSService, CDSServicesResponse, CDSHookResponse, Card
+from .models import (
+    CDSService, CDSServicesResponse, CDSHookResponse, Card,
+    PrefetchItem, PrefetchFailureMode
+)
 from .constants import ExtensionURLs
 from .utils import extract_extension_value
 
@@ -50,7 +53,8 @@ class HAPICDSIntegrator:
         Educational notes:
         - HAPI FHIR stores CDS services as PlanDefinition resources
         - PlanDefinitions include hook type in extensions
-        - Discovery follows CDS Hooks 1.0 specification
+        - Discovery follows CDS Hooks 2.0 specification (HAPI FHIR v8.2.0+)
+        - Supports failureMode for prefetch resilience
         """
         try:
             logger.info("Discovering CDS services from HAPI FHIR PlanDefinitions")
@@ -123,15 +127,26 @@ class HAPICDSIntegrator:
             usageRequirements=plan_def.get("usage", "")
         )
 
-    def _build_prefetch_from_action(self, plan_def: Dict[str, Any]) -> Dict[str, str]:
+    def _build_prefetch_from_action(
+        self,
+        plan_def: Dict[str, Any],
+        default_failure_mode: PrefetchFailureMode = PrefetchFailureMode.OMIT
+    ) -> Dict[str, Union[str, PrefetchItem]]:
         """
-        Build CDS Hooks prefetch template from PlanDefinition action inputs
+        Build CDS Hooks 2.0 prefetch template from PlanDefinition action inputs
 
         Args:
             plan_def: PlanDefinition resource
+            default_failure_mode: Default failure mode for prefetch items (HAPI FHIR v8.2.0+)
 
         Returns:
-            Prefetch dictionary
+            Prefetch dictionary with CDS Hooks 2.0 PrefetchItem support
+
+        CDS Hooks 2.0 features:
+        - failureMode: FAIL, OMIT, or OPERATION_OUTCOME
+        - FAIL: Service fails if prefetch fails
+        - OMIT: Prefetch omitted, service continues with available data
+        - OPERATION_OUTCOME: Include OperationOutcome for failed prefetch
         """
         prefetch = {}
 
@@ -148,8 +163,20 @@ class HAPICDSIntegrator:
                 profiles = input_req.get("profile", [])
                 if profiles:
                     resource_type = profiles[0].split("/")[-1]
-                    # Create prefetch key and template
-                    prefetch[f"input{i}"] = f"{resource_type}/{{{{context.patientId}}}}"
+                    query = f"{resource_type}/{{{{context.patientId}}}}"
+
+                    # Check if input has mustSupport - if so, use FAIL mode
+                    must_support = input_req.get("mustSupport", [])
+                    failure_mode = (
+                        PrefetchFailureMode.FAIL if must_support
+                        else default_failure_mode
+                    )
+
+                    # Create prefetch item with CDS Hooks 2.0 failureMode
+                    prefetch[f"input{i}"] = PrefetchItem(
+                        query=query,
+                        failureMode=failure_mode
+                    )
 
         return prefetch
 

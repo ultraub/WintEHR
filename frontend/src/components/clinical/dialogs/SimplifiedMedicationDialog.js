@@ -14,12 +14,12 @@ import {
   Stack,
   Typography,
   TextField,
-  Chip,
-  Button,
   Paper,
-  Alert,
   Autocomplete,
-  useTheme
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import { Send as SendIcon } from '@mui/icons-material';
 import SimplifiedClinicalDialog from '../common/SimplifiedClinicalDialog';
@@ -27,13 +27,6 @@ import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import { notificationService } from '../../../services/notificationService';
 import { getClinicalCatalog } from '../../../services/cdsClinicalDataService';
 import { format, addDays } from 'date-fns';
-
-// Simplified status options
-const STATUS_OPTIONS = [
-  { value: 'active', label: 'Active' },
-  { value: 'on-hold', label: 'On Hold' },
-  { value: 'draft', label: 'Draft' }
-];
 
 // Common dosage frequencies
 const FREQUENCY_OPTIONS = [
@@ -64,7 +57,6 @@ const SimplifiedMedicationDialog = ({
   mode = 'prescribe',
   onSave
 }) => {
-  const theme = useTheme();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [medicationCatalog, setMedicationCatalog] = useState([]);

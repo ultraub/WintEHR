@@ -10,7 +10,7 @@ import {
   CssBaseline,
   Drawer
 } from '@mui/material';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import ClinicalAppBar from '../navigation/ClinicalAppBar';
 import ClinicalTabs from '../navigation/ClinicalTabs';
 import ClinicalBreadcrumbs from '../navigation/ClinicalBreadcrumbs';
@@ -45,13 +45,12 @@ const EnhancedClinicalLayout = ({
   navigationContext = {}
 }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
   const { id: patientId } = useParams();
   const { user } = useAuth();
   const { currentMode, onModeChange } = React.useContext(MedicalThemeContext);
   const isDarkMode = currentMode === 'dark';
   const toggleTheme = () => onModeChange(isDarkMode ? 'light' : 'dark');
-  const { isMobile, isTablet, isDesktop, patterns } = useResponsive();
+  const { isMobile, isTablet, isDesktop } = useResponsive();
   
   const [bookmarked, setBookmarked] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);

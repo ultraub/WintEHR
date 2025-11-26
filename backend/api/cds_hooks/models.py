@@ -45,6 +45,19 @@ class SelectionBehavior(str, Enum):
     ANY = "any"
 
 
+class PrefetchFailureMode(str, Enum):
+    """Prefetch failure mode - CDS Hooks 2.0 (HAPI FHIR v8.2.0+)
+
+    Determines behavior when prefetch query fails:
+    - FAIL: Return error, service cannot execute
+    - OMIT: Omit failed prefetch, continue with available data
+    - OPERATION_OUTCOME: Include OperationOutcome resource for failed prefetch
+    """
+    FAIL = "fail"
+    OMIT = "omit"
+    OPERATION_OUTCOME = "operation-outcome"
+
+
 class LinkType(str, Enum):
     """Link types"""
     ABSOLUTE = "absolute"
@@ -250,18 +263,30 @@ class CDSHookResponse(BaseModel):
 
 
 # Discovery Models
+class PrefetchItem(BaseModel):
+    """Prefetch item with optional failureMode - CDS Hooks 2.0"""
+    query: str = Field(..., description="FHIR query template")
+    failureMode: Optional[PrefetchFailureMode] = Field(
+        PrefetchFailureMode.OMIT,
+        description="Behavior when prefetch fails (CDS Hooks 2.0, HAPI FHIR v8.2.0+)"
+    )
+
+
 class Prefetch(BaseModel):
-    """Prefetch template"""
+    """Prefetch configuration - supports both simple templates and CDS Hooks 2.0 format"""
     pass  # This is a flexible object - can contain any FHIR queries
 
 
 class CDSService(BaseModel):
-    """CDS Service definition"""
+    """CDS Service definition - CDS Hooks 2.0 compliant"""
     hook: HookType = Field(..., description="Hook type")
     title: Optional[str] = Field(None, description="Human-readable title")
     description: str = Field(..., description="Service description")
     id: str = Field(..., description="Service identifier")
-    prefetch: Optional[Dict[str, str]] = Field(None, description="Prefetch templates")
+    prefetch: Optional[Dict[str, Union[str, PrefetchItem]]] = Field(
+        None,
+        description="Prefetch templates (string or PrefetchItem with failureMode)"
+    )
     usageRequirements: Optional[str] = Field(None, description="Usage requirements")
 
 

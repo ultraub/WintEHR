@@ -53,8 +53,7 @@ const MedicationSafetyDialog = ({
     safetyData,
     checkSingleMedication,
     getSeverityLevel,
-    isSafeToProceed,
-    getFormattedRecommendations
+    isSafeToProceed
   } = useDrugSafety(patientId);
 
   // Load safety data when dialog opens

@@ -26,7 +26,6 @@ import {
   InputAdornment,
   FormControlLabel,
   Checkbox,
-  useTheme,
   Grid
 } from '@mui/material';
 import {
@@ -58,7 +57,6 @@ const MedicationHistoryReview = ({
   highlightDuplicates = true,
   compactView = false
 }) => {
-  const theme = useTheme();
   const { resolveMedication } = useMedicationResolver();
   
   const [medications, setMedications] = useState([]);

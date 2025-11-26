@@ -11,13 +11,14 @@ Architecture:
 - HAPI FHIR handles validation, indexing, and storage
 
 Migration Note:
-This replaces the sync fhir_client_config.py for all new code.
+This client has replaced the deprecated fhir_client_config.py (now deleted).
+All backend code now uses HAPIFHIRClient for async FHIR operations.
 """
 
 import httpx
 import logging
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger(__name__)
 
@@ -282,6 +283,141 @@ class HAPIFHIRClient:
         except httpx.HTTPStatusError as e:
             logger.error(f"HAPI FHIR operation error: {e.response.status_code} - {e.response.text}")
             raise Exception(f"FHIR operation failed: {e.response.status_code}")
+        except httpx.RequestError as e:
+            logger.error(f"HAPI FHIR connection error: {e}")
+            raise Exception(f"Failed to connect to FHIR server: {str(e)}")
+
+    async def bulk_patch(
+        self,
+        resource_type: str,
+        patch_operations: List[Dict[str, Any]],
+        query_params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute bulk PATCH operation on multiple resources (HAPI FHIR v8.4.0+).
+
+        Uses HAPI FHIR's $hapi.fhir.bulk-patch extended operation for efficient
+        mass updates to resources matching a query.
+
+        Args:
+            resource_type: FHIR resource type to patch (e.g., "Patient", "Observation")
+            patch_operations: List of JSON Patch operations to apply
+                Example: [
+                    {"op": "replace", "path": "/active", "value": True},
+                    {"op": "add", "path": "/meta/tag/-", "value": {"code": "reviewed"}}
+                ]
+            query_params: Optional search parameters to filter resources to patch
+
+        Returns:
+            Operation result dict with count of modified resources
+
+        Example:
+            # Mark all observations for a patient as reviewed
+            result = await client.bulk_patch("Observation", [
+                {"op": "add", "path": "/meta/tag/-", "value": {"code": "reviewed"}}
+            ], {"patient": "Patient/123"})
+
+        Educational notes:
+        - Added in HAPI FHIR v8.4.0, enhanced in v8.6.0
+        - More efficient than individual PATCH calls for mass updates
+        - Uses JSON Patch format (RFC 6902)
+        - Query params limit which resources are patched
+        """
+        url = f"{self.base_url}/{resource_type}/$hapi.fhir.bulk-patch"
+
+        # Build request body with patch operations
+        request_body = {
+            "resourceType": "Parameters",
+            "parameter": [
+                {
+                    "name": "patch",
+                    "valueString": str(patch_operations)
+                }
+            ]
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout * 2) as client:
+                response = await client.post(
+                    url,
+                    json=request_body,
+                    params=query_params or {},
+                    headers={"Content-Type": "application/fhir+json"}
+                )
+                response.raise_for_status()
+                return response.json()
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HAPI FHIR bulk patch error for {resource_type}: {e.response.status_code} - {e.response.text}")
+            raise Exception(f"FHIR bulk patch failed: {e.response.status_code} - {e.response.text}")
+        except httpx.RequestError as e:
+            logger.error(f"HAPI FHIR connection error: {e}")
+            raise Exception(f"Failed to connect to FHIR server: {str(e)}")
+
+    async def bulk_patch_rewrite_history(
+        self,
+        resource_type: str,
+        patch_operations: List[Dict[str, Any]],
+        query_params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute bulk PATCH with history rewriting (HAPI FHIR v8.6.0+).
+
+        Similar to bulk_patch but also rewrites historical versions of resources.
+        Useful for data corrections that need to apply retroactively.
+
+        Args:
+            resource_type: FHIR resource type to patch
+            patch_operations: List of JSON Patch operations
+            query_params: Optional search parameters to filter resources
+
+        Returns:
+            Operation result dict with count of modified resources and versions
+
+        Example:
+            # Correct a misspelled name across all historical versions
+            result = await client.bulk_patch_rewrite_history("Patient", [
+                {"op": "replace", "path": "/name/0/family", "value": "Smith"}
+            ], {"identifier": "MRN|12345"})
+
+        Educational notes:
+        - Added in HAPI FHIR v8.6.0
+        - Use with caution - rewrites audit trail
+        - Intended for data correction scenarios
+        - More expensive operation than regular bulk_patch
+        """
+        url = f"{self.base_url}/{resource_type}/$hapi.fhir.bulk-patch"
+
+        # Build request body with rewrite-history flag
+        request_body = {
+            "resourceType": "Parameters",
+            "parameter": [
+                {
+                    "name": "patch",
+                    "valueString": str(patch_operations)
+                },
+                {
+                    "name": "rewrite-history",
+                    "valueBoolean": True
+                }
+            ]
+        }
+
+        try:
+            # Use longer timeout for history rewriting
+            async with httpx.AsyncClient(timeout=self.timeout * 4) as client:
+                response = await client.post(
+                    url,
+                    json=request_body,
+                    params=query_params or {},
+                    headers={"Content-Type": "application/fhir+json"}
+                )
+                response.raise_for_status()
+                return response.json()
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HAPI FHIR bulk patch rewrite error for {resource_type}: {e.response.status_code} - {e.response.text}")
+            raise Exception(f"FHIR bulk patch rewrite failed: {e.response.status_code} - {e.response.text}")
         except httpx.RequestError as e:
             logger.error(f"HAPI FHIR connection error: {e}")
             raise Exception(f"Failed to connect to FHIR server: {str(e)}")

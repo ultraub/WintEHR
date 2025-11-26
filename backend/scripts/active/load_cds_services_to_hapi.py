@@ -15,6 +15,7 @@ Updated for v3.0 Architecture:
 import asyncio
 import httpx
 import logging
+import os
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -29,7 +30,8 @@ from api.cds_hooks.services import get_builtin_services, register_builtin_servic
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-HAPI_FHIR_URL = "http://hapi-fhir:8080/fhir"
+# Use environment variable for HAPI FHIR URL (standardized for HAPI FHIR v8.6.0 upgrade)
+HAPI_FHIR_URL = os.getenv('HAPI_FHIR_URL', 'http://hapi-fhir:8080/fhir')
 
 
 def service_to_plandefinition(service) -> dict:

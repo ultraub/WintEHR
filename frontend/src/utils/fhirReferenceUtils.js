@@ -134,16 +134,94 @@ export const filterBundleByPatient = (bundle, patientId) => {
 
 /**
  * Convert a reference to standard FHIR format
- * 
+ *
  * @param {string} reference - The reference to convert
  * @param {string} resourceType - The resource type (e.g., 'Patient')
  * @returns {string} Standard FHIR reference format
  */
 export const standardizeReference = (reference, resourceType = 'Patient') => {
   if (!reference) return null;
-  
+
   const id = extractPatientId(reference);
   if (!id) return reference;
-  
+
   return `${resourceType}/${id}`;
+};
+
+/**
+ * Resolve a contained resource reference within a parent resource
+ *
+ * In FHIR, contained resources are embedded within a parent resource and
+ * referenced using a '#' prefix. This is commonly used for inline resources
+ * like Medication within MedicationRequest.
+ *
+ * HAPI FHIR v8.0.0+ change: Contained resources no longer have IDs starting
+ * with '#' - the '#' only appears in references. For example:
+ * - Reference: "#med-123"
+ * - Contained resource ID: "med-123"
+ *
+ * @param {Object} parentResource - The parent FHIR resource containing the embedded resources
+ * @param {string} reference - The contained reference (e.g., "#med-123")
+ * @returns {Object|null} The contained resource or null if not found
+ *
+ * @example
+ * const medRequest = {
+ *   resourceType: 'MedicationRequest',
+ *   contained: [{ id: 'med-123', resourceType: 'Medication', ... }],
+ *   medicationReference: { reference: '#med-123' }
+ * };
+ * const medication = resolveContainedResource(medRequest, '#med-123');
+ */
+export const resolveContainedResource = (parentResource, reference) => {
+  // Validate inputs
+  if (!parentResource || !reference) {
+    return null;
+  }
+
+  // Handle Reference objects
+  const refString = typeof reference === 'string'
+    ? reference
+    : reference.reference;
+
+  if (!refString) {
+    return null;
+  }
+
+  // Contained references must start with '#'
+  if (!refString.startsWith('#')) {
+    return null;
+  }
+
+  // Extract the ID by removing the '#' prefix
+  // HAPI FHIR v8+: contained resources have IDs like "med-123"
+  // but references use "#med-123"
+  const containedId = refString.substring(1);
+
+  // Check if parent has contained resources
+  const contained = parentResource.contained;
+  if (!Array.isArray(contained) || contained.length === 0) {
+    return null;
+  }
+
+  // Find the contained resource by ID
+  // Support both old format (id: "#med-123") and new format (id: "med-123")
+  return contained.find(resource =>
+    resource.id === containedId || resource.id === `#${containedId}`
+  ) || null;
+};
+
+/**
+ * Check if a reference is a contained reference
+ *
+ * @param {string|Object} reference - The reference to check
+ * @returns {boolean} True if this is a contained reference
+ */
+export const isContainedReference = (reference) => {
+  if (!reference) return false;
+
+  const refString = typeof reference === 'string'
+    ? reference
+    : reference.reference;
+
+  return refString?.startsWith('#') || false;
 };
