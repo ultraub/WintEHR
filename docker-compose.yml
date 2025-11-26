@@ -191,11 +191,13 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - REACT_APP_FHIR_ENDPOINT=${REACT_APP_FHIR_ENDPOINT:-http://localhost:8000/fhir/R4}
-      - REACT_APP_EMR_API=${REACT_APP_EMR_API:-http://localhost:8000/api/emr}
-      - REACT_APP_CLINICAL_CANVAS_API=${REACT_APP_CLINICAL_CANVAS_API:-http://localhost:8000/api/clinical-canvas}
-      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
-      - REACT_APP_WS_URL=${REACT_APP_WS_URL:-ws://localhost:8000/ws}
+      # Use relative URLs - nginx proxies to backend (no CORS needed)
+      - REACT_APP_FHIR_ENDPOINT=${REACT_APP_FHIR_ENDPOINT:-/fhir/R4}
+      - REACT_APP_EMR_API=${REACT_APP_EMR_API:-/api/emr}
+      - REACT_APP_CLINICAL_CANVAS_API=${REACT_APP_CLINICAL_CANVAS_API:-/api/clinical-canvas}
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-}
+      # WebSocket connects directly to backend (http-proxy-middleware v3 doesn't support ws proxy)
+      - REACT_APP_WEBSOCKET_URL=${REACT_APP_WEBSOCKET_URL:-ws://localhost:8000/api/ws}
     networks:
       - emr-network
     depends_on:

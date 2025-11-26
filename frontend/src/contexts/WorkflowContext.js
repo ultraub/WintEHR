@@ -122,10 +122,16 @@ export const WorkflowProvider = ({ children }) => {
 
       for (const resourceType of currentMode.requiredResources) {
         try {
-          let searchParams = { patient: currentPatient.id };
+          // For Patient resource, use _id; for others, use patient reference
+          let searchParams = resourceType === 'Patient'
+            ? { _id: currentPatient.id }
+            : { patient: currentPatient.id };
 
           // Add specific search parameters based on resource type
           switch (resourceType) {
+            case 'Patient':
+              // Already handled above with _id
+              break;
             case 'Condition':
               searchParams['clinical-status'] = clinicalContext.resourceFilters.status || 'active';
               break;

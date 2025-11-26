@@ -92,6 +92,11 @@ _orchestrator = get_orchestrator()
 # Alias for backward compatibility with code using service_registry name
 service_registry = _registry
 
+# Register built-in services at module load time
+from .services.builtin import register_builtin_services
+register_builtin_services(_registry)
+logger.info(f"CDS Hooks: Registered {len(_registry.list_services())} built-in services")
+
 # Include action execution router
 from .actions import router as action_router
 router.include_router(action_router, prefix="", tags=["CDS Actions"])
@@ -365,6 +370,19 @@ async def execute_service(
             context = request.context if isinstance(request.context, dict) else request.context.dict()
             prefetch = request.prefetch or {}
 
+            # If prefetch is empty and service has prefetch_templates, resolve them
+            # This ensures services receive the data they need even when client doesn't provide prefetch
+            if not prefetch and hasattr(registered_service, 'prefetch_templates') and registered_service.prefetch_templates:
+                try:
+                    logger.info(f"Resolving prefetch templates for service {service_id}: {list(registered_service.prefetch_templates.keys())}")
+                    # Wrap context in {"context": ...} structure as templates use {{context.patientId}} format
+                    prefetch_context = {"context": context}
+                    prefetch = await execute_prefetch(registered_service.prefetch_templates, prefetch_context)
+                    logger.info(f"Resolved prefetch keys: {list(prefetch.keys())}")
+                except Exception as e:
+                    logger.warning(f"Failed to resolve prefetch for {service_id}: {e}")
+                    # Continue with empty prefetch - service may still work
+
             # Execute the single service
             result = await orchestrator.execute_single(
                 service_id=service_id,
@@ -396,6 +414,12 @@ async def execute_service(
                 logger.warning(f"Connection error reading {service_id}: {e}")
             except (KeyError, TypeError, ValueError) as e:
                 logger.info(f"Data parsing error for {service_id}, trying extension search: {e}")
+            except Exception as e:
+                # HAPIFHIRClient re-raises 404 as generic Exception with "not found" message
+                if "not found" in str(e).lower():
+                    logger.info(f"Direct read failed for {service_id}, trying extension search")
+                else:
+                    logger.warning(f"Unexpected error reading {service_id}: {e}")
 
             # Try extension search if direct read failed
             if not plan_definition:
@@ -555,6 +579,11 @@ async def execute_service(
     except (ValueError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Data error executing CDS service {service_id}: {e}")
         # CDS Hooks should be non-blocking - return empty cards on error
+        return CDSHookResponse(cards=[])
+    except Exception as e:
+        # Catch-all for any other errors (e.g., external service failures)
+        # CDS Hooks should be non-blocking - return empty cards on error
+        logger.error(f"Unexpected error executing CDS service {service_id}: {e}")
         return CDSHookResponse(cards=[])
 
 
@@ -1297,7 +1326,7 @@ async def health_check(db: AsyncSession = Depends(get_db_session)):
         "rules_engine_statistics": rules_stats,
         "service_registry": {
             "status": "active",
-            "services": [s.id for s in registry_services]
+            "services": [s.service_id for s in registry_services]
         },
         "timestamp": datetime.now().isoformat()
     }

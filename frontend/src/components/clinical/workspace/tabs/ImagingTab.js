@@ -70,6 +70,7 @@ import {
   Collections as CollectionsIcon
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import axios from 'axios';
 import DICOMViewer from '../../imaging/DICOMViewer';
@@ -332,9 +333,9 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
       label: 'Images', 
       value: `${study.numberOfInstances || 0} images` 
     },
-    { 
-      label: 'Date', 
-      value: studyDate ? format(parseISO(studyDate), 'MMM d, yyyy') : 'Unknown' 
+    {
+      label: 'Date',
+      value: formatClinicalDate(studyDate, 'standard', 'Unknown')
     }
   ];
   
@@ -411,7 +412,7 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
             {getStudyDescription()}
           </Typography>
           <Typography variant="caption" color="text.secondary" display="block">
-            {studyDate && format(parseISO(studyDate), 'MMM d, yyyy')}
+            {formatClinicalDate(studyDate)}
           </Typography>
           <Stack direction="row" spacing={1} mt={1}>
             <Chip 
@@ -857,7 +858,7 @@ const ImagingTab = ({
     content += '<div class="section">';
     content += `<h3>${study.description || 'Imaging Study'}</h3>`;
     content += '<table>';
-    content += `<tr><td><strong>Study Date:</strong></td><td>${study.started ? format(parseISO(study.started), 'MMMM d, yyyy HH:mm') : 'Unknown'}</td></tr>`;
+    content += `<tr><td><strong>Study Date:</strong></td><td>${formatClinicalDate(study.started, 'verboseWithTime', 'Unknown')}</td></tr>`;
     content += `<tr><td><strong>Modality:</strong></td><td>${study.modality?.[0]?.code || 'Unknown'}</td></tr>`;
     content += `<tr><td><strong>Body Part:</strong></td><td>${study.bodySite?.[0]?.display || 'Not specified'}</td></tr>`;
     content += `<tr><td><strong>Accession Number:</strong></td><td>${study.identifier?.[0]?.value || 'Not available'}</td></tr>`;
@@ -920,7 +921,7 @@ const ImagingTab = ({
       
       modalityStudies.forEach(study => {
         content += '<tr>';
-        content += `<td>${study.started ? format(parseISO(study.started), 'MMM d, yyyy') : 'Unknown'}</td>`;
+        content += `<td>${formatClinicalDate(study.started, 'standard', 'Unknown')}</td>`;
         content += `<td>${study.description || 'No description'}</td>`;
         content += `<td>${study.bodySite?.[0]?.display || '-'}</td>`;
         content += `<td>${study.numberOfSeries || 0}</td>`;
@@ -1121,10 +1122,10 @@ const ImagingTab = ({
         return (
           <Box>
             <Typography variant="body2">
-              {format(parseISO(date), 'MMM d, yyyy')}
+              {formatClinicalDate(date)}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {formatDistanceToNow(parseISO(date), { addSuffix: true })}
+              {formatClinicalDate(date, 'relative')}
             </Typography>
           </Box>
         );

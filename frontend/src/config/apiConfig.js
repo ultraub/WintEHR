@@ -91,7 +91,17 @@ class ApiConfig {
     // Priority: ENV variable > Docker/local detection > default
     const envUrl = process.env.REACT_APP_API_URL;
 
-    if (envUrl) {
+    // Check if env var is explicitly set (even if empty)
+    // Empty string means "use relative URLs via nginx proxy"
+    if (envUrl !== undefined) {
+      if (envUrl === '') {
+        // Using nginx proxy - all API calls go through same origin
+        return {
+          baseUrl: '',
+          apiPath: '/api',
+          fullUrl: '/api'
+        };
+      }
       return {
         baseUrl: envUrl,
         apiPath: '/api',
@@ -179,6 +189,19 @@ class ApiConfig {
 
     // Build WebSocket URL based on backend configuration
     const backendConfig = this._config?.backend || this.buildBackendConfig();
+
+    // If backend URL is empty (using nginx proxy), derive from current page
+    if (!backendConfig.baseUrl || backendConfig.baseUrl === '') {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      return {
+        baseUrl: `${wsProtocol}//${host}`,
+        protocol: wsProtocol,
+        fullUrl: `${wsProtocol}//${host}/api/ws`
+      };
+    }
+
+    // Legacy: absolute backend URL
     const wsProtocol = backendConfig.baseUrl.startsWith('https') ? 'wss:' : 'ws:';
 
     // Extract host from backend URL

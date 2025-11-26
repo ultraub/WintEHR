@@ -45,7 +45,7 @@ export const useProviderDirectory = () => {
       if (name) params.append('name', name);
       params.append('active_only', activeOnly.toString());
 
-      const response = await apiClient.get(`/provider-directory/providers/search?${params}`);
+      const response = await apiClient.get(`/api/provider-directory/providers/search?${params}`);
       setSearchResults(response.providers || []);
       return response;
     } catch (err) {
@@ -77,7 +77,7 @@ export const useProviderDirectory = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get(`/provider-directory/providers/${practitionerId}/profile`);
+      const response = await apiClient.get(`/api/provider-directory/providers/${practitionerId}/profile`);
       return response;
     } catch (err) {
       setError(`Failed to get provider profile: ${err.message}`);
@@ -91,7 +91,7 @@ export const useProviderDirectory = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get(`/provider-directory/providers/${practitionerId}/roles`);
+      const response = await apiClient.get(`/api/provider-directory/providers/${practitionerId}/roles`);
       return response.roles || [];
     } catch (err) {
       setError(`Failed to get provider roles: ${err.message}`);
@@ -105,7 +105,7 @@ export const useProviderDirectory = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get(`/provider-directory/providers/${practitionerId}/specialties`);
+      const response = await apiClient.get(`/api/provider-directory/providers/${practitionerId}/specialties`);
       return response.specialties || [];
     } catch (err) {
       setError(`Failed to get provider specialties: ${err.message}`);
@@ -119,7 +119,7 @@ export const useProviderDirectory = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get(`/provider-directory/providers/${practitionerId}/locations`);
+      const response = await apiClient.get(`/api/provider-directory/providers/${practitionerId}/locations`);
       return response.locations || [];
     } catch (err) {
       setError(`Failed to get provider locations: ${err.message}`);
@@ -152,7 +152,7 @@ export const useProviderDirectory = () => {
         params.append('specialty_code', specialtyCode);
       }
 
-      const response = await apiClient.get(`/provider-directory/providers/near?${params}`);
+      const response = await apiClient.get(`/api/provider-directory/providers/near?${params}`);
       return response;
     } catch (err) {
       setError(`Failed to search providers near location: ${err.message}`);
@@ -181,7 +181,7 @@ export const useProviderDirectory = () => {
         params.append('location_type', locationType);
       }
 
-      const response = await apiClient.get(`/provider-directory/locations/near?${params}`);
+      const response = await apiClient.get(`/api/provider-directory/locations/near?${params}`);
       return response;
     } catch (err) {
       setError(`Failed to search locations near coordinates: ${err.message}`);
@@ -199,7 +199,7 @@ export const useProviderDirectory = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get(`/provider-directory/organizations/${organizationId}/hierarchy`);
+      const response = await apiClient.get(`/api/provider-directory/organizations/${organizationId}/hierarchy`);
       return response.hierarchy;
     } catch (err) {
       setError(`Failed to get organization hierarchy: ${err.message}`);
@@ -217,7 +217,7 @@ export const useProviderDirectory = () => {
         active_only: activeOnly.toString()
       });
 
-      const response = await apiClient.get(`/provider-directory/organizations/${organizationId}/providers?${params}`);
+      const response = await apiClient.get(`/api/provider-directory/organizations/${organizationId}/providers?${params}`);
       return response.providers || [];
     } catch (err) {
       setError(`Failed to get organization providers: ${err.message}`);
@@ -231,7 +231,7 @@ export const useProviderDirectory = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get(`/provider-directory/locations/${locationId}/hierarchy`);
+      const response = await apiClient.get(`/api/provider-directory/locations/${locationId}/hierarchy`);
       return response;
     } catch (err) {
       setError(`Failed to get location hierarchy: ${err.message}`);
@@ -249,7 +249,7 @@ export const useProviderDirectory = () => {
         active_only: activeOnly.toString()
       });
 
-      const response = await apiClient.get(`/provider-directory/locations/${locationId}/providers?${params}`);
+      const response = await apiClient.get(`/api/provider-directory/locations/${locationId}/providers?${params}`);
       return response.providers || [];
     } catch (err) {
       setError(`Failed to get location providers: ${err.message}`);

@@ -13,6 +13,7 @@ Educational Focus:
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 import logging
+import uuid
 
 from ..models import Card, IndicatorType, Source, Suggestion, Link, HookType
 
@@ -202,6 +203,7 @@ class CDSService(ABC):
             ]
 
         return Card(
+            uuid=str(uuid.uuid4()),
             summary=summary,
             indicator=indicator_type,
             detail=detail,

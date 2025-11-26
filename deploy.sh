@@ -313,6 +313,31 @@ docker_compose up -d
 echo -e "${GREEN}✅ Services started${NC}"
 echo ""
 
+# Step 2.5: Sync PostgreSQL password with .env
+# This fixes an issue where PostgreSQL was initialized with a different password
+# than what's currently in .env (init scripts only run on first database creation)
+echo -e "${BLUE}🔐 Syncing database credentials...${NC}"
+
+# Wait for PostgreSQL to be ready
+for i in {1..30}; do
+    if docker exec emr-postgres pg_isready -U ${POSTGRES_USER:-emr_user} -d ${POSTGRES_DB:-emr_db} > /dev/null 2>&1; then
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo -e "${YELLOW}⚠️  PostgreSQL not ready, skipping password sync${NC}"
+    fi
+    sleep 1
+done
+
+# Sync password to match .env (runs via Unix socket which doesn't require password)
+if [ -n "${POSTGRES_PASSWORD}" ]; then
+    docker exec emr-postgres psql -U ${POSTGRES_USER:-emr_user} -d ${POSTGRES_DB:-emr_db} \
+        -c "ALTER USER ${POSTGRES_USER:-emr_user} WITH PASSWORD '${POSTGRES_PASSWORD}';" > /dev/null 2>&1 && \
+        echo -e "   ${GREEN}✓ Database credentials synchronized${NC}" || \
+        echo -e "   ${YELLOW}⚠️  Password sync skipped (may already be in sync)${NC}"
+fi
+echo ""
+
 # Step 3: Wait for services to be healthy
 echo -e "${BLUE}⏳ Waiting for services to be healthy...${NC}"
 

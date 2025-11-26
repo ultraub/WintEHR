@@ -97,6 +97,7 @@ import {
   LocalPharmacy as PharmacyIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, subDays, isWithinInterval } from 'date-fns';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useSnackbar } from 'notistack';
 import useChartReviewResources from '../../../../hooks/useChartReviewResources';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
@@ -787,7 +788,7 @@ const ChartReviewTabOptimized = ({
                           </Typography>
                           {processedData.recentVitals[0] && (
                             <Typography variant="caption" color="text.secondary" mt={1}>
-                              Last: {format(new Date(processedData.recentVitals[0].effectiveDateTime || processedData.recentVitals[0].issued), 'MMM d')}
+                              Last: {formatClinicalDate(processedData.recentVitals[0].effectiveDateTime || processedData.recentVitals[0].issued, 'monthDay')}
                             </Typography>
                           )}
                         </Box>
@@ -1533,7 +1534,7 @@ const ChartReviewTabOptimized = ({
                                       {encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Encounter'}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
-                                      {encounter.period?.start && format(new Date(encounter.period.start), 'MMM d, yyyy')}
+                                      {formatClinicalDate(encounter.period?.start)}
                                     </Typography>
                                   </Box>
                                   <Chip 
@@ -1783,16 +1784,16 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
           {/* Clinical details */}
           <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
             <Typography variant="caption" color="text.secondary">
-              <strong>Onset:</strong> {condition.onsetDateTime ? 
-                format(new Date(condition.onsetDateTime), 'MMM d, yyyy') : 
-                condition.onsetAge?.value ? `Age ${condition.onsetAge.value}` : 
+              <strong>Onset:</strong> {condition.onsetDateTime ?
+                formatClinicalDate(condition.onsetDateTime) :
+                condition.onsetAge?.value ? `Age ${condition.onsetAge.value}` :
                 'Unknown'}
             </Typography>
-            
+
             {abatementDate && (
               <Typography variant="caption" color="text.secondary">
-                <strong>Resolved:</strong> {typeof abatementDate === 'string' ? 
-                  format(new Date(abatementDate), 'MMM d, yyyy') : 
+                <strong>Resolved:</strong> {typeof abatementDate === 'string' ?
+                  formatClinicalDate(abatementDate) :
                   `Age ${abatementDate}`}
               </Typography>
             )}
@@ -1831,7 +1832,7 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
               )}
               {recordedDate && (
                 <Typography variant="caption" color="text.secondary">
-                  <strong>Recorded:</strong> {format(new Date(recordedDate), 'MMM d, yyyy')}
+                  <strong>Recorded:</strong> {formatClinicalDate(recordedDate)}
                 </Typography>
               )}
             </Stack>
@@ -2005,7 +2006,7 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNav
             <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
               {medication.authoredOn && (
                 <Typography variant="caption" color="text.secondary">
-                  <strong>Prescribed:</strong> {format(new Date(medication.authoredOn), 'MMM d, yyyy')}
+                  <strong>Prescribed:</strong> {formatClinicalDate(medication.authoredOn)}
                 </Typography>
               )}
               {requester && (
@@ -2282,23 +2283,23 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
             <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
               {onsetDate && (
                 <Typography variant="caption" color="text.secondary">
-                  <strong>Onset:</strong> {typeof onsetDate === 'string' ? 
-                    format(new Date(onsetDate), 'MMM d, yyyy') : 
+                  <strong>Onset:</strong> {typeof onsetDate === 'string' ?
+                    formatClinicalDate(onsetDate) :
                     `Age ${onsetDate}`}
                 </Typography>
               )}
               {lastOccurrence && (
                 <Typography variant="caption" color="text.secondary">
-                  <strong>Last reaction:</strong> {format(new Date(lastOccurrence), 'MMM d, yyyy')}
+                  <strong>Last reaction:</strong> {formatClinicalDate(lastOccurrence)}
                 </Typography>
               )}
             </Stack>
-            
+
             {/* Clinical team and recording information */}
             <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
               {allergy.recordedDate && (
                 <Typography variant="caption" color="text.secondary">
-                  <strong>Recorded:</strong> {format(new Date(allergy.recordedDate), 'MMM d, yyyy')}
+                  <strong>Recorded:</strong> {formatClinicalDate(allergy.recordedDate)}
                 </Typography>
               )}
               {recorder && (
@@ -2390,9 +2391,7 @@ const EnhancedImmunizationCard = ({ immunization, onEdit, isAlternate = false })
           
           <Stack spacing={0.5}>
             <Typography variant="caption" color="text.secondary">
-              <strong>Date:</strong> {immunization.occurrenceDateTime ? 
-                format(new Date(immunization.occurrenceDateTime), 'MMM d, yyyy') : 
-                'Unknown'}
+              <strong>Date:</strong> {formatClinicalDate(immunization.occurrenceDateTime, 'standard', 'Unknown')}
             </Typography>
             {immunization.protocolApplied?.[0] && (
               <Typography variant="caption" color="text.secondary">
@@ -2501,11 +2500,11 @@ const EnhancedProcedureCard = ({ procedure, onEdit, isAlternate = false }) => {
           
           <Stack spacing={0.5}>
             <Typography variant="caption" color="text.secondary">
-              <strong>Date:</strong> {procedure.performedDateTime ? 
-                format(new Date(procedure.performedDateTime), 'MMM d, yyyy') : 
-                procedure.performedPeriod?.start ? 
-                format(new Date(procedure.performedPeriod.start), 'MMM d, yyyy') : 
-                'Unknown'}
+              <strong>Date:</strong> {formatClinicalDate(
+                procedure.performedDateTime || procedure.performedPeriod?.start,
+                'standard',
+                'Unknown'
+              )}
             </Typography>
             {procedure.performer?.[0] && (
               <Typography variant="caption" color="text.secondary">
@@ -2627,9 +2626,8 @@ const EnhancedCarePlanCard = ({ carePlan, onEdit, isAlternate = false }) => {
             )}
             {carePlan.period && (
               <Typography variant="caption" color="text.secondary">
-                <strong>Period:</strong> {carePlan.period.start && 
-                  format(new Date(carePlan.period.start), 'MMM d, yyyy')}
-                {carePlan.period.end && ` - ${format(new Date(carePlan.period.end), 'MMM d, yyyy')}`}
+                <strong>Period:</strong> {formatClinicalDate(carePlan.period.start)}
+                {carePlan.period.end && ` - ${formatClinicalDate(carePlan.period.end)}`}
               </Typography>
             )}
             {carePlan.goal && carePlan.goal.length > 0 && (
@@ -2734,9 +2732,7 @@ const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
           
           <Stack spacing={0.5}>
             <Typography variant="caption" color="text.secondary">
-              <strong>Date:</strong> {document.date ? 
-                format(new Date(document.date), 'MMM d, yyyy h:mm a') : 
-                'Unknown'}
+              <strong>Date:</strong> {formatClinicalDate(document.date, 'withTime', 'Unknown')}
             </Typography>
             {document.author?.[0] && (
               <Typography variant="caption" color="text.secondary">

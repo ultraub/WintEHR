@@ -78,16 +78,24 @@ export const useProgressiveLoading = (patientId, options = {}) => {
   // Load a single resource type
   const loadResource = useCallback(async (resourceType) => {
     if (!patientId || !isMounted.current) return;
-    
+
     try {
       activeLoads.current++;
-      
+
       // Build search parameters based on resource type
+      // Note: Patient resource doesn't use 'patient' param - use '_id' instead
       const searchParams = {
-        patient: patientId,
         _count: resourceType === 'Encounter' ? 10 : 100, // Limit encounters
         _sort: '-_lastUpdated' // Get most recent first
       };
+
+      // Add patient reference for non-Patient resources
+      if (resourceType !== 'Patient') {
+        searchParams.patient = patientId;
+      } else {
+        // For Patient resource, use _id parameter
+        searchParams._id = patientId;
+      }
 
       // Add specific parameters for certain resources
       if (resourceType === 'MedicationRequest') {
