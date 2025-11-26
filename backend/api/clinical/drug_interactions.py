@@ -11,7 +11,7 @@ from datetime import datetime
 import logging
 
 from database import get_db_session as get_db
-from services.fhir_client_config import search_resources
+from services.hapi_fhir_client import HAPIFHIRClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -264,7 +264,9 @@ async def get_patient_current_medications(patient_id: str, db: AsyncSession = No
             "status": "active"
         }
 
-        resources = search_resources("MedicationRequest", search_params)
+        hapi_client = HAPIFHIRClient()
+        bundle = await hapi_client.search("MedicationRequest", search_params)
+        resources = [entry.get("resource", {}) for entry in bundle.get("entry", [])]
 
         # Extract medication information
         medications = []
@@ -336,7 +338,9 @@ async def get_patient_allergies(patient_id: str, db: AsyncSession = None) -> Lis
             "clinical-status": "active"
         }
 
-        resources = search_resources("AllergyIntolerance", search_params)
+        hapi_client = HAPIFHIRClient()
+        bundle = await hapi_client.search("AllergyIntolerance", search_params)
+        resources = [entry.get("resource", {}) for entry in bundle.get("entry", [])]
 
         # Extract allergy information
         allergies = []
@@ -388,7 +392,9 @@ async def get_patient_conditions(patient_id: str, db: AsyncSession = None) -> Li
             "clinical-status": "active"
         }
 
-        resources = search_resources("Condition", search_params)
+        hapi_client = HAPIFHIRClient()
+        bundle = await hapi_client.search("Condition", search_params)
+        resources = [entry.get("resource", {}) for entry in bundle.get("entry", [])]
 
         # Extract condition information
         conditions = []
