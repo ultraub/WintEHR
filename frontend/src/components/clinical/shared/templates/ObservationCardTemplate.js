@@ -5,15 +5,21 @@
  */
 import React from 'react';
 import { Chip, Stack, Typography, Box } from '@mui/material';
-import { 
+import {
   Science as LabIcon,
   MonitorHeart as VitalIcon,
   TrendingUp as HighIcon,
   TrendingDown as LowIcon,
   Warning as AbnormalIcon
 } from '@mui/icons-material';
-import { format } from 'date-fns';
 import ClinicalResourceCard from '../cards/ClinicalResourceCard';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
+import {
+  getInterpretationDisplay,
+  isCriticalInterpretation,
+  isAbnormalInterpretation
+} from '../../../../core/fhir/utils/statusDisplayUtils';
+import { getObservationValueDisplay } from '../../../../core/fhir/utils/fhirFieldUtils';
 
 /**
  * Template for displaying observation information
@@ -41,44 +47,21 @@ const ObservationCardTemplate = ({
     cat.coding?.[0]?.code === 'laboratory'
   );
   
-  // Extract value and interpretation
-  const getValue = () => {
-    if (observation.valueQuantity) {
-      return `${observation.valueQuantity.value} ${observation.valueQuantity.unit || ''}`;
-    }
-    if (observation.valueCodeableConcept) {
-      return observation.valueCodeableConcept.text || 
-             observation.valueCodeableConcept.coding?.[0]?.display;
-    }
-    if (observation.valueString) {
-      return observation.valueString;
-    }
-    return 'No value';
-  };
-  
-  const interpretation = observation.interpretation?.[0]?.coding?.[0]?.code;
-  const isAbnormal = ['H', 'L', 'HH', 'LL', 'A', 'AA'].includes(interpretation);
-  const isCritical = ['HH', 'LL', 'AA'].includes(interpretation);
-  
+  // Extract value using standardized utility
+  const valueDisplay = getObservationValueDisplay(observation);
+
+  // Get interpretation using standardized utility
+  const interpretation = observation.interpretation?.[0];
+  const interpretationCode = interpretation?.coding?.[0]?.code;
+  const interpretationInfo = getInterpretationDisplay(interpretation);
+  const isAbnormal = isAbnormalInterpretation(interpretationCode);
+  const isCritical = isCriticalInterpretation(interpretationCode);
+
   // Determine severity based on interpretation
   const getSeverityLevel = () => {
     if (isCritical) return 'critical';
     if (isAbnormal) return 'moderate';
     return 'normal';
-  };
-  
-  // Get interpretation display
-  const getInterpretationDisplay = () => {
-    const interpretationMap = {
-      'H': 'High',
-      'L': 'Low',
-      'HH': 'Critical High',
-      'LL': 'Critical Low',
-      'N': 'Normal',
-      'A': 'Abnormal',
-      'AA': 'Critical'
-    };
-    return interpretationMap[interpretation] || interpretation;
   };
   
   // Build details array with enhanced FHIR fields
@@ -127,12 +110,12 @@ const ObservationCardTemplate = ({
     details.push({ label: 'Device', value: observation.device.display });
   }
   
-  // Date/Time
+  // Date/Time - using standardized date formatting
   const effectiveDate = observation.effectiveDateTime || observation.issued;
   if (effectiveDate) {
-    details.push({ 
-      label: 'Date', 
-      value: format(new Date(effectiveDate), 'MMM d, yyyy h:mm a') 
+    details.push({
+      label: 'Date',
+      value: formatClinicalDate(effectiveDate, 'withTime')
     });
   }
   
@@ -231,7 +214,7 @@ const ObservationCardTemplate = ({
     details.push({ label: 'Notes', value: observation.note[0].text });
   }
   
-  // Build title with value and interpretation
+  // Build title with value and interpretation using standardized utilities
   const title = (
     <Stack spacing={0.5}>
       <Typography variant="body1" fontWeight={600}>
@@ -239,20 +222,20 @@ const ObservationCardTemplate = ({
       </Typography>
       <Stack direction="row" alignItems="center" spacing={1}>
         <Typography variant="h6" fontWeight="bold" color={isCritical ? 'error' : 'text.primary'}>
-          {getValue()}
+          {valueDisplay}
         </Typography>
-        {interpretation && (
+        {interpretationCode && (
           <Stack direction="row" alignItems="center" spacing={0.5}>
-            {interpretation === 'H' || interpretation === 'HH' ? 
+            {interpretationCode === 'H' || interpretationCode === 'HH' ?
               <HighIcon fontSize="small" color="error" /> :
-              interpretation === 'L' || interpretation === 'LL' ?
+              interpretationCode === 'L' || interpretationCode === 'LL' ?
               <LowIcon fontSize="small" color="error" /> :
               isAbnormal ? <AbnormalIcon fontSize="small" color="warning" /> : null
             }
-            <Chip 
-              label={getInterpretationDisplay()} 
-              size="small" 
-              color={isCritical ? 'error' : isAbnormal ? 'warning' : 'success'}
+            <Chip
+              label={interpretationInfo.label}
+              size="small"
+              color={interpretationInfo.color === 'error' ? 'error' : interpretationInfo.color === 'warning' ? 'warning' : 'success'}
             />
           </Stack>
         )}

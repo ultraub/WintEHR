@@ -43,6 +43,7 @@ import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import { providerAccountabilityService } from '../../../services/providerAccountabilityService';
 import { getReferenceId } from '../../../core/fhir/utils/fhirFieldUtils';
+import { getStatusColor, getPriorityColor } from '../../../core/fhir/utils/statusDisplayUtils';
 
 const OrderContextPanel = ({ observation, onOrderSelect = null }) => {
   const [serviceRequest, setServiceRequest] = useState(null);
@@ -144,36 +145,6 @@ const OrderContextPanel = ({ observation, onOrderSelect = null }) => {
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'completed':
-        return 'success';
-      case 'active':
-      case 'in-progress':
-        return 'primary';
-      case 'cancelled':
-      case 'stopped':
-        return 'error';
-      case 'on-hold':
-        return 'warning';
-      default:
-        return 'default';
-    }
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority?.toLowerCase()) {
-      case 'stat':
-      case 'urgent':
-        return 'error';
-      case 'asap':
-        return 'warning';
-      case 'routine':
-        return 'default';
-      default:
-        return 'default';
-    }
-  };
 
   const formatTimingInfo = () => {
     if (!orderContext) return null;

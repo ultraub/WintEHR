@@ -81,6 +81,7 @@ import {
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import { getMedicationDosageDisplay, getMedicationRoute } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { documentReferenceConverter } from '../../../../core/fhir/converters/DocumentReferenceConverter';
+import { getStatusColor } from '../../../../core/fhir/utils/statusDisplayUtils';
 
 // Tab panel component
 function TabPanel({ children, value, index, ...other }) {
@@ -1608,16 +1609,6 @@ const EncounterSummaryDialogEnhanced = ({ open, onClose, encounter, patientId })
       </DialogActions>
     </Dialog>
   );
-};
-
-// Helper function for status color
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'finished': return 'success';
-    case 'in-progress': return 'warning';
-    case 'cancelled': return 'error';
-    default: return 'default';
-  }
 };
 
 export default EncounterSummaryDialogEnhanced;

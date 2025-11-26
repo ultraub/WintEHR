@@ -85,7 +85,8 @@ import {
   Refresh as RefreshIcon,
   Assignment as OrderIcon
 } from '@mui/icons-material';
-import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
+import { parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import VitalsOverview from '../../charts/VitalsOverview';
@@ -709,7 +710,7 @@ const ResultsTabOptimized = ({
                   </TableCell>
                   <TableCell>
                     <Typography variant="caption">
-                      {date ? format(parseISO(date), 'MMM d, yyyy h:mm a') : 'No date'}
+                      {date ? formatClinicalDate(date, 'withTime') : 'No date'}
                     </Typography>
                   </TableCell>
                   <TableCell>

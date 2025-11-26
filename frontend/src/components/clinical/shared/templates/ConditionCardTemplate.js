@@ -6,8 +6,10 @@
 import React from 'react';
 import { Chip, Stack, Typography } from '@mui/material';
 import { Warning as WarningIcon } from '@mui/icons-material';
-import { format } from 'date-fns';
 import ClinicalResourceCard from '../cards/ClinicalResourceCard';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
+import { getStatusColor, getStatusLabel } from '../../../../core/fhir/utils/statusDisplayUtils';
+import { getConditionDisplay } from '../../../../core/fhir/utils/fhirFieldUtils';
 
 /**
  * Template for displaying condition/diagnosis information
@@ -37,16 +39,16 @@ const ConditionCardTemplate = ({ condition, onEdit, onMore, isAlternate = false 
   
   const severityLevel = getSeverityLevel();
   
-  // Format onset date
+  // Format onset date using standardized date formatting
   const getOnsetDisplay = () => {
     if (condition.onsetDateTime) {
-      return format(new Date(condition.onsetDateTime), 'MMM d, yyyy');
+      return formatClinicalDate(condition.onsetDateTime);
     }
     if (condition.onsetAge?.value) {
       return `Age ${condition.onsetAge.value}`;
     }
     if (condition.onsetPeriod?.start) {
-      return format(new Date(condition.onsetPeriod.start), 'MMM d, yyyy');
+      return formatClinicalDate(condition.onsetPeriod.start);
     }
     return 'Unknown';
   };
@@ -68,25 +70,29 @@ const ConditionCardTemplate = ({ condition, onEdit, onMore, isAlternate = false 
     details.push({ value: condition.note[0].text });
   }
   
-  // Build title with verification chip
+  // Build title with verification chip using standardized display
+  const conditionName = getConditionDisplay(condition);
   const title = (
     <Stack direction="row" alignItems="center" spacing={1}>
       <Typography variant="body1" fontWeight={600}>
-        {condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition'}
+        {conditionName}
       </Typography>
       {verificationStatus === 'confirmed' && (
         <Chip label="Confirmed" size="small" color="success" />
       )}
     </Stack>
   );
-  
+
+  // Use standardized status color mapping
+  const statusColor = getStatusColor(clinicalStatus, 'Condition');
+
   return (
     <ClinicalResourceCard
       title={title}
       icon={severityLevel === 'high' ? <WarningIcon /> : null}
       severity={severityLevel}
-      status={clinicalStatus}
-      statusColor={isActive ? 'error' : 'default'}
+      status={getStatusLabel(clinicalStatus)}
+      statusColor={statusColor}
       details={details}
       onEdit={onEdit}
       onMore={onMore}

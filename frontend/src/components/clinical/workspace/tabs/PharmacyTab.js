@@ -80,6 +80,8 @@ import { format, parseISO, isWithinInterval, subDays, addDays, subMonths } from 
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../core/export/printUtils';
 import { getMedicationDosageDisplay, getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
+import { getStatusColor } from '../../../../core/fhir/utils/statusDisplayUtils';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { medicationListManagementService } from '../../../../services/medicationListManagementService';
 import { prescriptionRefillService } from '../../../../services/prescriptionRefillService';
@@ -110,26 +112,9 @@ const useDensity = (defaultDensity = 'comfortable') => {
   return [density, setDensity];
 };
 
-// Helper function to get status color for chips
-const getStatusColor = (status) => {
-  const statusMap = {
-    'active': 'primary',
-    'pending': 'warning',
-    'completed': 'success',
-    'cancelled': 'error',
-    'on-hold': 'warning',
-    'draft': 'default'
-  };
-  return statusMap[status] || 'default';
-};
-
-// Helper function to format date consistently
+// Helper function to format date consistently - using standardized utility
 const formatDate = (dateString) => {
-  try {
-    return format(parseISO(dateString), 'MMM d, yyyy');
-  } catch {
-    return 'Unknown date';
-  }
+  return formatClinicalDate(dateString, 'standard', 'Unknown date');
 };
 
 // Medication status definitions
@@ -246,7 +231,7 @@ const MedicationRequestCard = ({ medicationRequest, onStatusChange, onDispense, 
   // Additional details
   const details = [
     { label: 'Prescriber', value: medicationRequest.requester?.display || 'Unknown Provider' },
-    { label: 'Date', value: medicationRequest.authoredOn ? format(parseISO(medicationRequest.authoredOn), 'MMM d, yyyy') : 'No date' },
+    { label: 'Date', value: formatClinicalDate(medicationRequest.authoredOn, 'standard', 'No date') },
     { label: 'Refills', value: `${refillInfo.remaining}/${refillInfo.total}` },
     { label: 'Status', value: pharmacyStatusInfo.label }
   ];
@@ -299,7 +284,7 @@ const RefillRequestCard = ({ refillRequest, onApprove, onReject, onViewDetails, 
 
   const details = [
     { label: 'Patient', value: getPatientName() },
-    { label: 'Request Date', value: refillRequest.authoredOn ? format(parseISO(refillRequest.authoredOn), 'MMM d, yyyy') : 'Unknown' },
+    { label: 'Request Date', value: formatClinicalDate(refillRequest.authoredOn, 'standard', 'Unknown') },
     { label: 'Refill #', value: refillInfo.refillNumber || 'N/A' },
     { label: 'Method', value: refillInfo.requestMethod || 'Unknown' }
   ];
@@ -417,7 +402,7 @@ const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
                   <strong>Date Prescribed</strong>
                 </Typography>
                 <Typography variant="body2">
-                  {medicationRequest.authoredOn ? format(parseISO(medicationRequest.authoredOn), 'MMM d, yyyy') : 'Unknown'}
+                  {formatClinicalDate(medicationRequest.authoredOn, 'standard', 'Unknown')}
                 </Typography>
               </Grid>
               <Grid item xs={6}>
@@ -1132,7 +1117,7 @@ const PharmacyTab = ({
                 <td style="border: 1px solid #ddd; padding: 8px;">${dosageText}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${quantity}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${statusInfo.label}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${request.authoredOn ? format(parseISO(request.authoredOn), 'MMM d, yyyy') : 'No date'}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${formatClinicalDate(request.authoredOn, 'standard', 'No date')}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${request.requester?.display || 'Unknown Provider'}</td>
               </tr>
             `;
@@ -1446,7 +1431,7 @@ const PharmacyTab = ({
                                 {config.label}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                • {resource.date ? format(parseISO(resource.date), 'MMM d, yyyy h:mm a') : 'No date'}
+                                • {formatClinicalDate(resource.date, 'withTime', 'No date')}
                               </Typography>
                             </Stack>
                           }
@@ -1584,8 +1569,7 @@ const PharmacyTab = ({
                   headerName: 'Date',
                   flex: 1,
                   valueGetter: (params) => params.row.authoredOn || '',
-                  valueFormatter: (params) => 
-                    params.value ? format(parseISO(params.value), 'MMM d, yyyy') : 'N/A'
+                  valueFormatter: (params) => formatClinicalDate(params.value, 'standard', 'N/A')
                 },
                 {
                   field: 'actions',
@@ -1676,7 +1660,7 @@ const PharmacyTab = ({
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle2" color="text.secondary">Authored Date</Typography>
                   <Typography variant="body1">
-                    {selectedRequest.authoredOn ? format(parseISO(selectedRequest.authoredOn), 'MMM d, yyyy h:mm a') : 'Unknown'}
+                    {formatClinicalDate(selectedRequest.authoredOn, 'withTime', 'Unknown')}
                   </Typography>
                 </Grid>
                 {selectedRequest.dosageInstruction?.[0] && (

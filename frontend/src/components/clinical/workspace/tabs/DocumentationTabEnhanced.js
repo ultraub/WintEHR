@@ -97,7 +97,8 @@ import {
   Close as CloseIcon
 } from '@mui/icons-material';
 // Removed framer-motion for better performance
-import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
+import { parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { printDocument, formatClinicalNoteForPrint, exportClinicalNote } from '../../../../core/export/printUtils';
@@ -185,7 +186,7 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
   const details = [
     { label: 'Type', value: typeConfig.label },
     { label: 'Author', value: author },
-    { label: 'Date', value: format(parseISO(date), 'MMM d, yyyy h:mm a') },
+    { label: 'Date', value: formatClinicalDate(date, 'withTime') },
     { label: 'Status', value: note.docStatus || 'unknown' }
   ];
   
@@ -228,7 +229,7 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
     <ClinicalResourceCard
       severity="normal"
       title={note.description || 'Clinical Note'}
-      subtitle={`${typeConfig.label} • ${format(parseISO(date), 'MMM d, yyyy h:mm a')}`}
+      subtitle={`${typeConfig.label} • ${formatClinicalDate(date, 'withTime')}`}
       status={isSigned ? 'Signed' : note.docStatus === 'preliminary' ? 'Ready for Review' : 'Draft'}
       actions={actions}
       density={density}
@@ -951,7 +952,7 @@ const DocumentationTabEnhanced = ({
         return (
           <Box>
             <Typography variant="body2">
-              {format(parseISO(date), 'MMM d, yyyy')}
+              {formatClinicalDate(date)}
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {formatDistanceToNow(parseISO(date), { addSuffix: true })}
@@ -1515,7 +1516,7 @@ const DocumentationTabEnhanced = ({
                               </Typography>
                               <Typography variant="caption" color="text.secondary">•</Typography>
                               <Typography variant="caption" color="text.secondary">
-                                {date ? format(parseISO(date), 'MMM d, yyyy h:mm a') : 'Unknown date'}
+                                {formatClinicalDate(date, 'withTime', 'Unknown date')}
                               </Typography>
                               {note.author?.length > 0 && (
                                 <>
@@ -1647,7 +1648,7 @@ const DocumentationTabEnhanced = ({
                                 </Typography>
                                 <Typography variant="caption">•</Typography>
                                 <Typography variant="caption">
-                                  {document.date ? format(parseISO(document.date), 'MMM d, yyyy') : 'Unknown date'}
+                                  {formatClinicalDate(document.date, 'standard', 'Unknown date')}
                                 </Typography>
                               </Stack>
                             }
@@ -1820,7 +1821,7 @@ const DocumentationTabEnhanced = ({
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle2" color="text.secondary">Date</Typography>
                   <Typography variant="body1">
-                    {selectedNoteForView.date ? format(parseISO(selectedNoteForView.date), 'MMM d, yyyy h:mm a') : 'Unknown'}
+                    {formatClinicalDate(selectedNoteForView.date, 'withTime', 'Unknown')}
                   </Typography>
                 </Grid>
                 <Grid item xs={12}>

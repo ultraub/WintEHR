@@ -56,6 +56,7 @@ import { usePatientCDSAlerts } from '../../../contexts/CDSContext';
 import { useNavigate } from 'react-router-dom';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import websocketService from '../../../services/websocket';
+import { useDataQualityLogger } from '../../../core/fhir/utils/dataQualityLogger';
 
 // Collapse states for progressive compression
 const COLLAPSE_STATES = {
@@ -79,6 +80,7 @@ const CollapsiblePatientHeaderOptimized = ({
   const { currentPatient, getPatientResources, refreshPatientData } = useFHIRResource();
   const { alerts } = usePatientCDSAlerts(patientId);
   const { subscribe } = useClinicalWorkflow();
+  const dataQuality = useDataQualityLogger('CollapsiblePatientHeader');
   
   const [collapseState, setCollapseState] = useState(COLLAPSE_STATES.EXPANDED);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
@@ -319,25 +321,63 @@ const CollapsiblePatientHeaderOptimized = ({
     };
   }, [scrollContainerRef, isDetailsExpanded, collapseState]);
 
-  // Helper functions
+  // Helper functions with data quality logging
   const calculateAge = (birthDate) => {
-    if (!birthDate) return 'Unknown';
+    if (!birthDate) {
+      dataQuality.logFallback('patient.birthDate', birthDate, 'Unknown', {
+        reason: 'Missing birth date',
+        patientId
+      });
+      return 'Unknown';
+    }
     const date = typeof birthDate === 'string' ? parseISO(birthDate) : birthDate;
-    return isValid(date) ? differenceInYears(new Date(), date) : 'Unknown';
+    if (!isValid(date)) {
+      dataQuality.logFallback('patient.birthDate', birthDate, 'Unknown', {
+        reason: 'Invalid date format',
+        patientId
+      });
+      return 'Unknown';
+    }
+    return differenceInYears(new Date(), date);
   };
 
   const formatDate = (date) => {
-    if (!date) return 'Unknown';
+    if (!date) {
+      dataQuality.logFallback('patient.date', date, 'Unknown', {
+        reason: 'Missing date value'
+      });
+      return 'Unknown';
+    }
     const parsed = typeof date === 'string' ? parseISO(date) : date;
-    return isValid(parsed) ? format(parsed, 'MMM dd, yyyy') : 'Unknown';
+    if (!isValid(parsed)) {
+      dataQuality.logFallback('patient.date', date, 'Unknown', {
+        reason: 'Invalid date format',
+        originalValue: date
+      });
+      return 'Unknown';
+    }
+    return format(parsed, 'MMM d, yyyy');
   };
 
   const formatMRN = (patient) => {
-    const mrn = patient?.identifier?.find(id => 
-      id.type?.coding?.[0]?.code === 'MR' || 
+    const mrn = patient?.identifier?.find(id =>
+      id.type?.coding?.[0]?.code === 'MR' ||
       id.system?.includes('mrn')
     );
-    return mrn?.value || patient?.id || 'Unknown';
+    if (!mrn?.value) {
+      if (patient?.id) {
+        dataQuality.logFallback('patient.identifier.MRN', mrn?.value, patient.id, {
+          reason: 'No MRN identifier, using patient ID',
+          patientId: patient.id
+        });
+        return patient.id;
+      }
+      dataQuality.logFallback('patient.identifier.MRN', undefined, 'Unknown', {
+        reason: 'No MRN or patient ID available'
+      });
+      return 'Unknown';
+    }
+    return mrn.value;
   };
 
   const getAddress = (patient) => {
@@ -409,13 +449,33 @@ const CollapsiblePatientHeaderOptimized = ({
     return null;
   };
 
-  // Memoized patient name
+  // Memoized patient name with data quality logging
   const patientName = useMemo(() => {
-    if (!currentPatient) return 'Unknown Patient';
+    if (!currentPatient) {
+      dataQuality.logFallback('patient', currentPatient, 'Unknown Patient', {
+        reason: 'No patient data available'
+      });
+      return 'Unknown Patient';
+    }
     const names = currentPatient.name?.[0];
-    if (!names) return 'Unknown Patient';
-    return `${names.given?.join(' ') || ''} ${names.family || ''}`.trim() || 'Unknown Patient';
-  }, [currentPatient]);
+    if (!names) {
+      dataQuality.logFallback('patient.name', names, 'Unknown Patient', {
+        reason: 'Patient has no name array',
+        patientId: currentPatient.id
+      });
+      return 'Unknown Patient';
+    }
+    const fullName = `${names.given?.join(' ') || ''} ${names.family || ''}`.trim();
+    if (!fullName) {
+      dataQuality.logFallback('patient.name', names, 'Unknown Patient', {
+        reason: 'Name parts are empty',
+        patientId: currentPatient.id,
+        nameData: names
+      });
+      return 'Unknown Patient';
+    }
+    return fullName;
+  }, [currentPatient, dataQuality]);
 
   // Menu handlers
   const handleMenuOpen = (event) => {

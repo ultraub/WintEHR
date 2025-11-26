@@ -39,6 +39,7 @@ import { format, parseISO, isToday, isFuture, isPast } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { useAppointments } from '../../../contexts/AppointmentContext';
 import { useClinical } from '../../../contexts/ClinicalContext';
+import { getStatusColor } from '../../../core/fhir/utils/statusDisplayUtils';
 
 function AppointmentsTab() {
   const navigate = useNavigate();
@@ -68,17 +69,6 @@ function AppointmentsTab() {
       }
     } catch (error) {
       
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case APPOINTMENT_STATUS.BOOKED: return 'primary';
-      case APPOINTMENT_STATUS.ARRIVED: return 'info';
-      case APPOINTMENT_STATUS.FULFILLED: return 'success';
-      case APPOINTMENT_STATUS.CANCELLED: return 'error';
-      case APPOINTMENT_STATUS.NOSHOW: return 'warning';
-      default: return 'default';
     }
   };
 

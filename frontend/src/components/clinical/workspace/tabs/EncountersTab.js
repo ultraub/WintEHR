@@ -47,6 +47,7 @@ import {
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subMonths } from 'date-fns';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import EncounterSummaryDialogEnhanced from '../dialogs/EncounterSummaryDialogEnhanced';
@@ -806,8 +807,8 @@ const EncountersTab = ({
                 headerName: 'Date',
                 type: 'custom',
                 renderCell: (value, row) => (
-                  value ? 
-                    format(parseISO(value), 'MMM d, yyyy h:mm a') : 
+                  value ?
+                    formatClinicalDate(value, 'withTime') :
                     'N/A'
                 )
               },
@@ -985,7 +986,7 @@ const EncountersTab = ({
               </Typography>
               {(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period?.start) && (
                 <Typography variant="body2" color="text.secondary">
-                  Date: {format(parseISO(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period.start), 'MMM d, yyyy h:mm a')}
+                  Date: {formatClinicalDate(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period.start, 'withTime')}
                 </Typography>
               )}
             </Box>
@@ -995,8 +996,8 @@ const EncountersTab = ({
           <Button onClick={handleCloseEditEncounter}>
             Close
           </Button>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             onClick={() => {
               handleCloseEditEncounter();
               setEncounterCreationDialogOpen(true);
@@ -1134,7 +1135,7 @@ const EncountersTab = ({
               </Typography>
               {(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period?.start) && (
                 <Typography variant="body2" color="text.secondary">
-                  Date: {format(parseISO(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period.start), 'MMM d, yyyy h:mm a')}
+                  Date: {formatClinicalDate(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period.start, 'withTime')}
                 </Typography>
               )}
             </Box>
@@ -1144,8 +1145,8 @@ const EncountersTab = ({
           <Button onClick={handleCloseEditEncounter}>
             Close
           </Button>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             onClick={() => {
               handleCloseEditEncounter();
               setEncounterCreationDialogOpen(true);

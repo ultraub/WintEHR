@@ -28,7 +28,15 @@ import {
   isConditionActive,
   isMedicationActive,
   isObservationLaboratory,
-  isObservationFinal
+  isObservationFinal,
+  getObservationInterpretationDisplay,
+  getConditionDisplay,
+  getObservationDisplay,
+  getObservationValueDisplay,
+  getMedicationDisplay,
+  getMedicationDosageDisplay,
+  getPractitionerDisplay,
+  getPatientDisplay
 } from '../fhirFieldUtils';
 
 describe('FHIR Field Utilities', () => {
@@ -460,6 +468,261 @@ describe('FHIR Field Utilities', () => {
       test('should return false for preliminary observation', () => {
         const obs = { status: 'preliminary' };
         expect(isObservationFinal(obs)).toBe(false);
+      });
+    });
+  });
+
+  describe('Enhanced Interpretation Display', () => {
+    describe('getObservationInterpretationDisplay', () => {
+      test('should handle H interpretation', () => {
+        const obs = { interpretation: [{ coding: [{ code: 'H' }] }] };
+        const result = getObservationInterpretationDisplay(obs);
+        expect(result.color).toBe('error');
+        expect(result.label).toBe('High');
+        expect(result.severity).toBe('high');
+      });
+
+      test('should handle HH critical high', () => {
+        const obs = { interpretation: [{ coding: [{ code: 'HH' }] }] };
+        const result = getObservationInterpretationDisplay(obs);
+        expect(result.label).toBe('Critical High');
+        expect(result.severity).toBe('critical');
+      });
+
+      test('should handle HU significantly high', () => {
+        const obs = { interpretation: [{ coding: [{ code: 'HU' }] }] };
+        const result = getObservationInterpretationDisplay(obs);
+        expect(result.label).toBe('Significantly High');
+        expect(result.severity).toBe('high');
+      });
+
+      test('should handle L low', () => {
+        const obs = { interpretation: [{ coding: [{ code: 'L' }] }] };
+        const result = getObservationInterpretationDisplay(obs);
+        expect(result.color).toBe('warning');
+        expect(result.label).toBe('Low');
+      });
+
+      test('should handle LL critical low', () => {
+        const obs = { interpretation: [{ coding: [{ code: 'LL' }] }] };
+        const result = getObservationInterpretationDisplay(obs);
+        expect(result.severity).toBe('critical');
+      });
+
+      test('should handle LU significantly low', () => {
+        const obs = { interpretation: [{ coding: [{ code: 'LU' }] }] };
+        const result = getObservationInterpretationDisplay(obs);
+        expect(result.label).toBe('Significantly Low');
+      });
+
+      test('should handle N normal', () => {
+        const obs = { interpretation: [{ coding: [{ code: 'N' }] }] };
+        const result = getObservationInterpretationDisplay(obs);
+        expect(result.color).toBe('success');
+        expect(result.label).toBe('Normal');
+      });
+
+      test('should handle case insensitivity', () => {
+        const obs = { interpretation: [{ coding: [{ code: 'h' }] }] };
+        const result = getObservationInterpretationDisplay(obs);
+        expect(result.label).toBe('High');
+      });
+
+      test('should return default for missing interpretation', () => {
+        const obs = {};
+        const result = getObservationInterpretationDisplay(obs);
+        expect(result.color).toBe('default');
+        expect(result.label).toBe('');
+      });
+
+      test('should handle unknown code gracefully', () => {
+        const obs = { interpretation: [{ coding: [{ code: 'XYZ' }] }] };
+        const result = getObservationInterpretationDisplay(obs);
+        expect(result.label).toBe('XYZ');
+        expect(result.severity).toBe('unknown');
+      });
+    });
+  });
+
+  describe('Resource Display Functions', () => {
+    describe('getConditionDisplay', () => {
+      test('should extract display from code', () => {
+        const condition = {
+          code: { text: 'Diabetes mellitus', coding: [{ display: 'DM' }] }
+        };
+        expect(getConditionDisplay(condition)).toBe('Diabetes mellitus');
+      });
+
+      test('should fall back to coding display', () => {
+        const condition = {
+          code: { coding: [{ display: 'Type 2 Diabetes' }] }
+        };
+        expect(getConditionDisplay(condition)).toBe('Type 2 Diabetes');
+      });
+
+      test('should return default for null', () => {
+        expect(getConditionDisplay(null)).toBe('Unknown Condition');
+        expect(getConditionDisplay(null, 'N/A')).toBe('N/A');
+      });
+    });
+
+    describe('getObservationDisplay', () => {
+      test('should extract display from observation code', () => {
+        const obs = {
+          code: { text: 'Blood Pressure' }
+        };
+        expect(getObservationDisplay(obs)).toBe('Blood Pressure');
+      });
+
+      test('should include value when requested', () => {
+        const obs = {
+          code: { text: 'Weight' },
+          valueQuantity: { value: 70, unit: 'kg' }
+        };
+        expect(getObservationDisplay(obs, { includeValue: true })).toBe('Weight: 70 kg');
+      });
+
+      test('should return default for null', () => {
+        expect(getObservationDisplay(null)).toBe('Unknown Observation');
+      });
+    });
+
+    describe('getObservationValueDisplay', () => {
+      test('should format valueQuantity', () => {
+        const obs = { valueQuantity: { value: 120, unit: 'mmHg' } };
+        expect(getObservationValueDisplay(obs)).toBe('120 mmHg');
+      });
+
+      test('should format valueCodeableConcept', () => {
+        const obs = { valueCodeableConcept: { text: 'Positive' } };
+        expect(getObservationValueDisplay(obs)).toBe('Positive');
+      });
+
+      test('should format valueString', () => {
+        const obs = { valueString: 'Normal findings' };
+        expect(getObservationValueDisplay(obs)).toBe('Normal findings');
+      });
+
+      test('should format valueBoolean', () => {
+        expect(getObservationValueDisplay({ valueBoolean: true })).toBe('Yes');
+        expect(getObservationValueDisplay({ valueBoolean: false })).toBe('No');
+      });
+
+      test('should format valueInteger', () => {
+        const obs = { valueInteger: 42 };
+        expect(getObservationValueDisplay(obs)).toBe('42');
+      });
+
+      test('should format valueRange', () => {
+        const obs = {
+          valueRange: {
+            low: { value: 10, unit: 'mg/dL' },
+            high: { value: 20, unit: 'mg/dL' }
+          }
+        };
+        expect(getObservationValueDisplay(obs)).toBe('10-20 mg/dL');
+      });
+
+      test('should handle components', () => {
+        const obs = {
+          component: [{ code: {} }, { code: {} }]
+        };
+        expect(getObservationValueDisplay(obs)).toBe('2 components');
+      });
+
+      test('should return empty for null', () => {
+        expect(getObservationValueDisplay(null)).toBe('');
+      });
+    });
+
+    describe('getMedicationDisplay', () => {
+      test('should extract from medicationCodeableConcept', () => {
+        const med = {
+          medicationCodeableConcept: { text: 'Aspirin 81mg' }
+        };
+        expect(getMedicationDisplay(med)).toBe('Aspirin 81mg');
+      });
+
+      test('should extract from medicationReference display', () => {
+        const med = {
+          medicationReference: { display: 'Lisinopril 10mg' }
+        };
+        expect(getMedicationDisplay(med)).toBe('Lisinopril 10mg');
+      });
+
+      test('should return default for null', () => {
+        expect(getMedicationDisplay(null)).toBe('Unknown Medication');
+      });
+    });
+
+    describe('getMedicationDosageDisplay', () => {
+      test('should use text if available', () => {
+        const dosage = { text: 'Take 1 tablet daily' };
+        expect(getMedicationDosageDisplay(dosage)).toBe('Take 1 tablet daily');
+      });
+
+      test('should construct from parts', () => {
+        const dosage = {
+          doseAndRate: [{ doseQuantity: { value: 500, unit: 'mg' } }],
+          route: { text: 'oral' }
+        };
+        const result = getMedicationDosageDisplay(dosage);
+        expect(result).toContain('500 mg');
+        expect(result).toContain('oral');
+      });
+
+      test('should return empty for null', () => {
+        expect(getMedicationDosageDisplay(null)).toBe('');
+      });
+    });
+
+    describe('getPractitionerDisplay', () => {
+      test('should use display property', () => {
+        const ref = { reference: 'Practitioner/123', display: 'Dr. Smith' };
+        expect(getPractitionerDisplay(ref)).toBe('Dr. Smith');
+      });
+
+      test('should use ID as fallback', () => {
+        const ref = { reference: 'Practitioner/abc12345678' };
+        expect(getPractitionerDisplay(ref)).toContain('Provider');
+        expect(getPractitionerDisplay(ref)).toContain('abc12345');
+      });
+
+      test('should return default for null', () => {
+        expect(getPractitionerDisplay(null)).toBe('Unknown Provider');
+      });
+    });
+
+    describe('getPatientDisplay', () => {
+      test('should use display from reference', () => {
+        const ref = { reference: 'Patient/123', display: 'John Doe' };
+        expect(getPatientDisplay(ref)).toBe('John Doe');
+      });
+
+      test('should extract name from Patient resource', () => {
+        const patient = {
+          name: [{ given: ['John', 'James'], family: 'Doe' }]
+        };
+        expect(getPatientDisplay(patient)).toBe('John James Doe');
+      });
+
+      test('should handle family name only', () => {
+        const patient = { name: [{ family: 'Doe' }] };
+        expect(getPatientDisplay(patient)).toBe('Doe');
+      });
+
+      test('should handle given name only', () => {
+        const patient = { name: [{ given: ['John'] }] };
+        expect(getPatientDisplay(patient)).toBe('John');
+      });
+
+      test('should use text as fallback', () => {
+        const patient = { name: [{ text: 'Dr. John Doe' }] };
+        expect(getPatientDisplay(patient)).toBe('Dr. John Doe');
+      });
+
+      test('should return default for null', () => {
+        expect(getPatientDisplay(null)).toBe('Unknown Patient');
       });
     });
   });

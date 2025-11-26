@@ -41,7 +41,8 @@ import {
   Schedule as ScheduleIcon,
   Person as ProviderIcon
 } from '@mui/icons-material';
-import { format, parseISO } from 'date-fns';
+import { formatClinicalDate } from '../../../../../core/fhir/utils/dateFormatUtils';
+import { getStatusColor, getPriorityColor } from '../../../../../core/fhir/utils/statusDisplayUtils';
 
 const OrderCard = ({
   order,
@@ -86,28 +87,6 @@ const OrderCard = ({
              'Unknown Service';
     }
     return 'Unknown Order';
-  };
-
-  const getStatusColor = (status) => {
-    const statusColors = {
-      active: 'primary',
-      completed: 'success',
-      cancelled: 'error',
-      'entered-in-error': 'error',
-      draft: 'default',
-      'on-hold': 'warning'
-    };
-    return statusColors[status] || 'default';
-  };
-
-  const getPriorityColor = (priority) => {
-    const priorityColors = {
-      urgent: 'error',
-      asap: 'warning',
-      stat: 'error',
-      routine: 'default'
-    };
-    return priorityColors[priority] || 'default';
   };
 
   const handleMenuOpen = (event) => {
@@ -219,13 +198,7 @@ const OrderCard = ({
                 <Stack direction="row" spacing={0.5} alignItems="center">
                   <ScheduleIcon fontSize="small" color="action" />
                   <Typography variant="caption">
-                    {(() => {
-                      try {
-                        return format(parseISO(orderDate), 'MMM d, yyyy');
-                      } catch {
-                        return 'Invalid date';
-                      }
-                    })()}
+                    {formatClinicalDate(orderDate, 'standard', 'Invalid date')}
                   </Typography>
                 </Stack>
               )}

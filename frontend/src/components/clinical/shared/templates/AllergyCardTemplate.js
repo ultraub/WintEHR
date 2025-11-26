@@ -6,8 +6,9 @@
 import React from 'react';
 import { Chip, Stack, Typography, Box, useTheme } from '@mui/material';
 import { Warning as WarningIcon, BugReport as BugIcon } from '@mui/icons-material';
-import { format } from 'date-fns';
 import ClinicalResourceCard from '../cards/ClinicalResourceCard';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
+import { getCodeableConceptDisplay } from '../../../../core/fhir/utils/fhirFieldUtils';
 
 /**
  * Template for displaying allergy/intolerance information
@@ -66,33 +67,34 @@ const AllergyCardTemplate = ({ allergy, onEdit, onMore, isAlternate = false }) =
     });
   }
   
-  // Recorded date
+  // Recorded date - using standardized date formatting
   if (allergy.recordedDate) {
-    details.push({ 
-      label: 'Recorded', 
-      value: format(new Date(allergy.recordedDate), 'MMM d, yyyy') 
+    details.push({
+      label: 'Recorded',
+      value: formatClinicalDate(allergy.recordedDate)
     });
   }
-  
-  // Onset
+
+  // Onset - using standardized date formatting
   if (allergy.onsetDateTime) {
-    details.push({ 
-      label: 'Onset', 
-      value: format(new Date(allergy.onsetDateTime), 'MMM d, yyyy') 
+    details.push({
+      label: 'Onset',
+      value: formatClinicalDate(allergy.onsetDateTime)
     });
   }
   
-  // Build title with severity chip
+  // Build title with severity chip using standardized display
+  const allergenName = getCodeableConceptDisplay(allergy.code, 'Unknown allergen');
   const title = (
     <Stack direction="row" alignItems="center" spacing={1}>
       {criticality === 'high' && <WarningIcon color="error" />}
       <Typography variant="body1" fontWeight={600}>
-        {allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown allergen'}
+        {allergenName}
       </Typography>
       {severity && (
-        <Chip 
-          label={severity} 
-          size="small" 
+        <Chip
+          label={severity}
+          size="small"
           variant="outlined"
           color={severity === 'severe' ? 'error' : 'default'}
         />

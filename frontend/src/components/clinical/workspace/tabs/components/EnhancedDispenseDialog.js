@@ -54,8 +54,8 @@ import {
   Person as PersonIcon,
   Schedule as ScheduleIcon
 } from '@mui/icons-material';
-import { format } from 'date-fns';
 import { getMedicationName } from '../../../../../core/fhir/utils/medicationDisplayUtils';
+import { formatClinicalDate } from '../../../../../core/fhir/utils/dateFormatUtils';
 import { medicationDispenseService } from '../../../../../services/medicationDispenseService';
 
 const DISPENSING_STEPS = [
@@ -465,9 +465,7 @@ const EnhancedDispenseDialog = ({
               Date Prescribed
             </Typography>
             <Typography variant="body2">
-              {medicationRequest.authoredOn ? 
-                format(new Date(medicationRequest.authoredOn), 'MMM d, yyyy h:mm a') : 
-                'Unknown'}
+              {formatClinicalDate(medicationRequest.authoredOn, 'withTime', 'Unknown')}
             </Typography>
           </Grid>
           <Grid item xs={6}>
