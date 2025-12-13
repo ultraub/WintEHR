@@ -161,6 +161,9 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-emr_user}:${POSTGRES_PASSWORD:-emr_password}@postgres:5432/${POSTGRES_DB:-emr_db}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-emr_password}
+      - POSTGRES_USER=${POSTGRES_USER:-emr_user}
+      - POSTGRES_DB=${POSTGRES_DB:-emr_db}
       - JWT_ENABLED=${JWT_ENABLED:-false}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - JWT_SECRET=${JWT_SECRET:-change-this-in-production}

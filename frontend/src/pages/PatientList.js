@@ -158,7 +158,7 @@ function PatientList() {
         _count: 100,
         _sort: '-_lastUpdated'
       };
-      
+
       if (searchTerm && searchTerm.length >= 2) {
         // FHIR search supports name parameter for patient names
         // Also search by identifier (MRN) if the search term looks like it could be an MRN
@@ -170,44 +170,49 @@ function PatientList() {
           searchParams.name = searchTerm;
         }
       }
-      
+
       const result = await fhirClient.searchPatients(searchParams);
-      
-      // Transform FHIR patients to expected format
-      const transformedPatients = await Promise.all(result.resources.map(async (fhirPatient) => {
+      const patients = result.resources || [];
+
+      // Batch fetch Coverage resources for all patients in a single query
+      // This eliminates N+1 query problem
+      const coverageMap = new Map();
+      if (patients.length > 0) {
+        try {
+          const patientIds = patients.map(p => p.id);
+          const coverageResult = await fhirClient.search('Coverage', {
+            patient: patientIds.join(','),
+            status: 'active',
+            _count: patientIds.length * 2
+          });
+
+          // Build lookup map: patientId -> insurance name
+          (coverageResult.resources || []).forEach(coverage => {
+            const patientRef = coverage.beneficiary?.reference || '';
+            const patientId = patientRef.replace('Patient/', '');
+
+            if (patientId && !coverageMap.has(patientId)) {
+              const insuranceName = coverage.payor?.[0]?.display || '';
+              if (insuranceName) {
+                coverageMap.set(patientId, insuranceName);
+              }
+            }
+          });
+        } catch (e) {
+          // Coverage batch fetch failed, continue without insurance data
+        }
+      }
+
+      // Transform FHIR patients to expected format (no async needed now)
+      const transformedPatients = patients.map((fhirPatient) => {
         const name = fhirPatient.name?.[0] || {};
         const telecom = fhirPatient.telecom || [];
         const phone = telecom.find(t => t.system === 'phone')?.value;
-        const mrn = fhirPatient.identifier?.find(id => 
-          id.type?.coding?.[0]?.code === 'MR' || 
+        const mrn = fhirPatient.identifier?.find(id =>
+          id.type?.coding?.[0]?.code === 'MR' ||
           id.system?.includes('mrn')
         )?.value || fhirPatient.identifier?.[0]?.value || '';
-        
-        // Fetch insurance/coverage information
-        let insuranceName = '';
-        try {
-          const coverageResult = await fhirClient.getActiveCoverage(fhirPatient.id);
-          if (coverageResult.resources && coverageResult.resources.length > 0) {
-            const coverage = coverageResult.resources[0];
-            // Extract payer name from coverage
-            if (coverage.payor && coverage.payor.length > 0) {
-              const payorRef = coverage.payor[0].reference;
-              if (payorRef) {
-                const payorId = payorRef.split('/').pop();
-                try {
-                  const payorResult = await fhirClient.read('Organization', payorId);
-                  insuranceName = payorResult.name || '';
-                } catch (e) {
-                  // If organization fetch fails, try to get name from display
-                  insuranceName = coverage.payor[0].display || '';
-                }
-              }
-            }
-          }
-        } catch (e) {
-          // Coverage fetch failed, insurance will remain empty
-        }
-        
+
         return {
           id: fhirPatient.id,
           mrn: mrn,
@@ -216,10 +221,10 @@ function PatientList() {
           date_of_birth: fhirPatient.birthDate,
           gender: fhirPatient.gender,
           phone: phone || '',
-          insurance_name: insuranceName
+          insurance_name: coverageMap.get(fhirPatient.id) || ''
         };
-      }));
-      
+      });
+
       setPatients(transformedPatients);
       setMyPatientsCount(transformedPatients.length);
       setError(null);
@@ -234,14 +239,14 @@ function PatientList() {
     try {
       setLoading(true);
       setError(null);
-      
+
       const searchParams = {
         _count: currentPageSize,
         _offset: currentPage * currentPageSize,
         _sort: '-_lastUpdated',
         _total: 'accurate' // Request total count
       };
-      
+
       if (searchQuery && searchQuery.length >= 2) {
         // FHIR search supports name parameter for patient names
         // Also search by identifier (MRN) if the search term looks like it could be an MRN
@@ -253,48 +258,53 @@ function PatientList() {
           searchParams.name = searchQuery;
         }
       }
-      
+
       const result = await fhirClient.searchPatients(searchParams);
-      
-      // Extract total count from bundle
+      const patients = result.resources || [];
+
+      // Extract total count from SearchResult
       const total = result.total || 0;
       setTotalCount(total);
-      
-      // Transform FHIR patients to expected format
-      const transformedPatients = await Promise.all(result.resources.map(async (fhirPatient) => {
+
+      // Batch fetch Coverage resources for all patients in a single query
+      // This eliminates N+1 query problem
+      const coverageMap = new Map();
+      if (patients.length > 0) {
+        try {
+          const patientIds = patients.map(p => p.id);
+          const coverageResult = await fhirClient.search('Coverage', {
+            patient: patientIds.join(','),
+            status: 'active',
+            _count: patientIds.length * 2
+          });
+
+          // Build lookup map: patientId -> insurance name
+          (coverageResult.resources || []).forEach(coverage => {
+            const patientRef = coverage.beneficiary?.reference || '';
+            const patientId = patientRef.replace('Patient/', '');
+
+            if (patientId && !coverageMap.has(patientId)) {
+              const insuranceName = coverage.payor?.[0]?.display || '';
+              if (insuranceName) {
+                coverageMap.set(patientId, insuranceName);
+              }
+            }
+          });
+        } catch (e) {
+          // Coverage batch fetch failed, continue without insurance data
+        }
+      }
+
+      // Transform FHIR patients to expected format (no async needed now)
+      const transformedPatients = patients.map((fhirPatient) => {
         const name = fhirPatient.name?.[0] || {};
         const telecom = fhirPatient.telecom || [];
         const phone = telecom.find(t => t.system === 'phone')?.value;
-        const mrn = fhirPatient.identifier?.find(id => 
-          id.type?.coding?.[0]?.code === 'MR' || 
+        const mrn = fhirPatient.identifier?.find(id =>
+          id.type?.coding?.[0]?.code === 'MR' ||
           id.system?.includes('mrn')
         )?.value || fhirPatient.identifier?.[0]?.value || '';
-        
-        // Fetch insurance/coverage information
-        let insuranceName = '';
-        try {
-          const coverageResult = await fhirClient.getActiveCoverage(fhirPatient.id);
-          if (coverageResult.resources && coverageResult.resources.length > 0) {
-            const coverage = coverageResult.resources[0];
-            // Extract payer name from coverage
-            if (coverage.payor && coverage.payor.length > 0) {
-              const payorRef = coverage.payor[0].reference;
-              if (payorRef) {
-                const payorId = payorRef.split('/').pop();
-                try {
-                  const payorResult = await fhirClient.read('Organization', payorId);
-                  insuranceName = payorResult.name || '';
-                } catch (e) {
-                  // If organization fetch fails, try to get name from display
-                  insuranceName = coverage.payor[0].display || '';
-                }
-              }
-            }
-          }
-        } catch (e) {
-          // Coverage fetch failed, insurance will remain empty
-        }
-        
+
         return {
           id: fhirPatient.id,
           mrn: mrn,
@@ -303,10 +313,10 @@ function PatientList() {
           date_of_birth: fhirPatient.birthDate,
           gender: fhirPatient.gender,
           phone: phone || '',
-          insurance_name: insuranceName
+          insurance_name: coverageMap.get(fhirPatient.id) || ''
         };
-      }));
-      
+      });
+
       setAllPatients(transformedPatients);
       setError(null);
     } catch (err) {

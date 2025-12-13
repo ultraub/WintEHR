@@ -180,7 +180,7 @@ const CDSAlertPresenter = ({
       };
       
       setAcknowledgments(prev => new Map(prev).set(alert.id, acknowledgment));
-      clinicalCDSService.acknowledgeAlert(alert.id, acknowledgment);
+      clinicalCDSService.acknowledgeAlert(alert, acknowledgment); // Pass full alert for serviceId
       
       if (onAcknowledge) {
         onAcknowledge(alert, acknowledgment);
@@ -225,7 +225,7 @@ const CDSAlertPresenter = ({
       };
       
       setAcknowledgments(prev => new Map(prev).set(selectedAlert.id, acknowledgment));
-      clinicalCDSService.acknowledgeAlert(selectedAlert.id, acknowledgment);
+      clinicalCDSService.acknowledgeAlert(selectedAlert, acknowledgment); // Pass full alert for serviceId
       
       if (onAcknowledge) {
         onAcknowledge(selectedAlert, acknowledgment);

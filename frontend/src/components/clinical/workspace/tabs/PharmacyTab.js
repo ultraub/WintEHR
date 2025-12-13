@@ -327,181 +327,6 @@ const RefillRequestCard = ({ refillRequest, onApprove, onReject, onViewDetails, 
   );
 };
 
-// Dispense Dialog Component
-const DispenseDialog = ({ open, onClose, medicationRequest, onDispense }) => {
-  const [quantity, setQuantity] = useState('');
-  const [lotNumber, setLotNumber] = useState('');
-  const [expirationDate, setExpirationDate] = useState('');
-  const [pharmacistNotes, setPharmacistNotes] = useState('');
-
-  useEffect(() => {
-    if (medicationRequest) {
-      const requestedQuantity = medicationRequest.dispenseRequest?.quantity?.value || '';
-      setQuantity(requestedQuantity.toString());
-    }
-  }, [medicationRequest]);
-
-  const handleDispense = () => {
-    // Extract medication information from the request
-    let medication = null;
-    if (medicationRequest.medicationCodeableConcept) {
-      medication = medicationRequest.medicationCodeableConcept;
-    } else if (medicationRequest.medication?.concept) {
-      medication = medicationRequest.medication.concept;
-    }
-    
-    const dispenseData = {
-      medicationRequestId: medicationRequest.id,
-      medication: medication,
-      quantity: parseFloat(quantity),
-      unit: medicationRequest.dispenseRequest?.quantity?.unit || 'units',
-      lotNumber,
-      expirationDate,
-      pharmacistNotes,
-      dispensedAt: new Date().toISOString(),
-      pharmacist: 'Current User' // This would come from auth context
-    };
-    
-    onDispense(dispenseData);
-    onClose();
-  };
-
-  if (!medicationRequest) return null;
-
-  return (
-    <Dialog 
-      open={open} 
-      onClose={onClose} 
-      maxWidth="sm" 
-      fullWidth
-      PaperProps={{ sx: { borderRadius: 0 } }}
-    >
-      <DialogTitle sx={{ fontWeight: 600, borderBottom: 1, borderColor: 'divider' }}>
-        Dispense Medication
-      </DialogTitle>
-      
-      <DialogContent sx={{ p: 3 }}>
-        <Box>
-          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'primary.main' }}>
-            {getMedicationName(medicationRequest)}
-          </Typography>
-          
-          {/* Prescription Details */}
-          <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', border: 1, borderColor: 'divider', borderRadius: 0 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={6}>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  <strong>Prescriber</strong>
-                </Typography>
-                <Typography variant="body2">
-                  {medicationRequest.requester?.display || 'Unknown'}
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  <strong>Date Prescribed</strong>
-                </Typography>
-                <Typography variant="body2">
-                  {formatClinicalDate(medicationRequest.authoredOn, 'standard', 'Unknown')}
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  <strong>Dosage</strong>
-                </Typography>
-                <Typography variant="body2">
-                  {medicationRequest.dosageInstruction?.[0]?.text || 'See instructions'}
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  <strong>Quantity Prescribed</strong>
-                </Typography>
-                <Typography variant="body2">
-                  {medicationRequest.dispenseRequest?.quantity?.value || 'Not specified'} {medicationRequest.dispenseRequest?.quantity?.unit || ''}
-                </Typography>
-              </Grid>
-            </Grid>
-          </Box>
-          
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Quantity to Dispense"
-                type="number"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                fullWidth
-                required
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      {medicationRequest.dispenseRequest?.quantity?.unit || 'units'}
-                    </InputAdornment>
-                  ),
-                  sx: { borderRadius: 0 }
-                }}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Lot Number"
-                value={lotNumber}
-                onChange={(e) => setLotNumber(e.target.value)}
-                fullWidth
-                required
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Expiration Date"
-                type="date"
-                value={expirationDate}
-                onChange={(e) => setExpirationDate(e.target.value)}
-                fullWidth
-                required
-                InputLabelProps={{
-                  shrink: true,
-                }}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
-              />
-            </Grid>
-            
-            <Grid item xs={12}>
-              <TextField
-                label="Pharmacist Notes"
-                value={pharmacistNotes}
-                onChange={(e) => setPharmacistNotes(e.target.value)}
-                fullWidth
-                multiline
-                rows={3}
-                placeholder="Any additional notes or instructions..."
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
-              />
-            </Grid>
-          </Grid>
-        </Box>
-      </DialogContent>
-      
-      <DialogActions>
-        <Button onClick={onClose} sx={{ borderRadius: 0 }}>Cancel</Button>
-        <Button 
-          onClick={handleDispense} 
-          variant="contained"
-          disabled={!quantity || !lotNumber || !expirationDate}
-          sx={{ borderRadius: 0 }}
-        >
-          Dispense Medication
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
-
 const PharmacyTab = ({
   patientId,
   onNotificationUpdate,
@@ -515,7 +340,6 @@ const PharmacyTab = ({
   // Enhanced medication hooks
   const { dispenses, createDispense, refreshDispenses } = useMedicationDispense(patientId);
   const { administrations, recordAdministration, refreshAdministrations } = useMedicationAdministration(patientId);
-  const [enhancedDispenseDialog, setEnhancedDispenseDialog] = useState(false);
   const [administrationDialogOpen, setAdministrationDialogOpen] = useState(false);
   const [administrationMode, setAdministrationMode] = useState('administer');
   
@@ -906,7 +730,6 @@ const PharmacyTab = ({
       
       setSelectedRequest(null);
       setDispenseDialogOpen(false);
-      setEnhancedDispenseDialog(false);
       
     } catch (error) {
       setSnackbar({

@@ -370,7 +370,7 @@ const ClinicalWorkspaceEnhanced = ({
               
               return (
                 <Box
-                  key={activeTabConfig.id}
+                  key={`${activeTabConfig.id}-${activePatient.id}`}
                   sx={{
                     height: '100%'
                   }}

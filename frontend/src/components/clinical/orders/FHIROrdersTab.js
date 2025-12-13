@@ -40,7 +40,9 @@ import {
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { useClinical } from '../../../contexts/ClinicalContext';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
+import { cdsHooksClient } from '../../../services/cdsHooksClient';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const TabPanel = ({ children, value, index }) => (
   <div hidden={value !== index} style={{ paddingTop: 16 }}>
@@ -50,6 +52,7 @@ const TabPanel = ({ children, value, index }) => (
 
 const FHIROrdersTab = () => {
   const { currentPatient, currentEncounter } = useClinical();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [orders, setOrders] = useState({
     medications: [],
@@ -66,12 +69,42 @@ const FHIROrdersTab = () => {
     instructions: '',
     reason: ''
   });
+  const [cdsAlerts, setCdsAlerts] = useState([]);
+  const [showCdsAlertDialog, setShowCdsAlertDialog] = useState(false);
+  const [pendingOrder, setPendingOrder] = useState(null);
+  const [patientAllergies, setPatientAllergies] = useState([]);
 
   useEffect(() => {
     if (currentPatient) {
       loadOrders();
+      loadPatientAllergies();
     }
   }, [currentPatient?.id, currentEncounter?.id]);
+
+  // Load patient allergies from FHIR
+  const loadPatientAllergies = async () => {
+    try {
+      const allergies = await fhirClient.search('AllergyIntolerance', {
+        patient: currentPatient.id,
+        'clinical-status': 'active',
+        _count: 50
+      });
+
+      const allergyList = (allergies.resources || []).map(allergy => ({
+        id: allergy.id,
+        substance: allergy.code?.coding?.[0]?.display || allergy.code?.text || 'Unknown',
+        reaction: allergy.reaction?.[0]?.manifestation?.[0]?.coding?.[0]?.display ||
+                  allergy.reaction?.[0]?.manifestation?.[0]?.text || 'Not specified',
+        severity: allergy.reaction?.[0]?.severity || allergy.criticality || 'unknown',
+        category: allergy.category?.[0] || 'unknown'
+      }));
+
+      setPatientAllergies(allergyList);
+    } catch (error) {
+      console.error('Failed to load allergies:', error);
+      setPatientAllergies([]);
+    }
+  };
 
   const loadOrders = async () => {
     setLoading(true);
@@ -175,102 +208,195 @@ const FHIROrdersTab = () => {
     }
   };
 
-  const handleCreateOrder = async () => {
+  // Build the FHIR resource for the order
+  const buildOrderResource = () => {
+    if (orderType === 'medication') {
+      return {
+        resourceType: 'MedicationRequest',
+        status: 'draft',
+        intent: 'order',
+        priority: newOrder.priority,
+        medicationCodeableConcept: {
+          text: newOrder.display
+        },
+        subject: fhirClient.reference('Patient', currentPatient.id),
+        encounter: currentEncounter ?
+          fhirClient.reference('Encounter', currentEncounter.id) : undefined,
+        authoredOn: new Date().toISOString(),
+        requester: user?.id ? fhirClient.reference('Practitioner', user.id) : {
+          display: 'Current Provider'
+        },
+        dosageInstruction: newOrder.instructions ? [{
+          text: newOrder.instructions
+        }] : undefined,
+        reasonCode: newOrder.reason ? [{
+          text: newOrder.reason
+        }] : undefined
+      };
+    } else {
+      return {
+        resourceType: 'ServiceRequest',
+        status: 'draft',
+        intent: 'order',
+        priority: newOrder.priority,
+        code: {
+          text: newOrder.display
+        },
+        subject: fhirClient.reference('Patient', currentPatient.id),
+        encounter: currentEncounter ?
+          fhirClient.reference('Encounter', currentEncounter.id) : undefined,
+        authoredOn: new Date().toISOString(),
+        requester: user?.id ? fhirClient.reference('Practitioner', user.id) : {
+          display: 'Current Provider'
+        },
+        category: [{
+          coding: [{
+            system: 'http://snomed.info/sct',
+            code: orderType === 'lab' ? '108252007' :
+                  orderType === 'imaging' ? '363679005' : '387713003',
+            display: orderType === 'lab' ? 'Laboratory procedure' :
+                    orderType === 'imaging' ? 'Imaging procedure' : 'Surgical procedure'
+          }]
+        }],
+        note: newOrder.instructions ? [{
+          text: newOrder.instructions
+        }] : undefined,
+        reasonCode: newOrder.reason ? [{
+          text: newOrder.reason
+        }] : undefined
+      };
+    }
+  };
+
+  // Execute CDS Hooks before order creation
+  const checkCdsAlerts = async (orderResource) => {
     try {
+      const userId = user?.id || 'unknown';
+      let alerts = [];
+
       if (orderType === 'medication') {
-        // Create MedicationRequest
-        const medRequest = {
-          resourceType: 'MedicationRequest',
-          status: 'draft',
-          intent: 'order',
-          priority: newOrder.priority,
-          medicationCodeableConcept: {
-            text: newOrder.display
-          },
-          subject: fhirClient.reference('Patient', currentPatient.id),
-          encounter: currentEncounter ? 
-            fhirClient.reference('Encounter', currentEncounter.id) : undefined,
-          authoredOn: new Date().toISOString(),
-          requester: {
-            display: 'Current Provider' // Would use actual provider reference
-          },
-          dosageInstruction: newOrder.instructions ? [{
-            text: newOrder.instructions
-          }] : undefined,
-          reasonCode: newOrder.reason ? [{
-            text: newOrder.reason
-          }] : undefined
-        };
-
-        await fhirClient.create('MedicationRequest', medRequest);
+        // Fire medication-prescribe hook for medication orders
+        alerts = await cdsHooksClient.fireMedicationPrescribe(
+          currentPatient.id,
+          userId,
+          [orderResource]
+        );
       } else {
-        // Create ServiceRequest
-        const serviceRequest = {
-          resourceType: 'ServiceRequest',
-          status: 'draft',
-          intent: 'order',
-          priority: newOrder.priority,
-          code: {
-            text: newOrder.display
-          },
-          subject: fhirClient.reference('Patient', currentPatient.id),
-          encounter: currentEncounter ? 
-            fhirClient.reference('Encounter', currentEncounter.id) : undefined,
-          authoredOn: new Date().toISOString(),
-          requester: {
-            display: 'Current Provider' // Would use actual provider reference
-          },
-          category: [{
-            coding: [{
-              system: 'http://snomed.info/sct',
-              code: orderType === 'lab' ? '108252007' : 
-                    orderType === 'imaging' ? '363679005' : '387713003',
-              display: orderType === 'lab' ? 'Laboratory procedure' : 
-                      orderType === 'imaging' ? 'Imaging procedure' : 'Surgical procedure'
-            }]
-          }],
-          note: newOrder.instructions ? [{
-            text: newOrder.instructions
-          }] : undefined,
-          reasonCode: newOrder.reason ? [{
-            text: newOrder.reason
-          }] : undefined
-        };
-
-        await fhirClient.create('ServiceRequest', serviceRequest);
+        // Fire order-sign hook for other order types
+        alerts = await cdsHooksClient.fireOrderSign(
+          currentPatient.id,
+          userId,
+          [orderResource]
+        );
       }
 
-      // Reload orders and close dialog
-      await loadOrders();
-      setShowNewOrderDialog(false);
-      setNewOrder({
-        display: '',
-        priority: 'routine',
-        instructions: '',
-        reason: ''
-      });
+      return alerts || [];
     } catch (error) {
-      
+      console.error('CDS Hooks check failed:', error);
+      // Return warning alert so user knows CDS check failed
+      return [{
+        indicator: 'warning',
+        summary: 'Clinical Decision Support Unavailable',
+        detail: 'Unable to check clinical decision support rules. Please verify order safety manually.',
+        source: { label: 'System' }
+      }];
+    }
+  };
+
+  // Actually create the order in FHIR
+  const submitOrder = async (orderResource) => {
+    const resourceType = orderResource.resourceType;
+    await fhirClient.create(resourceType, orderResource);
+
+    // Reload orders and close dialog
+    await loadOrders();
+    setShowNewOrderDialog(false);
+    setShowCdsAlertDialog(false);
+    setPendingOrder(null);
+    setCdsAlerts([]);
+    setNewOrder({
+      display: '',
+      priority: 'routine',
+      instructions: '',
+      reason: ''
+    });
+  };
+
+  // Handle proceeding with order after CDS alerts
+  const handleProceedWithOrder = async () => {
+    if (pendingOrder) {
+      try {
+        await submitOrder(pendingOrder);
+      } catch (error) {
+        console.error('Failed to create order:', error);
+        alert('Failed to create order: ' + error.message);
+      }
+    }
+  };
+
+  // Handle canceling order due to CDS alerts
+  const handleCancelOrder = () => {
+    setShowCdsAlertDialog(false);
+    setPendingOrder(null);
+    setCdsAlerts([]);
+  };
+
+  const handleCreateOrder = async () => {
+    try {
+      const orderResource = buildOrderResource();
+
+      // Check CDS Hooks before creating order
+      const alerts = await checkCdsAlerts(orderResource);
+
+      if (alerts.length > 0) {
+        // Show CDS alerts and let user decide to proceed or cancel
+        setCdsAlerts(alerts);
+        setPendingOrder(orderResource);
+        setShowCdsAlertDialog(true);
+      } else {
+        // No alerts, proceed with order creation
+        await submitOrder(orderResource);
+      }
+    } catch (error) {
+      console.error('Failed to create order:', error);
       alert('Failed to create order: ' + error.message);
     }
   };
 
-  const handleDeleteOrder = async (order) => {
-    if (!window.confirm('Are you sure you want to cancel this order?')) {
+  // Discontinue/cancel an order - uses appropriate FHIR status per resource type
+  const handleDiscontinueOrder = async (order) => {
+    const action = order.status === 'draft' ? 'delete' : 'discontinue';
+    const confirmMessage = action === 'delete'
+      ? 'Are you sure you want to delete this draft order?'
+      : 'Are you sure you want to discontinue this order?';
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
     try {
       const resourceType = order.type === 'medication' ? 'MedicationRequest' : 'ServiceRequest';
       const resource = await fhirClient.read(resourceType, order.id);
-      resource.status = 'cancelled';
+
+      // Use appropriate FHIR status per resource type:
+      // MedicationRequest: 'stopped' for discontinued, 'cancelled' for draft
+      // ServiceRequest: 'revoked' for discontinued/cancelled
+      if (order.type === 'medication') {
+        resource.status = order.status === 'draft' ? 'cancelled' : 'stopped';
+      } else {
+        resource.status = 'revoked';
+      }
+
       await fhirClient.update(resourceType, order.id, resource);
       await loadOrders();
     } catch (error) {
-      
-      alert('Failed to cancel order: ' + error.message);
+      console.error('Failed to discontinue order:', error);
+      alert('Failed to discontinue order: ' + error.message);
     }
   };
+
+  // Alias for backward compatibility
+  const handleDeleteOrder = handleDiscontinueOrder;
 
   const renderOrderList = (orderList, type) => {
     if (orderList.length === 0) {
@@ -329,9 +455,21 @@ const FHIROrdersTab = () => {
                       size="small"
                       onClick={() => handleDeleteOrder(order)}
                       color="error"
+                      title="Delete draft order"
                     >
                       <DeleteIcon />
                     </IconButton>
+                  )}
+                  {order.status === 'active' && (
+                    <Button
+                      size="small"
+                      onClick={() => handleDiscontinueOrder(order)}
+                      color="error"
+                      variant="outlined"
+                      startIcon={<CancelledIcon />}
+                    >
+                      Discontinue
+                    </Button>
                   )}
                 </Box>
               </Box>
@@ -389,6 +527,38 @@ const FHIROrdersTab = () => {
       >
         <DialogTitle>Create New Order</DialogTitle>
         <DialogContent>
+          {/* Allergy Warning Section - Show for medication orders */}
+          {orderType === 'medication' && patientAllergies.length > 0 && (
+            <Alert severity="warning" sx={{ mb: 2, mt: 1 }}>
+              <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                Patient Allergies ({patientAllergies.length})
+              </Typography>
+              <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                {patientAllergies.slice(0, 5).map((allergy, index) => (
+                  <li key={allergy.id || index}>
+                    <Typography variant="body2">
+                      <strong>{allergy.substance}</strong>
+                      {allergy.reaction !== 'Not specified' && ` - ${allergy.reaction}`}
+                      {allergy.severity && allergy.severity !== 'unknown' && (
+                        <Chip
+                          label={allergy.severity}
+                          size="small"
+                          color={allergy.severity === 'severe' || allergy.severity === 'high' ? 'error' : 'warning'}
+                          sx={{ ml: 1, height: 18, fontSize: '0.7rem' }}
+                        />
+                      )}
+                    </Typography>
+                  </li>
+                ))}
+              </Box>
+              {patientAllergies.length > 5 && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                  + {patientAllergies.length - 5} more allergies
+                </Typography>
+              )}
+            </Alert>
+          )}
+
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12}>
               <FormControl fullWidth>
@@ -477,6 +647,52 @@ const FHIROrdersTab = () => {
             disabled={!newOrder.display}
           >
             Create Order
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* CDS Alert Dialog */}
+      <Dialog
+        open={showCdsAlertDialog}
+        onClose={handleCancelOrder}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ bgcolor: 'warning.light', color: 'warning.contrastText' }}>
+          Clinical Decision Support Alerts
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            The following clinical alerts were generated for this order. Please review before proceeding.
+          </Typography>
+          {cdsAlerts.map((alert, index) => (
+            <Alert
+              key={index}
+              severity={alert.indicator === 'critical' ? 'error' : alert.indicator === 'warning' ? 'warning' : 'info'}
+              sx={{ mb: 2 }}
+            >
+              <Typography variant="subtitle2" fontWeight="bold">
+                {alert.summary}
+              </Typography>
+              {alert.detail && (
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  {alert.detail}
+                </Typography>
+              )}
+              {alert.source?.label && (
+                <Typography variant="caption" color="text.secondary" display="block" mt={1}>
+                  Source: {alert.source.label}
+                </Typography>
+              )}
+            </Alert>
+          ))}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelOrder} color="error">
+            Cancel Order
+          </Button>
+          <Button onClick={handleProceedWithOrder} variant="contained" color="warning">
+            Acknowledge & Proceed
           </Button>
         </DialogActions>
       </Dialog>

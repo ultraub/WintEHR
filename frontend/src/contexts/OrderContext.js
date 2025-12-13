@@ -334,7 +334,7 @@ export const OrderProvider = ({ children }) => {
       }];
       
       // Call drug interaction API
-      const response = await api.post('/api/emr/clinical/drug-interactions/check-interactions', allMeds);
+      const response = await api.post('/api/clinical/drug-safety/check-interactions', allMeds);
       
       // Transform interactions to alerts
       const alerts = response.data.interactions.map(interaction => ({
@@ -348,9 +348,16 @@ export const OrderProvider = ({ children }) => {
       
       return alerts;
     } catch (error) {
-      
-      // Return empty array on error to allow order to proceed
-      return [];
+      console.error('Drug interaction check failed:', error);
+      // Return error alert so user is aware the safety check failed
+      return [{
+        severity: 'warning',
+        type: 'system-error',
+        message: 'Unable to check drug interactions. Please verify manually before proceeding.',
+        drugs: [],
+        clinicalConsequence: 'Drug interaction check is unavailable',
+        management: 'Manually review patient medications for potential interactions'
+      }];
     }
   };
 

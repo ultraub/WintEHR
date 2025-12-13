@@ -177,7 +177,7 @@ function PaginatedPatientList() {
         _total: 'accurate', // Request total count
         _summary: 'true' // Only essential fields for list view
       };
-      
+
       if (searchQuery && searchQuery.length >= 2) {
         if (/^\d+$/.test(searchQuery)) {
           searchParams.identifier = searchQuery;
@@ -185,38 +185,55 @@ function PaginatedPatientList() {
           searchParams.name = searchQuery;
         }
       }
-      
+
       const result = await fhirClient.searchPatients(searchParams);
-      
-      // Extract total count from bundle
+
+      // Extract total count from SearchResult (standardized format)
       const total = result.total || 0;
       setTotalCount(total);
-      
-      // Transform FHIR data to table format
-      const transformedPatients = await Promise.all((result.entry || []).map(async (entry) => {
-        const fhirPatient = entry.resource;
+
+      // Use result.resources (standardized array) instead of result.entry
+      const patients = result.resources || [];
+
+      // Batch fetch Coverage resources for all patients in a single query
+      // This eliminates N+1 query problem (was: 25 patients = 25 Coverage queries)
+      const coverageMap = new Map();
+      if (patients.length > 0) {
+        try {
+          const patientIds = patients.map(p => p.id);
+          // FHIR allows comma-separated patient IDs for batch lookup
+          const coverageResult = await fhirClient.search('Coverage', {
+            patient: patientIds.join(','),
+            _count: patientIds.length * 2 // Allow for multiple coverages per patient
+          });
+
+          // Build lookup map: patientId -> insurance name
+          // Use coverageResult.resources (standardized format)
+          (coverageResult.resources || []).forEach(coverage => {
+            // Extract patient ID from reference (e.g., "Patient/123" -> "123")
+            const patientRef = coverage.beneficiary?.reference || '';
+            const patientId = patientRef.replace('Patient/', '');
+
+            // Only store first coverage per patient (primary insurance)
+            if (patientId && !coverageMap.has(patientId)) {
+              const insuranceName = coverage.payor?.[0]?.display || '';
+              if (insuranceName) {
+                coverageMap.set(patientId, insuranceName);
+              }
+            }
+          });
+        } catch (e) {
+          // Coverage batch fetch failed, continue without insurance data
+          console.warn('Failed to fetch coverage data:', e);
+        }
+      }
+
+      // Transform FHIR data to table format (no async needed now)
+      const transformedPatients = patients.map((fhirPatient) => {
         const name = fhirPatient.name?.[0] || {};
         const mrn = fhirPatient.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || '';
         const phone = fhirPatient.telecom?.find(t => t.system === 'phone')?.value || '';
-        
-        // Try to get insurance information
-        let insuranceName = '';
-        try {
-          const coverageSearchResult = await fhirClient.search('Coverage', {
-            patient: fhirPatient.id,
-            _count: 1
-          });
-          
-          if (coverageSearchResult.entry?.length > 0) {
-            const coverage = coverageSearchResult.entry[0].resource;
-            if (coverage.payor?.[0]?.display) {
-              insuranceName = coverage.payor[0].display;
-            }
-          }
-        } catch (e) {
-          // Coverage fetch failed, insurance will remain empty
-        }
-        
+
         return {
           id: fhirPatient.id,
           mrn: mrn,
@@ -225,10 +242,10 @@ function PaginatedPatientList() {
           date_of_birth: fhirPatient.birthDate,
           gender: fhirPatient.gender,
           phone: phone || '',
-          insurance_name: insuranceName
+          insurance_name: coverageMap.get(fhirPatient.id) || ''
         };
-      }));
-      
+      });
+
       setPatients(transformedPatients);
     } catch (err) {
       setError('Failed to load patients. Please try again.');
