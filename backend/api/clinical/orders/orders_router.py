@@ -8,6 +8,7 @@ import logging
 from services.hapi_fhir_client import HAPIFHIRClient
 from api.auth.service import get_current_user
 from api.auth.models import User
+from api.cds_hooks.constants import ExtensionURLs
 
 logger = logging.getLogger(__name__)
 
@@ -255,15 +256,44 @@ async def create_medication_order(
                 },
                 "asNeededBoolean": order.medication_details.prn,
                 "route": {
+                    "coding": [{
+                        "system": "http://snomed.info/sct",
+                        "display": order.medication_details.route
+                    }],
                     "text": order.medication_details.route
                 },
                 "doseAndRate": [{
+                    "type": {
+                        "coding": [{
+                            "system": "http://terminology.hl7.org/CodeSystem/dose-rate-type",
+                            "code": "ordered",
+                            "display": "Ordered"
+                        }]
+                    },
                     "doseQuantity": {
                         "value": order.medication_details.dose,
-                        "unit": order.medication_details.dose_unit
+                        "unit": order.medication_details.dose_unit,
+                        "system": "http://unitsofmeasure.org",
+                        "code": order.medication_details.dose_unit
                     }
                 }]
-            }]
+            }],
+            # FHIR R4: dispenseRequest is required for pharmacy workflows
+            "dispenseRequest": {
+                "numberOfRepeatsAllowed": order.medication_details.refills,
+                "quantity": {
+                    "value": order.medication_details.dispense_quantity or 30,
+                    "unit": order.medication_details.dispense_unit or "units",
+                    "system": "http://unitsofmeasure.org",
+                    "code": order.medication_details.dispense_unit or "{Unit}"
+                },
+                "expectedSupplyDuration": {
+                    "value": 30,
+                    "unit": "days",
+                    "system": "http://unitsofmeasure.org",
+                    "code": "d"
+                }
+            }
         }
 
         # Add PRN reason if specified
@@ -272,24 +302,11 @@ async def create_medication_order(
                 "text": order.medication_details.prn_reason
             }
 
-        # Add dispense request if specified
-        if order.medication_details.dispense_quantity:
-            medication_request["dispenseRequest"] = {
-                "numberOfRepeatsAllowed": order.medication_details.refills,
-                "quantity": {
-                    "value": order.medication_details.dispense_quantity,
-                    "unit": order.medication_details.dispense_unit or "units"
-                },
-                "expectedSupplyDuration": {
-                    "value": 30,  # Default 30 days
-                    "unit": "days"
-                }
+        # Add pharmacy notes to dispenseRequest if specified
+        if order.medication_details.pharmacy_notes:
+            medication_request["dispenseRequest"]["performer"] = {
+                "display": order.medication_details.pharmacy_notes
             }
-
-            if order.medication_details.pharmacy_notes:
-                medication_request["dispenseRequest"]["performer"] = {
-                    "display": order.medication_details.pharmacy_notes
-                }
 
         # Add substitution (generic allowed)
         medication_request["substitution"] = {
@@ -307,24 +324,24 @@ async def create_medication_order(
 
         if order.indication:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/order-indication",
+                "url": f"{ExtensionURLs.BASE_URL}/order-indication",
                 "valueString": order.indication
             })
 
         if order.clinical_information:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/clinical-information",
+                "url": f"{ExtensionURLs.BASE_URL}/clinical-information",
                 "valueString": order.clinical_information
             })
 
         # If alerts were overridden, document that
         if alerts and order.override_alerts:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/alerts-overridden",
+                "url": f"{ExtensionURLs.BASE_URL}/alerts-overridden",
                 "valueBoolean": True
             })
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/overridden-alerts",
+                "url": f"{ExtensionURLs.BASE_URL}/overridden-alerts",
                 "valueString": str(alerts)
             })
 
@@ -421,19 +438,19 @@ async def create_laboratory_order(
 
         if order.laboratory_details.specimen_type:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/specimen-type",
+                "url": f"{ExtensionURLs.BASE_URL}/specimen-type",
                 "valueString": order.laboratory_details.specimen_type
             })
 
         if order.laboratory_details.specimen_source:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/specimen-source",
+                "url": f"{ExtensionURLs.BASE_URL}/specimen-source",
                 "valueString": order.laboratory_details.specimen_source
             })
 
         if order.laboratory_details.fasting_required:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/fasting-required",
+                "url": f"{ExtensionURLs.BASE_URL}/fasting-required",
                 "valueBoolean": True
             })
 
@@ -449,7 +466,7 @@ async def create_laboratory_order(
 
         if order.clinical_information:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/clinical-information",
+                "url": f"{ExtensionURLs.BASE_URL}/clinical-information",
                 "valueString": order.clinical_information
             })
 
@@ -557,19 +574,19 @@ async def create_imaging_order(
         extensions = []
 
         extensions.append({
-            "url": "http://wintehr.org/fhir/StructureDefinition/imaging-modality",
+            "url": f"{ExtensionURLs.BASE_URL}/imaging-modality",
             "valueString": order.imaging_details.modality
         })
 
         if order.imaging_details.contrast:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/contrast-required",
+                "url": f"{ExtensionURLs.BASE_URL}/contrast-required",
                 "valueBoolean": True
             })
 
         if order.imaging_details.transport_mode:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/transport-mode",
+                "url": f"{ExtensionURLs.BASE_URL}/transport-mode",
                 "valueString": order.imaging_details.transport_mode
             })
 
@@ -586,7 +603,7 @@ async def create_imaging_order(
 
         if order.clinical_information:
             extensions.append({
-                "url": "http://wintehr.org/fhir/StructureDefinition/clinical-information",
+                "url": f"{ExtensionURLs.BASE_URL}/clinical-information",
                 "valueString": order.clinical_information
             })
 
@@ -727,7 +744,7 @@ async def get_orders(
                 extensions = resource.get("extension", [])
                 clinical_info = None
                 for ext in extensions:
-                    if ext.get("url") == "http://wintehr.org/fhir/StructureDefinition/clinical-information":
+                    if ext.get("url") == f"{ExtensionURLs.BASE_URL}/clinical-information":
                         clinical_info = ext.get("valueString")
                         break
 
@@ -774,6 +791,169 @@ async def get_active_orders(
     )
 
 
+# =============================================================================
+# Order-Result Linking - Bidirectional Navigation
+# =============================================================================
+
+class OrderResultSummary(BaseModel):
+    """Summary of results linked to an order"""
+    order_id: str
+    order_type: str  # ServiceRequest or MedicationRequest
+    has_results: bool
+    diagnostic_reports: List[Dict[str, Any]] = []
+    observations: List[Dict[str, Any]] = []
+    total_results: int = 0
+    result_status: str = "pending"  # pending, partial, complete
+
+
+@router.get("/{order_id}/results", response_model=OrderResultSummary)
+async def get_order_results(
+    order_id: str,
+    resource_type: str = Query("ServiceRequest", description="ServiceRequest or MedicationRequest"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get results linked to an order via FHIR basedOn reference.
+
+    FHIR R4 Order-Result Linking:
+    - DiagnosticReport.basedOn references the originating ServiceRequest
+    - Observation.basedOn can also reference ServiceRequest
+    - This enables bidirectional navigation between orders and results
+
+    Educational notes:
+    - FHIR R4 uses basedOn for order-result traceability
+    - Results may arrive at different times (partial results)
+    - Complete status is determined by result availability
+    """
+    hapi_client = HAPIFHIRClient()
+
+    try:
+        # First verify the order exists
+        order = await hapi_client.read(resource_type, order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        # Determine order type from resource
+        if resource_type == "MedicationRequest":
+            order_type = "medication"
+        else:
+            categories = order.get("category", [])
+            if categories:
+                category_text = categories[0].get("text", "").lower()
+                if "lab" in category_text:
+                    order_type = "laboratory"
+                elif "imaging" in category_text:
+                    order_type = "imaging"
+                else:
+                    order_type = "procedure"
+            else:
+                order_type = "procedure"
+
+        # Build reference string for basedOn search
+        based_on_ref = f"{resource_type}/{order_id}"
+
+        # Query DiagnosticReports with basedOn reference
+        diagnostic_reports = []
+        try:
+            dr_bundle = await hapi_client.search("DiagnosticReport", {
+                "based-on": based_on_ref,
+                "_sort": "-issued",
+                "_count": 50
+            })
+
+            for entry in dr_bundle.get("entry", []):
+                dr = entry.get("resource", {})
+                diagnostic_reports.append({
+                    "id": dr.get("id"),
+                    "status": dr.get("status"),
+                    "code": dr.get("code", {}).get("text") or
+                            (dr.get("code", {}).get("coding", [{}])[0].get("display") if dr.get("code", {}).get("coding") else "Unknown"),
+                    "issued": dr.get("issued"),
+                    "conclusion": dr.get("conclusion"),
+                    "category": dr.get("category", [{}])[0].get("text") if dr.get("category") else None,
+                    "result_count": len(dr.get("result", []))
+                })
+        except Exception as e:
+            logger.warning(f"DiagnosticReport search failed for {based_on_ref}: {e}")
+
+        # Query Observations with basedOn reference
+        observations = []
+        try:
+            obs_bundle = await hapi_client.search("Observation", {
+                "based-on": based_on_ref,
+                "_sort": "-date",
+                "_count": 100
+            })
+
+            for entry in obs_bundle.get("entry", []):
+                obs = entry.get("resource", {})
+
+                # Extract value based on type
+                value = None
+                if "valueQuantity" in obs:
+                    vq = obs["valueQuantity"]
+                    value = f"{vq.get('value', '')} {vq.get('unit', '')}"
+                elif "valueString" in obs:
+                    value = obs["valueString"]
+                elif "valueCodeableConcept" in obs:
+                    value = obs["valueCodeableConcept"].get("text")
+
+                # Check for abnormal interpretation
+                interpretation = None
+                if obs.get("interpretation"):
+                    interp_coding = obs["interpretation"][0].get("coding", [{}])[0]
+                    interpretation = interp_coding.get("code")
+
+                observations.append({
+                    "id": obs.get("id"),
+                    "status": obs.get("status"),
+                    "code": obs.get("code", {}).get("text") or
+                            (obs.get("code", {}).get("coding", [{}])[0].get("display") if obs.get("code", {}).get("coding") else "Unknown"),
+                    "value": value,
+                    "effectiveDateTime": obs.get("effectiveDateTime"),
+                    "interpretation": interpretation,
+                    "referenceRange": obs.get("referenceRange", [{}])[0].get("text") if obs.get("referenceRange") else None
+                })
+        except Exception as e:
+            logger.warning(f"Observation search failed for {based_on_ref}: {e}")
+
+        # Determine overall result status
+        total_results = len(diagnostic_reports) + len(observations)
+        if total_results == 0:
+            result_status = "pending"
+        else:
+            # Check if any results are still pending/preliminary
+            all_final = all(
+                dr.get("status") in ["final", "amended", "corrected"]
+                for dr in diagnostic_reports
+            ) and all(
+                obs.get("status") in ["final", "amended", "corrected"]
+                for obs in observations
+            )
+            result_status = "complete" if all_final else "partial"
+
+        logger.info(f"Retrieved {total_results} results for {resource_type}/{order_id}")
+
+        return OrderResultSummary(
+            order_id=order_id,
+            order_type=order_type,
+            has_results=total_results > 0,
+            diagnostic_reports=diagnostic_reports,
+            observations=observations,
+            total_results=total_results,
+            result_status=result_status
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving results for order {order_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve order results: {str(e)}"
+        )
+
+
 @router.put("/{order_id}/discontinue")
 async def discontinue_order(
     order_id: str,
@@ -816,7 +996,7 @@ async def discontinue_order(
             resource["extension"] = []
 
         resource["extension"].append({
-            "url": "http://wintehr.org/fhir/StructureDefinition/discontinued-by",
+            "url": f"{ExtensionURLs.BASE_URL}/discontinued-by",
             "valueReference": {
                 "reference": f"Practitioner/{current_user.id}",
                 "display": current_user.username
@@ -824,7 +1004,7 @@ async def discontinue_order(
         })
 
         resource["extension"].append({
-            "url": "http://wintehr.org/fhir/StructureDefinition/discontinued-at",
+            "url": f"{ExtensionURLs.BASE_URL}/discontinued-at",
             "valueDateTime": datetime.utcnow().isoformat()
         })
 
@@ -850,54 +1030,533 @@ async def discontinue_order(
         )
 
 
-# Order Sets - TODO: Implement with FHIR PlanDefinition
-# For now, keeping stub endpoints for future implementation
+# =============================================================================
+# Order Sets - FHIR PlanDefinition Implementation
+# =============================================================================
 
-@router.get("/order-sets/", response_model=List[OrderSetResponse])
+class OrderSetItem(BaseModel):
+    """Individual item within an order set"""
+    order_type: str  # medication, laboratory, imaging
+    display: str
+    code: Optional[str] = None
+    code_system: Optional[str] = None
+    priority: str = "routine"
+    # Medication-specific
+    dose: Optional[float] = None
+    dose_unit: Optional[str] = None
+    route: Optional[str] = None
+    frequency: Optional[str] = None
+    duration: Optional[str] = None
+    # Lab/Imaging-specific
+    reason: Optional[str] = None
+    instructions: Optional[str] = None
+
+
+class OrderSetCreateRequest(BaseModel):
+    """Request to create an order set"""
+    name: str
+    description: Optional[str] = None
+    category: Optional[str] = None  # e.g., "admission", "discharge", "procedure"
+    specialty: Optional[str] = None  # e.g., "cardiology", "oncology"
+    items: List[OrderSetItem]
+
+
+class OrderSetSummary(BaseModel):
+    """Summary of an order set"""
+    id: str
+    name: str
+    description: Optional[str]
+    category: Optional[str]
+    specialty: Optional[str]
+    item_count: int
+    status: str
+    last_updated: Optional[datetime]
+
+
+@router.get("/order-sets/", response_model=List[OrderSetSummary])
 async def get_order_sets(
-    category: Optional[str] = Query(None),
-    specialty: Optional[str] = Query(None),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    specialty: Optional[str] = Query(None, description="Filter by specialty"),
+    status: str = Query("active", description="Filter by status"),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get available order sets.
-
-    TODO: Implement using FHIR PlanDefinition resources.
-    Currently returns empty list.
+    Get available order sets using FHIR PlanDefinition resources.
+    
+    FHIR Implementation:
+    - Queries PlanDefinition resources from HAPI FHIR
+    - PlanDefinition.type indicates this is an order-set
+    - PlanDefinition.action contains the individual orders
+    
+    Educational notes:
+    - FHIR PlanDefinition is the standard for clinical protocols and order sets
+    - Each action in the PlanDefinition represents an order template
     """
-    logger.info("Order sets endpoint called - PlanDefinition implementation pending")
-    return []
+    try:
+        hapi_client = HAPIFHIRClient()
+        
+        # Build search parameters
+        search_params = {
+            "type": "order-set",  # FHIR PlanDefinition type for order sets
+            "status": status,
+            "_sort": "-date",
+            "_count": 100
+        }
+        
+        # Query HAPI FHIR for PlanDefinitions
+        bundle = await hapi_client.search("PlanDefinition", search_params)
+        
+        order_sets = []
+        for entry in bundle.get("entry", []):
+            plan_def = entry.get("resource", {})
+            
+            # Filter by category if specified
+            if category:
+                plan_category = None
+                for use_context in plan_def.get("useContext", []):
+                    if use_context.get("code", {}).get("code") == "focus":
+                        plan_category = use_context.get("valueCodeableConcept", {}).get("text")
+                        break
+                if plan_category != category:
+                    continue
+            
+            # Filter by specialty if specified
+            if specialty:
+                plan_specialty = None
+                for use_context in plan_def.get("useContext", []):
+                    if use_context.get("code", {}).get("code") == "user":
+                        plan_specialty = use_context.get("valueCodeableConcept", {}).get("text")
+                        break
+                if plan_specialty != specialty:
+                    continue
+            
+            # Extract category and specialty from useContext
+            extracted_category = None
+            extracted_specialty = None
+            for use_context in plan_def.get("useContext", []):
+                code = use_context.get("code", {}).get("code")
+                if code == "focus":
+                    extracted_category = use_context.get("valueCodeableConcept", {}).get("text")
+                elif code == "user":
+                    extracted_specialty = use_context.get("valueCodeableConcept", {}).get("text")
+            
+            # Count actions (order items)
+            item_count = len(plan_def.get("action", []))
+            
+            # Parse last updated
+            last_updated = None
+            if plan_def.get("meta", {}).get("lastUpdated"):
+                try:
+                    last_updated = datetime.fromisoformat(
+                        plan_def["meta"]["lastUpdated"].replace("Z", "+00:00")
+                    )
+                except:
+                    pass
+            
+            order_sets.append(OrderSetSummary(
+                id=plan_def.get("id"),
+                name=plan_def.get("title") or plan_def.get("name", "Unnamed Order Set"),
+                description=plan_def.get("description"),
+                category=extracted_category,
+                specialty=extracted_specialty,
+                item_count=item_count,
+                status=plan_def.get("status", "unknown"),
+                last_updated=last_updated
+            ))
+        
+        return order_sets
+        
+    except Exception as e:
+        logger.error(f"Failed to get order sets: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get order sets: {str(e)}"
+        )
 
 
-@router.post("/order-sets/", response_model=OrderSetResponse)
+@router.get("/order-sets/{set_id}")
+async def get_order_set_detail(
+    set_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get detailed information about an order set including all items.
+    
+    FHIR Implementation:
+    - Reads PlanDefinition resource
+    - Parses action elements to extract order templates
+    """
+    try:
+        hapi_client = HAPIFHIRClient()
+        
+        plan_def = await hapi_client.read("PlanDefinition", set_id)
+        if not plan_def:
+            raise HTTPException(status_code=404, detail="Order set not found")
+        
+        # Parse actions into order items
+        items = []
+        for action in plan_def.get("action", []):
+            item = {
+                "id": action.get("id"),
+                "title": action.get("title"),
+                "description": action.get("description"),
+                "order_type": _determine_order_type(action),
+                "code": action.get("code", [{}])[0].get("coding", [{}])[0].get("code") if action.get("code") else None,
+                "code_display": action.get("code", [{}])[0].get("coding", [{}])[0].get("display") if action.get("code") else None,
+                "priority": action.get("priority", "routine")
+            }
+            
+            # Extract medication-specific details from extensions
+            for ext in action.get("extension", []):
+                if "dose" in ext.get("url", ""):
+                    item["dose"] = ext.get("valueQuantity", {}).get("value")
+                    item["dose_unit"] = ext.get("valueQuantity", {}).get("unit")
+                elif "route" in ext.get("url", ""):
+                    item["route"] = ext.get("valueString")
+                elif "frequency" in ext.get("url", ""):
+                    item["frequency"] = ext.get("valueString")
+            
+            items.append(item)
+        
+        return {
+            "id": plan_def.get("id"),
+            "name": plan_def.get("title") or plan_def.get("name"),
+            "description": plan_def.get("description"),
+            "status": plan_def.get("status"),
+            "items": items,
+            "fhir_resource": plan_def  # Include full FHIR resource for reference
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get order set detail: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get order set detail: {str(e)}"
+        )
+
+
+@router.post("/order-sets/")
 async def create_order_set(
-    order_set: OrderSetCreate,
+    order_set: OrderSetCreateRequest,
     current_user: User = Depends(get_current_user)
 ):
     """
-    Create a new order set.
-
-    TODO: Implement using FHIR PlanDefinition resources.
+    Create a new order set using FHIR PlanDefinition.
+    
+    FHIR Implementation:
+    - Creates PlanDefinition resource with type 'order-set'
+    - Each order item becomes an action element
+    - Uses FHIR extensions for medication-specific details
+    
+    Educational notes:
+    - PlanDefinition.action can be nested for complex protocols
+    - Each action can reference ActivityDefinition for detailed specs
     """
-    raise HTTPException(
-        status_code=501,
-        detail="Order sets not yet implemented - will use FHIR PlanDefinition"
-    )
+    try:
+        hapi_client = HAPIFHIRClient()
+        current_time = datetime.utcnow()
+        
+        # Build FHIR PlanDefinition resource
+        plan_definition = {
+            "resourceType": "PlanDefinition",
+            "status": "active",
+            "type": {
+                "coding": [{
+                    "system": "http://terminology.hl7.org/CodeSystem/plan-definition-type",
+                    "code": "order-set",
+                    "display": "Order Set"
+                }]
+            },
+            "title": order_set.name,
+            "name": order_set.name.replace(" ", "_").lower(),
+            "description": order_set.description,
+            "date": current_time.isoformat(),
+            "publisher": current_user.username,
+            "action": []
+        }
+        
+        # Add useContext for category and specialty
+        use_contexts = []
+        if order_set.category:
+            use_contexts.append({
+                "code": {
+                    "system": "http://terminology.hl7.org/CodeSystem/usage-context-type",
+                    "code": "focus"
+                },
+                "valueCodeableConcept": {
+                    "text": order_set.category
+                }
+            })
+        if order_set.specialty:
+            use_contexts.append({
+                "code": {
+                    "system": "http://terminology.hl7.org/CodeSystem/usage-context-type",
+                    "code": "user"
+                },
+                "valueCodeableConcept": {
+                    "text": order_set.specialty
+                }
+            })
+        if use_contexts:
+            plan_definition["useContext"] = use_contexts
+        
+        # Convert order items to actions
+        for idx, item in enumerate(order_set.items):
+            action = {
+                "id": f"action-{idx + 1}",
+                "title": item.display,
+                "description": item.instructions or item.reason,
+                "priority": item.priority
+            }
+            
+            # Add code if provided
+            if item.code:
+                code_system = item.code_system or (
+                    "http://www.nlm.nih.gov/research/umls/rxnorm" if item.order_type == "medication"
+                    else "http://loinc.org"
+                )
+                action["code"] = [{
+                    "coding": [{
+                        "system": code_system,
+                        "code": item.code,
+                        "display": item.display
+                    }]
+                }]
+            
+            # Add extensions for medication details
+            extensions = []
+            extensions.append({
+                "url": f"{ExtensionURLs.BASE_URL}/order-type",
+                "valueString": item.order_type
+            })
+            
+            if item.dose:
+                extensions.append({
+                    "url": f"{ExtensionURLs.BASE_URL}/dose",
+                    "valueQuantity": {
+                        "value": item.dose,
+                        "unit": item.dose_unit or "unit"
+                    }
+                })
+            if item.route:
+                extensions.append({
+                    "url": f"{ExtensionURLs.BASE_URL}/route",
+                    "valueString": item.route
+                })
+            if item.frequency:
+                extensions.append({
+                    "url": f"{ExtensionURLs.BASE_URL}/frequency",
+                    "valueString": item.frequency
+                })
+            if item.duration:
+                extensions.append({
+                    "url": f"{ExtensionURLs.BASE_URL}/duration",
+                    "valueString": item.duration
+                })
+            
+            if extensions:
+                action["extension"] = extensions
+            
+            plan_definition["action"].append(action)
+        
+        # Create in HAPI FHIR
+        created_resource = await hapi_client.create("PlanDefinition", plan_definition)
+        
+        logger.info(f"Created order set PlanDefinition/{created_resource.get('id')}")
+        
+        return {
+            "id": created_resource.get("id"),
+            "name": order_set.name,
+            "item_count": len(order_set.items),
+            "status": "active",
+            "message": "Order set created successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to create order set: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create order set: {str(e)}"
+        )
 
 
 @router.post("/order-sets/{set_id}/apply")
 async def apply_order_set(
     set_id: str,
-    patient_id: str,
-    encounter_id: Optional[str] = None,
+    patient_id: str = Query(..., description="Patient to apply orders to"),
+    encounter_id: Optional[str] = Query(None, description="Encounter context"),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Apply a predefined order set.
-
-    TODO: Implement using FHIR PlanDefinition $apply operation.
+    Apply an order set to a patient, creating individual orders.
+    
+    FHIR Implementation:
+    - Reads PlanDefinition and extracts actions
+    - Creates MedicationRequest or ServiceRequest for each action
+    - Links created resources back to the PlanDefinition via basedOn
+    
+    Educational notes:
+    - This implements a simplified version of PlanDefinition $apply
+    - In production, consider using HAPI FHIR's $apply operation if available
     """
-    raise HTTPException(
-        status_code=501,
-        detail="Order set application not yet implemented - will use FHIR PlanDefinition $apply"
-    )
+    try:
+        hapi_client = HAPIFHIRClient()
+        
+        # Get the order set
+        plan_def = await hapi_client.read("PlanDefinition", set_id)
+        if not plan_def:
+            raise HTTPException(status_code=404, detail="Order set not found")
+        
+        current_time = datetime.utcnow()
+        created_orders = []
+        errors = []
+        
+        # Process each action in the order set
+        for action in plan_def.get("action", []):
+            try:
+                # Determine order type from extension
+                order_type = "medication"  # default
+                for ext in action.get("extension", []):
+                    if "order-type" in ext.get("url", ""):
+                        order_type = ext.get("valueString", "medication")
+                        break
+                
+                # Extract details from action
+                title = action.get("title", "Unknown Order")
+                code_info = action.get("code", [{}])[0] if action.get("code") else {}
+                priority = action.get("priority", "routine")
+                
+                if order_type == "medication":
+                    # Create MedicationRequest
+                    med_request = {
+                        "resourceType": "MedicationRequest",
+                        "status": "draft",
+                        "intent": "order",
+                        "priority": priority,
+                        "medicationCodeableConcept": code_info if code_info else {"text": title},
+                        "subject": {"reference": f"Patient/{patient_id}"},
+                        "authoredOn": current_time.isoformat(),
+                        "requester": {
+                            "reference": f"Practitioner/{current_user.id}",
+                            "display": current_user.username
+                        },
+                        "instantiatesCanonical": [f"PlanDefinition/{set_id}"],
+                        "extension": [{
+                            "url": f"{ExtensionURLs.BASE_URL}/from-order-set",
+                            "valueReference": {"reference": f"PlanDefinition/{set_id}"}
+                        }]
+                    }
+                    
+                    if encounter_id:
+                        med_request["encounter"] = {"reference": f"Encounter/{encounter_id}"}
+                    
+                    # Add dosage from extensions
+                    dosage_text_parts = []
+                    for ext in action.get("extension", []):
+                        if "dose" in ext.get("url", ""):
+                            qty = ext.get("valueQuantity", {})
+                            dosage_text_parts.append(f"{qty.get('value')} {qty.get('unit', '')}")
+                        elif "route" in ext.get("url", ""):
+                            dosage_text_parts.append(ext.get("valueString", ""))
+                        elif "frequency" in ext.get("url", ""):
+                            dosage_text_parts.append(ext.get("valueString", ""))
+                    
+                    if dosage_text_parts:
+                        med_request["dosageInstruction"] = [{"text": " ".join(dosage_text_parts)}]
+                    
+                    created = await hapi_client.create("MedicationRequest", med_request)
+                    created_orders.append({
+                        "type": "MedicationRequest",
+                        "id": created.get("id"),
+                        "display": title
+                    })
+                    
+                else:
+                    # Create ServiceRequest for lab/imaging
+                    service_request = {
+                        "resourceType": "ServiceRequest",
+                        "status": "draft",
+                        "intent": "order",
+                        "priority": priority,
+                        "code": code_info if code_info else {"text": title},
+                        "subject": {"reference": f"Patient/{patient_id}"},
+                        "authoredOn": current_time.isoformat(),
+                        "requester": {
+                            "reference": f"Practitioner/{current_user.id}",
+                            "display": current_user.username
+                        },
+                        "instantiatesCanonical": [f"PlanDefinition/{set_id}"],
+                        "category": [{
+                            "coding": [{
+                                "system": "http://snomed.info/sct",
+                                "code": "108252007" if order_type == "laboratory" else "363679005",
+                                "display": "Laboratory procedure" if order_type == "laboratory" else "Imaging"
+                            }]
+                        }],
+                        "extension": [{
+                            "url": f"{ExtensionURLs.BASE_URL}/from-order-set",
+                            "valueReference": {"reference": f"PlanDefinition/{set_id}"}
+                        }]
+                    }
+                    
+                    if encounter_id:
+                        service_request["encounter"] = {"reference": f"Encounter/{encounter_id}"}
+                    
+                    created = await hapi_client.create("ServiceRequest", service_request)
+                    created_orders.append({
+                        "type": "ServiceRequest",
+                        "id": created.get("id"),
+                        "display": title
+                    })
+                    
+            except Exception as action_error:
+                errors.append({
+                    "action": action.get("title", "Unknown"),
+                    "error": str(action_error)
+                })
+        
+        logger.info(f"Applied order set {set_id} to patient {patient_id}: {len(created_orders)} orders created")
+        
+        return {
+            "order_set_id": set_id,
+            "patient_id": patient_id,
+            "orders_created": len(created_orders),
+            "created_orders": created_orders,
+            "errors": errors if errors else None,
+            "message": f"Order set applied: {len(created_orders)} orders created" + 
+                      (f", {len(errors)} errors" if errors else "")
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to apply order set: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to apply order set: {str(e)}"
+        )
+
+
+def _determine_order_type(action: Dict[str, Any]) -> str:
+    """Determine the order type from a PlanDefinition action."""
+    # Check extension first
+    for ext in action.get("extension", []):
+        if "order-type" in ext.get("url", ""):
+            return ext.get("valueString", "medication")
+    
+    # Try to infer from code system
+    code_info = action.get("code", [{}])[0] if action.get("code") else {}
+    coding = code_info.get("coding", [{}])[0] if code_info.get("coding") else {}
+    system = coding.get("system", "")
+    
+    if "rxnorm" in system.lower():
+        return "medication"
+    elif "loinc" in system.lower():
+        return "laboratory"
+    elif "snomed" in system.lower():
+        # Could be imaging or procedure
+        return "imaging"
+    
+    return "medication"  # default

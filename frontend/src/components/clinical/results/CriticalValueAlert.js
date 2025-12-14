@@ -39,9 +39,10 @@ import {
   Person as PersonIcon,
   LocalHospital as HospitalIcon
 } from '@mui/icons-material';
-import { format } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 import { resultsManagementService } from '../../../services/resultsManagementService';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
+import { useDataQualityLogger } from '../../../core/fhir/utils/dataQualityLogger';
 
 const CriticalValueAlert = ({ 
   open, 
@@ -63,19 +64,129 @@ const CriticalValueAlert = ({
   });
   
   const { publish } = useClinicalWorkflow();
-  
+  const dataQuality = useDataQualityLogger('CriticalValueAlert');
+
   // Get critical value details
-  const criticalCheck = observation ? 
-    resultsManagementService.checkCriticalValue(observation) : 
+  const criticalCheck = observation ?
+    resultsManagementService.checkCriticalValue(observation) :
     { isCritical: false };
-  
-  const testName = observation?.code?.text || 
-                  observation?.code?.coding?.[0]?.display || 
-                  'Unknown Test';
-  
-  const value = observation?.valueQuantity ? 
-    `${observation.valueQuantity.value} ${observation.valueQuantity.unit}` : 
-    'No value';
+
+  // Extract test name with data quality logging
+  const getTestName = () => {
+    if (observation?.code?.text) {
+      return observation.code.text;
+    }
+    if (observation?.code?.coding?.[0]?.display) {
+      return observation.code.coding[0].display;
+    }
+    dataQuality.logFallback('observation.code', observation?.code, 'Unknown Test', {
+      reason: 'No test name in code.text or code.coding[0].display',
+      observationId: observation?.id
+    });
+    return 'Unknown Test';
+  };
+  const testName = getTestName();
+
+  // Extract value with data quality logging
+  const getValue = () => {
+    if (observation?.valueQuantity?.value !== undefined) {
+      return `${observation.valueQuantity.value} ${observation.valueQuantity.unit || ''}`.trim();
+    }
+    dataQuality.logFallback('observation.valueQuantity', observation?.valueQuantity, 'No value', {
+      reason: 'Missing valueQuantity or valueQuantity.value',
+      observationId: observation?.id
+    });
+    return 'No value';
+  };
+  const value = getValue();
+
+  // Helper to format date with logging
+  const formatDateSafe = (dateValue, fieldName) => {
+    if (!dateValue) {
+      dataQuality.logFallback(fieldName, dateValue, 'Unknown', {
+        reason: 'Date value is missing'
+      });
+      return 'Unknown';
+    }
+    try {
+      const parsed = typeof dateValue === 'string' ? parseISO(dateValue) : dateValue;
+      if (!isValid(parsed)) {
+        dataQuality.logFallback(fieldName, dateValue, 'Unknown', {
+          reason: 'Invalid date format',
+          originalValue: dateValue
+        });
+        return 'Unknown';
+      }
+      return format(parsed, 'MM/dd/yyyy HH:mm');
+    } catch {
+      dataQuality.logFallback(fieldName, dateValue, 'Unknown', {
+        reason: 'Date parsing error',
+        originalValue: dateValue
+      });
+      return 'Unknown';
+    }
+  };
+
+  // Patient data extraction helpers with logging
+  const getPatientName = () => {
+    const given = patient?.name?.[0]?.given?.[0];
+    const family = patient?.name?.[0]?.family;
+    if (!given && !family) {
+      dataQuality.logFallback('patient.name', patient?.name, 'Unknown', {
+        reason: 'No patient name available',
+        patientId: patient?.id
+      });
+      return 'Unknown';
+    }
+    return `${given || ''} ${family || ''}`.trim();
+  };
+
+  const getPatientMRN = () => {
+    const mrn = patient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR');
+    if (!mrn?.value) {
+      dataQuality.logFallback('patient.identifier.MRN', mrn, 'Unknown', {
+        reason: 'No MRN identifier found',
+        patientId: patient?.id
+      });
+      return 'Unknown';
+    }
+    return mrn.value;
+  };
+
+  const getPatientDOB = () => {
+    if (!patient?.birthDate) {
+      dataQuality.logFallback('patient.birthDate', patient?.birthDate, 'Unknown', {
+        reason: 'Birth date is missing',
+        patientId: patient?.id
+      });
+      return 'Unknown';
+    }
+    try {
+      const parsed = parseISO(patient.birthDate);
+      if (!isValid(parsed)) {
+        dataQuality.logFallback('patient.birthDate', patient.birthDate, 'Unknown', {
+          reason: 'Invalid birth date format',
+          patientId: patient?.id
+        });
+        return 'Unknown';
+      }
+      return format(parsed, 'MM/dd/yyyy');
+    } catch {
+      return 'Unknown';
+    }
+  };
+
+  const getPatientLocation = () => {
+    const location = patient?.address?.[0]?.line?.[0];
+    if (!location) {
+      dataQuality.logFallback('patient.address', patient?.address, 'Unknown', {
+        reason: 'No address available',
+        patientId: patient?.id
+      });
+      return 'Unknown';
+    }
+    return location;
+  };
 
   useEffect(() => {
     if (open && observation && criticalCheck.isCritical) {
@@ -197,11 +308,7 @@ const CriticalValueAlert = ({
               }
             </Typography>
             <Typography variant="body2">
-              <strong>Result Time:</strong> {
-                observation.effectiveDateTime ? 
-                  format(new Date(observation.effectiveDateTime), 'MM/dd/yyyy HH:mm') : 
-                  'Unknown'
-              }
+              <strong>Result Time:</strong> {formatDateSafe(observation.effectiveDateTime, 'observation.effectiveDateTime')}
             </Typography>
           </Box>
         </Alert>
@@ -213,16 +320,16 @@ const CriticalValueAlert = ({
           </Typography>
           <Stack spacing={1}>
             <Typography variant="body2">
-              <strong>Name:</strong> {patient.name?.[0]?.given?.[0]} {patient.name?.[0]?.family}
+              <strong>Name:</strong> {getPatientName()}
             </Typography>
             <Typography variant="body2">
-              <strong>MRN:</strong> {patient.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || 'Unknown'}
+              <strong>MRN:</strong> {getPatientMRN()}
             </Typography>
             <Typography variant="body2">
-              <strong>DOB:</strong> {patient.birthDate ? format(new Date(patient.birthDate), 'MM/dd/yyyy') : 'Unknown'}
+              <strong>DOB:</strong> {getPatientDOB()}
             </Typography>
             <Typography variant="body2">
-              <strong>Location:</strong> {patient.address?.[0]?.line?.[0] || 'Unknown'}
+              <strong>Location:</strong> {getPatientLocation()}
             </Typography>
           </Stack>
         </Paper>

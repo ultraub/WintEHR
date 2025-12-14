@@ -14,6 +14,7 @@
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { format, parseISO, addDays, addWeeks, isAfter, differenceInDays } from 'date-fns';
+import { EXTENSION_URLS } from '../constants/fhirExtensions';
 
 class MedicationWorkflowService {
   constructor() {
@@ -262,7 +263,7 @@ class MedicationWorkflowService {
         // Extension to track refill information
         extension: [
           {
-            url: 'http://example.org/fhir/prescription-refill',
+            url: EXTENSION_URLS.PRESCRIPTION_REFILL,
             extension: [
               {
                 url: 'original-prescription',
@@ -530,7 +531,7 @@ class MedicationWorkflowService {
 
       // Create status update extension
       const statusExtension = {
-        url: 'http://example.org/fhir/prescription-status-tracking',
+        url: EXTENSION_URLS.PRESCRIPTION_STATUS_TRACKING,
         extension: [
           {
             url: 'previous-status',

@@ -60,18 +60,10 @@ import {
   CardContent,
   CardMedia,
   LinearProgress,
-  Fade,
-  Zoom,
   Grid,
   Tab,
   Tabs,
-  SpeedDial,
-  SpeedDialAction,
-  SpeedDialIcon,
-  Container,
-  Backdrop,
-  Rating,
-  Drawer
+  Container
 } from '@mui/material';
 import {
   CalendarMonth as CalendarIcon,
@@ -254,8 +246,9 @@ import {
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../core/export/printUtils';
 import { getMedicationName, getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
-import { resourceBelongsToPatient } from '../../../../utils/fhirReferenceUtils';
+import { resourceBelongsToPatient } from '../../../../utils/fhir';
 import websocketService from '../../../../services/websocket';
 
 // Import shared clinical components
@@ -1059,7 +1052,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   // Prepare data for react-chrono
   const chronoItems = useMemo(() => {
     return processedEvents.map(event => ({
-      title: format(parseISO(event._date), 'MMM d, yyyy'),
+      title: formatClinicalDate(event._date),
       cardTitle: event._title,
       cardSubtitle: event._type.label,
       cardDetailedText: event._description,
@@ -1190,7 +1183,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         count: dailyCounts[dateStr] || 0,
         severity: dailySeverity[dateStr] || 'none',
         events: eventsByDay[dateStr] || [],
-        displayDate: format(currentDate, 'MMM d')
+        displayDate: formatClinicalDate(currentDate, 'monthDay')
       });
       
       currentDate.setDate(currentDate.getDate() + 1);
@@ -1327,7 +1320,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
       eventTrends.push({
         month,
         count: eventsByMonth[month],
-        label: format(parseISO(month + '-01'), 'MMM yyyy')
+        label: formatClinicalDate(month + '-01', 'shortMonthYear')
       });
     });
     
@@ -1466,14 +1459,14 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
     
     let content = '<h2>Clinical Timeline</h2>';
     content += `<p>View: ${viewMode.charAt(0).toUpperCase() + viewMode.slice(1)}</p>`;
-    content += `<p>Period: ${dateRange.start ? format(dateRange.start, 'MMM d, yyyy') : 'N/A'} - ${dateRange.end ? format(dateRange.end, 'MMM d, yyyy') : 'N/A'}</p>`;
+    content += `<p>Period: ${dateRange.start ? formatClinicalDate(dateRange.start) : 'N/A'} - ${dateRange.end ? formatClinicalDate(dateRange.end) : 'N/A'}</p>`;
     content += `<p>Total Events: ${processedEvents.length} (Active: ${analyticsData.active}, Historical: ${analyticsData.inactive})</p>`;
-    
+
     if (viewMode === 'journey') {
       content += '<h3>Patient Journey Milestones</h3>';
       content += '<ul>';
       patientJourneyData.forEach(milestone => {
-        content += `<li><strong>${format(parseISO(milestone.date), 'MMM d, yyyy')}</strong> - ${journeyMilestones[milestone.type].label}: ${milestone.title}</li>`;
+        content += `<li><strong>${formatClinicalDate(milestone.date)}</strong> - ${journeyMilestones[milestone.type].label}: ${milestone.title}</li>`;
       });
       content += '</ul>';
     } else {
@@ -1486,19 +1479,19 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         }
         eventsByType[type].push(event);
       });
-      
+
       Object.entries(eventsByType).forEach(([type, events]) => {
         const config = eventTypes[type];
         content += `<h3>${config?.label || type} (${events.length})</h3>`;
         content += '<ul>';
-        
+
         events.forEach(event => {
           const date = event._date;
-          const dateStr = date ? format(parseISO(date), 'MMM d, yyyy h:mm a') : 'No date';
+          const dateStr = date ? formatClinicalDate(date, 'withTime') : 'No date';
           const status = isResourceInactive(event) ? ' [Historical]' : '';
           content += `<li><strong>${dateStr}</strong> - ${event._title}${status}</li>`;
         });
-        
+
         content += '</ul>';
       });
     }
@@ -2006,7 +1999,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                                       {milestone.description}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
-                                      {format(parseISO(milestone.date), 'MMMM d, yyyy')}
+                                      {formatClinicalDate(milestone.date, 'verbose')}
                                     </Typography>
                                   </CardContent>
                                 </Card>
@@ -2349,7 +2342,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                     </Stack>
                   </Box>
                   <Typography variant="caption" color="text.secondary">
-                    {selectedEvent._date ? format(parseISO(selectedEvent._date), 'PPP p') : 'No date'}
+                    {selectedEvent._date ? formatClinicalDate(selectedEvent._date, 'verboseWithTime') : 'No date'}
                   </Typography>
                 </Stack>
                 
@@ -2430,7 +2423,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
           <DialogTitle>
             <Stack direction="row" alignItems="center" justifyContent="space-between">
               <Typography variant="h6">
-                {selectedDayEvents.date && format(parseISO(selectedDayEvents.date), 'MMMM d, yyyy')}
+                {selectedDayEvents.date && formatClinicalDate(selectedDayEvents.date, 'verbose')}
               </Typography>
               <IconButton onClick={() => setDayDetailsDialogOpen(false)} size="small">
                 <CloseIcon />
@@ -2523,7 +2516,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                               {event._description}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {format(parseISO(event._date), 'h:mm a')}
+                              {formatClinicalDate(event._date, 'timeOnly')}
                             </Typography>
                           </Stack>
                         }
@@ -2733,7 +2726,7 @@ const CalendarHeatmapComponent = ({ data, processedEvents, heatmapView, setHeatm
                           title={
                             <Box>
                               <Typography variant="subtitle2">
-                                {format(parseISO(dayData.date), 'MMMM d, yyyy')}
+                                {formatClinicalDate(dayData.date, 'verbose')}
                               </Typography>
                               <Typography variant="caption">
                                 {dayData.count} event{dayData.count !== 1 ? 's' : ''}

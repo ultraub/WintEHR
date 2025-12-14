@@ -821,20 +821,21 @@ function QueryStudio({ onNavigate, useFHIRData, onClose }) {
     const paramStrings = parameters
       .filter(p => p.key && p.value)
       .map(p => {
-        let paramStr = p.key;
+        let paramName = p.key;
+        let modifier = '';
         const resourceConfig = FHIR_RESOURCES[resource] || {};
         const searchParams = resourceConfig.searchParams || {};
         const paramConfig = searchParams[p.key] || SPECIAL_FHIR_PARAMS[p.key];
         const paramType = paramConfig?.type || 'string';
-        
-        // Add modifier if present
+
+        // Add modifier if present (don't encode the colon - it's part of FHIR syntax)
         if (p.modifier) {
           const modifierSymbol = SEARCH_MODIFIERS[paramType]?.[p.modifier]?.symbol;
           if (modifierSymbol) {
-            paramStr += modifierSymbol;
+            modifier = modifierSymbol;  // Keep modifier separate to avoid encoding the colon
           }
         }
-        
+
         // Build value with comparator
         let value = p.value;
         if (p.comparator && p.comparator !== 'eq') {
@@ -843,8 +844,9 @@ function QueryStudio({ onNavigate, useFHIRData, onClose }) {
             value = comparatorSymbol + value;
           }
         }
-        
-        return `${encodeURIComponent(paramStr)}=${encodeURIComponent(value)}`;
+
+        // Only encode the parameter name and value, not the modifier (colon)
+        return `${encodeURIComponent(paramName)}${modifier}=${encodeURIComponent(value)}`;
       });
     
     if (paramStrings.length > 0) {
@@ -1056,7 +1058,7 @@ function QueryStudio({ onNavigate, useFHIRData, onClose }) {
                       <TextField
                         fullWidth
                         size="small"
-                        value={decodeURIComponent(buildQuery())}
+                        value={buildQuery()}
                         InputProps={{
                           readOnly: true,
                           sx: { fontFamily: 'monospace', fontSize: '0.875rem' }

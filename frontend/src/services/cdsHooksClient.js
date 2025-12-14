@@ -204,7 +204,7 @@ class CDSHooksClient {
       
       const hookContext = {
         hook: 'patient-view',
-        hookInstance: `${service.id}-${Date.now()}`,
+        hookInstance: uuidv4(), // CDS Hooks 2.0 requires UUID
         context
       };
       
@@ -223,18 +223,31 @@ class CDSHooksClient {
 
   /**
    * Fire medication-prescribe hook with prefetch optimization
+   * Per CDS Hooks spec, medications should be passed as draftOrders Bundle
    */
   async fireMedicationPrescribe(patientId, userId, medications = []) {
     const services = await this.discoverServices();
     const prescribeServices = services.filter(s => s.hook === 'medication-prescribe');
-    
+
     const allCards = [];
-    
+
+    // Format medications as FHIR Bundle entries per CDS Hooks 2.0 spec
+    const draftOrders = {
+      resourceType: 'Bundle',
+      type: 'collection',
+      entry: medications.map(med => ({
+        resource: med.resourceType ? med : {
+          resourceType: 'MedicationRequest',
+          ...med
+        }
+      }))
+    };
+
     for (const service of prescribeServices) {
       const context = {
         patientId,
         userId,
-        medications
+        draftOrders // CDS Hooks spec requires draftOrders, not medications
       };
       
       // Resolve prefetch data if service has prefetch templates
@@ -256,7 +269,7 @@ class CDSHooksClient {
       
       const hookContext = {
         hook: 'medication-prescribe',
-        hookInstance: `${service.id}-${Date.now()}`,
+        hookInstance: uuidv4(), // CDS Hooks 2.0 requires UUID
         context
       };
       
@@ -275,13 +288,26 @@ class CDSHooksClient {
 
   /**
    * Fire order-sign hook
+   * Per CDS Hooks spec, orders should be passed as draftOrders Bundle
    */
   async fireOrderSign(patientId, userId, orders = []) {
     const services = await this.discoverServices();
     const orderServices = services.filter(s => s.hook === 'order-sign');
-    
+
     const allCards = [];
-    
+
+    // Format orders as FHIR Bundle per CDS Hooks 2.0 spec
+    const draftOrders = {
+      resourceType: 'Bundle',
+      type: 'collection',
+      entry: orders.map(order => ({
+        resource: order.resourceType ? order : {
+          resourceType: 'ServiceRequest',
+          ...order
+        }
+      }))
+    };
+
     for (const service of orderServices) {
       // Properly format context according to CDS Hooks spec
       const hookContext = {
@@ -290,7 +316,7 @@ class CDSHooksClient {
         context: {
           patientId,
           userId,
-          draftOrders: orders
+          draftOrders
         }
       };
       

@@ -12,10 +12,7 @@ import {
   Stack,
   Button,
   IconButton,
-  Tooltip,
   Badge,
-  Menu,
-  MenuItem,
   Card,
   CardContent,
   CardActions,
@@ -32,7 +29,6 @@ import {
   Skeleton,
   useTheme,
   alpha,
-  Divider,
   LinearProgress
 } from '@mui/material';
 import {
@@ -41,13 +37,10 @@ import {
   Delete as DeleteIcon,
   Sync as SyncIcon,
   Home as HomeIcon,
-  LocalHospital as HospitalIcon,
   ExitToApp as DischargeIcon,
   CompareArrows as ReconcileIcon,
-  MoreVert as MoreVertIcon,
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
@@ -106,8 +99,6 @@ const MedicationListManager = ({
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [lists, setLists] = useState({});
-  const [selectedMedication, setSelectedMedication] = useState(null);
-  const [menuAnchor, setMenuAnchor] = useState(null);
   const [reconcileDialogOpen, setReconcileDialogOpen] = useState(false);
   const [reconciling, setReconciling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);

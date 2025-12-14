@@ -161,7 +161,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
   }, [selectedTest, allLabData, filterLabDataByTest]);
 
   const formatXAxisDate = (dateStr) => {
-    return format(parseISO(dateStr), 'MM/dd');
+    return format(parseISO(dateStr), 'MMM yyyy');
   };
 
   const CustomTooltip = ({ active, payload, label }) => {

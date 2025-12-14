@@ -37,8 +37,7 @@ import {
   useTheme,
   alpha,
   ImageList,
-  ImageListItem,
-  Fade
+  ImageListItem
 } from '@mui/material';
 import {
   Image as ImagingIcon,
@@ -71,6 +70,7 @@ import {
   Collections as CollectionsIcon
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import axios from 'axios';
 import DICOMViewer from '../../imaging/DICOMViewer';
@@ -78,6 +78,7 @@ import ImagingReportDialog from '../../imaging/ImagingReportDialog';
 import DownloadDialog from '../../imaging/DownloadDialog';
 import ShareDialog from '../../imaging/ShareDialog';
 import { printDocument } from '../../../../core/export/printUtils';
+import { EXTENSION_URLS } from '../../../../constants/fhirExtensions';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import websocketService from '../../../../services/websocket';
@@ -332,9 +333,9 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
       label: 'Images', 
       value: `${study.numberOfInstances || 0} images` 
     },
-    { 
-      label: 'Date', 
-      value: studyDate ? format(parseISO(studyDate), 'MMM d, yyyy') : 'Unknown' 
+    {
+      label: 'Date',
+      value: formatClinicalDate(studyDate, 'standard', 'Unknown')
     }
   ];
   
@@ -411,7 +412,7 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
             {getStudyDescription()}
           </Typography>
           <Typography variant="caption" color="text.secondary" display="block">
-            {studyDate && format(parseISO(studyDate), 'MMM d, yyyy')}
+            {formatClinicalDate(studyDate)}
           </Typography>
           <Stack direction="row" spacing={1} mt={1}>
             <Chip 
@@ -481,7 +482,7 @@ const ImagingTab = ({
   onNavigateToTab // Cross-tab navigation support
 }) => {
   const theme = useTheme();
-  const { getPatientResources, isLoading, currentPatient } = useFHIRResource();
+  const { currentPatient } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
   const [density, setDensity] = useDensity();
   
@@ -506,98 +507,69 @@ const ImagingTab = ({
 
     setLoading(true);
     try {
-      console.log('[ImagingTab] Loading imaging studies for patient:', patientId);
+      // Single FHIR query with _include to get both ImagingStudy and Endpoint resources
+      // This eliminates the N+1 query problem
+      const response = await axios.get(`${getFhirUrl()}/ImagingStudy`, {
+        params: {
+          patient: patientId,
+          _include: 'ImagingStudy:endpoint',
+          _sort: '-_lastUpdated',
+          _count: 100
+        }
+      });
 
-      // Try to get imaging studies from FHIR context first
-      let fhirStudies = getPatientResources(patientId, 'ImagingStudy') || [];
-      console.log('[ImagingTab] Studies from context:', fhirStudies.length);
+      // Separate ImagingStudy and Endpoint resources from the bundle
+      const entries = response.data?.entry || [];
+      const imagingStudies = entries
+        .filter(e => e.resource?.resourceType === 'ImagingStudy')
+        .map(e => e.resource);
+      const endpoints = entries
+        .filter(e => e.resource?.resourceType === 'Endpoint')
+        .map(e => e.resource);
 
-      // If no studies in context, fetch directly from HAPI FHIR
-      if (fhirStudies.length === 0) {
-        console.log('[ImagingTab] Fetching ImagingStudy resources directly from HAPI FHIR...');
-        try {
-          const response = await axios.get(`${getFhirUrl()}/ImagingStudy`, {
-            params: {
-              patient: patientId,
-              _sort: '-_lastUpdated'
+      // Create lookup map for Endpoint resources
+      const endpointMap = new Map();
+      endpoints.forEach(ep => {
+        endpointMap.set(`Endpoint/${ep.id}`, ep);
+      });
+
+      // Enrich studies with directory information from Endpoint
+      const enrichedStudies = imagingStudies.map(study => {
+        let studyDirectory = null;
+
+        // Check if study has endpoint reference
+        if (study.endpoint && study.endpoint.length > 0) {
+          const endpointRef = study.endpoint[0].reference;
+          const endpoint = endpointMap.get(endpointRef);
+
+          if (endpoint?.address) {
+            // Extract directory name from file:// address or URL
+            if (endpoint.address.startsWith('file://')) {
+              const filePath = endpoint.address.replace('file://', '');
+              const pathParts = filePath.split('/');
+              studyDirectory = pathParts[pathParts.length - 1];
+            } else {
+              // For other address formats, extract last path segment
+              const pathParts = endpoint.address.split('/');
+              studyDirectory = pathParts[pathParts.length - 1];
             }
-          });
-
-          if (response.data?.entry) {
-            fhirStudies = response.data.entry.map(entry => entry.resource);
-            console.log('[ImagingTab] Fetched', fhirStudies.length, 'ImagingStudy resources from HAPI FHIR');
           }
-        } catch (fetchError) {
-          console.error('[ImagingTab] Failed to fetch ImagingStudy from HAPI FHIR:', fetchError);
         }
-      }
 
-      console.log('[ImagingTab] Total FHIR ImagingStudy resources:', fhirStudies.length);
-
-      // If we have FHIR studies, enrich them with Endpoint data
-      if (fhirStudies.length > 0) {
-        try {
-          // Process each study to extract directory from Endpoint
-          const enrichedStudies = await Promise.all(fhirStudies.map(async (fhirStudy) => {
-            let studyDirectory = null;
-
-            // Check if study has endpoint reference
-            if (fhirStudy.endpoint && fhirStudy.endpoint.length > 0) {
-              const endpointRef = fhirStudy.endpoint[0].reference;
-              console.log('[ImagingTab] Found endpoint reference:', endpointRef);
-
-              try {
-                // Fetch the Endpoint resource from HAPI FHIR
-                const endpointResponse = await axios.get(`${getFhirUrl()}/${endpointRef}`);
-                const endpoint = endpointResponse.data;
-
-                console.log('[ImagingTab] Endpoint address:', endpoint.address);
-
-                // Extract directory name from file:// address
-                if (endpoint.address && endpoint.address.startsWith('file://')) {
-                  const filePath = endpoint.address.replace('file://', '');
-                  const pathParts = filePath.split('/');
-                  studyDirectory = pathParts[pathParts.length - 1];
-                  console.log('[ImagingTab] Extracted directory name:', studyDirectory);
-                }
-              } catch (endpointError) {
-                console.error('[ImagingTab] Failed to fetch Endpoint:', endpointError);
-              }
-            }
-
-            // If no endpoint or extraction failed, use study ID as fallback
-            if (!studyDirectory) {
-              // Try using the actual directory format: study_{id}
-              studyDirectory = `study_${fhirStudy.id}`;
-              console.log('[ImagingTab] Using fallback directory:', studyDirectory);
-            }
-
-            return {
-              ...fhirStudy,
-              studyDirectory: studyDirectory
-            };
-          }));
-
-          console.log('[ImagingTab] Enriched studies:', enrichedStudies);
-          setStudies(enrichedStudies);
-        } catch (error) {
-          console.error('[ImagingTab] Failed to enrich studies with Endpoint data:', error);
-          // Fall back to FHIR studies without enrichment
-          setStudies(fhirStudies);
+        // Use standardized directory naming: study_{id}
+        if (!studyDirectory) {
+          studyDirectory = `study_${study.id}`;
         }
-      } else {
-        // No FHIR studies, try the API endpoint
-        try {
-          const response = await axios.get(`/api/imaging/studies/${patientId}`);
-          const apiStudies = response.data?.data || [];
-          setStudies(apiStudies);
-        } catch (error) {
-          // Failed to load from API - no studies available
-          setStudies([]);
-        }
-      }
+
+        return {
+          ...study,
+          studyDirectory
+        };
+      });
+
+      setStudies(enrichedStudies);
     } catch (error) {
-      // Handle error - imaging studies failed to load
+      console.error('[ImagingTab] Failed to load imaging studies:', error);
       setSnackbar({
         open: true,
         message: 'Failed to load imaging studies',
@@ -607,7 +579,7 @@ const ImagingTab = ({
     } finally {
       setLoading(false);
     }
-  }, [patientId, getPatientResources, currentPatient]);
+  }, [patientId]);
 
   // Load imaging studies when patient changes (removed separate useEffect to avoid circular dependency)
   useEffect(() => {
@@ -857,7 +829,7 @@ const ImagingTab = ({
     content += '<div class="section">';
     content += `<h3>${study.description || 'Imaging Study'}</h3>`;
     content += '<table>';
-    content += `<tr><td><strong>Study Date:</strong></td><td>${study.started ? format(parseISO(study.started), 'MMMM d, yyyy HH:mm') : 'Unknown'}</td></tr>`;
+    content += `<tr><td><strong>Study Date:</strong></td><td>${formatClinicalDate(study.started, 'verboseWithTime', 'Unknown')}</td></tr>`;
     content += `<tr><td><strong>Modality:</strong></td><td>${study.modality?.[0]?.code || 'Unknown'}</td></tr>`;
     content += `<tr><td><strong>Body Part:</strong></td><td>${study.bodySite?.[0]?.display || 'Not specified'}</td></tr>`;
     content += `<tr><td><strong>Accession Number:</strong></td><td>${study.identifier?.[0]?.value || 'Not available'}</td></tr>`;
@@ -920,7 +892,7 @@ const ImagingTab = ({
       
       modalityStudies.forEach(study => {
         content += '<tr>';
-        content += `<td>${study.started ? format(parseISO(study.started), 'MMM d, yyyy') : 'Unknown'}</td>`;
+        content += `<td>${formatClinicalDate(study.started, 'standard', 'Unknown')}</td>`;
         content += `<td>${study.description || 'No description'}</td>`;
         content += `<td>${study.bodySite?.[0]?.display || '-'}</td>`;
         content += `<td>${study.numberOfSeries || 0}</td>`;
@@ -1045,7 +1017,7 @@ const ImagingTab = ({
     // Check for DICOM directory in extensions
     if (studyObj.extension) {
       const dicomDirExt = studyObj.extension.find(
-        ext => ext.url === 'http://example.org/fhir/StructureDefinition/dicom-directory'
+        ext => ext.url === EXTENSION_URLS.DICOM_DIRECTORY
       );
       if (dicomDirExt && dicomDirExt.valueString) {
         return dicomDirExt.valueString;
@@ -1121,10 +1093,10 @@ const ImagingTab = ({
         return (
           <Box>
             <Typography variant="body2">
-              {format(parseISO(date), 'MMM d, yyyy')}
+              {formatClinicalDate(date)}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {formatDistanceToNow(parseISO(date), { addSuffix: true })}
+              {formatClinicalDate(date, 'relative')}
             </Typography>
           </Box>
         );

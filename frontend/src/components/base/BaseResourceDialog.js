@@ -16,8 +16,7 @@ import {
   Step,
   StepLabel,
   Alert,
-  CircularProgress,
-  Divider
+  CircularProgress
 } from '@mui/material';
 import {
   Close as CloseIcon,

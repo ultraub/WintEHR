@@ -8,10 +8,7 @@ from typing import Dict, List, Any, Optional, Set
 from datetime import datetime
 from collections import defaultdict, Counter
 import logging
-from services.fhir_client_config import (
-    search_resources,
-    get_fhir_server
-)
+from services.hapi_fhir_client import HAPIFHIRClient
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +46,15 @@ class DynamicCatalogService:
 
         logger.info("Extracting medication catalog using FHIR-standard _elements parameter")
 
-        server = get_fhir_server()
+        hapi_client = HAPIFHIRClient()
 
         try:
             # FHIR-standard approach: Fetch only medicationCodeableConcept field (85-90% payload reduction)
             # Works on ANY FHIR R4 server, not HAPI-specific
-            bundle = server.request_json(
-                "MedicationRequest?_elements=medicationCodeableConcept&_count=1000"
-            )
+            bundle = await hapi_client.search("MedicationRequest", {
+                "_elements": "medicationCodeableConcept",
+                "_count": "1000"
+            })
 
             total_found = len(bundle.get('entry', []))
             logger.info(f"Found {total_found} medication requests (minimal payload)")
@@ -130,13 +128,14 @@ class DynamicCatalogService:
 
         logger.info("Extracting condition catalog using FHIR-standard _elements parameter")
 
-        server = get_fhir_server()
+        hapi_client = HAPIFHIRClient()
 
         try:
             # FHIR-standard approach: Fetch only code field (85-90% payload reduction)
-            bundle = server.request_json(
-                "Condition?_elements=code&_count=1000"
-            )
+            bundle = await hapi_client.search("Condition", {
+                "_elements": "code",
+                "_count": "1000"
+            })
 
             total_found = len(bundle.get('entry', []))
             logger.info(f"Found {total_found} conditions (minimal payload)")
@@ -210,15 +209,16 @@ class DynamicCatalogService:
 
         logger.info("Extracting lab test catalog using FHIR-standard _elements parameter")
 
-        from services.fhir_client_config import get_fhir_server
-        server = get_fhir_server()
+        hapi_client = HAPIFHIRClient()
 
         try:
             # FHIR-standard approach: Fetch only code field (85-90% payload reduction)
             # Works on ANY FHIR R4 server, not HAPI-specific
-            bundle = server.request_json(
-                "Observation?category=laboratory&_elements=code&_count=1000"
-            )
+            bundle = await hapi_client.search("Observation", {
+                "category": "laboratory",
+                "_elements": "code",
+                "_count": "1000"
+            })
 
             total_found = len(bundle.get('entry', []))
             logger.info(f"Found {total_found} laboratory observations (minimal payload)")
@@ -298,13 +298,14 @@ class DynamicCatalogService:
 
         logger.info("Extracting procedure catalog using FHIR-standard _elements parameter")
 
-        server = get_fhir_server()
+        hapi_client = HAPIFHIRClient()
 
         try:
             # FHIR-standard approach: Fetch only code field (85-90% payload reduction)
-            bundle = server.request_json(
-                "Procedure?_elements=code&_count=1000"
-            )
+            bundle = await hapi_client.search("Procedure", {
+                "_elements": "code",
+                "_count": "1000"
+            })
 
             total_found = len(bundle.get('entry', []))
             logger.info(f"Found {total_found} procedures (minimal payload)")
@@ -378,13 +379,14 @@ class DynamicCatalogService:
 
         logger.info("Extracting vaccine catalog using FHIR-standard _elements parameter")
 
-        server = get_fhir_server()
+        hapi_client = HAPIFHIRClient()
 
         try:
             # FHIR-standard approach: Fetch only vaccineCode field (85-90% payload reduction)
-            bundle = server.request_json(
-                "Immunization?_elements=vaccineCode&_count=1000"
-            )
+            bundle = await hapi_client.search("Immunization", {
+                "_elements": "vaccineCode",
+                "_count": "1000"
+            })
 
             total_found = len(bundle.get('entry', []))
             logger.info(f"Found {total_found} immunizations (minimal payload)")
@@ -456,13 +458,14 @@ class DynamicCatalogService:
 
         logger.info("Extracting allergy catalog using FHIR-standard _elements parameter")
 
-        server = get_fhir_server()
+        hapi_client = HAPIFHIRClient()
 
         try:
             # FHIR-standard approach: Fetch only code field (85-90% payload reduction)
-            bundle = server.request_json(
-                "AllergyIntolerance?_elements=code&_count=1000"
-            )
+            bundle = await hapi_client.search("AllergyIntolerance", {
+                "_elements": "code",
+                "_count": "1000"
+            })
 
             total_found = len(bundle.get('entry', []))
             logger.info(f"Found {total_found} allergy intolerances (minimal payload)")
@@ -537,22 +540,21 @@ class DynamicCatalogService:
         return allergies
 
     async def get_catalog_statistics(self) -> Dict[str, Any]:
-        """Get statistics about the extracted catalogs using fhirclient."""
+        """Get statistics about the extracted catalogs using HAPIFHIRClient."""
         logger.info("Generating catalog statistics from HAPI FHIR")
 
-        # Get resource counts by searching with count
+        hapi_client = HAPIFHIRClient()
+
+        # Get resource counts by searching with _summary=count
         resource_types = ['Patient', 'MedicationRequest', 'MedicationStatement',
                          'Condition', 'Observation', 'Procedure']
 
         resource_counts = {}
         for resource_type in resource_types:
             try:
-                # Search with _summary=count to get just the total
-                results = search_resources(resource_type, {'_summary': 'count', '_count': 0})
-                # The count is typically in the bundle's total
-                # Since we're using fhirclient, we'll do a simple search and count results
-                full_results = search_resources(resource_type, {'_count': 1000})
-                resource_counts[resource_type] = len(full_results)
+                # Search with _summary=count to get just the total (efficient)
+                bundle = await hapi_client.search(resource_type, {'_summary': 'count'})
+                resource_counts[resource_type] = bundle.get('total', 0)
             except Exception as e:
                 logger.warning(f"Could not get count for {resource_type}: {e}")
                 resource_counts[resource_type] = 0
@@ -560,8 +562,11 @@ class DynamicCatalogService:
         # Get lab observation count specifically
         lab_count = 0
         try:
-            lab_observations = search_resources('Observation', {'category': 'laboratory', '_count': 1000})
-            lab_count = len(lab_observations)
+            bundle = await hapi_client.search('Observation', {
+                'category': 'laboratory',
+                '_summary': 'count'
+            })
+            lab_count = bundle.get('total', 0)
         except Exception as e:
             logger.warning(f"Could not get lab observation count: {e}")
 

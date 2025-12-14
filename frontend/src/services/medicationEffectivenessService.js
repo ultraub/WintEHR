@@ -5,6 +5,7 @@
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { addDays, addMonths, parseISO, isAfter, differenceInDays } from 'date-fns';
+import { EXTENSION_URLS, CODE_SYSTEM_URLS, PROFILE_URLS } from '../constants/fhirExtensions';
 
 class MedicationEffectivenessService {
   constructor() {
@@ -146,7 +147,7 @@ class MedicationEffectivenessService {
         },
         activity: this.buildMonitoringActivities(medicationRequest, parameters),
         extension: [{
-          url: 'http://example.org/fhir/medication-monitoring',
+          url: EXTENSION_URLS.MEDICATION_MONITORING,
           extension: [
             {
               url: 'originalMedication',
@@ -195,7 +196,7 @@ class MedicationEffectivenessService {
           event: [addDays(now, parameters.followUpIntervals.initial).toISOString()]
         },
         extension: [{
-          url: 'http://example.org/fhir/assessment-type',
+          url: EXTENSION_URLS.ASSESSMENT_TYPE,
           valueString: 'initial'
         }]
       }
@@ -220,7 +221,7 @@ class MedicationEffectivenessService {
             event: [assessmentDate.toISOString()]
           },
           extension: [{
-            url: 'http://example.org/fhir/assessment-type',
+            url: EXTENSION_URLS.ASSESSMENT_TYPE,
             valueString: 'ongoing'
           }]
         }
@@ -318,7 +319,7 @@ class MedicationEffectivenessService {
         }],
         code: {
           coding: [{
-            system: 'http://example.org/medication-effectiveness-codes',
+            system: CODE_SYSTEM_URLS.MEDICATION_EFFECTIVENESS,
             code: 'medication-effectiveness-assessment',
             display: 'Medication Effectiveness Assessment'
           }]
@@ -329,14 +330,14 @@ class MedicationEffectivenessService {
           {
             code: {
               coding: [{
-                system: 'http://example.org/effectiveness-components',
+                system: CODE_SYSTEM_URLS.EFFECTIVENESS_COMPONENTS,
                 code: 'overall-effectiveness',
                 display: 'Overall Effectiveness'
               }]
             },
             valueCodeableConcept: {
               coding: [{
-                system: 'http://example.org/effectiveness-scale',
+                system: CODE_SYSTEM_URLS.EFFECTIVENESS_SCALE,
                 code: assessmentData.overallEffectiveness,
                 display: this.getEffectivenessDisplayName(assessmentData.overallEffectiveness)
               }]
@@ -345,7 +346,7 @@ class MedicationEffectivenessService {
           {
             code: {
               coding: [{
-                system: 'http://example.org/effectiveness-components',
+                system: CODE_SYSTEM_URLS.EFFECTIVENESS_COMPONENTS,
                 code: 'side-effects',
                 display: 'Side Effects Experienced'
               }]
@@ -355,14 +356,14 @@ class MedicationEffectivenessService {
           {
             code: {
               coding: [{
-                system: 'http://example.org/effectiveness-components',
+                system: CODE_SYSTEM_URLS.EFFECTIVENESS_COMPONENTS,
                 code: 'adherence-level',
                 display: 'Medication Adherence'
               }]
             },
             valueCodeableConcept: {
               coding: [{
-                system: 'http://example.org/adherence-scale',
+                system: CODE_SYSTEM_URLS.ADHERENCE_SCALE,
                 code: assessmentData.adherenceLevel,
                 display: this.getAdherenceDisplayName(assessmentData.adherenceLevel)
               }]
@@ -374,7 +375,7 @@ class MedicationEffectivenessService {
           time: new Date().toISOString()
         }],
         extension: [{
-          url: 'http://example.org/fhir/medication-assessment',
+          url: EXTENSION_URLS.MEDICATION_ASSESSMENT,
           extension: [
             {
               url: 'medicationReference',
@@ -423,7 +424,7 @@ class MedicationEffectivenessService {
       for (const plan of monitoringPlans) {
         // Check if this is a medication monitoring plan
         const medicationExtension = plan.extension?.find(
-          ext => ext.url === 'http://example.org/fhir/medication-monitoring'
+          ext => ext.url === EXTENSION_URLS.MEDICATION_MONITORING
         );
 
         if (!medicationExtension) continue;
@@ -591,13 +592,13 @@ class MedicationEffectivenessService {
   async getMonitoringPlan(medicationRequestId) {
     try {
       const response = await fhirClient.search('CarePlan', {
-        _profile: 'http://example.org/fhir/StructureDefinition/MedicationMonitoring',
+        _profile: PROFILE_URLS.MEDICATION_MONITORING,
         _count: 10
       });
 
       return (response.resources || []).find(plan => {
         const medicationExtension = plan.extension?.find(
-          ext => ext.url === 'http://example.org/fhir/medication-monitoring'
+          ext => ext.url === EXTENSION_URLS.MEDICATION_MONITORING
         );
         const medicationRef = medicationExtension?.extension?.find(
           ext => ext.url === 'originalMedication'
@@ -620,7 +621,7 @@ class MedicationEffectivenessService {
 
       return (response.resources || []).find(obs => {
         const medicationExtension = obs.extension?.find(
-          ext => ext.url === 'http://example.org/fhir/medication-assessment'
+          ext => ext.url === EXTENSION_URLS.MEDICATION_ASSESSMENT
         );
         const medicationRef = medicationExtension?.extension?.find(
           ext => ext.url === 'medicationReference'

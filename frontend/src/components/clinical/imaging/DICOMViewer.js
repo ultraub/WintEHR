@@ -15,7 +15,6 @@ import {
   CircularProgress,
   Alert,
   ButtonGroup,
-  Button,
   FormControl,
   InputLabel,
   Select,
@@ -31,14 +30,12 @@ import {
   Pause as PauseIcon,
   SkipPrevious as PrevIcon,
   SkipNext as NextIcon,
-  Fullscreen as FullscreenIcon,
-  GetApp as DownloadIcon,
-  Settings as SettingsIcon,
   Info as InfoIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 import { apiClient } from '../../../services/api';
+import { EXTENSION_URLS } from '../../../constants/fhirExtensions';
 
 const DICOMViewer = ({ study, onClose }) => {
   const theme = useTheme();
@@ -48,7 +45,7 @@ const DICOMViewer = ({ study, onClose }) => {
   const [instances, setInstances] = useState([]);
   const [currentInstanceIndex, setCurrentInstanceIndex] = useState(0);
   const [currentImage, setCurrentImage] = useState(null);
-  const [viewerConfig, setViewerConfig] = useState(null);
+  const [, setViewerConfig] = useState(null);
   
   // Viewer state
   const [windowCenter, setWindowCenter] = useState(128);
@@ -164,7 +161,7 @@ const DICOMViewer = ({ study, onClose }) => {
     // Check for DICOM directory in extensions
     if (studyObj.extension) {
       const dicomDirExt = studyObj.extension.find(
-        ext => ext.url === 'http://example.org/fhir/StructureDefinition/dicom-directory'
+        ext => ext.url === EXTENSION_URLS.DICOM_DIRECTORY
       );
       if (dicomDirExt && dicomDirExt.valueString) {
         return dicomDirExt.valueString;
@@ -403,8 +400,6 @@ const DICOMViewer = ({ study, onClose }) => {
       </Alert>
     );
   }
-
-  const currentInstance = instances[currentInstanceIndex];
 
   return (
     <Box sx={{ 

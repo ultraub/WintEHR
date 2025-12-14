@@ -311,13 +311,42 @@ class ClinicalCDSService {
 
   /**
    * Handle alert acknowledgment
+   * Sends feedback to CDS Hooks service per CDS Hooks 2.0 spec
+   * @param {string|object} alertOrId - Alert object or alert ID
+   * @param {object} acknowledgment - Acknowledgment details including notes
    */
-  acknowledgeAlert(alertId, acknowledgment) {
-    this.acknowledgments.set(alertId, {
+  async acknowledgeAlert(alertOrId, acknowledgment) {
+    // Support both alert object and alert ID for backward compatibility
+    const alertId = typeof alertOrId === 'string' ? alertOrId : alertOrId?.id;
+    const alert = typeof alertOrId === 'object' ? alertOrId : this.activeAlerts.get(alertId);
+
+    const ackData = {
       timestamp: new Date(),
       ...acknowledgment
-    });
-    
+    };
+
+    this.acknowledgments.set(alertId, ackData);
+
+    // Send feedback to backend CDS Hooks service per CDS Hooks 2.0 spec
+    const serviceId = alert?.serviceId;
+    if (serviceId) {
+      try {
+        await cdsHooksClient.sendFeedback(serviceId, {
+          card: alertId,
+          outcome: acknowledgment.notes ? 'overridden' : 'accepted',
+          outcomeTimestamp: ackData.timestamp.toISOString(),
+          overrideReasons: acknowledgment.notes ? [{
+            reason: {
+              text: acknowledgment.notes
+            }
+          }] : undefined
+        });
+      } catch (error) {
+        console.warn('Failed to send CDS feedback to backend:', error);
+        // Don't block on feedback failure - acknowledgment is still recorded locally
+      }
+    }
+
     // Notify callbacks
     this.notifyCallbacks('acknowledge', { alertId, acknowledgment });
   }

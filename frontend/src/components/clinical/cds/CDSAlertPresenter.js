@@ -3,7 +3,7 @@
  * Unified presentation of CDS alerts with support for different display modes
  * Integrates with dialogs and clinical workflows
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Stack,
@@ -20,19 +20,9 @@ import {
   Chip,
   Typography,
   Collapse,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  ListItemSecondaryAction,
   Paper,
-  Divider,
   TextField,
-  FormControlLabel,
-  Checkbox,
   Snackbar,
-  Fade,
-  Slide,
   Zoom,
   useTheme,
   alpha
@@ -42,19 +32,16 @@ import {
   Error as CriticalIcon,
   Info as InfoIcon,
   CheckCircle as SuccessIcon,
+  CheckCircle,
   Close as CloseIcon,
   Snooze as SnoozeIcon,
-  Link as LinkIcon,
   ExpandMore as ExpandIcon,
   ExpandLess as CollapseIcon,
   Notifications as AlertIcon,
-  Block as BlockIcon,
   ThumbUp as AcknowledgeIcon,
-  Timer as TimerIcon,
   Launch as LaunchIcon
 } from '@mui/icons-material';
 import { clinicalCDSService } from '../../../services/clinicalCDSService';
-import { format } from 'date-fns';
 
 // Alert presentation modes
 export const ALERT_MODES = {
@@ -193,7 +180,7 @@ const CDSAlertPresenter = ({
       };
       
       setAcknowledgments(prev => new Map(prev).set(alert.id, acknowledgment));
-      clinicalCDSService.acknowledgeAlert(alert.id, acknowledgment);
+      clinicalCDSService.acknowledgeAlert(alert, acknowledgment); // Pass full alert for serviceId
       
       if (onAcknowledge) {
         onAcknowledge(alert, acknowledgment);
@@ -238,7 +225,7 @@ const CDSAlertPresenter = ({
       };
       
       setAcknowledgments(prev => new Map(prev).set(selectedAlert.id, acknowledgment));
-      clinicalCDSService.acknowledgeAlert(selectedAlert.id, acknowledgment);
+      clinicalCDSService.acknowledgeAlert(selectedAlert, acknowledgment); // Pass full alert for serviceId
       
       if (onAcknowledge) {
         onAcknowledge(selectedAlert, acknowledgment);

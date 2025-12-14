@@ -17,6 +17,9 @@ export const CLINICAL_EVENTS = {
   RESULT_ACKNOWLEDGED: 'result.acknowledged',
   MEDICATION_DISPENSED: 'medication.dispensed',
   MEDICATION_ADMINISTERED: 'medication.administered',
+  MEDICATION_STATUS_CHANGED: 'medication.status.changed',
+  MAR_ADMINISTRATION_RECORDED: 'mar.administration.recorded',
+  MAR_DOSE_MISSED: 'mar.dose.missed',
   ENCOUNTER_CREATED: 'encounter.created',
   ENCOUNTER_UPDATED: 'encounter.updated',
   DOCUMENTATION_CREATED: 'documentation.created',
@@ -600,7 +603,7 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       // Load recent results
       const observations = getPatientResources(patientId, 'Observation') || [];
       const recentResults = observations
-        .sort((a, b) => new Date(b.effectiveDateTime || 0) - new Date(a.effectiveDateTime || 0))
+        .sort((a, b) => new Date(b.effectiveDateTime || b.issued || 0) - new Date(a.effectiveDateTime || a.issued || 0))
         .slice(0, 10);
       
       // Load encounters

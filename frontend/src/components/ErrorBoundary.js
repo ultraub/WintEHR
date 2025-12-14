@@ -1,13 +1,12 @@
 import React from 'react';
-import { 
-  Box, 
-  Typography, 
-  Button, 
-  Paper, 
+import {
+  Box,
+  Typography,
+  Button,
+  Paper,
   Stack,
   Alert,
-  Collapse,
-  IconButton
+  Collapse
 } from '@mui/material';
 import {
   Error as ErrorIcon,

@@ -8,23 +8,18 @@ import {
   Paper,
   Typography,
   List,
-  ListItem,
   ListItemText,
-  ListItemIcon,
   ListItemButton,
   ListItemAvatar,
   Avatar,
   Chip,
   Button,
   IconButton,
-  Badge,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   TextField,
-  Divider,
-  Alert,
   ToggleButton,
   ToggleButtonGroup,
   Card,
@@ -35,17 +30,13 @@ import {
   MenuItem
 } from '@mui/material';
 import {
-  Inbox as InboxIcon,
   Send as SendIcon,
   Drafts as DraftsIcon,
   Mail as MailIcon,
   Reply as ReplyIcon,
-  Forward as ForwardIcon,
   Delete as DeleteIcon,
   AttachFile as AttachIcon,
   PriorityHigh as HighPriorityIcon,
-  Person as PersonIcon,
-  Group as GroupIcon,
   LocalHospital as ClinicalIcon,
   AdminPanelSettings as AdminIcon,
   Star as StarIcon,
@@ -59,7 +50,7 @@ const FHIRInboxTab = () => {
   const { currentPatient } = useClinical();
   const [messages, setMessages] = useState([]);
   const [selectedMessage, setSelectedMessage] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [showComposeDialog, setShowComposeDialog] = useState(false);
   const [replyTo, setReplyTo] = useState(null);

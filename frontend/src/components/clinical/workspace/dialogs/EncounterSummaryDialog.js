@@ -43,6 +43,7 @@ import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../core/export/printUtils';
 import { getMedicationDosageDisplay, getMedicationRoute } from '../../../../core/fhir/utils/medicationDisplayUtils';
+import { getStatusColor } from '../../../../core/fhir/utils/statusDisplayUtils';
 
 // Get encounter type icon and color
 const getEncounterIcon = (encounterClass) => {
@@ -143,15 +144,6 @@ const EncounterSummaryDialog = ({ open, onClose, encounter, patientId }) => {
   const startDate = period.start ? parseISO(period.start) : null;
   const endDate = period.end ? parseISO(period.end) : null;
   const iconInfo = getEncounterIcon(encounter.class);
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'finished': return 'success';
-      case 'in-progress': return 'warning';
-      case 'cancelled': return 'error';
-      default: return 'default';
-    }
-  };
 
   const handlePrint = () => {
     const printContent = {

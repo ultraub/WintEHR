@@ -17,7 +17,7 @@ import NotFound from '../pages/NotFound';
 import MedicationReconciliationPage from '../pages/MedicationReconciliationPage';
 import VitalSignsPage from '../pages/VitalSignsPage';
 import TrainingCenterPage from '../pages/TrainingCenterPage';
-import CDSHooksStudio from '../pages/CDSHooksStudio';
+import { CDSStudioPage } from '../modules/cds-studio';
 import CDSPresentationModeTester from '../components/clinical/cds/CDSPresentationModeTester';
 import EncountersPage from '../pages/EncountersPage';
 import LabResultsPage from '../pages/LabResultsPage';
@@ -242,7 +242,7 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <LayoutV3>
-          <CDSHooksStudio />
+          <CDSStudioPage />
         </LayoutV3>
       </ProtectedRoute>
     )

@@ -19,9 +19,6 @@ import {
   Chip,
   Stack,
   Alert,
-  Card,
-  CardContent,
-  CardActions,
   Table,
   TableBody,
   TableCell,
@@ -39,11 +36,10 @@ import {
   Settings as SettingsIcon,
   TestTube as TestIcon,
   Visibility as ViewIcon,
-  Download as DownloadIcon,
-  Upload as UploadIcon
+  Download as DownloadIcon
 } from '@mui/icons-material';
 
-import CDSHookManager, { WORKFLOW_TRIGGERS, HOOK_PRESENTATION_CONFIG } from './CDSHookManager';
+import CDSHookManager, { WORKFLOW_TRIGGERS } from './CDSHookManager';
 import CDSPresentation, { PRESENTATION_MODES } from './CDSPresentation';
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
 
@@ -132,7 +128,9 @@ const CDSTestingPanel = ({ patientId, onClose }) => {
           alerts = await cdsHooksClient.fireOrderSign(patientId, 'test-user', []);
           break;
         default:
-          if (debugMode) 
+          if (debugMode) {
+            console.debug(`Unknown workflow trigger: ${trigger}`);
+          }
       }
       
       setTestResults({
@@ -428,10 +426,14 @@ const CDSTestingPanel = ({ patientId, onClose }) => {
               currentHook="patient-view"
               debugMode={debugMode}
               onHookFired={(hookType, alerts) => {
-                if (debugMode) 
+                if (debugMode) {
+                  console.debug(`Hook fired: ${hookType}`, alerts);
+                }
               }}
               onAlertAction={(alert, action, suggestion) => {
-                if (debugMode) 
+                if (debugMode) {
+                  console.debug(`Alert action: ${action}`, { alert, suggestion });
+                }
               }}
             />
           </AccordionDetails>

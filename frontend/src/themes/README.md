@@ -197,9 +197,9 @@ theme.components.inputHeight    // 56px
 A themed status indicator component:
 
 ```javascript
-import StatusChip from '../components/clinical/common/StatusChip';
+import StatusChip from '../components/clinical/shared/display/StatusChip';
 
-<StatusChip 
+<StatusChip
   status="active"           // Required: status value
   variant="clinical"        // Optional: 'clinical' or 'standard'
   size="small"             // Optional: 'small' or 'medium'
@@ -211,7 +211,7 @@ import StatusChip from '../components/clinical/common/StatusChip';
 A themed metric display card:
 
 ```javascript
-import MetricCard from '../components/clinical/common/MetricCard';
+import MetricCard from '../components/clinical/shared/cards/MetricCard';
 
 <MetricCard
   title="Active Problems"      // Required: card title

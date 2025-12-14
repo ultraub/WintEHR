@@ -19,7 +19,7 @@ import json
 import logging
 
 from database import get_db_session
-from services.fhir_client_config import search_resources, get_resource, update_resource, create_resource
+from services.hapi_fhir_client import HAPIFHIRClient
 from pydantic import BaseModel
 from enum import Enum
 
@@ -97,13 +97,15 @@ async def get_inbox_items(
     """
     try:
         inbox_items = []
-        
+        hapi_client = HAPIFHIRClient()
+
         # 1. Get FHIR Tasks
-        task_params = {"status": "requested,accepted,in-progress", "_count": limit}
+        task_params = {"status": "requested,accepted,in-progress", "_count": str(limit)}
         if patient_id:
             task_params["patient"] = patient_id
 
-        tasks = search_resources("Task", task_params)
+        task_bundle = await hapi_client.search("Task", task_params)
+        tasks = [entry.get("resource", {}) for entry in task_bundle.get("entry", [])]
         
         for task in tasks:
             # Extract patient info - handle both reference string and object formats
@@ -138,12 +140,13 @@ async def get_inbox_items(
             obs_params = {
                 "status": "final",
                 "date": f"ge{(datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')}",
-                "_count": 50
+                "_count": "50"
             }
             if patient_id:
                 obs_params["patient"] = patient_id
 
-            observations = search_resources("Observation", obs_params)
+            obs_bundle = await hapi_client.search("Observation", obs_params)
+            observations = [entry.get("resource", {}) for entry in obs_bundle.get("entry", [])]
             
             for obs in observations:
                 # Check if abnormal - safely navigate nested structures
@@ -186,11 +189,12 @@ async def get_inbox_items(
         
         # 3. Get pending medication requests
         if not type or type == InboxItemType.MEDICATION_REQUEST:
-            med_params = {"status": "draft,active", "intent": "order", "_count": 20}
+            med_params = {"status": "draft,active", "intent": "order", "_count": "20"}
             if patient_id:
                 med_params["patient"] = patient_id
 
-            med_requests = search_resources("MedicationRequest", med_params)
+            med_bundle = await hapi_client.search("MedicationRequest", med_params)
+            med_requests = [entry.get("resource", {}) for entry in med_bundle.get("entry", [])]
             
             for med_req in med_requests:
                 if med_req.get("status") == "draft":
@@ -273,11 +277,13 @@ async def get_inbox_item(
 ):
     """Get a specific inbox item by ID."""
     try:
+        hapi_client = HAPIFHIRClient()
+
         # Try to parse the item ID to determine type
         if item_id.startswith("lab-"):
             # Lab result
             obs_id = item_id.replace("lab-", "")
-            obs = get_resource("Observation", obs_id)
+            obs = await hapi_client.read("Observation", obs_id)
             if not obs:
                 raise HTTPException(status_code=404, detail="Lab result not found")
             
@@ -303,7 +309,7 @@ async def get_inbox_item(
         elif item_id.startswith("med-"):
             # Medication request
             med_id = item_id.replace("med-", "")
-            med_req = get_resource("MedicationRequest", med_id)
+            med_req = await hapi_client.read("MedicationRequest", med_id)
             if not med_req:
                 raise HTTPException(status_code=404, detail="Medication request not found")
             
@@ -327,7 +333,7 @@ async def get_inbox_item(
             
         else:
             # Assume it's a task
-            task = get_resource("Task", item_id)
+            task = await hapi_client.read("Task", item_id)
             if not task:
                 raise HTTPException(status_code=404, detail="Inbox item not found")
             
@@ -365,6 +371,7 @@ async def perform_bulk_action(
     """Perform bulk actions on multiple inbox items."""
     try:
         results = []
+        hapi_client = HAPIFHIRClient()
 
         for item_id in request.item_ids:
             try:
@@ -376,10 +383,10 @@ async def perform_bulk_action(
                 elif request.action == "mark_completed":
                     if not item_id.startswith("lab-") and not item_id.startswith("med-"):
                         # Update task status
-                        task = get_resource("Task", item_id)
+                        task = await hapi_client.read("Task", item_id)
                         if task:
                             task["status"] = "completed"
-                            update_resource("Task", item_id, task)
+                            await hapi_client.update("Task", item_id, task)
                     results.append({"id": item_id, "success": True})
 
                 elif request.action == "archive":
@@ -389,18 +396,18 @@ async def perform_bulk_action(
                 elif request.action == "assign" and request.assignee_id:
                     if not item_id.startswith("lab-") and not item_id.startswith("med-"):
                         # Update task owner
-                        task = get_resource("Task", item_id)
+                        task = await hapi_client.read("Task", item_id)
                         if task:
                             task["owner"] = {"reference": f"Practitioner/{request.assignee_id}"}
-                            update_resource("Task", item_id, task)
+                            await hapi_client.update("Task", item_id, task)
                     results.append({"id": item_id, "success": True})
-                    
+
                 else:
                     results.append({"id": item_id, "success": False, "error": "Invalid action"})
-                    
+
             except Exception as e:
                 results.append({"id": item_id, "success": False, "error": str(e)})
-        
+
         return {"results": results}
         
     except Exception as e:
@@ -443,9 +450,10 @@ async def create_task_from_inbox(
                 "reference": f"Practitioner/{request.assigned_to}"
             }
 
-        # Create the task
-        created_task = create_resource(task)
-        
+        # Create the task using async client
+        hapi_client = HAPIFHIRClient()
+        created_task = await hapi_client.create("Task", task)
+
         return {
             "success": True,
             "task_id": created_task.get("id"),

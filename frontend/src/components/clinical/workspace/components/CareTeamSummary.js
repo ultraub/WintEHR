@@ -321,6 +321,7 @@ const CareTeamSummary = ({ patientId, onViewFullTeam }) => {
                           )}
                         </Box>
                       }
+                      secondaryTypographyProps={{ component: 'div' }}
                       secondary={
                         <Stack spacing={0.5}>
                           {/* Role and Specialty */}

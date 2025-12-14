@@ -6,19 +6,16 @@ to replace the deprecated notification system that wrote to fhir.resources table
 
 Created: 2025-10-05
 Migration: Part of HAPI FHIR migration from custom FHIR backend
+Updated: 2025-11 - Migrated to HAPIFHIRClient for async non-blocking operations
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # HAPI FHIR client for creating Communication resources
-from services.fhir_client_config import get_fhir_server
-from fhirclient.models.communication import Communication
-from fhirclient.models.reference import FHIRReference
-from fhirclient.models.codeableconcept import CodeableConcept
-from fhirclient.models.coding import Coding
+from services.hapi_fhir_client import HAPIFHIRClient
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +43,7 @@ class NotificationService:
         priority: str = "routine",
         category: str = "notification",
         patient_id: Optional[str] = None
-    ) -> Optional[Communication]:
+    ) -> Optional[Dict[str, Any]]:
         """
         Create a system notification as a FHIR Communication resource.
 
@@ -60,68 +57,56 @@ class NotificationService:
             patient_id: Optional patient reference
 
         Returns:
-            Created Communication resource or None on error
+            Created Communication resource dict or None on error
         """
         try:
-            # Get HAPI FHIR server
-            server = get_fhir_server()
+            hapi_client = HAPIFHIRClient()
 
-            # Create Communication resource
-            communication = Communication()
+            # Build Communication resource as dictionary
+            communication = {
+                "resourceType": "Communication",
+                "status": "in-progress",
+                "priority": self.PRIORITY_MAP.get(priority.lower(), "routine"),
+                "category": [
+                    {
+                        "coding": [
+                            {
+                                "system": self.CATEGORY_SYSTEM,
+                                "code": category,
+                                "display": category.title()
+                            }
+                        ]
+                    }
+                ],
+                "recipient": [
+                    {"reference": f"Practitioner/{recipient_id}"}
+                ],
+                "sender": {
+                    "reference": "Organization/system",
+                    "display": "EMR System"
+                },
+                "sent": datetime.utcnow().isoformat() + "Z",
+                "payload": [
+                    {"contentString": f"{subject}\n\n{message}"}
+                ]
+            }
 
-            # Set status (in-progress since it's a new notification)
-            communication.status = "in-progress"
-
-            # Set priority
-            communication.priority = self.PRIORITY_MAP.get(priority.lower(), "routine")
-
-            # Set category
-            category_concept = CodeableConcept()
-            category_coding = Coding()
-            category_coding.system = self.CATEGORY_SYSTEM
-            category_coding.code = category
-            category_coding.display = category.title()
-            category_concept.coding = [category_coding]
-            communication.category = [category_concept]
-
-            # Set recipient (Practitioner)
-            recipient_ref = FHIRReference()
-            recipient_ref.reference = f"Practitioner/{recipient_id}"
-            communication.recipient = [recipient_ref]
-
-            # Set sender (system)
-            sender_ref = FHIRReference()
-            sender_ref.reference = "Organization/system"
-            sender_ref.display = "EMR System"
-            communication.sender = sender_ref
-
-            # Set patient subject if provided
+            # Add patient subject if provided
             if patient_id:
-                subject_ref = FHIRReference()
-                subject_ref.reference = f"Patient/{patient_id}"
-                communication.subject = subject_ref
-
-            # Set sent timestamp
-            communication.sent = datetime.utcnow().isoformat() + "Z"
-
-            # Set payload (message content)
-            from fhirclient.models.communication import CommunicationPayload
-            payload = CommunicationPayload()
-            payload.contentString = f"{subject}\n\n{message}"
-            communication.payload = [payload]
+                communication["subject"] = {"reference": f"Patient/{patient_id}"}
 
             # Create resource in HAPI FHIR
-            result = communication.create(server)
+            result = await hapi_client.create("Communication", communication)
 
-            if result:
+            if result and result.get("id"):
                 logger.info(
                     f"Created Communication notification: "
-                    f"ID={communication.id}, "
+                    f"ID={result.get('id')}, "
                     f"priority={priority}, "
                     f"category={category}, "
                     f"recipient={recipient_id}"
                 )
-                return communication
+                return result
             else:
                 logger.error("Failed to create Communication resource in HAPI FHIR")
                 return None
@@ -146,31 +131,31 @@ class NotificationService:
             True if successful, False otherwise
         """
         try:
-            server = get_fhir_server()
+            hapi_client = HAPIFHIRClient()
 
             # Read existing Communication
-            communication = Communication.read(communication_id, server)
+            communication = await hapi_client.read("Communication", communication_id)
             if not communication:
                 logger.error(f"Communication {communication_id} not found")
                 return False
 
             # Update status to completed
-            communication.status = "completed"
+            communication["status"] = "completed"
 
             # Add note about who read it
-            from fhirclient.models.annotation import Annotation
-            note = Annotation()
-            note.text = f"Read by {user_id}"
-            note.time = datetime.utcnow().isoformat() + "Z"
-            note.authorReference = FHIRReference({"reference": f"Practitioner/{user_id}"})
+            note = {
+                "text": f"Read by {user_id}",
+                "time": datetime.utcnow().isoformat() + "Z",
+                "authorReference": {"reference": f"Practitioner/{user_id}"}
+            }
 
-            if communication.note:
-                communication.note.append(note)
+            if communication.get("note"):
+                communication["note"].append(note)
             else:
-                communication.note = [note]
+                communication["note"] = [note]
 
             # Update in HAPI FHIR
-            result = communication.update(server)
+            result = await hapi_client.update("Communication", communication_id, communication)
 
             if result:
                 logger.info(f"Marked Communication {communication_id} as read by {user_id}")
@@ -188,7 +173,7 @@ class NotificationService:
         recipient_id: str,
         status: Optional[str] = None,
         limit: int = 50
-    ) -> list:
+    ) -> List[Dict[str, Any]]:
         """
         Get notifications (Communications) for a specific user.
 
@@ -201,7 +186,7 @@ class NotificationService:
             List of Communication resources
         """
         try:
-            server = get_fhir_server()
+            hapi_client = HAPIFHIRClient()
 
             # Build search parameters
             search_params = {
@@ -214,10 +199,11 @@ class NotificationService:
                 search_params["status"] = status
 
             # Search for Communications
-            search = Communication.where(struct=search_params)
-            communications = search.perform_resources(server)
+            bundle = await hapi_client.search("Communication", search_params)
 
-            return communications if communications else []
+            if isinstance(bundle, dict) and bundle.get("entry"):
+                return [entry.get("resource", entry) for entry in bundle["entry"]]
+            return []
 
         except Exception as e:
             logger.error(f"Error retrieving notifications for {recipient_id}: {e}", exc_info=True)

@@ -125,7 +125,9 @@ import {
   BookmarkBorder as BookmarkIcon,
   BookmarkAdded as BookmarkAddedIcon,
   Timeline as TimelineIcon,
-  AccountTree as TreeIcon
+  AccountTree as TreeIcon,
+  NavigateBefore as NavigateBeforeIcon,
+  NavigateNext as NavigateNextIcon
 } from '@mui/icons-material';
 
 // Import FHIR resources and utilities
@@ -153,7 +155,132 @@ const QUERY_STUDIO_CONFIG = {
   enableQueryOptimizer: true,
   enableSmartSuggestions: true,
   enableQueryTemplates: true,
-  enableFieldExplorer: true
+  enableFieldExplorer: true,
+  enableParameterValidation: true  // FHR-1: Enable parameter validation before execution
+};
+
+/**
+ * FHR-1: Validate search parameters before execution
+ * Checks parameter names, value formats, and reference patterns
+ */
+const validateQueryParameters = (resourceType, parameters) => {
+  const errors = [];
+  const warnings = [];
+
+  if (!resourceType) {
+    errors.push({ type: 'error', message: 'Resource type is required' });
+    return { valid: false, errors, warnings };
+  }
+
+  const resourceConfig = FHIR_RESOURCES[resourceType];
+  if (!resourceConfig) {
+    errors.push({ type: 'error', message: `Unknown resource type: ${resourceType}` });
+    return { valid: false, errors, warnings };
+  }
+
+  const validParams = {
+    ...resourceConfig.searchParams,
+    ...SPECIAL_FHIR_PARAMS
+  };
+
+  parameters.forEach((param, index) => {
+    if (!param.key) return; // Skip empty parameters
+
+    // Extract base parameter name (without modifier)
+    const baseParam = param.key.split(':')[0];
+
+    // Check if parameter is valid for this resource
+    if (!validParams[baseParam]) {
+      errors.push({
+        type: 'error',
+        message: `Invalid parameter "${baseParam}" for ${resourceType}`,
+        index,
+        suggestion: Object.keys(validParams).find(p =>
+          p.toLowerCase().includes(baseParam.toLowerCase()) ||
+          baseParam.toLowerCase().includes(p.toLowerCase())
+        )
+      });
+      return;
+    }
+
+    const paramConfig = validParams[baseParam];
+
+    // Validate value is provided
+    if (!param.value && param.key !== '_summary' && param.key !== '_elements') {
+      warnings.push({
+        type: 'warning',
+        message: `Parameter "${baseParam}" has no value`,
+        index
+      });
+    }
+
+    // Validate reference format
+    if (paramConfig.type === 'reference' && param.value) {
+      const refPattern = /^([A-Z][a-zA-Z]+\/)?[a-zA-Z0-9-]+$/;
+      if (!refPattern.test(param.value) && !param.value.startsWith('urn:')) {
+        warnings.push({
+          type: 'warning',
+          message: `Reference "${param.value}" may be invalid. Expected format: ResourceType/id or just id`,
+          index
+        });
+      }
+    }
+
+    // Validate date format
+    if (paramConfig.type === 'date' && param.value) {
+      // Remove comparator prefix if present
+      let dateValue = param.value;
+      const comparatorPrefixes = ['eq', 'ne', 'gt', 'lt', 'ge', 'le', 'sa', 'eb', 'ap'];
+      for (const prefix of comparatorPrefixes) {
+        if (dateValue.startsWith(prefix)) {
+          dateValue = dateValue.substring(prefix.length);
+          break;
+        }
+      }
+
+      // Check for valid date formats: YYYY, YYYY-MM, YYYY-MM-DD, or full datetime
+      const datePattern = /^\d{4}(-\d{2}(-\d{2}(T\d{2}:\d{2}(:\d{2})?)?)?)?$/;
+      if (!datePattern.test(dateValue)) {
+        warnings.push({
+          type: 'warning',
+          message: `Date "${param.value}" may be invalid. Expected formats: YYYY, YYYY-MM, or YYYY-MM-DD`,
+          index
+        });
+      }
+    }
+
+    // Validate token format for common cases
+    if (paramConfig.type === 'token' && param.value) {
+      // Token can be code, system|code, or |code
+      // Most are valid, but warn if it looks like a malformed system|code
+      if (param.value.includes('|') && param.value.split('|').length > 2) {
+        warnings.push({
+          type: 'warning',
+          message: `Token "${param.value}" has multiple pipes. Expected format: system|code or just code`,
+          index
+        });
+      }
+    }
+
+    // Validate quantity format
+    if (paramConfig.type === 'quantity' && param.value) {
+      // Quantity: [prefix]number|system|code or [prefix]number||code
+      const quantityPattern = /^(eq|ne|gt|lt|ge|le|sa|eb|ap)?-?\d+(\.\d+)?(\|[^|]*\|[^|]*)?$/;
+      if (!quantityPattern.test(param.value)) {
+        warnings.push({
+          type: 'warning',
+          message: `Quantity "${param.value}" format may be invalid. Expected: [comparator]number|system|code`,
+          index
+        });
+      }
+    }
+  });
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings
+  };
 };
 
 // FHIR Search Modifiers and Comparators (same as original)
@@ -1358,6 +1485,8 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
   const [executionTime, setExecutionTime] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [livePreviewEnabled, setLivePreviewEnabled] = useState(QUERY_STUDIO_CONFIG.enableLivePreview);
+  const [validationResult, setValidationResult] = useState(null); // FHR-1: Track validation state
+  const [paginationLoading, setPaginationLoading] = useState(false); // FHR-2: Pagination loading state
   
   // Collapsible sections state
   const [sections, setSections] = useState({
@@ -1380,18 +1509,19 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
     const paramStrings = parameters
       .filter(p => p.key && p.value)
       .map(p => {
-        let paramStr = p.key;
-        
-        // Add modifier if present
+        let paramName = p.key;
+        let modifier = '';
+
+        // Add modifier if present (don't encode the colon - it's part of FHIR syntax)
         if (p.modifier) {
           const paramConfig = FHIR_RESOURCES[resource]?.searchParams?.[p.key] || SPECIAL_FHIR_PARAMS[p.key];
           const paramType = paramConfig?.type || 'string';
           const modifierSymbol = SEARCH_MODIFIERS[paramType]?.[p.modifier]?.symbol;
           if (modifierSymbol) {
-            paramStr += modifierSymbol;
+            modifier = modifierSymbol;  // Keep modifier separate to avoid encoding the colon
           }
         }
-        
+
         // Build value with comparator
         let value = p.value;
         if (p.comparator && p.comparator !== 'eq') {
@@ -1400,8 +1530,9 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
             value = comparatorSymbol + value;
           }
         }
-        
-        return `${encodeURIComponent(paramStr)}=${encodeURIComponent(value)}`;
+
+        // Only encode the parameter name and value, not the modifier (colon)
+        return `${encodeURIComponent(paramName)}${modifier}=${encodeURIComponent(value)}`;
       });
     
     if (paramStrings.length > 0) {
@@ -1415,15 +1546,29 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
   const executeQuery = useCallback(async () => {
     const query = buildQuery();
     if (!query || query === '/') return;
-    
+
+    // FHR-1: Run validation before execution (only in visual mode)
+    if (mode === 'visual' && QUERY_STUDIO_CONFIG.enableParameterValidation) {
+      const validation = validateQueryParameters(resource, parameters);
+      setValidationResult(validation);
+
+      // Block execution if there are errors
+      if (!validation.valid) {
+        setError('Query has validation errors. Please fix them before executing.');
+        return;
+      }
+    } else {
+      setValidationResult(null);
+    }
+
     setLoading(true);
     setError(null);
     const startTime = Date.now();
-    
+
     try {
       const [resourcePath, queryString] = query.split('?');
       const resourceType = resourcePath.replace(/^\//, '');
-      
+
       const searchParams = {};
       if (queryString) {
         queryString.split('&').forEach(param => {
@@ -1433,7 +1578,7 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
           }
         });
       }
-      
+
       const result = await fhirClient.search(resourceType, searchParams);
       setResults(result);
       setExecutionTime(Date.now() - startTime);
@@ -1443,14 +1588,72 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
     } finally {
       setLoading(false);
     }
-  }, [buildQuery]);
-  
+  }, [buildQuery, mode, resource, parameters]);
+
+  // FHR-2: Extract pagination links from FHIR Bundle
+  const paginationLinks = useMemo(() => {
+    if (!results?.bundle?.link && !results?.link) return { next: null, prev: null, self: null };
+
+    const links = results.bundle?.link || results.link || [];
+    return {
+      next: links.find(l => l.relation === 'next')?.url || null,
+      prev: links.find(l => l.relation === 'previous' || l.relation === 'prev')?.url || null,
+      self: links.find(l => l.relation === 'self')?.url || null
+    };
+  }, [results]);
+
+  // FHR-2: Navigate to a pagination link
+  const navigatePagination = useCallback(async (url) => {
+    if (!url) return;
+
+    setPaginationLoading(true);
+    setError(null);
+    const startTime = Date.now();
+
+    try {
+      // The URL from HAPI FHIR is absolute, we need to extract the path and params
+      // Example: http://localhost:8888/fhir/Patient?_count=10&_getpagesoffset=10
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/');
+      const resourceType = pathParts[pathParts.length - 1];
+
+      // Convert URL search params to object
+      const searchParams = {};
+      urlObj.searchParams.forEach((value, key) => {
+        searchParams[key] = value;
+      });
+
+      const result = await fhirClient.search(resourceType, searchParams);
+      setResults(result);
+      setExecutionTime(Date.now() - startTime);
+    } catch (err) {
+      console.error('Pagination navigation error:', err);
+      setError(err.message || 'Failed to navigate to page');
+    } finally {
+      setPaginationLoading(false);
+    }
+  }, []);
+
   // Sync visual parameters to code
   useEffect(() => {
     if (mode === 'visual') {
       setCodeQuery(buildQuery());
     }
   }, [mode, resource, parameters, buildQuery]);
+
+  // FHR-1: Real-time validation as parameters change
+  useEffect(() => {
+    if (mode === 'visual' && QUERY_STUDIO_CONFIG.enableParameterValidation && resource) {
+      // Only validate if there are actual parameters with values
+      const hasParams = parameters.some(p => p.key && p.value);
+      if (hasParams) {
+        const validation = validateQueryParameters(resource, parameters);
+        setValidationResult(validation);
+      } else {
+        setValidationResult(null);
+      }
+    }
+  }, [mode, resource, parameters]);
   
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1556,13 +1759,52 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
           </Grid>
         </Paper>
       </Collapse>
-      
+
+      {/* FHR-1: Validation Results Display */}
+      {validationResult && (validationResult.errors.length > 0 || validationResult.warnings.length > 0) && (
+        <Box sx={{ px: 2, py: 1, bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50' }}>
+          <Stack spacing={1}>
+            {validationResult.errors.length > 0 && (
+              <Alert severity="error" sx={{ py: 0.5 }}>
+                <AlertTitle sx={{ fontSize: '0.85rem', mb: 0.5 }}>Validation Errors</AlertTitle>
+                <Stack spacing={0.5}>
+                  {validationResult.errors.map((err, idx) => (
+                    <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ flex: 1 }}>
+                        {err.message}
+                        {err.suggestion && (
+                          <Typography component="span" variant="body2" color="info.main" sx={{ ml: 1 }}>
+                            Did you mean "{err.suggestion}"?
+                          </Typography>
+                        )}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Alert>
+            )}
+            {validationResult.warnings.length > 0 && (
+              <Alert severity="warning" sx={{ py: 0.5 }}>
+                <AlertTitle sx={{ fontSize: '0.85rem', mb: 0.5 }}>Warnings</AlertTitle>
+                <Stack spacing={0.5}>
+                  {validationResult.warnings.map((warn, idx) => (
+                    <Typography key={idx} variant="body2">
+                      {warn.message}
+                    </Typography>
+                  ))}
+                </Stack>
+              </Alert>
+            )}
+          </Stack>
+        </Box>
+      )}
+
       {/* Main Content Area */}
       <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Left Panel - Query Builder */}
-        <Box sx={{ 
-          width: isMobile ? '100%' : '50%', 
-          display: 'flex', 
+        <Box sx={{
+          width: isMobile ? '100%' : '50%',
+          display: 'flex',
           flexDirection: 'column',
           borderRight: `1px solid ${theme.palette.divider}`,
           overflow: 'auto'
@@ -1729,7 +1971,44 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
               </IconButton>
             )}
           </Box>
-          
+
+          {/* FHR-2: Pagination Controls */}
+          {results && (paginationLinks.prev || paginationLinks.next) && (
+            <Box sx={{
+              px: 2,
+              py: 1,
+              borderBottom: `1px solid ${theme.palette.divider}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50'
+            }}>
+              <Button
+                size="small"
+                startIcon={paginationLoading ? <CircularProgress size={14} /> : <NavigateBeforeIcon />}
+                onClick={() => navigatePagination(paginationLinks.prev)}
+                disabled={!paginationLinks.prev || paginationLoading}
+                variant="outlined"
+              >
+                Previous Page
+              </Button>
+
+              <Typography variant="body2" color="text.secondary">
+                Showing {results.resources?.length || results.bundle?.entry?.length || 0} of {results.total || '?'} results
+              </Typography>
+
+              <Button
+                size="small"
+                endIcon={paginationLoading ? <CircularProgress size={14} /> : <NavigateNextIcon />}
+                onClick={() => navigatePagination(paginationLinks.next)}
+                disabled={!paginationLinks.next || paginationLoading}
+                variant="outlined"
+              >
+                Next Page
+              </Button>
+            </Box>
+          )}
+
           {/* Results Content */}
           <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
             {error ? (

@@ -3,7 +3,7 @@
  * Collapsible navigation sidebar for clinical workspace
  * Provides quick access to modules and patient context
  */
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import {
   Drawer,
   Box,
@@ -36,7 +36,6 @@ import {
   Timeline as TimelineIcon,
   ChevronLeft as CollapseIcon,
   ChevronRight as ExpandIcon,
-  Person as PatientIcon,
   Notifications as AlertsIcon,
   History as RecentIcon,
   Favorite as FavoritesIcon,
@@ -46,7 +45,6 @@ import {
   ExpandMore
 } from '@mui/icons-material';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
-import { format } from 'date-fns';
 
 // Sidebar width constants
 const SIDEBAR_WIDTH = 280;

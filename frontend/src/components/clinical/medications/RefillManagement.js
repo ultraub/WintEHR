@@ -17,7 +17,6 @@ import {
   Stack,
   Button,
   IconButton,
-  Tooltip,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -33,19 +32,15 @@ import {
   CircularProgress,
   Card,
   CardContent,
-  CardActions,
   CardHeader,
   Tabs,
   Tab,
   Badge,
-  LinearProgress,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Divider,
   Avatar,
-  useTheme,
-  alpha
+  useTheme
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -54,22 +49,13 @@ import {
   CheckCircle as ApprovedIcon,
   Cancel as RejectedIcon,
   LocalPharmacy as DispensedIcon,
-  Warning as UrgentIcon,
   TrendingUp as AdherenceIcon,
-  Assessment as AnalyticsIcon,
   History as HistoryIcon,
-  Add as AddIcon,
-  Edit as EditIcon,
-  Visibility as ViewIcon,
   ExpandMore as ExpandMoreIcon,
-  Person as PatientIcon,
   Medication as MedicationIcon,
-  CalendarToday as CalendarIcon,
-  Timer as TimerIcon,
   NotificationImportant as AlertIcon
 } from '@mui/icons-material';
-import { format, parseISO, differenceInDays, isAfter, addDays } from 'date-fns';
-import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
+import { format, parseISO } from 'date-fns';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import { prescriptionRefillService } from '../../../services/prescriptionRefillService';
 import { useMedicationResolver } from '../../../hooks/useMedicationResolver';

@@ -12,6 +12,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 import httpx
 
+from api.cds_hooks.constants import ExtensionURLs
+
 logger = logging.getLogger(__name__)
 
 
@@ -154,7 +156,7 @@ class AuditEventService:
 
             # Add subtype for more specific event classification
             audit_event["subtype"] = [{
-                "system": "http://wintehr.com/fhir/audit-event-subtype",
+                "system": ExtensionURLs.AUDIT_EVENT_SUBTYPE_SYSTEM,
                 "code": event_type,
                 "display": event_type.replace('.', ' ').replace('_', ' ').title()
             }]

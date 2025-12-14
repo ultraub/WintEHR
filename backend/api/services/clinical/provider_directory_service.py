@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from services.fhir_client_config import search_resources, get_resource
+from services.hapi_fhir_client import HAPIFHIRClient
 
 logger = logging.getLogger(__name__)
 
@@ -31,44 +31,47 @@ class ProviderDirectoryService:
     async def search_practitioners_by_specialty(self, specialty_code: str, location_id: str = None) -> List[Dict]:
         """
         Search practitioners by specialty with optional location filtering.
-        
+
         Args:
             specialty_code: The specialty code to search for
             location_id: Optional location ID to filter by
-            
+
         Returns:
             List of practitioner profiles with roles and specialties
         """
         try:
+            hapi_client = HAPIFHIRClient()
+
             # Build search query for PractitionerRole
             search_params = {
                 'specialty': specialty_code
             }
-            
+
             if location_id:
                 search_params['location'] = f"Location/{location_id}"
-            
+
             # Search PractitionerRole resources via HAPI FHIR
-            practitioner_roles = search_resources('PractitionerRole', search_params)
+            roles_bundle = await hapi_client.search('PractitionerRole', search_params)
+            practitioner_roles = roles_bundle.get('entry', []) if isinstance(roles_bundle, dict) else []
 
             # Resolve practitioner details for each role
             provider_profiles = []
-            for role in practitioner_roles.get('entry', []):
-                role_resource = role['resource']
+            for role in practitioner_roles:
+                role_resource = role.get('resource', role)
 
                 # Get practitioner details
                 practitioner_ref = role_resource.get('practitioner', {}).get('reference', '')
                 if practitioner_ref:
                     practitioner_id = practitioner_ref.split('/')[-1]
-                    practitioner = get_resource('Practitioner', practitioner_id)
+                    practitioner = await hapi_client.read('Practitioner', practitioner_id)
 
                     # Get location details
                     locations = []
                     for loc_ref in role_resource.get('location', []):
                         location_ref = loc_ref.get('reference', '')
                         if location_ref:
-                            location_id = location_ref.split('/')[-1]
-                            location = get_resource('Location', location_id)
+                            loc_id = location_ref.split('/')[-1]
+                            location = await hapi_client.read('Location', loc_id)
                             if location:
                                 locations.append(location)
 
@@ -77,8 +80,8 @@ class ProviderDirectoryService:
                     organization = None
                     if org_ref:
                         org_id = org_ref.split('/')[-1]
-                        organization = get_resource('Organization', org_id)
-                    
+                        organization = await hapi_client.read('Organization', org_id)
+
                     provider_profile = {
                         'practitioner': practitioner,
                         'role': role_resource,
@@ -87,11 +90,11 @@ class ProviderDirectoryService:
                         'specialties': role_resource.get('specialty', []),
                         'active': role_resource.get('active', True)
                     }
-                    
+
                     provider_profiles.append(provider_profile)
-            
+
             return provider_profiles
-            
+
         except Exception as e:
             logger.error(f"Error searching practitioners by specialty {specialty_code}: {e}")
             return []
@@ -99,42 +102,44 @@ class ProviderDirectoryService:
     async def get_practitioner_roles(self, practitioner_id: str) -> List[Dict]:
         """
         Get all roles for a practitioner across organizations and locations.
-        
+
         Args:
             practitioner_id: The practitioner ID
-            
+
         Returns:
             List of practitioner roles with associated organizations and locations
         """
         try:
+            hapi_client = HAPIFHIRClient()
+
             # Search for all roles for this practitioner
             search_params = {
                 'practitioner': f"Practitioner/{practitioner_id}"
             }
-            
-            roles_response = search_resources('PractitionerRole', search_params)
+
+            roles_response = await hapi_client.search('PractitionerRole', search_params)
             roles = []
 
-            for entry in roles_response.get('entry', []):
-                role_resource = entry['resource']
+            for entry in roles_response.get('entry', []) if isinstance(roles_response, dict) else []:
+                role_resource = entry.get('resource', entry)
 
                 # Get organization details
                 org_ref = role_resource.get('organization', {}).get('reference', '')
                 organization = None
                 if org_ref:
                     org_id = org_ref.split('/')[-1]
-                    organization = get_resource('Organization', org_id)
+                    organization = await hapi_client.read('Organization', org_id)
 
                 # Get location details
                 locations = []
                 for loc_ref in role_resource.get('location', []):
                     location_ref = loc_ref.get('reference', '')
                     if location_ref:
-                        location_id = location_ref.split('/')[-1]
-                        location = get_resource('Location', location_id)
+                        loc_id = location_ref.split('/')[-1]
+                        location = await hapi_client.read('Location', loc_id)
                         if location:
                             locations.append(location)
-                
+
                 role_data = {
                     'role': role_resource,
                     'organization': organization,
@@ -144,11 +149,11 @@ class ProviderDirectoryService:
                     'period': role_resource.get('period'),
                     'active': role_resource.get('active', True)
                 }
-                
+
                 roles.append(role_data)
-            
+
             return roles
-            
+
         except Exception as e:
             logger.error(f"Error getting practitioner roles for {practitioner_id}: {e}")
             return []
@@ -156,16 +161,18 @@ class ProviderDirectoryService:
     async def get_provider_profile(self, practitioner_id: str) -> Optional[Dict]:
         """
         Get complete provider profile with all roles, specialties, and locations.
-        
+
         Args:
             practitioner_id: The practitioner ID
-            
+
         Returns:
             Complete provider profile or None if not found
         """
         try:
+            hapi_client = HAPIFHIRClient()
+
             # Get practitioner resource
-            practitioner = get_resource('Practitioner', practitioner_id)
+            practitioner = await hapi_client.read('Practitioner', practitioner_id)
             if not practitioner:
                 return None
             
@@ -258,20 +265,22 @@ class ProviderDirectoryService:
             
             location_ids = [loc['id'] for loc in nearby_locations]
             
+            hapi_client = HAPIFHIRClient()
+
             # Search for practitioner roles at these locations
             providers = []
             for location_id in location_ids:
                 search_params = {
                     'location': f"Location/{location_id}"
                 }
-                
+
                 if specialty_code:
                     search_params['specialty'] = specialty_code
-                
-                roles_response = search_resources('PractitionerRole', search_params)
-                
-                for entry in roles_response.get('entry', []):
-                    role_resource = entry['resource']
+
+                roles_response = await hapi_client.search('PractitionerRole', search_params)
+
+                for entry in roles_response.get('entry', []) if isinstance(roles_response, dict) else []:
+                    role_resource = entry.get('resource', entry)
                     
                     # Get practitioner details
                     practitioner_ref = role_resource.get('practitioner', {}).get('reference', '')
@@ -360,15 +369,17 @@ class ProviderDirectoryService:
             # Fallback to Python-based calculation
             return await self._fallback_geographic_search(center_lat, center_lon, distance_km)
     
-    async def _fallback_geographic_search(self, center_lat: float, center_lon: float, 
+    async def _fallback_geographic_search(self, center_lat: float, center_lon: float,
                                         distance_km: float) -> List[Dict]:
         """Fallback geographic search using Python Haversine calculation."""
         try:
+            hapi_client = HAPIFHIRClient()
+
             # Get all locations with coordinates
-            locations_response = search_resources('Location', {})
+            locations_response = await hapi_client.search('Location', {})
             locations = []
-            
-            for entry in locations_response.get('entry', []):
+
+            for entry in locations_response.get('entry', []) if isinstance(locations_response, dict) else []:
                 location = entry['resource']
                 position = location.get('position', {})
                 
@@ -426,15 +437,16 @@ class ProviderDirectoryService:
     async def get_organizational_hierarchy(self, org_id: str) -> Optional[Dict]:
         """
         Get organizational hierarchy using Organization.partOf relationships.
-        
+
         Args:
             org_id: Organization ID to start from
-            
+
         Returns:
             Hierarchical organization structure
         """
         try:
-            organization = get_resource('Organization', org_id)
+            hapi_client = HAPIFHIRClient()
+            organization = await hapi_client.read('Organization', org_id)
             if not organization:
                 return None
             
@@ -468,21 +480,22 @@ class ProviderDirectoryService:
     async def _get_child_organizations(self, parent_org_id: str) -> List[Dict]:
         """Get child organizations that have this organization as partOf."""
         try:
+            hapi_client = HAPIFHIRClient()
             search_params = {
                 'partof': f"Organization/{parent_org_id}"
             }
-            
-            children_response = search_resources('Organization', search_params)
+
+            children_response = await hapi_client.search('Organization', search_params)
             children = []
-            
-            for entry in children_response.get('entry', []):
-                child_org = entry['resource']
+
+            for entry in children_response.get('entry', []) if isinstance(children_response, dict) else []:
+                child_org = entry.get('resource', entry)
                 child_hierarchy = await self.get_organizational_hierarchy(child_org['id'])
                 if child_hierarchy:
                     children.append(child_hierarchy)
-            
+
             return children
-            
+
         except Exception as e:
             logger.error(f"Error getting child organizations for {parent_org_id}: {e}")
             return []
@@ -490,19 +503,20 @@ class ProviderDirectoryService:
     async def _get_organization_facilities(self, org_id: str) -> List[Dict]:
         """Get facilities (locations) managed by this organization."""
         try:
+            hapi_client = HAPIFHIRClient()
             search_params = {
                 'organization': f"Organization/{org_id}"
             }
-            
-            facilities_response = search_resources('Location', search_params)
+
+            facilities_response = await hapi_client.search('Location', search_params)
             facilities = []
-            
-            for entry in facilities_response.get('entry', []):
-                facility = entry['resource']
+
+            for entry in facilities_response.get('entry', []) if isinstance(facilities_response, dict) else []:
+                facility = entry.get('resource', entry)
                 facilities.append(facility)
-            
+
             return facilities
-            
+
         except Exception as e:
             logger.error(f"Error getting facilities for organization {org_id}: {e}")
             return []
@@ -531,35 +545,36 @@ class ProviderDirectoryService:
     async def get_location_hierarchy(self, location_id: str) -> Optional[Dict]:
         """
         Get location hierarchy using Location.partOf relationships.
-        
+
         Args:
             location_id: Location ID
-            
+
         Returns:
             Hierarchical location structure
         """
         try:
-            location = get_resource('Location', location_id)
+            hapi_client = HAPIFHIRClient()
+            location = await hapi_client.read('Location', location_id)
             if not location:
                 return None
-            
+
             # Get parent location if exists
             parent = None
             part_of = location.get('partOf', {})
             if part_of and 'reference' in part_of:
                 parent_id = part_of['reference'].split('/')[-1]
                 parent = await self.get_location_hierarchy(parent_id)
-            
+
             # Get child locations
             children = await self._get_child_locations(location_id)
-            
+
             # Get managing organization
             managing_org = None
             managing_org_ref = location.get('managingOrganization', {})
             if managing_org_ref and 'reference' in managing_org_ref:
                 org_id = managing_org_ref['reference'].split('/')[-1]
-                managing_org = get_resource('Organization', org_id)
-            
+                managing_org = await hapi_client.read('Organization', org_id)
+
             hierarchy = {
                 'location': location,
                 'parent': parent,
@@ -567,9 +582,9 @@ class ProviderDirectoryService:
                 'managingOrganization': managing_org,
                 'level': self._determine_location_level(location)
             }
-            
+
             return hierarchy
-            
+
         except Exception as e:
             logger.error(f"Error getting location hierarchy for {location_id}: {e}")
             return None
@@ -577,21 +592,22 @@ class ProviderDirectoryService:
     async def _get_child_locations(self, parent_location_id: str) -> List[Dict]:
         """Get child locations that have this location as partOf."""
         try:
+            hapi_client = HAPIFHIRClient()
             search_params = {
                 'partof': f"Location/{parent_location_id}"
             }
-            
-            children_response = search_resources('Location', search_params)
+
+            children_response = await hapi_client.search('Location', search_params)
             children = []
-            
-            for entry in children_response.get('entry', []):
-                child_location = entry['resource']
+
+            for entry in children_response.get('entry', []) if isinstance(children_response, dict) else []:
+                child_location = entry.get('resource', entry)
                 child_hierarchy = await self.get_location_hierarchy(child_location['id'])
                 if child_hierarchy:
                     children.append(child_hierarchy)
-            
+
             return children
-            
+
         except Exception as e:
             logger.error(f"Error getting child locations for {parent_location_id}: {e}")
             return []
@@ -687,26 +703,27 @@ class ProviderDirectoryService:
     async def search_providers_by_organization(self, organization_id: str) -> List[Dict]:
         """Search for all providers associated with an organization."""
         try:
+            hapi_client = HAPIFHIRClient()
             search_params = {
                 'organization': f"Organization/{organization_id}"
             }
-            
-            roles_response = search_resources('PractitionerRole', search_params)
+
+            roles_response = await hapi_client.search('PractitionerRole', search_params)
             providers = []
-            
-            for entry in roles_response.get('entry', []):
-                role_resource = entry['resource']
-                
+
+            for entry in roles_response.get('entry', []) if isinstance(roles_response, dict) else []:
+                role_resource = entry.get('resource', entry)
+
                 practitioner_ref = role_resource.get('practitioner', {}).get('reference', '')
                 if practitioner_ref:
                     practitioner_id = practitioner_ref.split('/')[-1]
                     provider_profile = await self.get_provider_profile(practitioner_id)
-                    
+
                     if provider_profile:
                         providers.append(provider_profile)
-            
+
             return providers
-            
+
         except Exception as e:
             logger.error(f"Error searching providers by organization {organization_id}: {e}")
             return []

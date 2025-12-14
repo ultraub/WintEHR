@@ -20,12 +20,10 @@ import {
   Alert,
   Tooltip,
   CircularProgress,
-  Collapse,
   List,
   ListItem,
   ListItemIcon,
-  ListItemText,
-  Divider
+  ListItemText
 } from '@mui/material';
 import {
   NoteAdd as CreateNoteIcon,

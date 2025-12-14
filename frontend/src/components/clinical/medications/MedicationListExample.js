@@ -7,18 +7,15 @@ import React, { useState } from 'react';
 import {
   Box,
   Paper,
-  Typography,
-  Button,
-  Stack
+  Typography
 } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
 import MedicationListManager from './MedicationListManager';
 import MedicationDialogEnhanced from '../workspace/dialogs/MedicationDialogEnhanced';
 
 const MedicationListExample = ({ patientId }) => {
   const [medicationDialogOpen, setMedicationDialogOpen] = useState(false);
   const [selectedMedication, setSelectedMedication] = useState(null);
-  const [targetListType, setTargetListType] = useState('current');
+  const [, setTargetListType] = useState('current');
 
   // Handle medication click - show details
   const handleMedicationClick = (medication) => {

@@ -694,11 +694,23 @@ export interface Signature {
   data?: string;
 }
 
-// Search result types
+// Pagination info extracted from bundle links
+export interface PaginationInfo {
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+  nextUrl: string | null;
+  prevUrl: string | null;
+  selfUrl: string | null;
+  firstUrl: string | null;
+  lastUrl: string | null;
+}
+
+// Search result types with pagination support
 export interface SearchResult<T extends Resource = Resource> {
   resources: T[];
   total: number;
   bundle: Bundle;
+  pagination: PaginationInfo;
 }
 
 // Operation outcome for errors

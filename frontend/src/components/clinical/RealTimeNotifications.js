@@ -2,7 +2,7 @@
  * Real-time notifications component for clinical updates
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   IconButton,
   Popover,
@@ -29,7 +29,7 @@ import { useClinical } from '../../contexts/ClinicalContext';
 import { formatDistanceToNow } from 'date-fns';
 
 const RealTimeNotifications = () => {
-  const { } = useClinical();
+  useClinical(); // Context hook for future integration
   const [anchorEl, setAnchorEl] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);

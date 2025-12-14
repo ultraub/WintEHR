@@ -48,7 +48,6 @@ import {
   Grid,
   Card,
   CardContent,
-  Collapse,
   Fade,
   Zoom,
   Switch,
@@ -654,12 +653,12 @@ const AllergyDialogEnhanced = ({
                           cursor: 'pointer',
                           textAlign: 'center',
                           border: `2px solid ${
-                            formData.category === category.value 
-                              ? theme.palette[category.color].main 
+                            formData.category === category.value
+                              ? theme.palette[category.color]?.main || theme.palette.primary.main
                               : theme.palette.divider
                           }`,
-                          bgcolor: formData.category === category.value 
-                            ? alpha(theme.palette[category.color].main, 0.1)
+                          bgcolor: formData.category === category.value
+                            ? alpha(theme.palette[category.color]?.main || theme.palette.primary.main, 0.1)
                             : 'background.paper',
                           transition: 'all 0.2s',
                           '&:hover': {
@@ -678,8 +677,8 @@ const AllergyDialogEnhanced = ({
                             height: 48,
                             margin: '0 auto',
                             mb: 1,
-                            bgcolor: theme.palette[category.color].light,
-                            color: theme.palette[category.color].main,
+                            bgcolor: theme.palette[category.color]?.light || theme.palette.primary.light,
+                            color: theme.palette[category.color]?.main || theme.palette.primary.main,
                           }}
                         >
                           {category.icon}
@@ -908,15 +907,15 @@ const AllergyDialogEnhanced = ({
                               cursor: 'pointer',
                               border: `2px solid ${
                                 formData.criticality === option.value
-                                  ? theme.palette[option.color].main
+                                  ? theme.palette[option.color]?.main || theme.palette.primary.main
                                   : theme.palette.divider
                               }`,
                               bgcolor: formData.criticality === option.value
-                                ? alpha(theme.palette[option.color].main, 0.1)
+                                ? alpha(theme.palette[option.color]?.main || theme.palette.primary.main, 0.1)
                                 : 'background.paper',
                               transition: 'all 0.2s',
                               '&:hover': {
-                                borderColor: theme.palette[option.color].main,
+                                borderColor: theme.palette[option.color]?.main || theme.palette.primary.main,
                               },
                             }}
                             onClick={() => setFormData({ ...formData, criticality: option.value })}
@@ -928,7 +927,7 @@ const AllergyDialogEnhanced = ({
                                 readOnly
                                 icon={<CriticalIcon fontSize="inherit" />}
                                 emptyIcon={<CriticalIcon fontSize="inherit" />}
-                                sx={{ color: theme.palette[option.color].main }}
+                                sx={{ color: theme.palette[option.color]?.main || theme.palette.primary.main }}
                               />
                               <Box>
                                 <Typography variant="body2" fontWeight="medium">
@@ -1160,7 +1159,7 @@ const AllergyDialogEnhanced = ({
                           readOnly
                           icon={<CriticalIcon fontSize="inherit" />}
                           emptyIcon={<CriticalIcon fontSize="inherit" />}
-                          sx={{ color: theme.palette[CRITICALITY_OPTIONS.find(c => c.value === formData.criticality)?.color].main }}
+                          sx={{ color: theme.palette[CRITICALITY_OPTIONS.find(c => c.value === formData.criticality)?.color]?.main || theme.palette.primary.main }}
                         />
                         <Typography variant="body2">
                           {CRITICALITY_OPTIONS.find(c => c.value === formData.criticality)?.label} Criticality

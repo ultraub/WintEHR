@@ -228,12 +228,15 @@ const TimelineVisualization = ({
     
     performanceMonitor.mark('render-start');
     
+    // Clear previous content and remove event listeners
     try {
-      // Clear previous content and remove event listeners
-      const svg = d3.select(svgRef.current);
-      svg.selectAll('*').remove();
-      svg.on('.zoom', null); // Remove previous zoom listeners
-    
+      const existingSvg = d3.select(svgRef.current);
+      existingSvg.selectAll('*').remove();
+      existingSvg.on('.zoom', null); // Remove previous zoom listeners
+    } catch (cleanupError) {
+      console.debug('Timeline cleanup warning:', cleanupError);
+    }
+
     const svg = d3.select(svgRef.current)
       .attr('width', dimensions.width)
       .attr('height', dimensions.height);

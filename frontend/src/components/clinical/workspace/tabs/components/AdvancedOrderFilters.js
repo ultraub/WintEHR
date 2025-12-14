@@ -364,7 +364,7 @@ const AdvancedOrderFilters = ({
     }
     
     // Sort by authored date (most recent first)
-    params.append('_sort', '-authored');
+    params.append('_sort', '-authoredon');
     
     // Include related resources for enhanced display
     params.append('_include', 'ServiceRequest:requester');

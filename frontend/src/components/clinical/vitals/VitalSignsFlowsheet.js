@@ -135,8 +135,8 @@ const VitalsChart = ({ vitalType, data, config }) => {
   const loincCode = config.loincCodes[0]; // Get the LOINC code for this vital type
 
   const chartData = data.map(obs => ({
-    date: format(parseISO(obs.effectiveDateTime), 'MM/dd'),
-    value: parseFloat(extractObservationValue(obs, loincCode) || 0),
+    date: format(parseISO(obs.effectiveDateTime), 'MMM yyyy'),
+    value: parseFloat(obs.valueQuantity?.value || 0),
     fullDate: obs.effectiveDateTime
   })).sort((a, b) => new Date(a.fullDate) - new Date(b.fullDate));
 

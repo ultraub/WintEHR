@@ -26,7 +26,6 @@ import {
   InputAdornment,
   FormControlLabel,
   Checkbox,
-  useTheme,
   Grid
 } from '@mui/material';
 import {
@@ -50,17 +49,17 @@ import { format, parseISO, differenceInDays, subMonths } from 'date-fns';
 import { fhirClient } from '../../../services/fhirClient';
 import { useMedicationResolver } from '../../../hooks/useMedicationResolver';
 
-const MedicationHistoryReview = ({ 
-  patientId, 
+const MedicationHistoryReview = ({
+  patientId,
   onMedicationSelect,
   showActiveOnly = false,
   timeRange = 12, // months
   highlightDuplicates = true,
   compactView = false
 }) => {
-  const theme = useTheme();
-  const { resolveMedication } = useMedicationResolver();
-  
+  const [rawMedicationRequests, setRawMedicationRequests] = useState([]);
+  const { getMedicationDisplay, loading: resolverLoading } = useMedicationResolver(rawMedicationRequests);
+
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -83,7 +82,7 @@ const MedicationHistoryReview = ({
     duplicateRisk: 0
   });
 
-  // Load medication history
+  // Load medication history - fetch raw requests
   useEffect(() => {
     loadMedicationHistory();
   }, [patientId, timeRange]);
@@ -98,74 +97,131 @@ const MedicationHistoryReview = ({
       // Calculate date range
       const dateFrom = subMonths(new Date(), timeRange).toISOString();
 
-      // Search for medication requests
+      // Search for medication requests with included Medication resources
       const searchParams = {
         patient: patientId,
         _sort: '-date',
         date: `ge${dateFrom}`,
-        _count: 100
+        _count: 100,
+        _include: 'MedicationRequest:medication'
       };
 
       const medicationRequests = await fhirClient.search('MedicationRequest', searchParams);
-      const requests = medicationRequests?.entry?.map(e => e.resource) || [];
 
-      // Process and enrich medication data
-      const processedMedications = await Promise.all(
-        requests.map(async (request) => {
-          const medicationDisplay = await resolveMedication(request);
-          
-          return {
-            id: request.id,
-            medication: medicationDisplay,
-            medicationCodeableConcept: request.medicationCodeableConcept,
-            status: request.status,
-            intent: request.intent,
-            authoredOn: request.authoredOn,
-            requester: request.requester?.display,
-            dosageInstructions: request.dosageInstruction?.[0]?.text || 
-                              formatDosageInstructions(request.dosageInstruction?.[0]),
-            quantity: request.dispenseRequest?.quantity,
-            refills: request.dispenseRequest?.numberOfRepeatsAllowed,
-            reasonCode: request.reasonCode?.[0]?.text,
-            note: request.note?.[0]?.text,
-            // Calculate duration
-            duration: calculateDuration(request),
-            // Check if recently active
-            isRecentlyActive: isRecentlyActive(request),
-            // Determine display status
-            displayStatus: getDisplayStatus(request)
-          };
-        })
-      );
+      // Extract MedicationRequest and Medication resources from results
+      const allResources = medicationRequests?.entry?.map(e => e.resource) || [];
+      const medicationResources = allResources.filter(r => r.resourceType === 'Medication');
+      const requests = allResources.filter(r => r.resourceType === 'MedicationRequest');
 
-      // Analyze for duplicates/similar medications
-      const analyzedMedications = analyzeDuplicates(processedMedications);
-
-      // Sort by date, with active medications first
-      analyzedMedications.sort((a, b) => {
-        if (a.status === 'active' && b.status !== 'active') return -1;
-        if (a.status !== 'active' && b.status === 'active') return 1;
-        return new Date(b.authoredOn) - new Date(a.authoredOn);
+      // Build medication lookup and enrich requests
+      const medicationLookup = {};
+      medicationResources.forEach(med => {
+        if (med.id) {
+          medicationLookup[med.id] = med;
+        }
       });
 
-      setMedications(analyzedMedications);
+      // Enrich MedicationRequests that use medicationReference
+      const enrichedRequests = requests.map(medRequest => {
+        if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
+          const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
+          const medication = medicationLookup[refId];
+          if (medication?.code) {
+            return {
+              ...medRequest,
+              _resolvedMedicationCodeableConcept: medication.code,
+              medicationReference: {
+                ...medRequest.medicationReference,
+                display: medication.code.text || medication.code.coding?.[0]?.display
+              }
+            };
+          }
+        }
+        return medRequest;
+      });
 
-      // Calculate statistics
-      const newStats = {
-        total: analyzedMedications.length,
-        active: analyzedMedications.filter(m => m.status === 'active').length,
-        completed: analyzedMedications.filter(m => m.status === 'completed').length,
-        stopped: analyzedMedications.filter(m => m.status === 'stopped' || m.status === 'cancelled').length,
-        duplicateRisk: analyzedMedications.filter(m => m.hasDuplicateRisk).length
-      };
-      setStats(newStats);
-
+      // Store enriched requests for the resolver hook to process
+      setRawMedicationRequests(enrichedRequests);
     } catch (err) {
       setError('Failed to load medication history');
-    } finally {
       setLoading(false);
     }
   };
+
+  // Process medications once resolver has finished
+  useEffect(() => {
+    // If resolver is still loading, wait
+    if (resolverLoading) {
+      return;
+    }
+
+    // If no medications, just set loading to false
+    if (rawMedicationRequests.length === 0) {
+      setMedications([]);
+      setStats({
+        total: 0,
+        active: 0,
+        completed: 0,
+        stopped: 0,
+        duplicateRisk: 0
+      });
+      // Only set loading false if we actually attempted to load
+      if (patientId) {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Process and enrich medication data using getMedicationDisplay
+    const processedMedications = rawMedicationRequests.map((request) => {
+      const medicationDisplay = getMedicationDisplay(request);
+
+      return {
+        id: request.id,
+        medication: medicationDisplay,
+        medicationCodeableConcept: request.medicationCodeableConcept,
+        status: request.status,
+        intent: request.intent,
+        authoredOn: request.authoredOn,
+        requester: request.requester?.display,
+        dosageInstructions: request.dosageInstruction?.[0]?.text ||
+                          formatDosageInstructions(request.dosageInstruction?.[0]),
+        quantity: request.dispenseRequest?.quantity,
+        refills: request.dispenseRequest?.numberOfRepeatsAllowed,
+        reasonCode: request.reasonCode?.[0]?.text,
+        note: request.note?.[0]?.text,
+        // Calculate duration
+        duration: calculateDuration(request),
+        // Check if recently active
+        isRecentlyActive: isRecentlyActive(request),
+        // Determine display status
+        displayStatus: getDisplayStatus(request)
+      };
+    });
+
+    // Analyze for duplicates/similar medications
+    const analyzedMedications = analyzeDuplicates(processedMedications);
+
+    // Sort by date, with active medications first
+    analyzedMedications.sort((a, b) => {
+      if (a.status === 'active' && b.status !== 'active') return -1;
+      if (a.status !== 'active' && b.status === 'active') return 1;
+      return new Date(b.authoredOn) - new Date(a.authoredOn);
+    });
+
+    setMedications(analyzedMedications);
+
+    // Calculate statistics
+    const newStats = {
+      total: analyzedMedications.length,
+      active: analyzedMedications.filter(m => m.status === 'active').length,
+      completed: analyzedMedications.filter(m => m.status === 'completed').length,
+      stopped: analyzedMedications.filter(m => m.status === 'stopped' || m.status === 'cancelled').length,
+      duplicateRisk: analyzedMedications.filter(m => m.hasDuplicateRisk).length
+    };
+    setStats(newStats);
+    setLoading(false);
+  }, [rawMedicationRequests, resolverLoading, getMedicationDisplay, patientId]);
 
   const formatDosageInstructions = (dosageInstruction) => {
     if (!dosageInstruction) return '';

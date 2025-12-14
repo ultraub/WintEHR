@@ -1,9 +1,9 @@
 # WintEHR Deployment Guide
 
-**Version**: 1.1.0
-**Last Updated**: October 15, 2025
+**Version**: 1.2.1
+**Last Updated**: December 14, 2025
 
-This guide covers all deployment options for WintEHR, from local development to production Azure deployment.
+This guide covers all deployment options for WintEHR, from local development to production deployment.
 
 ---
 
@@ -11,7 +11,7 @@ This guide covers all deployment options for WintEHR, from local development to 
 
 1. [Quick Start](#quick-start)
 2. [Local Development](#local-development)
-3. [Azure Production Deployment](#azure-production-deployment)
+3. [Production Deployment](#production-deployment)
 4. [Build Process](#build-process)
 5. [Troubleshooting](#troubleshooting)
 6. [Advanced Configuration](#advanced-configuration)
@@ -22,10 +22,9 @@ This guide covers all deployment options for WintEHR, from local development to 
 
 ### Prerequisites
 
-- **Docker**: 20.10+ with Docker Compose
-- **Python**: 3.9+ for configuration validation
+- **Docker**: 20.10+ with Docker Compose v2
 - **Resources**: 8GB RAM minimum (16GB recommended), 20GB disk space
-- **Azure** (for production): Active subscription with VM access
+- **Azure/AWS** (for production): Active subscription with VM access
 
 ### Fastest Path to Running System
 
@@ -33,7 +32,7 @@ This guide covers all deployment options for WintEHR, from local development to 
 # Clone and configure
 git clone https://github.com/ultraub/WintEHR.git
 cd WintEHR
-cp config.example.yaml config.yaml
+cp .env.example .env
 
 # Deploy (one command)
 ./deploy.sh
@@ -48,29 +47,23 @@ cp config.example.yaml config.yaml
 ### Standard Development Deployment
 
 ```bash
-# 1. Configure for development
-cp config.example.yaml config.yaml
+# 1. Configure environment
+cp .env.example .env
 
-# 2. Edit config.yaml
-vim config.yaml
+# 2. (Optional) Edit .env for custom settings
+vim .env
 ```
 
-**Recommended dev settings:**
-```yaml
-deployment:
-  environment: dev
-  patient_count: 20
-  enable_ssl: false
-
-services:
-  ports:
-    frontend: 3000
-    backend: 8000
-    hapi_fhir: 8888
+**Default development settings** (from .env.example):
+```bash
+ENVIRONMENT=dev
+FRONTEND_PORT=3000
+BACKEND_PORT=8000
+HAPI_FHIR_PORT=8888
 ```
 
 ```bash
-# 3. Deploy
+# 3. Deploy with dev profile (default)
 ./deploy.sh
 
 # 4. Access the system
@@ -79,7 +72,21 @@ open http://localhost:3000
 
 ### Development with Hot Reload
 
-For active development with immediate code changes:
+The dev profile automatically enables hot reload for both backend and frontend:
+
+```bash
+# Start all services with hot reload (default profile)
+./deploy.sh
+
+# Or explicitly specify dev profile
+./deploy.sh --environment dev
+```
+
+**Volume Mounts** (automatic in dev profile):
+- Backend: `./backend:/app` - Python code changes reload automatically
+- Frontend: `./frontend:/app` - React dev server with HMR
+
+**For standalone development** (without full Docker stack):
 
 **Backend (FastAPI):**
 ```bash
@@ -103,144 +110,110 @@ npm start
 
 **HAPI FHIR (containerized):**
 ```bash
-docker-compose up -d postgres redis hapi-fhir
+docker compose --profile dev up -d postgres redis hapi-fhir
 ```
 
 ---
 
-## Azure Production Deployment
+## Production Deployment
 
-### Fully Automated Production Deployment
+### Unified Production Deployment
 
-WintEHR includes a **fully automated deployment script** that handles everything from server wipe to SSL configuration.
+WintEHR uses Docker Compose profiles for environment-specific deployment. Production deployment includes nginx reverse proxy and SSL support.
 
 #### Prerequisites
 
-1. **Azure VM** (Ubuntu 22.04 LTS recommended)
-   - Size: Standard_D4s_v3 or larger
+1. **Server** (Ubuntu 22.04 LTS recommended)
+   - Size: 4 vCPU, 8GB RAM minimum
    - Public IP with DNS name
    - Ports open: 22 (SSH), 80 (HTTP), 443 (HTTPS)
 
-2. **SSH Access**
-   ```bash
-   # Generate SSH key
-   ssh-keygen -t rsa -b 4096 -f ~/.ssh/WintEHR-key.pem
+2. **Domain Name**
+   - Configure DNS to point to your server IP
+   - Example: `wintehr.yourdomain.com`
 
-   # Add public key to Azure VM
-   # (via Azure Portal or during VM creation)
-   ```
-
-3. **Domain Name**
-   - Configure Azure DNS: `your-vm-name.region.cloudapp.azure.com`
-   - Or use custom domain pointing to VM public IP
-
-#### Deployment Steps
+#### Production Configuration
 
 ```bash
-# 1. Configure Azure settings
-cp config.azure-prod.yaml config.yaml
-vim config.yaml
+# 1. Copy and edit environment file
+cp .env.example .env
+vim .env
 ```
 
-**Required configuration:**
-```yaml
-deployment:
-  environment: production
-  patient_count: 100
-  enable_ssl: true
+**Required production settings:**
+```bash
+# Production profile
+ENVIRONMENT=prod
+RESTART_POLICY=unless-stopped
 
-azure:
-  resource_group: your-resource-group
-  vm_name: your-vm-name
-  location: eastus2
-  ssh_user: azureuser
-  ssh_key: ~/.ssh/WintEHR-key.pem
+# Your domain for SSL
+DOMAIN=wintehr.yourdomain.com
 
-ssl:
-  domain_name: your-vm-name.eastus2.cloudapp.azure.com
-  ssl_email: your-email@example.com
+# Strong passwords (generate new values!)
+POSTGRES_PASSWORD=<strong-password>
+SECRET_KEY=<generate-with-secrets.token_urlsafe(50)>
+JWT_SECRET=<generate-with-secrets.token_urlsafe(50)>
+
+# Production URLs
+REACT_APP_API_URL=https://wintehr.yourdomain.com
+REACT_APP_FHIR_ENDPOINT=https://wintehr.yourdomain.com/fhir/R4
+REACT_APP_WS_URL=wss://wintehr.yourdomain.com/ws
 ```
 
 ```bash
-# 2. Run automated deployment
-./deploy-azure-production.sh --yes
+# 2. Deploy with production profile
+./deploy.sh --environment prod
 ```
 
 #### What Happens During Deployment
 
-**STEP 1: Complete Server Wipe** (~2 minutes)
-- Stops all Docker containers
-- Removes all volumes and images
-- Clears build cache
-- Ensures fresh deployment environment
+**Step 1: Prerequisites Check** (~30 seconds)
+- Docker and Docker Compose v2 verification
+- Environment file validation
+- Configuration loading
 
-**STEP 2: Clone Fresh Code** (~1 minute)
-- Clones latest code from GitHub
-- Checks out specified branch
+**Step 2: Build Images** (~10-15 minutes)
+- Backend: Python dependencies, Synthea JAR download
+- Frontend: npm install, React production build
 
-**STEP 3: Setup Environment** (~30 seconds)
-- Copies configuration files
-- Creates .env file with secrets
-- Sets up directory structure
+**Step 3: Start Services** (~1 minute)
+- Infrastructure: PostgreSQL, Redis
+- FHIR Server: HAPI FHIR (pinned v8.6.0)
+- Application: Backend, Frontend
+- Proxy: Nginx (production only)
 
-**STEP 4: Build and Deploy Services** (~10-12 minutes)
-- Builds backend Docker image (Python dependencies)
-- Builds frontend Docker image (npm build)
-- Starts all containers with health checks
-- **Fix #21**: Build runs asynchronously to prevent SSH timeout
-- **Fix #22**: Polling uses direct SSH to avoid output interference
+**Step 4: Health Checks** (~3-5 minutes)
+- HAPI FHIR initialization (may take several minutes on first startup)
+- Backend API health endpoint
+- Database connectivity
 
-**STEP 5: Wait for Services** (~3-5 minutes)
-- HAPI FHIR server initialization
-- Backend health check validation
-- **Fix #17**: Uses Docker inspect for health status
+**Step 5: Data Generation** (~5-8 minutes)
+- Synthea patient generation (100 patients for prod)
+- FHIR bundle loading to HAPI server
+- DICOM file generation
+- Demo practitioner creation
 
-**STEP 6: Generate Patients with DICOM** (~5-8 minutes)
-- Generates 100 synthetic patients via Synthea
-- Loads FHIR bundles to HAPI server
-- Creates DICOM files for imaging studies
-- Generates DICOM endpoints
+**Step 6: SSL Setup** (production only, ~2 minutes)
+- Let's Encrypt certificate via Certbot
+- Nginx SSL configuration
+- HTTPS verification
 
-**STEP 7: Setup HTTPS/SSL** (~2 minutes)
-- Obtains Let's Encrypt certificate
-- Configures nginx with SSL
-- Restarts nginx with HTTPS enabled
-- **Fix #20**: Non-blocking certificate verification
-
-**STEP 8: Deployment Verification** (~1 minute)
-- Verifies HTTPS endpoint accessible
-- Confirms patient count
-- Checks DICOM endpoints created
-- Displays deployment summary
-
-**Total Time**: ~25-30 minutes for complete automated deployment
-
-#### Deployment Fixes (Version 1.1.0)
-
-The automated deployment includes 6 critical fixes for reliability:
-
-- **Fix #17**: Backend health check using `docker inspect` instead of curl (port not exposed to host)
-- **Fix #18**: SSH keepalive configuration (`ServerAliveInterval=60`) prevents timeout during long builds
-- **Fix #19**: Simplified Docker build (removed complex heredoc monitoring)
-- **Fix #20**: Non-blocking SSL certificate verification (permission check made optional)
-- **Fix #21**: Asynchronous Docker build with `nohup` prevents SSH connection timeout
-- **Fix #22**: Direct SSH in polling loop avoids colored output breaking integer comparison
+**Total Time**: ~20-30 minutes for complete deployment
 
 ### Post-Deployment Verification
 
 ```bash
-# Check deployment status
-ssh -i ~/.ssh/WintEHR-key.pem azureuser@your-domain.cloudapp.azure.com \
-  'cd WintEHR && docker ps'
+# Check service status
+./deploy.sh status
 
 # Check patient count
-curl -s "https://your-domain.cloudapp.azure.com/fhir/Patient?_summary=count" | jq '.total'
+curl -s "https://your-domain.com/fhir/Patient?_summary=count" | jq '.total'
 
-# Check DICOM endpoints
-curl -s "https://your-domain.cloudapp.azure.com/fhir/Endpoint?_summary=count" | jq '.total'
+# View logs
+./deploy.sh logs
 
 # Access the application
-open https://your-domain.cloudapp.azure.com
+open https://your-domain.com
 ```
 
 **Default credentials:**
@@ -311,22 +284,41 @@ docker build -t wintehr-frontend:latest -f frontend/Dockerfile frontend/
 - `.dockerignore` excludes unnecessary files
 - Multi-stage builds reduce final image size
 
+### Dockerfile Variants
+
+WintEHR provides multiple Dockerfile variants for different use cases:
+
+| File | Purpose | Use Case |
+|------|---------|----------|
+| `Dockerfile` (root) | All-in-one container | Single-container deployment |
+| `backend/Dockerfile` | Main backend image | Docker Compose dev/prod |
+| `backend/Dockerfile.dev` | Development backend | Hot-reload, debugging |
+| `backend/Dockerfile.production` | Optimized backend | Production deployment |
+| `frontend/Dockerfile` | Main frontend image | Docker Compose dev/prod |
+| `frontend/Dockerfile.dev` | Development frontend | Hot-reload, debugging |
+| `frontend/Dockerfile.production` | Optimized frontend | Production deployment |
+| `frontend/Dockerfile.build` | Build-only | CI/CD pipelines |
+
+**Note**: Docker Compose automatically selects the appropriate Dockerfile based on the profile (dev/prod).
+
 ### Manual Build Process
 
 If you need to build manually without deployment scripts:
 
 ```bash
-# 1. Build images
-docker-compose -f docker-compose.prod.yml build
+# 1. Build images (use appropriate profile)
+docker compose --profile dev build    # Development
+docker compose --profile prod build   # Production
 
 # 2. Start services
-docker-compose -f docker-compose.prod.yml up -d
+docker compose --profile dev up -d    # Development
+docker compose --profile prod up -d   # Production
 
-# 3. Wait for HAPI FHIR
-docker exec emr-backend curl -sf http://hapi-fhir:8080/fhir/metadata
+# 3. Wait for HAPI FHIR (check logs)
+docker compose logs -f hapi-fhir
 
 # 4. Load patient data
-docker exec emr-backend python scripts/synthea_to_hapi_pipeline.py 100 Massachusetts
+docker exec emr-backend python scripts/synthea_to_hapi_pipeline.py 20 Massachusetts
 
 # 5. Generate DICOM files
 docker exec emr-backend python scripts/active/generate_dicom_from_hapi.py
@@ -394,7 +386,7 @@ docker logs emr-hapi-fhir --tail 100
 **Solution**:
 ```bash
 # Restart HAPI with more memory
-docker-compose restart hapi-fhir
+docker compose restart hapi-fhir
 
 # Check PostgreSQL
 docker exec emr-postgres pg_isready
@@ -421,7 +413,7 @@ nslookup your-domain.cloudapp.azure.com
 curl http://your-domain.cloudapp.azure.com
 
 # Manual certificate generation
-docker-compose run --rm certbot certonly --standalone \
+docker compose run --rm certbot certonly --standalone \
   --email your-email@example.com \
   -d your-domain.cloudapp.azure.com
 ```
@@ -460,25 +452,36 @@ docker exec emr-backend curl http://hapi-fhir:8080/fhir/metadata
 
 ## Advanced Configuration
 
-### Environment-Specific Configurations
+### Environment Profiles
 
-WintEHR supports environment overrides:
+WintEHR uses Docker Compose profiles for environment-specific configurations:
 
 ```bash
-# Development
-./deploy.sh --environment dev
-
-# Staging
-./deploy.sh --environment staging
+# Development (default)
+./deploy.sh                    # or --environment dev
 
 # Production
-./deploy.sh --environment production
+./deploy.sh --environment prod
 ```
 
-**Configuration precedence**:
-1. `config.{environment}.yaml` (highest priority)
-2. `config.yaml`
-3. `config.example.yaml` (defaults)
+**Profile differences**:
+| Feature | dev | prod |
+|---------|-----|------|
+| Hot reload | ✅ Volume mounts | ❌ Built images |
+| Nginx | ❌ Direct ports | ✅ Reverse proxy |
+| SSL | ❌ HTTP only | ✅ HTTPS with Certbot |
+| Patient count | 20 | 100 |
+| Restart policy | no | unless-stopped |
+
+### Custom Configuration
+
+Override settings via `.env` file:
+
+```bash
+# Copy example and customize
+cp .env.example .env
+vim .env
+```
 
 ### Custom Docker Compose
 
@@ -486,14 +489,11 @@ Override services for specific needs:
 
 ```yaml
 # docker-compose.override.yml
-version: '3.8'
 services:
-  backend:
+  backend-dev:
     environment:
       - DEBUG=true
       - LOG_LEVEL=debug
-    volumes:
-      - ./backend:/app  # Hot reload
 ```
 
 ### Resource Limits
@@ -517,16 +517,16 @@ services:
 
 **Horizontal scaling**:
 ```bash
-docker-compose up -d --scale backend=3
+docker compose --profile prod up -d --scale backend-prod=3
 ```
 
-**Load balancing**: Configure nginx upstream
+**Load balancing**: Configure nginx upstream in `nginx-prod.conf`:
 
 ```nginx
 upstream backend {
-    server backend-1:8000;
-    server backend-2:8000;
-    server backend-3:8000;
+    server backend-prod-1:8000;
+    server backend-prod-2:8000;
+    server backend-prod-3:8000;
 }
 ```
 
@@ -572,5 +572,5 @@ For deployment issues:
 
 ---
 
-**Last Updated**: October 15, 2025
-**WintEHR Version**: 1.1.0
+**Last Updated**: November 26, 2025
+**WintEHR Version**: 1.2.0

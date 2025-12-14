@@ -1,6 +1,13 @@
 """
-CDS Hooks Router v2
-Implements CDS Hooks 1.0 specification compliant endpoints
+CDS Hooks Router v3.0
+Implements CDS Hooks 2.0 specification compliant endpoints
+
+Architecture:
+- Uses CDSService base class for all services
+- ConditionEngine for declarative condition evaluation
+- ServiceOrchestrator for parallel service execution
+- ServiceRegistry for service discovery
+- PrefetchEngine for FHIR query template resolution
 """
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -11,22 +18,40 @@ from datetime import datetime, timedelta
 import json
 import uuid
 import logging
+import httpx
+
+# WintEHR custom exceptions for structured error handling
+from shared.exceptions import (
+    FHIRConnectionError,
+    FHIRResourceNotFoundError,
+    CDSExecutionError,
+    CDSRuleEvaluationError,
+    CDSPrefetchError,
+    CDSServiceNotFoundError,
+    DatabaseQueryError,
+)
 
 from database import get_db_session
-from .hook_persistence import (
+
+# v3.0 Architecture imports
+from .services import CDSService as CDSServiceBase, HookType as ServiceHookType
+from .conditions import ConditionEngine
+from .orchestrator import ServiceOrchestrator, get_orchestrator, execute_hook, CDSHookEngine, get_hook_engine
+from .registry import ServiceRegistry, get_registry, register_service, get_discovery_response
+from .prefetch import PrefetchEngine, get_prefetch_engine, execute_prefetch
+
+# Hook persistence imports
+from .hooks import (
     get_persistence_manager,
     load_hooks_from_database,
-    save_sample_hooks_to_database
+    save_sample_hooks_to_database,
+    get_default_hooks,
 )
-from .feedback_persistence import (
+from .feedback import (
     get_feedback_manager,
     process_cds_feedback,
     get_service_analytics,
     log_hook_execution
-)
-from .prefetch_engine import (
-    get_prefetch_engine,
-    execute_hook_prefetch
 )
 from .models import (
     CDSHookRequest,
@@ -49,990 +74,257 @@ from .models import (
     HookCondition,
     HookAction
 )
-from .medication_prescribe_hooks import medication_prescribe_hooks
+from .hooks import medication_prescribe_hooks
 from .rules_engine.integration import cds_integration
 from .rules_engine.safety import safety_manager, FeatureFlag
-from .service_registry import service_registry, register_builtin_services
-from .service_implementations import register_example_services
-from services.fhir_client_config import get_resource, search_resources
+from services.hapi_fhir_client import HAPIFHIRClient
+from .hapi_cds_integration import get_hapi_cds_integrator
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["CDS Hooks"])
 
-# Initialize service registry with built-in services
-register_builtin_services()
-register_example_services(service_registry)
+# Initialize v3.0 service registry
+# Built-in services will be registered via services/builtin/ module
+_registry = get_registry()
+_orchestrator = get_orchestrator()
+# Alias for backward compatibility with code using service_registry name
+service_registry = _registry
+
+# Register built-in services at module load time
+from .services.builtin import register_builtin_services
+register_builtin_services(_registry)
+logger.info(f"CDS Hooks: Registered {len(_registry.list_services())} built-in services")
 
 # Include action execution router
-from .action_router import router as action_router
+from .actions import router as action_router
 router.include_router(action_router, prefix="", tags=["CDS Actions"])
 
 # Include audit trail router
-from .audit_router import router as audit_router
+from .audit import router as audit_router
 router.include_router(audit_router, prefix="", tags=["CDS Audit"])
 
-# Sample hook configurations - in production, these would be stored in database
-SAMPLE_HOOKS = {
-    "patient-greeter": HookConfiguration(
-        id="patient-greeter",
-        hook=HookType.PATIENT_VIEW,
-        title="Patient Greeter",
-        description="Greets the patient and provides basic information",
-        enabled=True,
-        conditions=[],  # No conditions - always shows
-        actions=[
-            HookAction(
-                type="show-card",
-                parameters={
-                    "summary": "Welcome to Patient Chart",
-                    "detail": "Review patient's clinical summary and recent activities.",
-                    "indicator": "info",
-                    "source": {"label": "EMR System"},
-                    "links": [
-                        {
-                            "label": "View Clinical Guidelines",
-                            "url": "https://www.cdc.gov/clinical-guidelines",
-                            "type": "absolute"
-                        }
-                    ]
-                }
-            )
-        ],
-        displayBehavior={
-            "defaultMode": "popup",
-            "indicatorOverrides": {
-                "critical": "modal",
-                "warning": "popup",
-                "info": "inline"
-            },
-            "acknowledgment": {
-                "required": False,
-                "reasonRequired": False
-            },
-            "snooze": {
-                "enabled": True,
-                "defaultDuration": 60
-            }
-        }
-    ),
-    "senior-care-reminder": HookConfiguration(
-        id="senior-care-reminder",
-        hook=HookType.PATIENT_VIEW,
-        title="Senior Care Reminder",
-        description="Reminds about preventive care for patients 65+",
-        enabled=True,
-        conditions=[
-            HookCondition(
-                type="patient-age",
-                parameters={"operator": ">=", "value": "65"}
-            )
-        ],
-        actions=[
-            HookAction(
-                type="show-card",
-                parameters={
-                    "summary": "Senior Care Reminder",
-                    "detail": "Patient is 65+ years old. Consider annual wellness visit and preventive screenings.",
-                    "indicator": "info",
-                    "source": {"label": "Preventive Care System"},
-                    "suggestions": [
-                        {
-                            "label": "Schedule Annual Wellness Visit",
-                            "uuid": str(uuid.uuid4()),
-                            "actions": [
-                                {
-                                    "type": "create",
-                                    "description": "Create wellness visit appointment",
-                                    "resource": {
-                                        "resourceType": "Appointment",
-                                        "status": "proposed",
-                                        "appointmentType": {
-                                            "coding": [{
-                                                "system": "http://terminology.hl7.org/CodeSystem/v2-0276",
-                                                "code": "WELLNESS",
-                                                "display": "Wellness Exam"
-                                            }]
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    ]
-                }
-            )
-        ]
-    ),
-    "diabetes-management": HookConfiguration(
-        id="diabetes-management",
-        hook=HookType.PATIENT_VIEW,
-        title="Diabetes Management Alert",
-        description="Alerts for patients with diabetes",
-        enabled=True,
-        conditions=[
-            HookCondition(
-                type="diagnosis-code",
-                parameters={
-                    "codes": ["44054006", "73211009", "714628002", "127013003", "90781000119102"],
-                    "system": "http://snomed.info/sct"
-                }
-            )
-        ],
-        actions=[
-            HookAction(
-                type="show-card",
-                parameters={
-                    "summary": "Diabetes Care Reminder",
-                    "detail": "Patient has diabetes. Check A1C levels and foot exam status.",
-                    "indicator": "warning",
-                    "source": {"label": "Chronic Disease Management"},
-                    "suggestions": [
-                        {
-                            "label": "Order A1C Test",
-                            "uuid": str(uuid.uuid4()),
-                            "actions": [
-                                {
-                                    "type": "create",
-                                    "description": "Order hemoglobin A1C test",
-                                    "resource": {
-                                        "resourceType": "ServiceRequest",
-                                        "status": "draft",
-                                        "intent": "order",
-                                        "code": {
-                                            "coding": [{
-                                                "system": "http://loinc.org",
-                                                "code": "4548-4",
-                                                "display": "Hemoglobin A1c/Hemoglobin.total in Blood"
-                                            }]
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    ]
-                }
-            )
-        ]
-    ),
-    "medication-allergy-check": HookConfiguration(
-        id="medication-allergy-check",
-        hook=HookType.MEDICATION_PRESCRIBE,
-        title="Medication Allergy Check",
-        description="Checks for potential allergies when prescribing medications",
-        enabled=True,
-        conditions=[],
-        actions=[
-            HookAction(
-                type="show-card",
-                parameters={
-                    "summary": "Allergy Check",
-                    "detail": "Please verify patient allergies before prescribing",
-                    "indicator": "info",
-                    "source": {"label": "Medication Safety System"}
-                }
-            )
-        ]
-    ),
-    "drug-interaction-check": HookConfiguration(
-        id="drug-interaction-check",
-        hook=HookType.MEDICATION_PRESCRIBE,
-        title="Drug Interaction Check",
-        description="Checks for drug-drug interactions",
-        enabled=True,
-        conditions=[
-            HookCondition(
-                type="medication-active",
-                parameters={"codes": ["any"]}  # Check for any active medications
-            )
-        ],
-        actions=[
-            HookAction(
-                type="show-card",
-                parameters={
-                    "summary": "Drug Interaction Alert",
-                    "detail": "Check for potential drug interactions with current medications",
-                    "indicator": "warning",
-                    "source": {"label": "Drug Interaction System"}
-                }
-            )
-        ]
-    ),
-    "hypertension-management": HookConfiguration(
-        id="hypertension-management",
-        hook=HookType.PATIENT_VIEW,
-        title="Hypertension Management",
-        description="Hypertension care reminders",
-        enabled=True,
-        conditions=[
-            HookCondition(
-                type="diagnosis-code",
-                parameters={
-                    "codes": ["38341003", "827069000", "78975002", "194774006"],
-                    "system": "http://snomed.info/sct"
-                }
-            )
-        ],
-        actions=[
-            HookAction(
-                type="show-card",
-                parameters={
-                    "summary": "Hypertension Care Reminder",
-                    "detail": "Patient has hypertension. Consider BP monitoring and medication review.",
-                    "indicator": "info",
-                    "source": {"label": "Cardiovascular Care System"},
-                    "suggestions": [
-                        {
-                            "label": "Order BP Monitoring",
-                            "uuid": str(uuid.uuid4()),
-                            "actions": [
-                                {
-                                    "type": "create",
-                                    "description": "Create BP monitoring plan",
-                                    "resource": {
-                                        "resourceType": "CarePlan",
-                                        "status": "draft",
-                                        "intent": "plan",
-                                        "category": [{"coding": [{"code": "734163000", "display": "Care plan"}]}]
-                                    }
-                                }
-                            ]
-                        }
-                    ]
-                }
-            )
-        ]
-    ),
-    "lab-value-critical": HookConfiguration(
-        id="lab-value-critical",
-        hook=HookType.PATIENT_VIEW,
-        title="Critical Lab Values",
-        description="Alerts for critical lab values",
-        enabled=True,
-        conditions=[
-            HookCondition(
-                type="lab-value",
-                parameters={
-                    "code": "33747-0",  # Glucose
-                    "operator": "gt",
-                    "value": "400",
-                    "timeframe": "7"
-                }
-            )
-        ],
-        actions=[
-            HookAction(
-                type="show-card",
-                parameters={
-                    "summary": "Critical Lab Alert",
-                    "detail": "Patient has critical lab values requiring immediate attention",
-                    "indicator": "critical",
-                    "source": {"label": "Laboratory System"}
-                }
-            )
-        ]
-    ),
-    "annual-wellness-reminder": HookConfiguration(
-        id="annual-wellness-reminder",
-        hook=HookType.ENCOUNTER_START,
-        title="Annual Wellness Visit Reminder",
-        description="Reminds about annual wellness visits",
-        enabled=True,
-        conditions=[
-            HookCondition(
-                type="patient-age",
-                parameters={"operator": ">=", "value": "18"}
-            )
-        ],
-        actions=[
-            HookAction(
-                type="show-card",
-                parameters={
-                    "summary": "Annual Wellness Due",
-                    "detail": "Consider scheduling annual wellness visit and preventive screenings",
-                    "indicator": "info",
-                    "source": {"label": "Preventive Care System"}
-                }
-            )
-        ]
-    ),
-    "discharge-planning": HookConfiguration(
-        id="discharge-planning",
-        hook=HookType.ENCOUNTER_DISCHARGE,
-        title="Discharge Planning",
-        description="Discharge planning reminders",
-        enabled=True,
-        conditions=[],
-        actions=[
-            HookAction(
-                type="show-card",
-                parameters={
-                    "summary": "Discharge Planning",
-                    "detail": "Ensure discharge planning is complete: medications reconciled, follow-up scheduled",
-                    "indicator": "warning",
-                    "source": {"label": "Discharge Planning System"},
-                    "suggestions": [
-                        {
-                            "label": "Medication Reconciliation",
-                            "uuid": str(uuid.uuid4()),
-                            "actions": [
-                                {
-                                    "type": "create",
-                                    "description": "Complete medication reconciliation",
-                                    "resource": {
-                                        "resourceType": "Task",
-                                        "status": "requested",
-                                        "intent": "order",
-                                        "description": "Complete medication reconciliation for discharge"
-                                    }
-                                }
-                            ]
-                        }
-                    ]
-                }
-            )
-        ]
-    ),
-    "order-appropriateness": HookConfiguration(
-        id="order-appropriateness",
-        hook=HookType.ORDER_SIGN,
-        title="Order Appropriateness",
-        description="Checks order appropriateness",
-        enabled=True,
-        conditions=[],
-        actions=[
-            HookAction(
-                type="show-card",
-                parameters={
-                    "summary": "Order Review",
-                    "detail": "Please review order appropriateness and clinical indication",
-                    "indicator": "info",
-                    "source": {"label": "Clinical Decision Support"}
-                }
-            )
-        ]
-    )
-}
-
-# Add medication prescribe hooks
-medication_hooks = medication_prescribe_hooks.get_medication_prescribe_hooks()
-for hook in medication_hooks:
-    SAMPLE_HOOKS[hook.id] = hook
+# Sample hook configurations - loaded from hooks/default_hooks.py
+# In production, these would be stored in database
+SAMPLE_HOOKS = get_default_hooks()
 
 
-class CDSHookEngine:
-    """CDS Hook execution engine"""
-    
-    def __init__(self, db: AsyncSession):
-        self.db = db
-    
-    async def evaluate_hook(self, hook_config: HookConfiguration, request: CDSHookRequest) -> List[Card]:
-        """Evaluate a CDS hook against the given request"""
-        cards = []
-        
-        logger.info(f"Evaluating hook: {hook_config.id} for patient: {request.context.get('patientId')}")
-        logger.info(f"Hook has {len(hook_config.conditions)} conditions to evaluate")
-        logger.info(f"Hook conditions: {[{'type': c.type, 'params': c.parameters} for c in hook_config.conditions]}")
-        
-        # Check if conditions are met
-        if await self._evaluate_conditions(hook_config.conditions, request):
-            logger.info(f"Conditions met for hook: {hook_config.id}")
-            # Execute actions
-            for action in hook_config.actions:
-                card = await self._execute_action(action, request)
-                if card:
-                    cards.append(card)
-        else:
-            logger.info(f"Conditions NOT met for hook: {hook_config.id}")
-        
-        return cards
-    
-    async def _evaluate_conditions(self, conditions: List[HookCondition], request: CDSHookRequest) -> bool:
-        """Evaluate all conditions (AND logic) - More forgiving approach"""
-        if not conditions:
-            return True  # No conditions means always trigger
-        
-        # Be more forgiving - if any condition evaluation fails due to missing data,
-        # we should still consider showing the hook (unless explicitly configured otherwise)
-        successful_evaluations = 0
-        failed_evaluations = 0
-        
-        for condition in conditions:
-            try:
-                result = await self._evaluate_condition(condition, request)
-                if result:
-                    successful_evaluations += 1
-                else:
-                    failed_evaluations += 1
-            except Exception as e:
-                logger.warning(f"Condition evaluation failed, being forgiving: {e}")
-                # Don't fail the entire hook for data issues
-                failed_evaluations += 1
-        
-        # If we have any successful evaluations, show the hook
-        # This makes the system more forgiving for missing data
-        if successful_evaluations > 0:
-            return True
-        
-        # If all conditions failed but we have no successful ones, 
-        # still show basic hooks (like patient-greeter) that should always appear
-        return failed_evaluations == 0
-    
-    async def _evaluate_condition(self, condition: HookCondition, request: CDSHookRequest) -> bool:
-        """Evaluate a single condition - More forgiving approach"""
+# CDSHookEngine has been moved to orchestrator/hook_engine.py
+# Import: from .orchestrator import CDSHookEngine, get_hook_engine
+
+
+# Helper functions for HAPI FHIR PlanDefinition conversion
+
+def _extract_extension_value(
+    resource: Dict[str, Any],
+    url: str,
+    default: Any = None
+) -> Any:
+    """
+    Extract value from FHIR extension
+
+    Args:
+        resource: FHIR resource with extensions
+        url: Extension URL to find
+        default: Default value if extension not found
+
+    Returns:
+        Extension value or default
+    """
+    extensions = resource.get("extension", [])
+    for ext in extensions:
+        if ext.get("url") == url:
+            # Try different value types
+            return (
+                ext.get("valueString") or
+                ext.get("valueBoolean") or
+                ext.get("valueCode") or
+                ext.get("valueInteger") or
+                default
+            )
+    return default
+
+
+def _plan_definition_to_cds_service(plan_def: Dict[str, Any]) -> Optional[CDSService]:
+    """
+    Convert HAPI FHIR PlanDefinition to CDS Hooks service definition
+
+    Args:
+        plan_def: PlanDefinition resource from HAPI FHIR
+
+    Returns:
+        CDSService object, or None if conversion fails
+    """
+    try:
+        # Extract hook-service-id (CDS service identifier)
+        service_id = _extract_extension_value(
+            plan_def,
+            "http://wintehr.local/fhir/StructureDefinition/hook-service-id",
+            plan_def.get("id")  # Fallback to PlanDefinition ID
+        )
+
+        # Extract hook-type (CDS hook type)
+        hook_type = _extract_extension_value(
+            plan_def,
+            "http://wintehr.local/fhir/StructureDefinition/hook-type",
+            "patient-view"  # Default hook type
+        )
+
+        # Build prefetch template from action inputs
+        prefetch = _build_prefetch_from_plan_definition(plan_def)
+
+        # Create CDS service definition
+        return CDSService(
+            id=service_id,
+            hook=hook_type,
+            title=plan_def.get("title", service_id),
+            description=plan_def.get("description", ""),
+            prefetch=prefetch,
+            usageRequirements=plan_def.get("usage", "")
+        )
+
+    except (KeyError, TypeError, ValueError, AttributeError) as e:
+        logger.error(f"Error converting PlanDefinition to CDS service: {e}")
+        return None
+
+
+def _build_prefetch_from_plan_definition(plan_def: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Build CDS Hooks prefetch template from PlanDefinition
+
+    Extracts prefetch templates from custom extension or action inputs
+
+    Args:
+        plan_def: PlanDefinition resource
+
+    Returns:
+        Prefetch dictionary mapping keys to FHIR query templates
+    """
+    # First, try to get prefetch from custom extension
+    prefetch_extension = None
+    for ext in plan_def.get("extension", []):
+        if ext.get("url") == "http://wintehr.local/fhir/StructureDefinition/prefetch-template":
+            prefetch_extension = ext.get("valueString")
+            break
+
+    if prefetch_extension:
+        # Parse JSON prefetch template
         try:
-            condition_type = condition.type
-            parameters = condition.parameters
-            patient_id = request.context.get('patientId')
-            
-            if not patient_id:
-                logger.warning("No patient ID in context - being forgiving")
-                # Some hooks might not require patient context
-                return condition_type in ['system-status', 'user-preference', 'time-based']
-            
-            logger.info(f"Evaluating condition type: {condition_type} with parameters: {parameters} for patient: {patient_id}")
-            
-            # Make condition evaluation more forgiving by handling missing data gracefully
-            if condition_type == 'patient-age':
-                return await self._check_patient_age(patient_id, parameters)
-            elif condition_type == 'patient-gender':
-                return await self._check_patient_gender(patient_id, parameters)
-            elif condition_type == 'diagnosis-code':
-                return await self._check_diagnosis_code(patient_id, parameters)
-            elif condition_type == 'medication-active':
-                return await self._check_active_medication(patient_id, parameters)
-            elif condition_type == 'lab-value':
-                return await self._check_lab_value(patient_id, parameters)
-            elif condition_type == 'vital-sign':
-                return await self._check_vital_sign(patient_id, parameters)
-            elif condition_type == 'always':
-                return True
-            elif condition_type == 'never':
-                return False
-            
-            logger.debug(f"Unknown condition type: {condition_type} - allowing")
-            return True  # Be forgiving for unknown condition types
-            
-        except Exception as e:
-            logger.error(f"Error evaluating condition {condition.type}: {e}")
-            # Be forgiving - don't fail the entire hook for one bad condition
-            return True
-    
-    async def _check_patient_age(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check patient age condition using HAPI FHIR"""
-        try:
-            # Get patient data from HAPI FHIR
-            patient = get_resource('Patient', patient_id)
-
-            if not patient:
-                logger.warning(f"Patient {patient_id} not found in HAPI FHIR")
-                return False
-
-            birth_date_str = patient.birthDate.isostring if hasattr(patient, 'birthDate') else None
-
-            if not birth_date_str:
-                logger.warning(f"No birthDate for patient {patient_id}")
-                return False
-
-            # Parse birth date
-            from datetime import datetime
-            try:
-                birth_date = datetime.strptime(birth_date_str, '%Y-%m-%d').date()
-            except ValueError:
-                logger.error(f"Invalid birthDate format for patient {patient_id}: {birth_date_str}")
-                return False
-
-            # Calculate age
-            age = (datetime.now().date() - birth_date).days / 365.25
-            operator = parameters.get('operator', 'eq')
-            value = float(parameters.get('value', 0))
-
-            logger.debug(f"Patient age check: age={age:.1f}, operator={operator}, value={value}")
-
-            if operator == 'eq':
-                return abs(age - value) < 1  # Within 1 year
-            elif operator == 'gt':
-                return age > value
-            elif operator == 'ge':
-                result = age >= value
-                logger.debug(f"Age check result: {age:.1f} >= {value} = {result}")
-                return result
-            elif operator == 'lt':
-                return age < value
-            elif operator == 'le':
-                return age <= value
-
-            return False
-
-        except Exception as e:
-            logger.error(f"Error checking patient age: {e}")
-            return False
-    
-    async def _check_patient_gender(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check patient gender condition using HAPI FHIR"""
-        try:
-            # Get patient data from HAPI FHIR
-            patient = get_resource('Patient', patient_id)
-
-            if not patient:
-                return False
-
-            target_gender = parameters.get('value', '').lower()
-            patient_gender = (patient.gender or '').lower() if hasattr(patient, 'gender') else ''
-
-            return patient_gender == target_gender
-
-        except Exception as e:
-            logger.error(f"Error checking patient gender: {e}")
-            return False
-    
-    async def _check_diagnosis_code(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check for specific diagnosis codes using HAPI FHIR"""
-        try:
-            codes = parameters.get('codes', [])
-            if isinstance(codes, str):
-                codes = codes.split(',')
-                codes = [code.strip() for code in codes if code.strip()]
-            elif not isinstance(codes, list):
-                codes = []
-
-            if not codes:
-                logger.warning(f"No codes to check for patient {patient_id}")
-                return False
-
-            logger.debug(f"Checking diagnosis codes {codes} for patient {patient_id}")
-
-            # Search conditions from HAPI FHIR for this patient
-            conditions = search_resources('Condition', {
-                'patient': f'Patient/{patient_id}'
-            })
-
-            if not conditions:
-                logger.debug(f"No conditions found for patient {patient_id}")
-                return False
-
-            # Check if any condition has matching codes
-            found_count = 0
-            for condition in conditions:
-                if hasattr(condition, 'code') and condition.code:
-                    if hasattr(condition.code, 'coding'):
-                        for coding in condition.code.coding:
-                            if hasattr(coding, 'code') and coding.code in codes:
-                                found_count += 1
-                                break
-
-            logger.debug(f"Found {found_count} matching conditions for patient {patient_id}")
-
-            operator = parameters.get('operator', 'in')
-            if operator in ('in', 'equals'):  # Support both 'in' and 'equals' operators
-                return found_count > 0
-            elif operator == 'not-in':
-                return found_count == 0
-
-            return False
-
-        except Exception as e:
-            logger.error(f"Error checking diagnosis codes: {e}")
-            return False
-    
-    async def _check_active_medication(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check for active medications using HAPI FHIR
-
-        Supports multiple parameter formats:
-        - Legacy: codes (array of medication codes)
-        - Catalog: medication/medications/drugClass (single or array)
-
-        Supports operators: 'in', 'equals', 'not-in', 'contains', 'any'
-        """
-        try:
-            # Extract codes from multiple parameter formats for backward compatibility
-            codes = parameters.get('codes') or \
-                    parameters.get('medication') or \
-                    parameters.get('medications') or \
-                    parameters.get('drugClass')
-
-            # Normalize to list
-            if isinstance(codes, str):
-                codes = codes.split(',')
-                codes = [code.strip() for code in codes if code.strip()]
-            elif codes is None:
-                codes = []
-            elif not isinstance(codes, list):
-                codes = [codes]
-
-            # Get operator (default to 'in' for backward compatibility)
-            operator = parameters.get('operator', 'in')
-
-            # Handle special 'any' case - just check if patient has any active medications
-            if codes == ['any'] or operator == 'any':
-                medications = search_resources('MedicationRequest', {
-                    'patient': f'Patient/{patient_id}',
-                    'status': 'active'
-                })
-                return len(medications) > 0 if medications else False
-
-            # Require codes for other operators
-            if not codes:
-                logger.warning(f"No medication codes provided for patient {patient_id}")
-                return False
-
-            # Search medication requests from HAPI FHIR
-            medications = search_resources('MedicationRequest', {
-                'patient': f'Patient/{patient_id}',
-                'status': 'active'
-            })
-
-            if not medications:
-                # No medications found
-                return operator == 'not-in'  # True only for 'not-in' operator
-
-            # Count matching medications
-            found_count = 0
-            matched_codes = set()
-
-            for med in medications:
-                if hasattr(med, 'medicationCodeableConcept') and med.medicationCodeableConcept:
-                    if hasattr(med.medicationCodeableConcept, 'coding'):
-                        for coding in med.medicationCodeableConcept.coding:
-                            if hasattr(coding, 'code'):
-                                # Check for matches based on operator
-                                if operator == 'contains':
-                                    # Partial match (code contains any of the search codes)
-                                    if any(search_code.lower() in coding.code.lower() for search_code in codes):
-                                        found_count += 1
-                                        matched_codes.add(coding.code)
-                                        break
-                                else:
-                                    # Exact match
-                                    if coding.code in codes:
-                                        found_count += 1
-                                        matched_codes.add(coding.code)
-                                        break
-
-            logger.debug(f"Found {found_count} matching medications for patient {patient_id}: {matched_codes}")
-
-            # Apply operator logic
-            if operator in ('in', 'equals'):
-                # At least one medication matches
-                return found_count > 0
-            elif operator == 'not-in':
-                # No medications match
-                return found_count == 0
-            elif operator == 'contains':
-                # Already handled in the loop above
-                return found_count > 0
-            else:
-                logger.warning(f"Unknown operator '{operator}' for medication check, defaulting to 'in'")
-                return found_count > 0
-
-        except Exception as e:
-            logger.error(f"Error checking active medications: {e}")
-            return False
-    
-    async def _check_lab_value(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check lab values against thresholds using HAPI FHIR
-
-        Standard parameters:
-        - code: Lab test code (LOINC code recommended) - PRIMARY
-        - labTest: Legacy parameter name, maps to code - BACKWARD COMPATIBILITY
-        - operator: Comparison operator (gt, gte, lt, lte, eq, between, etc.)
-        - value: Threshold value to compare against
-        - timeframe: Lookback period in days (default: 90, -1 for unlimited)
-        """
-        try:
-            # Accept both 'code' (standard) and 'labTest' (legacy) for backward compatibility
-            code = parameters.get('code') or parameters.get('labTest')
-            operator = parameters.get('operator', 'gt')
-            value = float(parameters.get('value', 0))
-            timeframe = int(parameters.get('timeframe', 90))  # days
-
-            logger.info(f"Lab value check - Initial parameters: {parameters}")
-            logger.info(f"Lab value check - Extracted values: code={code}, operator={operator}, value={value}, patient_id={patient_id}")
-
-            if not code:
-                logger.debug(f"No lab code provided in parameters: {parameters}")
-                return False
-
-            # Handle negative timeframe values (means unlimited lookback)
-            if timeframe < 0:
-                timeframe = 36500  # 100 years - effectively unlimited
-
-            cutoff_date = (datetime.now() - timedelta(days=timeframe)).isoformat()
-
-            logger.info(f"Lab value check: patient={patient_id}, code={code}, operator={operator}, value={value}, timeframe={timeframe} days, cutoff_date={cutoff_date}")
-
-            # Search observations from HAPI FHIR
-            observations = search_resources('Observation', {
-                'patient': f'Patient/{patient_id}',
-                'category': 'laboratory',
-                'code': code,
-                'date': f'ge{cutoff_date}'
-            })
-
-            if not observations:
-                logger.info(f"No lab values found for code {code} within {timeframe} days for patient {patient_id}")
-                return operator == 'missing'
-
-            # Get the most recent observation (HAPI should return sorted by date DESC)
-            obs = observations[0] if observations else None
-
-            if not obs:
-                return operator == 'missing'
-
-            # Get value from observation
-            lab_value = None
-            if hasattr(obs, 'valueQuantity') and obs.valueQuantity:
-                if hasattr(obs.valueQuantity, 'value'):
-                    lab_value = float(obs.valueQuantity.value)
-
-            if lab_value is None:
-                logger.debug(f"No valueQuantity found in observation for patient {patient_id}")
-                return False
-
-            logger.debug(f"Lab value comparison: {lab_value} {operator} {value}")
-
-            if operator == 'gt':
-                result = lab_value > value
-            elif operator == 'ge':
-                result = lab_value >= value
-            elif operator == 'lt':
-                result = lab_value < value
-            elif operator == 'le':
-                result = lab_value <= value
-            elif operator == 'eq':
-                result = abs(lab_value - value) < 0.01
-            else:
-                result = False
-
-            logger.debug(f"Lab value check result: {result} (lab_value={lab_value}, operator={operator}, threshold={value})")
-            return result
-
-        except Exception as e:
-            logger.error(f"Error checking lab values for patient {patient_id}: {e}")
-            return False
-    
-    async def _check_vital_sign(self, patient_id: str, parameters: Dict[str, Any]) -> bool:
-        """Check vital signs against normal ranges using HAPI FHIR"""
-        try:
-            vital_type = parameters.get('type')
-            operator = parameters.get('operator', 'gt')
-            value = float(parameters.get('value', 0))
-            timeframe = int(parameters.get('timeframe', 7))  # days
-
-            if not vital_type:
-                return False
-
-            cutoff_date = (datetime.now() - timedelta(days=timeframe)).isoformat()
-
-            # Search vital signs from HAPI FHIR
-            observations = search_resources('Observation', {
-                'patient': f'Patient/{patient_id}',
-                'category': 'vital-signs',
-                'code': vital_type,
-                'date': f'ge{cutoff_date}'
-            })
-
-            if not observations:
-                return False
-
-            # Get the most recent observation
-            obs = observations[0] if observations else None
-
-            if not obs:
-                return False
-
-            vital_value = None
-
-            # Handle blood pressure components
-            if vital_type == '85354-9' and hasattr(obs, 'component'):
-                component = parameters.get('component', 'systolic')
-                for comp in obs.component:
-                    comp_code = None
-                    if hasattr(comp, 'code') and hasattr(comp.code, 'coding'):
-                        comp_code = comp.code.coding[0].code if comp.code.coding else None
-
-                    if ((component == 'systolic' and comp_code == '8480-6') or
-                        (component == 'diastolic' and comp_code == '8462-4')):
-                        if hasattr(comp, 'valueQuantity') and hasattr(comp.valueQuantity, 'value'):
-                            vital_value = float(comp.valueQuantity.value)
-                            break
-
-                if vital_value is None:
-                    return False
-
-            # Regular vital signs
-            elif hasattr(obs, 'valueQuantity') and obs.valueQuantity:
-                if hasattr(obs.valueQuantity, 'value'):
-                    vital_value = float(obs.valueQuantity.value)
-
-            if vital_value is None:
-                return False
-
-            if operator == 'gt':
-                return vital_value > value
-            elif operator == 'ge':
-                return vital_value >= value
-            elif operator == 'lt':
-                return vital_value < value
-            elif operator == 'le':
-                return vital_value <= value
-
-            return False
-
-        except Exception as e:
-            logger.error(f"Error checking vital signs: {e}")
-            return False
-    
-    async def _execute_action(self, action: HookAction, request: CDSHookRequest) -> Optional[Card]:
-        """Execute an action and return a CDS card"""
-        try:
-            action_type = action.type
-            parameters = action.parameters
-            
-            if action_type == 'show-card':
-                # Create card from parameters
-                card = Card(
-                    summary=parameters.get('summary', 'Clinical Alert'),
-                    detail=parameters.get('detail', ''),
-                    indicator=IndicatorType(parameters.get('indicator', 'info')),
-                    source=Source(**parameters.get('source', {"label": "Clinical Decision Support"})),
-                    uuid=str(uuid.uuid4())
-                )
-                
-                # Add optional fields
-                if 'suggestions' in parameters:
-                    card.suggestions = [
-                        Suggestion(
-                            label=s.get('label', 'Suggestion'),
-                            uuid=s.get('uuid', str(uuid.uuid4())),
-                            actions=[
-                                Action(
-                                    type=ActionType(a.get('type', 'create')),
-                                    description=a.get('description', ''),
-                                    resource=a.get('resource', {})
-                                )
-                                for a in s.get('actions', [])
-                            ]
-                        )
-                        for s in parameters['suggestions']
-                    ]
-                
-                if 'links' in parameters:
-                    card.links = [
-                        Link(
-                            label=l.get('label', 'Link'),
-                            url=l.get('url', ''),
-                            type=l.get('type', 'absolute'),
-                            appContext=l.get('appContext', '')
-                        )
-                        for l in parameters['links']
-                    ]
-                
-                if 'overrideReasons' in parameters:
-                    card.overrideReasons = [
-                        OverrideReason(
-                            code=reason.get('code', reason.get('key', '')),
-                            display=reason.get('display', reason.get('label', '')),
-                            system=reason.get('system', '')
-                        )
-                        for reason in parameters['overrideReasons']
-                    ]
-                
-                return card
-            
-            # Handle medication prescribe specific actions
-            elif action_type in ['check-interactions', 'check-allergies', 'dosing-guidance', 'renal-dosing']:
-                # Delegate to medication prescribe hooks
-                cards = []
-                if action_type == 'check-interactions':
-                    cards = await medication_prescribe_hooks.execute_drug_interaction_check(request)
-                elif action_type == 'check-allergies':
-                    cards = await medication_prescribe_hooks.execute_allergy_check(request)
-                elif action_type == 'dosing-guidance':
-                    cards = await medication_prescribe_hooks.execute_age_based_dosing(request)
-                
-                # Return the first card if any
-                return cards[0] if cards else None
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error executing action: {e}")
-            return None
+            import json
+            return json.loads(prefetch_extension)
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.warning(f"Failed to parse prefetch extension: {e}")
+
+    # Fallback: Build prefetch from action inputs (legacy approach)
+    prefetch = {}
+    actions = plan_def.get("action", [])
+    if not actions:
+        return prefetch
+
+    # Get first action's inputs
+    inputs = actions[0].get("input", [])
+    for i, input_req in enumerate(inputs):
+        if input_req.get("type") == "DataRequirement":
+            # Extract resource type from profile
+            profiles = input_req.get("profile", [])
+            if profiles:
+                resource_type = profiles[0].split("/")[-1]
+                # Create prefetch key and template
+                prefetch[f"input{i}"] = f"{resource_type}/{{{{context.patientId}}}}"
+
+    return prefetch
 
 
 # CDS Hooks Discovery Endpoint
 @router.get("/cds-services", response_model=CDSServicesResponse)
-async def discover_services(db: AsyncSession = Depends(get_db_session), use_registry: bool = False):
-    """CDS Hooks discovery endpoint - returns available services"""
-    
-    # Option to use new service registry
-    if use_registry:
-        registry_services = service_registry.list_services()
-        # Also include legacy services from database
-        try:
-            db_hooks = await load_hooks_from_database(db)
-            for hook_id, hook_config in db_hooks.items():
-                if hook_config.enabled and hook_id not in [s.id for s in registry_services]:
-                    service = CDSService(
-                        hook=hook_config.hook,
-                        title=hook_config.title,
-                        description=hook_config.description,
-                        id=hook_id,
-                        prefetch=hook_config.prefetch,
-                        usageRequirements=hook_config.usageRequirements
-                    )
-                    registry_services.append(service)
-        except Exception as e:
-            logger.error(f"Error loading legacy services: {e}")
-        
-        return CDSServicesResponse(services=registry_services)
-    
-    # Legacy discovery logic
+async def discover_services(
+    db: AsyncSession = Depends(get_db_session),
+    service_origin: Optional[str] = None  # Filter: "built-in", "external", or None for all
+):
+    """
+    CDS Hooks discovery endpoint - v3.0 architecture
+
+    **Hybrid Architecture**:
+    - Built-in services: Registered via ServiceRegistry (v3.0 pattern)
+    - External services: Stored as PlanDefinitions in HAPI FHIR
+
+    Args:
+        service_origin: Optional filter by service origin ("built-in", "external", or None for all)
+
+    Returns:
+        CDSServicesResponse with all discovered services
+    """
+    from services.hapi_fhir_client import HAPIFHIRClient
+
     services = []
-    
-    try:
-        # Load hooks from database first
-        db_hooks = await load_hooks_from_database(db)
-        
-        # If no hooks in database, initialize with sample hooks
-        if not db_hooks:
-            logger.info("No hooks found in database, initializing with sample hooks")
-            await save_sample_hooks_to_database(db, SAMPLE_HOOKS)
-            db_hooks = await load_hooks_from_database(db)
-        
-        # Use database hooks if available, otherwise fall back to sample hooks
-        hooks_to_use = db_hooks if db_hooks else SAMPLE_HOOKS
-        
-        for hook_id, hook_config in hooks_to_use.items():
-            if hook_config.enabled:
-                service = CDSService(
-                    hook=hook_config.hook,
-                    title=hook_config.title,
-                    description=hook_config.description,
-                    id=hook_id,
-                    prefetch=hook_config.prefetch,
-                    usageRequirements=hook_config.usageRequirements
+
+    # 1. Get built-in services from v3.0 ServiceRegistry
+    if service_origin is None or service_origin == "built-in":
+        try:
+            registry = get_registry()
+            hook_type_filter = None  # Get all hook types
+
+            # Get discovery response from registry
+            registry_services = registry.list_services(enabled_only=True)
+            for svc in registry_services:
+                # Convert CDSServiceBase to CDSService model for response
+                service_def = svc.get_service_definition()
+                services.append(CDSService(
+                    id=service_def.get("id", svc.service_id),
+                    hook=service_def.get("hook", svc.hook_type.value),
+                    title=service_def.get("title", svc.title),
+                    description=service_def.get("description", svc.description),
+                    prefetch=service_def.get("prefetch", svc.prefetch_templates),
+                    usageRequirements=service_def.get("usageRequirements", "")
+                ))
+
+            logger.info(f"Discovered {len(services)} built-in services from ServiceRegistry")
+
+        except Exception as e:
+            logger.warning(f"Error getting services from registry: {e}")
+
+    # 2. Get external services from HAPI FHIR PlanDefinitions
+    if service_origin is None or service_origin == "external":
+        try:
+            hapi_client = HAPIFHIRClient()
+
+            # Build search parameters for PlanDefinitions
+            search_params = {
+                "status": "active",
+                "_count": 500
+            }
+
+            # Query HAPI FHIR for all PlanDefinitions
+            bundle = await hapi_client.search("PlanDefinition", search_params)
+
+            hapi_count = 0
+            for entry in bundle.get("entry", []):
+                plan_def = entry.get("resource", {})
+
+                # Extract service-origin extension
+                origin = _extract_extension_value(
+                    plan_def,
+                    "http://wintehr.local/fhir/StructureDefinition/service-origin"
                 )
-                services.append(service)
-        
-        logger.debug(f"Discovered {len(services)} enabled CDS services")
-        
-    except Exception as e:
-        logger.error(f"Error in service discovery: {e}")
-        # Fallback to sample hooks
-        for hook_id, hook_config in SAMPLE_HOOKS.items():
-            if hook_config.enabled:
-                service = CDSService(
-                    hook=hook_config.hook,
-                    title=hook_config.title,
-                    description=hook_config.description,
-                    id=hook_id,
-                    prefetch=hook_config.prefetch,
-                    usageRequirements=hook_config.usageRequirements
-                )
-                services.append(service)
-    
+
+                # Only include external services from HAPI (built-in are in registry)
+                if origin == "external" or (service_origin == "external" and origin == service_origin):
+                    service = _plan_definition_to_cds_service(plan_def)
+                    if service:
+                        services.append(service)
+                        hapi_count += 1
+
+            logger.info(f"Discovered {hapi_count} external services from HAPI FHIR")
+
+        except httpx.HTTPStatusError as e:
+            logger.warning(f"FHIR server error discovering services: {e.response.status_code}")
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            logger.warning(f"Cannot connect to FHIR server for service discovery: {e}")
+        except (KeyError, TypeError, ValueError) as e:
+            logger.warning(f"Error parsing HAPI service data: {e}")
+
+    logger.info(f"Total CDS services discovered: {len(services)}")
     return CDSServicesResponse(services=services)
 
 
@@ -1041,153 +333,258 @@ async def discover_services(db: AsyncSession = Depends(get_db_session), use_regi
 async def execute_service(
     service_id: str,
     request: CDSHookRequest,
-    db: AsyncSession = Depends(get_db_session),
-    use_rules_engine: bool = False,  # Query parameter to optionally use rules engine
-    use_registry: bool = False  # Query parameter to use service registry
+    db: AsyncSession = Depends(get_db_session)
 ):
-    """Execute a specific CDS service"""
-    
-    # Option to use service registry
-    if use_registry:
-        try:
-            # Try to execute through service registry first
-            if service_registry.get_service_definition(service_id):
-                response = await service_registry.invoke_service(service_id, request, db)
-                return response
-        except Exception as e:
-            logger.error(f"Error executing service {service_id} through registry: {e}")
-            # Fall through to legacy execution
-    # Check if we should use the rules engine for certain services
-    rules_engine_services = {
-        "medication-prescribe-v2", "patient-view-v2", "order-select-v2",
-        "encounter-start-v2", "encounter-discharge-v2"
-    }
-    
-    # Use rules engine for v2 services or if explicitly requested
-    if service_id in rules_engine_services or use_rules_engine:
-        try:
-            # Convert context to dict format expected by rules engine
-            context_dict = request.context if isinstance(request.context, dict) else request.context.dict()
-            
-            # Execute with rules engine
-            response = await cds_integration.execute_hook(
-                hook=request.hook.value,
-                context=context_dict,
-                prefetch=request.prefetch,
-                use_legacy=True  # Include legacy results for better coverage
-            )
-            
-            # Convert response to CDSHookResponse format
-            cards = []
-            for card_data in response.get("cards", []):
-                card = Card(
-                    summary=card_data.get("summary", ""),
-                    detail=card_data.get("detail", ""),
-                    indicator=IndicatorType(card_data.get("indicator", "info")),
-                    source=Source(**card_data.get("source", {"label": "CDS Rules Engine"})),
-                    uuid=card_data.get("uuid", str(uuid.uuid4()))
-                )
-                
-                if "suggestions" in card_data:
-                    card.suggestions = card_data["suggestions"]
-                if "links" in card_data:
-                    card.links = card_data["links"]
-                
-                cards.append(card)
-            
-            return CDSHookResponse(cards=cards)
-            
-        except Exception as e:
-            logger.error(f"Error executing CDS service {service_id} with rules engine: {e}")
-            # Fall through to legacy execution
-    
-    # Legacy execution path
-    # Get the hook configuration from database first, then fallback to sample hooks
-    try:
-        manager = await get_persistence_manager(db)
-        hook_config = await manager.get_hook(service_id)
-        if not hook_config:
-            hook_config = SAMPLE_HOOKS.get(service_id)
-    except Exception as e:
-        logger.warning(f"Error accessing database for hook {service_id}: {e}")
-        hook_config = SAMPLE_HOOKS.get(service_id)
-    
-    if not hook_config:
-        raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
-    
-    # Check if hook is enabled
-    if not hook_config.enabled:
-        return CDSHookResponse(cards=[])
-    
-    # Validate hook type matches
-    if hook_config.hook != request.hook:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Hook type mismatch: service expects {hook_config.hook}, got {request.hook}"
-        )
-    
-    # Execute prefetch if configured and not provided
-    if hook_config.prefetch and not request.prefetch:
-        try:
-            prefetch_start = datetime.now()
-            request.prefetch = await execute_hook_prefetch(
-                db, 
-                hook_config.prefetch, 
-                request.context if isinstance(request.context, dict) else request.context.dict()
-            )
-            prefetch_time = int((datetime.now() - prefetch_start).total_seconds() * 1000)
-            logger.debug(f"Executed prefetch for {service_id} in {prefetch_time}ms")
-        except Exception as e:
-            logger.warning(f"Prefetch execution failed for {service_id}: {e}")
-            # Continue without prefetch data
-            request.prefetch = {}
-    
-    # Create execution engine
-    engine = CDSHookEngine(db)
-    
-    # Execute hook with performance tracking
+    """
+    Execute a specific CDS service - v3.0 architecture
+
+    **Routing Logic**:
+    1. Check v3.0 ServiceRegistry for built-in services (preferred)
+    2. Fall back to HAPI FHIR PlanDefinition for external/visual-builder services
+
+    **Service Origins**:
+    - "built-in" → ServiceOrchestrator (v3.0 pattern)
+    - "external" → RemoteServiceProvider (HTTP POST with failure tracking)
+    - "visual-builder" → VisualServiceProvider
+    """
+    from services.hapi_fhir_client import HAPIFHIRClient
+    from .providers import RemoteServiceProvider
+
     start_time = datetime.now()
-    execution_success = True
-    error_message = None
     cards = []
-    
+
     try:
-        cards = await engine.evaluate_hook(hook_config, request)
-        response = CDSHookResponse(cards=cards)
-    except Exception as e:
-        logger.error(f"Error executing CDS Service {service_id}: {str(e)}")
-        execution_success = False
-        error_message = str(e)
+        logger.info(f"Executing CDS service: {service_id}")
+
+        # 1. First check v3.0 ServiceRegistry for built-in services
+        registry = get_registry()
+        registered_service = registry.get(service_id)
+
+        if registered_service:
+            logger.info(f"Found service {service_id} in v3.0 ServiceRegistry")
+
+            # Execute via ServiceOrchestrator
+            orchestrator = get_orchestrator()
+
+            # Prepare context and prefetch
+            context = request.context if isinstance(request.context, dict) else request.context.dict()
+            prefetch = request.prefetch or {}
+
+            # If prefetch is empty and service has prefetch_templates, resolve them
+            # This ensures services receive the data they need even when client doesn't provide prefetch
+            if not prefetch and hasattr(registered_service, 'prefetch_templates') and registered_service.prefetch_templates:
+                try:
+                    logger.info(f"Resolving prefetch templates for service {service_id}: {list(registered_service.prefetch_templates.keys())}")
+                    # Wrap context in {"context": ...} structure as templates use {{context.patientId}} format
+                    prefetch_context = {"context": context}
+                    prefetch = await execute_prefetch(registered_service.prefetch_templates, prefetch_context)
+                    logger.info(f"Resolved prefetch keys: {list(prefetch.keys())}")
+                except Exception as e:
+                    logger.warning(f"Failed to resolve prefetch for {service_id}: {e}")
+                    # Continue with empty prefetch - service may still work
+
+            # Execute the single service
+            result = await orchestrator.execute_single(
+                service_id=service_id,
+                context=context,
+                prefetch=prefetch
+            )
+
+            if result.success:
+                cards = result.cards
+            else:
+                logger.warning(f"Service {service_id} execution failed: {result.error_message}")
+
+        else:
+            # 2. Fall back to HAPI FHIR PlanDefinition lookup
+            logger.info(f"Service {service_id} not in registry, checking HAPI FHIR")
+
+            hapi_client = HAPIFHIRClient()
+            plan_definition = None
+
+            # Try direct read by ID
+            try:
+                plan_definition = await hapi_client.read("PlanDefinition", service_id)
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    logger.info(f"Direct read failed for {service_id}, trying extension search")
+                else:
+                    logger.warning(f"FHIR server error reading {service_id}: {e.response.status_code}")
+            except (httpx.RequestError, httpx.TimeoutException) as e:
+                logger.warning(f"Connection error reading {service_id}: {e}")
+            except (KeyError, TypeError, ValueError) as e:
+                logger.info(f"Data parsing error for {service_id}, trying extension search: {e}")
+            except Exception as e:
+                # HAPIFHIRClient re-raises 404 as generic Exception with "not found" message
+                if "not found" in str(e).lower():
+                    logger.info(f"Direct read failed for {service_id}, trying extension search")
+                else:
+                    logger.warning(f"Unexpected error reading {service_id}: {e}")
+
+            # Try extension search if direct read failed
+            if not plan_definition:
+                try:
+                    bundle = await hapi_client.search("PlanDefinition", {"status": "active"})
+                    for entry in bundle.get("entry", []):
+                        resource = entry.get("resource", {})
+                        for ext in resource.get("extension", []):
+                            if ext.get("url") == "http://wintehr.local/fhir/StructureDefinition/hook-service-id":
+                                if ext.get("valueString") == service_id:
+                                    plan_definition = resource
+                                    logger.info(f"Found service {service_id} via extension search")
+                                    break
+                        if plan_definition:
+                            break
+                except Exception as e:
+                    logger.warning(f"Extension search failed for {service_id}: {e}")
+
+            if not plan_definition:
+                logger.error(f"Service '{service_id}' not found")
+                raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
+
+            # Extract service-origin from extension
+            service_origin = "built-in"
+            for ext in plan_definition.get("extension", []):
+                if ext.get("url") == "http://wintehr.local/fhir/StructureDefinition/service-origin":
+                    service_origin = ext.get("valueString", "built-in")
+                    break
+
+            logger.info(f"Service {service_id} has origin: {service_origin}")
+
+            # Route to appropriate provider based on origin
+            if service_origin == "external":
+                # Use RemoteServiceProvider for external services
+                external_service_id = _extract_extension_value(
+                    plan_definition,
+                    "http://wintehr.local/fhir/StructureDefinition/external-service-id"
+                )
+
+                if not external_service_id:
+                    logger.error(f"External service {service_id} missing external-service-id extension")
+                    raise HTTPException(status_code=500, detail="Invalid external service configuration")
+
+                query = text("""
+                    SELECT
+                        s.id,
+                        s.base_url,
+                        s.auth_type,
+                        s.credentials_encrypted,
+                        s.auto_disabled,
+                        s.consecutive_failures,
+                        s.last_error_message,
+                        h.hook_service_id,
+                        s.base_url || '/cds-services/' || h.hook_service_id AS service_url
+                    FROM external_services.services s
+                    JOIN external_services.cds_hooks h ON s.id = h.service_id
+                    WHERE s.id = :service_id
+                    LIMIT 1
+                """)
+                result = await db.execute(query, {"service_id": external_service_id})
+                service_metadata = result.mappings().first()
+
+                if not service_metadata:
+                    logger.error(f"External service metadata not found: {external_service_id}")
+                    raise HTTPException(status_code=500, detail="External service not registered")
+
+                provider = RemoteServiceProvider(db)
+                response = await provider.execute(
+                    plan_definition,
+                    request,
+                    service_metadata=dict(service_metadata)
+                )
+                cards = response.cards
+
+            elif service_origin == "visual-builder":
+                # Use VisualServiceProvider for visual builder services
+                visual_service_id = _extract_extension_value(
+                    plan_definition,
+                    "http://wintehr.local/fhir/StructureDefinition/visual-service-id"
+                )
+
+                if not visual_service_id:
+                    logger.error(f"Visual service {service_id} missing visual-service-id extension")
+                    raise HTTPException(status_code=500, detail="Invalid visual service configuration")
+
+                from api.cds_studio.visual_service_config import VisualServiceConfig
+                from sqlalchemy import select
+
+                query = select(VisualServiceConfig).where(
+                    VisualServiceConfig.id == int(visual_service_id)
+                )
+                result = await db.execute(query)
+                visual_config = result.scalar_one_or_none()
+
+                if not visual_config:
+                    logger.error(f"Visual service configuration not found: {visual_service_id}")
+                    raise HTTPException(status_code=500, detail="Visual service not configured")
+
+                from api.cds_studio.visual_service_provider import VisualServiceProvider
+                provider = VisualServiceProvider(db)
+                response = await provider.execute(
+                    visual_config,
+                    request,
+                    plan_definition
+                )
+                cards = response.cards
+
+            else:
+                # For built-in services found in HAPI but not in registry (legacy)
+                # Use legacy LocalServiceProvider
+                from .providers import LocalServiceProvider
+                provider = LocalServiceProvider()
+                response = await provider.execute(plan_definition, request, None)
+                cards = response.cards
+
+        # Calculate execution time
+        execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+
+        # Log execution (fire and forget)
+        try:
+            patient_id = request.context.get('patientId') if isinstance(request.context, dict) else None
+            user_id = request.context.get('userId') if isinstance(request.context, dict) else None
+
+            await log_hook_execution(
+                db=db,
+                service_id=service_id,
+                hook_type=request.hook.value,
+                patient_id=patient_id,
+                user_id=user_id,
+                context=request.context if isinstance(request.context, dict) else request.context.dict(),
+                request_data=request.dict(),
+                response_data={"cards": [c.dict() for c in cards]},
+                cards_returned=len(cards),
+                execution_time_ms=execution_time_ms,
+                success=True,
+                error_message=None
+            )
+        except Exception as log_error:
+            logger.warning(f"Failed to log hook execution: {log_error}")
+
+        return CDSHookResponse(cards=cards)
+
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as e:
+        logger.error(f"FHIR server error executing CDS service {service_id}: {e.response.status_code}")
+        return CDSHookResponse(cards=[])
+    except (httpx.RequestError, httpx.TimeoutException) as e:
+        logger.error(f"Connection error executing CDS service {service_id}: {e}")
+        return CDSHookResponse(cards=[])
+    except CDSExecutionError as e:
+        logger.error(f"CDS execution error for service {service_id}: {e.message}")
+        return CDSHookResponse(cards=[])
+    except DatabaseQueryError as e:
+        logger.error(f"Database error executing CDS service {service_id}: {e.message}")
+        return CDSHookResponse(cards=[])
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error executing CDS service {service_id}: {e}")
         # CDS Hooks should be non-blocking - return empty cards on error
-        response = CDSHookResponse(cards=[])
-    
-    # Calculate execution time
-    execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-    
-    # Log the execution (fire and forget - don't block response)
-    try:
-        patient_id = request.context.get('patientId') if isinstance(request.context, dict) else None
-        user_id = request.context.get('userId') if isinstance(request.context, dict) else None
-        
-        await log_hook_execution(
-            db=db,
-            service_id=service_id,
-            hook_type=request.hook.value,
-            patient_id=patient_id,
-            user_id=user_id,
-            context=request.context if isinstance(request.context, dict) else request.context.dict(),
-            request_data=request.dict(),
-            response_data=response.dict(),
-            cards_returned=len(cards),
-            execution_time_ms=execution_time_ms,
-            success=execution_success,
-            error_message=error_message
-        )
-    except Exception as log_error:
-        logger.warning(f"Failed to log hook execution: {log_error}")
-        # Don't fail the response due to logging issues
-    
-    return response
+        return CDSHookResponse(cards=[])
+    except Exception as e:
+        # Catch-all for any other errors (e.g., external service failures)
+        # CDS Hooks should be non-blocking - return empty cards on error
+        logger.error(f"Unexpected error executing CDS service {service_id}: {e}")
+        return CDSHookResponse(cards=[])
 
 
 # CDS Service Feedback Endpoint
@@ -1242,11 +639,17 @@ async def provide_feedback(
         
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error processing feedback for service {service_id}: {e}")
+    except DatabaseQueryError as e:
+        logger.error(f"Database error processing feedback for service {service_id}: {e.message}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to process feedback. The feedback has been logged for manual review."
+        )
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error processing feedback for service {service_id}: {e}")
         # CDS Hooks specification allows for graceful error handling
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail="Failed to process feedback. The feedback has been logged for manual review."
         )
 
@@ -1278,12 +681,12 @@ async def get_feedback_analytics(
         
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error getting analytics for service {service_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve analytics"
-        )
+    except DatabaseQueryError as e:
+        logger.error(f"Database error getting analytics for service {service_id}: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve analytics")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error getting analytics for service {service_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve analytics")
 
 
 # Global Analytics Endpoint
@@ -1304,12 +707,12 @@ async def get_global_analytics(
             "timestamp": datetime.now().isoformat()
         }
         
-    except Exception as e:
-        logger.error(f"Error getting global analytics: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve analytics summary"
-        )
+    except DatabaseQueryError as e:
+        logger.error(f"Database error getting global analytics: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve analytics summary")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error getting global analytics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve analytics summary")
 
 
 # Prefetch Analysis Endpoint
@@ -1350,12 +753,12 @@ async def analyze_prefetch_patterns(
         
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error analyzing prefetch patterns for service {service_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to analyze prefetch patterns"
-        )
+    except DatabaseQueryError as e:
+        logger.error(f"Database error analyzing prefetch patterns for service {service_id}: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to analyze prefetch patterns")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error analyzing prefetch patterns for service {service_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to analyze prefetch patterns")
 
 
 # Service Management Endpoints (for CRUD operations)
@@ -1369,8 +772,17 @@ async def list_services(
     try:
         manager = await get_persistence_manager(db)
         return await manager.list_hooks(hook_type=hook_type, enabled_only=enabled_only)
-    except Exception as e:
-        logger.error(f"Error listing hooks from database: {e}")
+    except DatabaseQueryError as e:
+        logger.error(f"Database error listing hooks: {e.message}")
+        # Fallback to sample hooks
+        hooks = list(SAMPLE_HOOKS.values())
+        if hook_type:
+            hooks = [h for h in hooks if h.hook.value == hook_type]
+        if enabled_only:
+            hooks = [h for h in hooks if h.enabled]
+        return hooks
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error listing hooks: {e}")
         # Fallback to sample hooks
         hooks = list(SAMPLE_HOOKS.values())
         if hook_type:
@@ -1409,8 +821,11 @@ async def create_service(
         
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error creating hook: {e}")
+    except DatabaseQueryError as e:
+        logger.error(f"Database error creating hook: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to create hook")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error creating hook: {e}")
         raise HTTPException(status_code=500, detail="Failed to create hook")
 
 # Alias endpoint for CDS Builder compatibility
@@ -1435,8 +850,11 @@ async def backup_services(db: AsyncSession = Depends(get_db_session)):
         
         return backup
         
-    except Exception as e:
-        logger.error(f"Error creating services backup: {e}")
+    except DatabaseQueryError as e:
+        logger.error(f"Database error creating services backup: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to create backup")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error creating services backup: {e}")
         raise HTTPException(status_code=500, detail="Failed to create backup")
 
 @router.post("/services/restore")
@@ -1451,8 +869,11 @@ async def restore_services(backup_data: Dict[str, Any], db: AsyncSession = Depen
             "restored_count": restored_count
         }
         
-    except Exception as e:
-        logger.error(f"Error restoring services: {e}")
+    except DatabaseQueryError as e:
+        logger.error(f"Database error restoring services: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to restore services")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error restoring services: {e}")
         raise HTTPException(status_code=500, detail="Failed to restore services")
 
 @router.post("/services/sync-samples")
@@ -1467,8 +888,11 @@ async def sync_sample_services(db: AsyncSession = Depends(get_db_session)):
             "services_count": len(db_hooks),
             "services": list(db_hooks.keys())
         }
-    except Exception as e:
-        logger.error(f"Error syncing sample services: {e}")
+    except DatabaseQueryError as e:
+        logger.error(f"Database error syncing sample services: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to sync sample services")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error syncing sample services: {e}")
         raise HTTPException(status_code=500, detail="Failed to sync sample services")
 
 @router.get("/services/{service_id}", response_model=HookConfiguration)
@@ -1485,8 +909,11 @@ async def get_service(service_id: str, db: AsyncSession = Depends(get_db_session
         return hook_config
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error retrieving service {service_id}: {e}")
+    except DatabaseQueryError as e:
+        logger.error(f"Database error retrieving service {service_id}: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve service")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error retrieving service {service_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve service")
 
 # Alias endpoint for CDS Builder compatibility
@@ -1518,8 +945,11 @@ async def update_service(
         
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error updating service {service_id}: {e}")
+    except DatabaseQueryError as e:
+        logger.error(f"Database error updating service {service_id}: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to update service")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error updating service {service_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update service")
 
 # Alias endpoint for CDS Builder compatibility  
@@ -1552,8 +982,11 @@ async def delete_service(service_id: str, db: AsyncSession = Depends(get_db_sess
         
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error deleting service {service_id}: {e}")
+    except DatabaseQueryError as e:
+        logger.error(f"Database error deleting service {service_id}: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to delete service")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error deleting service {service_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete service")
 
 
@@ -1576,8 +1009,11 @@ async def toggle_service(service_id: str, enabled: bool, db: AsyncSession = Depe
         
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error toggling service {service_id}: {e}")
+    except DatabaseQueryError as e:
+        logger.error(f"Database error toggling service {service_id}: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to toggle service")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error toggling service {service_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to toggle service")
 
 @router.post("/services/test/{service_id}")
@@ -1618,8 +1054,14 @@ async def test_service(
         
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error testing service {service_id}: {e}")
+    except CDSExecutionError as e:
+        logger.error(f"CDS execution error testing service {service_id}: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to test service")
+    except DatabaseQueryError as e:
+        logger.error(f"Database error testing service {service_id}: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to test service")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error testing service {service_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to test service")
 
 # Rules Engine Management Endpoints
@@ -1633,8 +1075,11 @@ async def get_rules_statistics():
             "statistics": stats,
             "timestamp": datetime.now().isoformat()
         }
-    except Exception as e:
-        logger.error(f"Error getting rules statistics: {e}")
+    except CDSExecutionError as e:
+        logger.error(f"CDS execution error getting rules statistics: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to get rules statistics")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error getting rules statistics: {e}")
         raise HTTPException(status_code=500, detail="Failed to get rules statistics")
 
 
@@ -1658,8 +1103,14 @@ async def evaluate_rules(
             "response": response,
             "timestamp": datetime.now().isoformat()
         }
-    except Exception as e:
-        logger.error(f"Error evaluating rules: {e}")
+    except CDSRuleEvaluationError as e:
+        logger.error(f"Rule evaluation error: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to evaluate rules")
+    except CDSExecutionError as e:
+        logger.error(f"CDS execution error evaluating rules: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to evaluate rules")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error evaluating rules: {e}")
         raise HTTPException(status_code=500, detail="Failed to evaluate rules")
 
 
@@ -1675,8 +1126,11 @@ async def toggle_rule(rule_set_name: str, rule_id: str, enabled: bool):
             "rule_id": rule_id,
             "enabled": enabled
         }
-    except Exception as e:
-        logger.error(f"Error toggling rule: {e}")
+    except CDSExecutionError as e:
+        logger.error(f"CDS execution error toggling rule: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to toggle rule")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error toggling rule: {e}")
         raise HTTPException(status_code=500, detail="Failed to toggle rule")
 
 
@@ -1691,8 +1145,11 @@ async def get_safety_metrics():
             "metrics": metrics,
             "timestamp": datetime.now().isoformat()
         }
-    except Exception as e:
-        logger.error(f"Error getting safety metrics: {e}")
+    except CDSExecutionError as e:
+        logger.error(f"CDS execution error getting safety metrics: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to get safety metrics")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error getting safety metrics: {e}")
         raise HTTPException(status_code=500, detail="Failed to get safety metrics")
 
 
@@ -1710,8 +1167,11 @@ async def set_feature_flag(flag: str, enabled: bool):
         }
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid feature flag: {flag}")
-    except Exception as e:
-        logger.error(f"Error setting feature flag: {e}")
+    except CDSExecutionError as e:
+        logger.error(f"CDS execution error setting feature flag: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to set feature flag")
+    except (TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error setting feature flag: {e}")
         raise HTTPException(status_code=500, detail="Failed to set feature flag")
 
 
@@ -1721,13 +1181,12 @@ async def rules_engine_health():
     try:
         health = safety_manager.health_check()
         return health
-    except Exception as e:
-        logger.error(f"Error checking rules engine health: {e}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
+    except CDSExecutionError as e:
+        logger.error(f"CDS execution error checking rules engine health: {e.message}")
+        return {"status": "error", "error": e.message, "timestamp": datetime.now().isoformat()}
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error checking rules engine health: {e}")
+        return {"status": "error", "error": str(e), "timestamp": datetime.now().isoformat()}
 
 
 @router.post("/rules-engine/safety/circuit-breaker/{service}/reset")
@@ -1749,8 +1208,13 @@ async def reset_circuit_breaker(service: str):
             }
         else:
             raise HTTPException(status_code=404, detail=f"Circuit breaker for {service} not found")
-    except Exception as e:
-        logger.error(f"Error resetting circuit breaker: {e}")
+    except HTTPException:
+        raise
+    except CDSExecutionError as e:
+        logger.error(f"CDS execution error resetting circuit breaker: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to reset circuit breaker")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error resetting circuit breaker: {e}")
         raise HTTPException(status_code=500, detail="Failed to reset circuit breaker")
 
 
@@ -1782,8 +1246,11 @@ async def get_ab_test_results():
             "allocation": safety_manager.ab_test_allocation,
             "timestamp": datetime.now().isoformat()
         }
-    except Exception as e:
-        logger.error(f"Error getting A/B test results: {e}")
+    except CDSExecutionError as e:
+        logger.error(f"CDS execution error getting A/B test results: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to get A/B test results")
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        logger.error(f"Data error getting A/B test results: {e}")
         raise HTTPException(status_code=500, detail="Failed to get A/B test results")
 
 
@@ -1824,17 +1291,23 @@ async def health_check(db: AsyncSession = Depends(get_db_session)):
         db_hooks = await load_hooks_from_database(db)
         db_status = "connected"
         db_hooks_count = len(db_hooks)
-    except Exception as e:
-        db_status = f"error: {str(e)}"
+    except DatabaseQueryError as e:
+        db_status = f"database error: {e.message}"
         db_hooks_count = 0
-    
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        db_status = f"data error: {str(e)}"
+        db_hooks_count = 0
+
     # Get rules engine statistics
     try:
         rules_stats = await cds_integration.get_rule_statistics()
         rules_engine_status = "healthy"
-    except Exception as e:
+    except CDSExecutionError as e:
         rules_stats = {}
-        rules_engine_status = f"error: {str(e)}"
+        rules_engine_status = f"execution error: {e.message}"
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
+        rules_stats = {}
+        rules_engine_status = f"data error: {str(e)}"
     
     # Get service registry information
     registry_services = service_registry.list_services()
@@ -1853,7 +1326,7 @@ async def health_check(db: AsyncSession = Depends(get_db_session)):
         "rules_engine_statistics": rules_stats,
         "service_registry": {
             "status": "active",
-            "services": [s.id for s in registry_services]
+            "services": [s.service_id for s in registry_services]
         },
         "timestamp": datetime.now().isoformat()
     }

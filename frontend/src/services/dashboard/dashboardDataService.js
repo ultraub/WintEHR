@@ -542,26 +542,17 @@ class DashboardDataService {
       });
 
       // Get recent critical observations and flags
-      const [criticalObs, drugAlerts, allergyAlerts] = await Promise.all([
-        // Critical lab values
+      const [criticalObs, allFlags] = await Promise.all([
+        // Critical lab values - search for any recent labs, filter critical values in code
         fhirClient.search('Observation', {
           date: `ge${sevenDaysAgo.toISOString()}`,
-          'value-quantity': 'critical',
-          _count: 10,
+          _count: 50,
           _sort: '-date'
         }),
-        // Recent medication alerts from Flag resources
+        // All recent flags - filter by type in code since Flag doesn't support code/category search
         fhirClient.search('Flag', {
           date: `ge${sevenDaysAgo.toISOString()}`,
-          category: 'drug',
-          _count: 10,
-          _sort: '-date'
-        }),
-        // Recent allergy alerts
-        fhirClient.search('Flag', {
-          date: `ge${sevenDaysAgo.toISOString()}`,
-          category: 'allergy',
-          _count: 10,
+          _count: 50,
           _sort: '-date'
         })
       ]);
@@ -570,20 +561,57 @@ class DashboardDataService {
       const clinicalAlerts = [];
       let alertId = 1;
 
-      // Add critical lab alerts
-      (criticalObs.resources || []).slice(0, 3).forEach(obs => {
+      // Helper function to determine if an observation is critical
+      const isCriticalValue = (obs) => {
+        // Check for explicit critical flag in interpretation
+        if (obs.interpretation) {
+          const interpretations = Array.isArray(obs.interpretation) ? obs.interpretation : [obs.interpretation];
+          return interpretations.some(interp =>
+            interp.coding?.some(coding =>
+              coding.code === 'H' || coding.code === 'L' ||
+              coding.code === 'HH' || coding.code === 'LL' ||
+              coding.code === 'A' || coding.code === 'AA' ||
+              coding.display?.toLowerCase().includes('critical')
+            )
+          );
+        }
+        return false;
+      };
+
+      // Helper function to check if flag is drug-related
+      const isDrugFlag = (flag) => {
+        const codeText = flag.code?.text?.toLowerCase() || '';
+        const codeDisplay = flag.code?.coding?.[0]?.display?.toLowerCase() || '';
+        return codeText.includes('drug') || codeText.includes('medication') ||
+               codeDisplay.includes('drug') || codeDisplay.includes('medication');
+      };
+
+      // Helper function to check if flag is allergy-related
+      const isAllergyFlag = (flag) => {
+        const codeText = flag.code?.text?.toLowerCase() || '';
+        const codeDisplay = flag.code?.coding?.[0]?.display?.toLowerCase() || '';
+        return codeText.includes('allergy') || codeDisplay.includes('allergy');
+      };
+
+      // Filter flags by type
+      const drugAlerts = (allFlags.resources || []).filter(isDrugFlag);
+      const allergyAlerts = (allFlags.resources || []).filter(isAllergyFlag);
+
+      // Add critical lab alerts - filter for actual critical values
+      const actualCriticalObs = (criticalObs.resources || []).filter(isCriticalValue);
+      actualCriticalObs.slice(0, 3).forEach(obs => {
         const value = obs.valueQuantity?.value || obs.valueString || '';
         const unit = obs.valueQuantity?.unit || '';
         const code = obs.code?.coding?.[0]?.display || obs.code?.text || 'Lab Result';
-        
+
         clinicalAlerts.push({
           id: alertId++,
           type: 'Critical Lab',
           severity: 'critical',
-          patient: obs.subject?.reference ? 
-            'Patient ' + (obs.subject.reference.includes('urn:uuid:') ? 
-              obs.subject.reference.replace('urn:uuid:', '').substring(0, 8) : 
-              obs.subject.reference.split('/').pop()) : 
+          patient: obs.subject?.reference ?
+            'Patient ' + (obs.subject.reference.includes('urn:uuid:') ?
+              obs.subject.reference.replace('urn:uuid:', '').substring(0, 8) :
+              obs.subject.reference.split('/').pop()) :
             'Unknown',
           message: `${code}: ${value} ${unit} (Critical)`,
           timestamp: obs.effectiveDateTime || obs.issued || new Date().toISOString(),
@@ -592,7 +620,7 @@ class DashboardDataService {
       });
 
       // Add drug interaction alerts
-      (drugAlerts.resources || []).slice(0, 2).forEach(flag => {
+      drugAlerts.slice(0, 2).forEach(flag => {
         clinicalAlerts.push({
           id: alertId++,
           type: 'Drug Interaction',
@@ -609,7 +637,7 @@ class DashboardDataService {
       });
 
       // Add allergy alerts
-      (allergyAlerts.resources || []).slice(0, 2).forEach(flag => {
+      allergyAlerts.slice(0, 2).forEach(flag => {
         clinicalAlerts.push({
           id: alertId++,
           type: 'Allergy Alert',

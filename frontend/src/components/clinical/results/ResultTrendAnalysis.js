@@ -23,7 +23,6 @@ import {
   Card,
   CardContent,
   Grid,
-  Divider,
   useTheme
 } from '@mui/material';
 import {
@@ -102,9 +101,9 @@ const ResultTrendAnalysis = ({ patientId, initialTestCode = null }) => {
         timeRange
       );
 
-      // Format data for chart
+      // Format data for chart - use MMM yyyy for better readability
       const formattedData = trends.map(point => ({
-        date: format(parseISO(point.date), 'MM/dd/yy'),
+        date: format(parseISO(point.date), 'MMM yyyy'),
         fullDate: point.date,
         value: point.value,
         unit: point.unit,

@@ -40,12 +40,13 @@ import {
   Print as PrintIcon,
   Event as EventIcon
 } from '@mui/icons-material';
-import { format, formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
+import { formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useStableCallback } from '../../../../hooks/useStableReferences';
+import { useStableCallback } from '../../../../hooks/ui/useStableReferences';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { TAB_IDS } from '../../utils/navigationHelper';
-import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
+import { useMedicationResolver } from '../../../../hooks/medication/useMedicationResolver';
 import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
@@ -717,10 +718,10 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                             fontSize={density === 'compact' ? 'small' : 'medium'}
                           />
                         </ListItemIcon>
-                        <ListItemText 
+                        <ListItemText
                           primary={getResourceDisplayText(condition)}
-                          secondary={condition.recordedDate ? 
-                            format(parseISO(condition.recordedDate), 'MMM d, yyyy') : 
+                          secondary={condition.recordedDate ?
+                            formatClinicalDate(condition.recordedDate) :
                             null
                           }
                           primaryTypographyProps={{
@@ -897,12 +898,12 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                             }
                             secondary={
                               <>
-                                {lab.valueQuantity ? 
-                                  `${lab.valueQuantity.value} ${lab.valueQuantity.unit}` : 
+                                {lab.valueQuantity ?
+                                  `${lab.valueQuantity.value} ${lab.valueQuantity.unit}` :
                                   lab.valueString || 'Pending'
                                 }
                                 {' • '}
-                                {format(parseISO(lab.effectiveDateTime || lab.issued), 'MMM d')}
+                                {formatClinicalDate(lab.effectiveDateTime || lab.issued, 'monthDay')}
                               </>
                             }
                             secondaryTypographyProps={{
@@ -963,10 +964,10 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                           fontSize={density === 'compact' ? 'small' : 'medium'}
                         />
                       </ListItemIcon>
-                      <ListItemText 
+                      <ListItemText
                         primary={encounter.type?.[0]?.text || 'Appointment'}
-                        secondary={encounter.period?.start ? 
-                          format(parseISO(encounter.period.start), 'MMM d, yyyy h:mm a') : 
+                        secondary={encounter.period?.start ?
+                          formatClinicalDate(encounter.period.start, 'withTime') :
                           'Date TBD'
                         }
                         primaryTypographyProps={{
@@ -1051,11 +1052,11 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                         <ListItemIcon sx={{ minWidth: 36 }}>
                           <EncounterIcon color="action" fontSize="small" />
                         </ListItemIcon>
-                        <ListItemText 
+                        <ListItemText
                           primary={encounter.type?.[0]?.text || 'Encounter'}
                           secondary={
-                            encounter.period?.start ? 
-                              format(parseISO(encounter.period.start), 'MMM d, yyyy') : 
+                            encounter.period?.start ?
+                              formatClinicalDate(encounter.period.start) :
                               'Date unknown'
                           }
                           primaryTypographyProps={{ variant: 'body2' }}

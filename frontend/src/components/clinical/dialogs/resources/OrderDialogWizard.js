@@ -5,34 +5,19 @@
  * 
  * @since 2025-01-21
  */
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Grid,
   Stack,
   Typography,
-  FormControl,
-  InputLabel,
   Select,
-  MenuItem,
-  Chip,
-  Alert,
   AlertTitle,
   TextField,
   Paper,
-  Button,
-  Divider,
   Autocomplete,
-  FormControlLabel,
-  Switch,
   useTheme,
-  alpha,
-  Stepper,
-  Step,
-  StepLabel,
-  StepContent,
   Fade,
-  Collapse,
   List,
   ListItem,
   ListItemText,
@@ -43,7 +28,6 @@ import {
   Tooltip,
   Card,
   CardContent,
-  CardActions,
   Badge,
   ToggleButton,
   ToggleButtonGroup
@@ -69,13 +53,11 @@ import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { notificationService } from '../../../../services/notificationService';
 import { clinicalCDSService } from '../../../../services/clinicalCDSService';
 import { getClinicalCatalog } from '../../../../services/cdsClinicalDataService';
-import { format, addDays } from 'date-fns';
-import { 
-  getBorderRadius, 
-  getElevationShadow, 
-  getSmoothTransition,
-  getClinicalCardStyles,
-  getHoverEffect
+import { format } from 'date-fns';
+import {
+  getBorderRadius,
+  getElevationShadow,
+  getSmoothTransition
 } from '../../../../themes/clinicalThemeUtils';
 import { clinicalTokens } from '../../../../themes/clinicalTheme';
 import type { ServiceRequest } from '../../../../core/fhir/types';

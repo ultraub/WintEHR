@@ -265,8 +265,8 @@ paths:
 # ============================================================================
 # You can create environment-specific config files:
 #   - config.dev.yaml: Development overrides
-#   - config.staging.yaml: Staging overrides
-#   - config.prod.yaml: Production overrides
+#   - config.azure-prod.yaml: Azure production overrides
+#   - config.prod.yaml: Production overrides (generic)
 #
 # The deploy script will automatically merge:
 #   1. config.yaml (base)

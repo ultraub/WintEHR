@@ -6,6 +6,7 @@
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { medicationListManagementService } from './medicationListManagementService';
 import { format, addDays, parseISO } from 'date-fns';
+import { EXTENSION_URLS, CODE_SYSTEM_URLS, PROFILE_URLS } from '../constants/fhirExtensions';
 
 class MedicationDiscontinuationService {
   constructor() {
@@ -48,7 +49,7 @@ class MedicationDiscontinuationService {
         extension: [
           ...(originalRequest.extension || []),
           {
-            url: 'http://example.org/fhir/medication-discontinuation',
+            url: EXTENSION_URLS.MEDICATION_DISCONTINUATION,
             extension: this.buildDiscontinuationExtension(discontinuationData)
           }
         ]
@@ -124,15 +125,15 @@ class MedicationDiscontinuationService {
       const discontinuationResource = {
         resourceType: 'Basic',
         meta: {
-          profile: ['http://example.org/fhir/StructureDefinition/MedicationDiscontinuation']
+          profile: [PROFILE_URLS.MEDICATION_DISCONTINUATION]
         },
         identifier: [{
-          system: 'http://example.org/medication-discontinuation',
+          system: CODE_SYSTEM_URLS.MEDICATION_DISCONTINUATION,
           value: `disc-${originalRequest.id}-${Date.now()}`
         }],
         code: {
           coding: [{
-            system: 'http://example.org/medication-discontinuation-codes',
+            system: CODE_SYSTEM_URLS.MEDICATION_DISCONTINUATION_CODES,
             code: 'medication-discontinuation',
             display: 'Medication Discontinuation'
           }]
@@ -144,11 +145,11 @@ class MedicationDiscontinuationService {
         },
         extension: [
           {
-            url: 'http://example.org/fhir/original-medication',
+            url: EXTENSION_URLS.ORIGINAL_MEDICATION,
             valueReference: { reference: `MedicationRequest/${originalRequest.id}` }
           },
           {
-            url: 'http://example.org/fhir/discontinuation-reason',
+            url: EXTENSION_URLS.DISCONTINUATION_REASON,
             extension: [
               {
                 url: 'category',
@@ -169,11 +170,11 @@ class MedicationDiscontinuationService {
             ]
           },
           {
-            url: 'http://example.org/fhir/discontinuation-type',
+            url: EXTENSION_URLS.DISCONTINUATION_TYPE,
             valueString: discontinuationData.discontinuationType
           },
           {
-            url: 'http://example.org/fhir/effective-date',
+            url: EXTENSION_URLS.EFFECTIVE_DATE,
             valueDateTime: discontinuationData.effectiveDate
           }
         ]
@@ -256,7 +257,7 @@ class MedicationDiscontinuationService {
           },
           description: `${step.note} (${step.percentage}% of original dose)`,
           extension: [{
-            url: 'http://example.org/fhir/tapering-step',
+            url: EXTENSION_URLS.TAPERING_STEP,
             extension: [
               {
                 url: 'stepNumber',
@@ -410,13 +411,13 @@ class MedicationDiscontinuationService {
       // Search for discontinuation tracking resources
       const response = await fhirClient.search('Basic', {
         code: 'medication-discontinuation',
-        _profile: 'http://example.org/fhir/StructureDefinition/MedicationDiscontinuation',
+        _profile: PROFILE_URLS.MEDICATION_DISCONTINUATION,
         _count: 50
       });
 
       const discontinuations = (response.resources || []).filter(resource => {
         const originalMedRef = resource.extension?.find(
-          ext => ext.url === 'http://example.org/fhir/original-medication'
+          ext => ext.url === EXTENSION_URLS.ORIGINAL_MEDICATION
         )?.valueReference?.reference;
         return originalMedRef === `MedicationRequest/${medicationRequestId}`;
       });
@@ -471,15 +472,15 @@ class MedicationDiscontinuationService {
         extension: [
           ...(discontinuation.extension || []),
           {
-            url: 'http://example.org/fhir/discontinuation-status',
+            url: EXTENSION_URLS.DISCONTINUATION_STATUS,
             valueString: this.DISCONTINUATION_STATUSES.CANCELLED
           },
           {
-            url: 'http://example.org/fhir/cancellation-reason',
+            url: EXTENSION_URLS.CANCELLATION_REASON,
             valueString: cancellationReason
           },
           {
-            url: 'http://example.org/fhir/cancellation-date',
+            url: EXTENSION_URLS.CANCELLATION_DATE,
             valueDateTime: new Date().toISOString()
           }
         ]
@@ -489,7 +490,7 @@ class MedicationDiscontinuationService {
 
       // Reactivate original medication request if applicable
       const originalMedRef = discontinuation.extension?.find(
-        ext => ext.url === 'http://example.org/fhir/original-medication'
+        ext => ext.url === EXTENSION_URLS.ORIGINAL_MEDICATION
       )?.valueReference?.reference;
 
       if (originalMedRef) {
@@ -526,7 +527,7 @@ class MedicationDiscontinuationService {
   buildStatusReason(discontinuationData) {
     return [{
       coding: [{
-        system: 'http://example.org/medication-discontinuation-reasons',
+        system: CODE_SYSTEM_URLS.MEDICATION_DISCONTINUATION_REASONS,
         code: discontinuationData.reason.code,
         display: discontinuationData.reason.display
       }],

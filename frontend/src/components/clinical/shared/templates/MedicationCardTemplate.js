@@ -6,9 +6,10 @@
 import React from 'react';
 import { Chip, Stack, Typography } from '@mui/material';
 import { Medication as MedicationIcon } from '@mui/icons-material';
-import { format } from 'date-fns';
 import ClinicalResourceCard from '../cards/ClinicalResourceCard';
 import { getMedicationName, getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
+import { getStatusColor, getStatusLabel } from '../../../../core/fhir/utils/statusDisplayUtils';
 
 /**
  * Template for displaying medication information
@@ -45,11 +46,11 @@ const MedicationCardTemplate = ({ medication, onEdit, onMore, isAlternate = fals
     });
   }
   
-  // Start date
+  // Start date - using standardized date formatting
   if (medication.authoredOn) {
-    details.push({ 
-      label: 'Started', 
-      value: format(new Date(medication.authoredOn), 'MMM d, yyyy') 
+    details.push({
+      label: 'Started',
+      value: formatClinicalDate(medication.authoredOn)
     });
   }
   
@@ -85,13 +86,16 @@ const MedicationCardTemplate = ({ medication, onEdit, onMore, isAlternate = fals
     </Stack>
   );
   
+  // Use standardized status color mapping
+  const statusColor = getStatusColor(medication.status);
+
   return (
     <ClinicalResourceCard
       title={title}
       icon={<MedicationIcon />}
       severity="normal"
-      status={medication.status}
-      statusColor={isActive ? 'primary' : 'default'}
+      status={getStatusLabel(medication.status)}
+      statusColor={statusColor}
       details={details}
       onEdit={onEdit}
       onMore={onMore}

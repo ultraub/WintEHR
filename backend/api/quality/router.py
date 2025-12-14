@@ -13,7 +13,7 @@ import json
 
 from database import get_db_session
 from api.auth import get_current_user
-from services.fhir_client_config import search_resources
+from services.hapi_fhir_client import HAPIFHIRClient
 
 router = APIRouter(prefix="/api/quality/measures", tags=["quality-measures"])
 
@@ -39,19 +39,24 @@ class QualitySummary(BaseModel):
 
 async def calculate_diabetes_care_measure(db: AsyncSession, provider_id: Optional[str] = None) -> QualityMeasure:
     """Calculate diabetes care quality measure (HbA1c testing)."""
+    hapi_client = HAPIFHIRClient()
+
     # Get diabetic patients from HAPI FHIR
     # Search for diabetes conditions using SNOMED codes
-    diabetic_conditions = search_resources('Condition', {
+    conditions_bundle = await hapi_client.search('Condition', {
         'code': '44054006,73211009,714628002,127013003,90781000119102'  # Diabetes SNOMED codes
     })
+    diabetic_conditions = [entry.get('resource', entry) for entry in conditions_bundle.get('entry', [])] if isinstance(conditions_bundle, dict) else []
 
     # Extract unique patient references
     diabetic_patients = set()
     if diabetic_conditions:
         for condition in diabetic_conditions:
-            if hasattr(condition, 'subject') and condition.subject:
-                patient_ref = condition.subject.reference if hasattr(condition.subject, 'reference') else str(condition.subject)
-                diabetic_patients.add(patient_ref)
+            subject = condition.get('subject', {})
+            if subject:
+                patient_ref = subject.get('reference', '')
+                if patient_ref:
+                    diabetic_patients.add(patient_ref)
 
     denominator = len(diabetic_patients)
     
@@ -72,18 +77,20 @@ async def calculate_diabetes_care_measure(db: AsyncSession, provider_id: Optiona
     six_months_ago = (datetime.now(timezone.utc) - timedelta(days=180)).isoformat()
 
     # Search for HbA1c observations
-    hba1c_observations = search_resources('Observation', {
+    obs_bundle = await hapi_client.search('Observation', {
         'code': '4548-4',  # LOINC code for HbA1c
         'date': f'ge{six_months_ago}'
     })
+    hba1c_observations = [entry.get('resource', entry) for entry in obs_bundle.get('entry', [])] if isinstance(obs_bundle, dict) else []
 
     # Count unique patients with HbA1c tests
     tested_patients = set()
     if hba1c_observations:
         for obs in hba1c_observations:
-            if hasattr(obs, 'subject') and obs.subject:
-                patient_ref = obs.subject.reference if hasattr(obs.subject, 'reference') else str(obs.subject)
-                if patient_ref in diabetic_patients:
+            subject = obs.get('subject', {})
+            if subject:
+                patient_ref = subject.get('reference', '')
+                if patient_ref and patient_ref in diabetic_patients:
                     tested_patients.add(patient_ref)
 
     numerator = len(tested_patients)
@@ -104,23 +111,26 @@ async def calculate_diabetes_care_measure(db: AsyncSession, provider_id: Optiona
 
 async def calculate_preventive_screening_measure(db: AsyncSession, provider_id: Optional[str] = None) -> QualityMeasure:
     """Calculate preventive screening measure (mammography)."""
+    hapi_client = HAPIFHIRClient()
+
     # Get female patients aged 50-74 from HAPI FHIR
-    patients = search_resources('Patient', {
+    patients_bundle = await hapi_client.search('Patient', {
         'gender': 'female'
     })
+    patients = [entry.get('resource', entry) for entry in patients_bundle.get('entry', [])] if isinstance(patients_bundle, dict) else []
 
     # Filter by age 50-74
     eligible_patients = set()
     if patients:
         for patient in patients:
-            if hasattr(patient, 'birthDate'):
-                birth_date = patient.birthDate.isostring if hasattr(patient.birthDate, 'isostring') else str(patient.birthDate)
+            birth_date = patient.get('birthDate')
+            if birth_date:
                 from datetime import date
                 try:
-                    birth_date_obj = datetime.fromisoformat(birth_date.replace('Z', '+00:00')).date()
+                    birth_date_obj = datetime.fromisoformat(str(birth_date).replace('Z', '+00:00')).date()
                     age = (date.today() - birth_date_obj).days / 365.25
                     if 50 <= age <= 74:
-                        patient_id = patient.id if hasattr(patient, 'id') else None
+                        patient_id = patient.get('id')
                         if patient_id:
                             # Store patient reference
                             eligible_patients.add(f"Patient/{patient_id}")
@@ -146,18 +156,20 @@ async def calculate_preventive_screening_measure(db: AsyncSession, provider_id: 
     two_years_ago = (datetime.now(timezone.utc) - timedelta(days=730)).isoformat()
 
     # Search for mammography observations using LOINC codes
-    mammography_observations = search_resources('Observation', {
+    mammo_bundle = await hapi_client.search('Observation', {
         'code': '24606-6,24605-8,24604-1',  # LOINC codes for mammography
         'date': f'ge{two_years_ago}'
     })
+    mammography_observations = [entry.get('resource', entry) for entry in mammo_bundle.get('entry', [])] if isinstance(mammo_bundle, dict) else []
 
     # Count unique patients screened
     screened_patients = set()
     if mammography_observations:
         for obs in mammography_observations:
-            if hasattr(obs, 'subject') and obs.subject:
-                patient_ref = obs.subject.reference if hasattr(obs.subject, 'reference') else str(obs.subject)
-                if patient_ref in eligible_patients:
+            subject = obs.get('subject', {})
+            if subject:
+                patient_ref = subject.get('reference', '')
+                if patient_ref and patient_ref in eligible_patients:
                     screened_patients.add(patient_ref)
 
     numerator = len(screened_patients)
@@ -178,12 +190,15 @@ async def calculate_preventive_screening_measure(db: AsyncSession, provider_id: 
 
 async def calculate_medication_adherence_measure(db: AsyncSession, provider_id: Optional[str] = None) -> QualityMeasure:
     """Calculate medication adherence measure."""
+    hapi_client = HAPIFHIRClient()
+
     # Get active medications from HAPI FHIR
-    active_meds = search_resources('MedicationRequest', {
+    meds_bundle = await hapi_client.search('MedicationRequest', {
         'status': 'active'
     })
+    active_meds = [entry.get('resource', entry) for entry in meds_bundle.get('entry', [])] if isinstance(meds_bundle, dict) else []
 
-    denominator = len(active_meds) if active_meds else 0
+    denominator = len(active_meds)
     
     if denominator == 0:
         return QualityMeasure(

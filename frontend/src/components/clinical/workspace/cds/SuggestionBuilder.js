@@ -16,10 +16,6 @@ import {
   Grid,
   Button,
   IconButton,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
   Chip,
   Alert,
   Accordion,
@@ -35,12 +31,9 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
-  Code as CodeIcon,
   ContentCopy as CopyIcon,
-  Build as BuildIcon,
-  Edit as EditIcon
+  Build as BuildIcon
 } from '@mui/icons-material';
-import { cdsClinicalDataService } from '../../../../services/cdsClinicalDataService';
 
 const ACTION_TYPES = [
   { value: 'create', label: 'Create Resource', description: 'Create a new FHIR resource' },

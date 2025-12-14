@@ -7,7 +7,8 @@
  * @deprecated Use TypeScript imports directly when possible
  */
 
-// Import the TypeScript class
+// Import the TypeScript class directly with full path to avoid circular resolution
+// Webpack resolves this correctly even with explicit .ts extension
 import FHIRClient from './fhirClient.ts';
 
 // Create and export singleton instance

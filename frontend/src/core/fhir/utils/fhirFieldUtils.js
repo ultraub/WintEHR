@@ -139,15 +139,178 @@ export const getResourceDisplayText = (resource) => {
 /**
  * Get CodeableConcept display text with fallback patterns
  * @param {Object} codeableConcept - FHIR CodeableConcept
- * @returns {string} - Display text or 'Unknown'
+ * @param {string} defaultValue - Default value if no display found (default: 'Unknown')
+ * @returns {string} - Display text or default value
  */
-export const getCodeableConceptDisplay = (codeableConcept) => {
-  if (!codeableConcept) return 'Unknown';
-  
-  return codeableConcept.text || 
-         codeableConcept.coding?.[0]?.display || 
+export const getCodeableConceptDisplay = (codeableConcept, defaultValue = 'Unknown') => {
+  if (!codeableConcept) return defaultValue;
+
+  return codeableConcept.text ||
+         codeableConcept.coding?.[0]?.display ||
          codeableConcept.coding?.[0]?.code ||
-         'Unknown';
+         defaultValue;
+};
+
+/**
+ * Safely extract the first coding code from a CodeableConcept
+ *
+ * Educational note: FHIR CodeableConcept can have multiple codings
+ * from different code systems. This function safely returns the first
+ * coding's code value, or null if none exists.
+ *
+ * @param {Object} codeableConcept - FHIR CodeableConcept
+ * @returns {string|null} - First coding code or null
+ */
+export const getCodeableConceptCode = (codeableConcept) => {
+  if (!codeableConcept) return null;
+  if (!Array.isArray(codeableConcept.coding) || codeableConcept.coding.length === 0) {
+    return null;
+  }
+  return codeableConcept.coding[0]?.code ?? null;
+};
+
+/**
+ * Safely extract the first coding system from a CodeableConcept
+ *
+ * @param {Object} codeableConcept - FHIR CodeableConcept
+ * @returns {string|null} - First coding system URI or null
+ */
+export const getCodeableConceptSystem = (codeableConcept) => {
+  if (!codeableConcept) return null;
+  if (!Array.isArray(codeableConcept.coding) || codeableConcept.coding.length === 0) {
+    return null;
+  }
+  return codeableConcept.coding[0]?.system ?? null;
+};
+
+/**
+ * Safely extract a coding from a specific system
+ *
+ * Educational note: When working with FHIR data, you often need to find
+ * a code from a specific code system (e.g., LOINC, SNOMED CT, RxNorm).
+ * This function finds the first coding matching the specified system.
+ *
+ * @param {Object} codeableConcept - FHIR CodeableConcept
+ * @param {string} system - The code system URI to find (e.g., 'http://loinc.org')
+ * @returns {Object|null} - The matching Coding object or null
+ */
+export const getCodingBySystem = (codeableConcept, system) => {
+  if (!codeableConcept || !system) return null;
+  if (!Array.isArray(codeableConcept.coding) || codeableConcept.coding.length === 0) {
+    return null;
+  }
+  return codeableConcept.coding.find(coding => coding?.system === system) ?? null;
+};
+
+/**
+ * Safely extract all codings from a CodeableConcept
+ *
+ * @param {Object} codeableConcept - FHIR CodeableConcept
+ * @returns {Array} - Array of Coding objects (empty array if none)
+ */
+export const getAllCodings = (codeableConcept) => {
+  if (!codeableConcept) return [];
+  if (!Array.isArray(codeableConcept.coding)) return [];
+  return codeableConcept.coding.filter(Boolean);
+};
+
+/**
+ * Check if a CodeableConcept contains a specific code
+ *
+ * @param {Object} codeableConcept - FHIR CodeableConcept
+ * @param {string} code - The code to search for
+ * @param {string} system - Optional: restrict search to specific system
+ * @returns {boolean} - True if the code is found
+ */
+export const hasCode = (codeableConcept, code, system = null) => {
+  if (!codeableConcept || !code) return false;
+  if (!Array.isArray(codeableConcept.coding) || codeableConcept.coding.length === 0) {
+    return false;
+  }
+
+  return codeableConcept.coding.some(coding => {
+    if (!coding) return false;
+    const codeMatch = coding.code === code;
+    const systemMatch = system === null || coding.system === system;
+    return codeMatch && systemMatch;
+  });
+};
+
+/**
+ * Safely extract display text from the first element of a CodeableConcept array
+ *
+ * Educational note: Many FHIR fields are arrays of CodeableConcept (e.g., category,
+ * reasonCode). This function safely handles array access.
+ *
+ * @param {Array} codeableConceptArray - Array of CodeableConcept
+ * @param {number} index - Index to access (default: 0)
+ * @param {string} defaultValue - Default if not found
+ * @returns {string} - Display text or default
+ */
+export const getCodeableConceptArrayDisplay = (codeableConceptArray, index = 0, defaultValue = 'Unknown') => {
+  if (!Array.isArray(codeableConceptArray) || codeableConceptArray.length === 0) {
+    return defaultValue;
+  }
+  if (index < 0 || index >= codeableConceptArray.length) {
+    return defaultValue;
+  }
+  return getCodeableConceptDisplay(codeableConceptArray[index], defaultValue);
+};
+
+/**
+ * Safely extract code from the first element of a CodeableConcept array
+ *
+ * @param {Array} codeableConceptArray - Array of CodeableConcept
+ * @param {number} index - Index to access (default: 0)
+ * @returns {string|null} - Code or null
+ */
+export const getCodeableConceptArrayCode = (codeableConceptArray, index = 0) => {
+  if (!Array.isArray(codeableConceptArray) || codeableConceptArray.length === 0) {
+    return null;
+  }
+  if (index < 0 || index >= codeableConceptArray.length) {
+    return null;
+  }
+  return getCodeableConceptCode(codeableConceptArray[index]);
+};
+
+/**
+ * Extract all display texts from a CodeableConcept array
+ *
+ * @param {Array} codeableConceptArray - Array of CodeableConcept
+ * @returns {Array<string>} - Array of display texts
+ */
+export const getAllCodeableConceptDisplays = (codeableConceptArray) => {
+  if (!Array.isArray(codeableConceptArray)) return [];
+  return codeableConceptArray
+    .filter(Boolean)
+    .map(cc => getCodeableConceptDisplay(cc, null))
+    .filter(Boolean);
+};
+
+/**
+ * Create a CodeableConcept from simple values
+ *
+ * Educational note: This helper creates a properly structured FHIR
+ * CodeableConcept from individual values, useful for creating new
+ * resources or search parameters.
+ *
+ * @param {string} code - The code value
+ * @param {string} display - Human-readable display (optional)
+ * @param {string} system - The code system URI (optional)
+ * @param {string} text - The text representation (optional)
+ * @returns {Object} - A properly structured CodeableConcept
+ */
+export const createCodeableConcept = (code, display = null, system = null, text = null) => {
+  const coding = { code };
+  if (display) coding.display = display;
+  if (system) coding.system = system;
+
+  const result = { coding: [coding] };
+  if (text) result.text = text;
+  else if (display) result.text = display;
+
+  return result;
 };
 
 /**
@@ -235,27 +398,319 @@ export const isEncounterFinished = (encounter) => {
 
 /**
  * Get observation interpretation display info
+ *
+ * Handles all FHIR interpretation codes including HU, LU variants.
+ * For comprehensive interpretation handling, prefer getInterpretationDisplay from statusDisplayUtils.js
+ *
  * @param {Object} observation - FHIR Observation resource
- * @returns {Object} - Interpretation display info with icon, color, and label
+ * @returns {Object} - Interpretation display info with color, label, and severity
  */
 export const getObservationInterpretationDisplay = (observation) => {
   const interpretation = getObservationInterpretation(observation);
-  
-  switch (interpretation) {
-    case 'H':
-    case 'HH':
-      return { color: 'error', label: 'High', severity: 'high' };
-    case 'L':
-    case 'LL':
-      return { color: 'warning', label: 'Low', severity: 'low' };
-    case 'A':
-    case 'AA':
-      return { color: 'error', label: 'Abnormal', severity: 'abnormal' };
-    case 'N':
-      return { color: 'success', label: 'Normal', severity: 'normal' };
-    default:
-      return { color: 'default', label: 'Unknown', severity: 'unknown' };
+
+  if (!interpretation) {
+    return { color: 'default', label: '', severity: 'unknown' };
   }
+
+  // Extract code from CodeableConcept if needed
+  const code = typeof interpretation === 'string'
+    ? interpretation
+    : interpretation?.coding?.[0]?.code;
+
+  if (!code) {
+    return { color: 'default', label: '', severity: 'unknown' };
+  }
+
+  // Comprehensive interpretation mapping
+  const interpretationMap = {
+    // High values
+    H: { color: 'error', label: 'High', severity: 'high' },
+    HH: { color: 'error', label: 'Critical High', severity: 'critical' },
+    HU: { color: 'error', label: 'Significantly High', severity: 'high' },
+    // Low values
+    L: { color: 'warning', label: 'Low', severity: 'low' },
+    LL: { color: 'error', label: 'Critical Low', severity: 'critical' },
+    LU: { color: 'warning', label: 'Significantly Low', severity: 'low' },
+    // Abnormal
+    A: { color: 'warning', label: 'Abnormal', severity: 'abnormal' },
+    AA: { color: 'error', label: 'Critical Abnormal', severity: 'critical' },
+    // Normal
+    N: { color: 'success', label: 'Normal', severity: 'normal' },
+    // Other interpretations
+    I: { color: 'info', label: 'Intermediate', severity: 'info' },
+    POS: { color: 'error', label: 'Positive', severity: 'abnormal' },
+    NEG: { color: 'success', label: 'Negative', severity: 'normal' },
+    IND: { color: 'warning', label: 'Indeterminate', severity: 'info' },
+  };
+
+  const upperCode = code.toUpperCase();
+  return interpretationMap[upperCode] || { color: 'default', label: code, severity: 'unknown' };
+};
+
+/**
+ * Get comprehensive display text for a Condition resource
+ *
+ * Extracts the most appropriate display text from condition.code,
+ * handling various FHIR structures consistently.
+ *
+ * @param {Object} condition - FHIR Condition resource
+ * @param {string} defaultValue - Value if no display found
+ * @returns {string} - Human-readable condition name
+ */
+export const getConditionDisplay = (condition, defaultValue = 'Unknown Condition') => {
+  if (!condition) return defaultValue;
+
+  // Try condition.code first (primary identifier)
+  if (condition.code) {
+    const display = getCodeableConceptDisplay(condition.code, null);
+    if (display) return display;
+  }
+
+  // Fallback to text representation
+  if (condition.code?.text) {
+    return condition.code.text;
+  }
+
+  return defaultValue;
+};
+
+/**
+ * Get comprehensive display text for an Observation resource
+ *
+ * Extracts the most appropriate display text from observation.code,
+ * with optional value formatting.
+ *
+ * @param {Object} observation - FHIR Observation resource
+ * @param {Object} options - Display options
+ * @param {boolean} options.includeValue - Whether to include the value in display
+ * @param {string} options.defaultValue - Default if no display found
+ * @returns {string} - Human-readable observation description
+ */
+export const getObservationDisplay = (observation, options = {}) => {
+  const { includeValue = false, defaultValue = 'Unknown Observation' } = options;
+
+  if (!observation) return defaultValue;
+
+  // Get the test/observation name
+  let display = defaultValue;
+
+  if (observation.code) {
+    display = getCodeableConceptDisplay(observation.code, defaultValue);
+  }
+
+  // Optionally include the value
+  if (includeValue && display !== defaultValue) {
+    const value = getObservationValueDisplay(observation);
+    if (value) {
+      display = `${display}: ${value}`;
+    }
+  }
+
+  return display;
+};
+
+/**
+ * Get display text for an Observation's value
+ *
+ * Handles valueQuantity, valueCodeableConcept, valueString, etc.
+ *
+ * @param {Object} observation - FHIR Observation resource
+ * @returns {string} - Formatted value string or empty string
+ */
+export const getObservationValueDisplay = (observation) => {
+  if (!observation) return '';
+
+  // valueQuantity
+  if (observation.valueQuantity) {
+    const { value, unit, code } = observation.valueQuantity;
+    if (value != null) {
+      const displayUnit = unit || code || '';
+      return `${value}${displayUnit ? ` ${displayUnit}` : ''}`;
+    }
+  }
+
+  // valueCodeableConcept
+  if (observation.valueCodeableConcept) {
+    return getCodeableConceptDisplay(observation.valueCodeableConcept, '');
+  }
+
+  // valueString
+  if (observation.valueString) {
+    return observation.valueString;
+  }
+
+  // valueBoolean
+  if (observation.valueBoolean !== undefined) {
+    return observation.valueBoolean ? 'Yes' : 'No';
+  }
+
+  // valueInteger
+  if (observation.valueInteger !== undefined) {
+    return String(observation.valueInteger);
+  }
+
+  // valueRange
+  if (observation.valueRange) {
+    const { low, high } = observation.valueRange;
+    const lowVal = low?.value;
+    const highVal = high?.value;
+    const unit = low?.unit || high?.unit || '';
+
+    if (lowVal != null && highVal != null) {
+      return `${lowVal}-${highVal}${unit ? ` ${unit}` : ''}`;
+    }
+    if (lowVal != null) return `>=${lowVal}${unit ? ` ${unit}` : ''}`;
+    if (highVal != null) return `<=${highVal}${unit ? ` ${unit}` : ''}`;
+  }
+
+  // valueRatio
+  if (observation.valueRatio) {
+    const { numerator, denominator } = observation.valueRatio;
+    if (numerator?.value != null && denominator?.value != null) {
+      return `${numerator.value}:${denominator.value}`;
+    }
+  }
+
+  // Component values (panel observations)
+  if (observation.component?.length > 0) {
+    return `${observation.component.length} components`;
+  }
+
+  return '';
+};
+
+/**
+ * Get medication display text with dosage information
+ *
+ * @param {Object} medicationRequest - FHIR MedicationRequest resource
+ * @param {Object} options - Display options
+ * @param {boolean} options.includeDosage - Whether to include dosage
+ * @param {string} options.defaultValue - Default if no display found
+ * @returns {string} - Human-readable medication description
+ */
+export const getMedicationDisplay = (medicationRequest, options = {}) => {
+  const { includeDosage = false, defaultValue = 'Unknown Medication' } = options;
+
+  if (!medicationRequest) return defaultValue;
+
+  // Get medication name
+  let display = defaultValue;
+
+  // medicationCodeableConcept
+  if (medicationRequest.medicationCodeableConcept) {
+    display = getCodeableConceptDisplay(medicationRequest.medicationCodeableConcept, defaultValue);
+  }
+  // medicationReference (need to resolve separately)
+  else if (medicationRequest.medicationReference?.display) {
+    display = medicationRequest.medicationReference.display;
+  }
+
+  // Optionally include dosage
+  if (includeDosage && display !== defaultValue && medicationRequest.dosageInstruction?.[0]) {
+    const dosage = getMedicationDosageDisplay(medicationRequest.dosageInstruction[0]);
+    if (dosage) {
+      display = `${display} - ${dosage}`;
+    }
+  }
+
+  return display;
+};
+
+/**
+ * Get display text for a dosage instruction
+ *
+ * @param {Object} dosage - FHIR Dosage object
+ * @returns {string} - Formatted dosage string
+ */
+export const getMedicationDosageDisplay = (dosage) => {
+  if (!dosage) return '';
+
+  // Use text if available
+  if (dosage.text) return dosage.text;
+
+  const parts = [];
+
+  // Dose quantity
+  if (dosage.doseAndRate?.[0]?.doseQuantity) {
+    const { value, unit } = dosage.doseAndRate[0].doseQuantity;
+    if (value != null) {
+      parts.push(`${value}${unit ? ` ${unit}` : ''}`);
+    }
+  }
+
+  // Route
+  if (dosage.route) {
+    const route = getCodeableConceptDisplay(dosage.route, '');
+    if (route) parts.push(route);
+  }
+
+  // Frequency
+  if (dosage.timing?.code) {
+    const timing = getCodeableConceptDisplay(dosage.timing.code, '');
+    if (timing) parts.push(timing);
+  } else if (dosage.timing?.repeat) {
+    const { frequency, period, periodUnit } = dosage.timing.repeat;
+    if (frequency && period) {
+      parts.push(`${frequency}x per ${period} ${periodUnit || ''}`);
+    }
+  }
+
+  return parts.join(' ');
+};
+
+/**
+ * Get practitioner display name from a reference
+ *
+ * @param {Object} reference - FHIR Reference object (to Practitioner)
+ * @param {string} defaultValue - Default if no display found
+ * @returns {string} - Practitioner name or default
+ */
+export const getPractitionerDisplay = (reference, defaultValue = 'Unknown Provider') => {
+  if (!reference) return defaultValue;
+
+  // Use display if available
+  if (reference.display) return reference.display;
+
+  // Extract ID for context in fallback
+  const id = getReferenceId(reference);
+  if (id) return `Provider (${id.substring(0, 8)}...)`;
+
+  return defaultValue;
+};
+
+/**
+ * Get patient display name from a reference or resource
+ *
+ * @param {Object} patientOrRef - FHIR Patient resource or Reference
+ * @param {string} defaultValue - Default if no name found
+ * @returns {string} - Patient name or default
+ */
+export const getPatientDisplay = (patientOrRef, defaultValue = 'Unknown Patient') => {
+  if (!patientOrRef) return defaultValue;
+
+  // Handle reference with display
+  if (patientOrRef.display) return patientOrRef.display;
+
+  // Handle reference (extract ID)
+  if (patientOrRef.reference && !patientOrRef.name) {
+    const id = getReferenceId(patientOrRef);
+    if (id) return `Patient ${id.substring(0, 8)}...`;
+    return defaultValue;
+  }
+
+  // Handle Patient resource
+  if (patientOrRef.name?.[0]) {
+    const name = patientOrRef.name[0];
+    const given = name.given?.join(' ') || '';
+    const family = name.family || '';
+
+    if (given && family) return `${given} ${family}`;
+    if (family) return family;
+    if (given) return given;
+    if (name.text) return name.text;
+  }
+
+  return defaultValue;
 };
 
 /**

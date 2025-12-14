@@ -13,6 +13,7 @@ import logging
 
 from api.auth import get_current_user
 from services.hapi_fhir_client import HAPIFHIRClient
+from api.cds_hooks.constants import ExtensionURLs
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/clinical/tasks", tags=["clinical-tasks"])
@@ -142,7 +143,7 @@ async def create_task(
     if task.task_type:
         fhir_task["code"] = {
             "coding": [{
-                "system": "http://wintehr.com/fhir/task-type",
+                "system": ExtensionURLs.TASK_TYPE_SYSTEM,
                 "code": task.task_type,
                 "display": task.task_type.replace("-", " ").title()
             }]

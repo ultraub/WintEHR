@@ -44,7 +44,6 @@ import {
   Tabs,
   Tab,
   Badge,
-  LinearProgress,
   ToggleButton,
   ToggleButtonGroup,
   Dialog,
@@ -54,8 +53,7 @@ import {
   useTheme,
   alpha,
   Checkbox,
-  FormControlLabel,
-  Snackbar
+  FormControlLabel
 } from '@mui/material';
 import {
   Science as LabIcon,
@@ -87,7 +85,8 @@ import {
   Refresh as RefreshIcon,
   Assignment as OrderIcon
 } from '@mui/icons-material';
-import { format, parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
+import { parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import VitalsOverview from '../../charts/VitalsOverview';
@@ -152,33 +151,84 @@ const enhanceObservationWithReferenceRange = (observation) => {
   return observation;
 };
 
+// Detect critical values by comparing value to referenceRange
+// Returns { isCritical, isAbnormal, direction } or null if no comparison possible
+const detectCriticalFromReferenceRange = (observation) => {
+  const value = observation.valueQuantity?.value;
+  if (value === undefined || value === null) return null;
+
+  const refRange = observation.referenceRange?.[0];
+  if (!refRange) return null;
+
+  const low = refRange.low?.value;
+  const high = refRange.high?.value;
+
+  // Calculate critical thresholds (typically 20% beyond normal range)
+  const criticalMargin = 0.2;
+  const normalRange = high && low ? high - low : 0;
+  const criticalLow = low !== undefined ? low - (normalRange * criticalMargin) : undefined;
+  const criticalHigh = high !== undefined ? high + (normalRange * criticalMargin) : undefined;
+
+  if (criticalLow !== undefined && value < criticalLow) {
+    return { isCritical: true, isAbnormal: true, direction: 'low' };
+  }
+  if (criticalHigh !== undefined && value > criticalHigh) {
+    return { isCritical: true, isAbnormal: true, direction: 'high' };
+  }
+  if (low !== undefined && value < low) {
+    return { isCritical: false, isAbnormal: true, direction: 'low' };
+  }
+  if (high !== undefined && value > high) {
+    return { isCritical: false, isAbnormal: true, direction: 'high' };
+  }
+  return { isCritical: false, isAbnormal: false, direction: null };
+};
+
 // Get result status icon and color
 const getResultStatus = (observation) => {
   const interpretation = getObservationInterpretation(observation);
-  
-  if (!interpretation) {
-    return { icon: <NormalRangeIcon />, color: 'default', label: 'Normal' };
+
+  // First check explicit interpretation codes
+  if (interpretation) {
+    const code = interpretation.coding?.[0]?.code;
+
+    switch (code) {
+      case 'HH': // Critical high
+        return { icon: <HighIcon color="error" />, color: 'error', label: 'Critical High', isCritical: true };
+      case 'LL': // Critical low
+        return { icon: <LowIcon color="error" />, color: 'error', label: 'Critical Low', isCritical: true };
+      case 'H':
+      case 'HU':
+        return { icon: <HighIcon color="error" />, color: 'error', label: 'High', isCritical: false };
+      case 'L':
+      case 'LU':
+        return { icon: <LowIcon color="error" />, color: 'error', label: 'Low', isCritical: false };
+      case 'A':
+      case 'AA':
+        return { icon: <AbnormalIcon color="warning" />, color: 'warning', label: 'Abnormal', isCritical: code === 'AA' };
+      case 'N':
+        return { icon: <NormalIcon color="success" />, color: 'success', label: 'Normal', isCritical: false };
+      default:
+        break;
+    }
   }
-  
-  const code = interpretation.coding?.[0]?.code;
-  
-  switch (code) {
-    case 'H':
-    case 'HH':
-    case 'HU':
-      return { icon: <HighIcon color="error" />, color: 'error', label: 'High' };
-    case 'L':
-    case 'LL':
-    case 'LU':
-      return { icon: <LowIcon color="error" />, color: 'error', label: 'Low' };
-    case 'A':
-    case 'AA':
-      return { icon: <AbnormalIcon color="warning" />, color: 'warning', label: 'Abnormal' };
-    case 'N':
-      return { icon: <NormalIcon color="success" />, color: 'success', label: 'Normal' };
-    default:
-      return { icon: <NormalRangeIcon />, color: 'default', label: 'Normal' };
+
+  // Fallback: detect critical values from referenceRange
+  const detection = detectCriticalFromReferenceRange(observation);
+  if (detection) {
+    if (detection.isCritical) {
+      return detection.direction === 'high'
+        ? { icon: <HighIcon color="error" />, color: 'error', label: 'Critical High', isCritical: true }
+        : { icon: <LowIcon color="error" />, color: 'error', label: 'Critical Low', isCritical: true };
+    }
+    if (detection.isAbnormal) {
+      return detection.direction === 'high'
+        ? { icon: <HighIcon color="error" />, color: 'error', label: 'High', isCritical: false }
+        : { icon: <LowIcon color="error" />, color: 'error', label: 'Low', isCritical: false };
+    }
   }
+
+  return { icon: <NormalRangeIcon />, color: 'default', label: 'Normal', isCritical: false };
 };
 
 const ResultsTabOptimized = ({
@@ -199,7 +249,13 @@ const ResultsTabOptimized = ({
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedResult, setSelectedResult] = useState(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
-  
+
+  // Critical value alert state
+  const [criticalAlertDialog, setCriticalAlertDialog] = useState({
+    open: false,
+    observation: null
+  });
+
   // Single consolidated state for all data
   const [allData, setAllData] = useState({
     labObservations: [],
@@ -410,14 +466,48 @@ const ResultsTabOptimized = ({
     );
   };
 
-  // Show critical value alert
-  const showCriticalValueAlert = (observation) => {
-    const value = observation.valueQuantity?.value || observation.valueString || 'Unknown';
-    const code = observation.code?.text || observation.code?.coding?.[0]?.display || 'Result';
-    
-    // You might want to show a more prominent alert dialog here
-    alert(`CRITICAL VALUE ALERT!\n\n${code}: ${value}\n\nImmediate action required!`);
-  };
+  // Show critical value alert dialog
+  const showCriticalValueAlert = useCallback((observation) => {
+    setCriticalAlertDialog({
+      open: true,
+      observation
+    });
+  }, []);
+
+  // Handle critical alert acknowledgment
+  const handleCriticalAlertAcknowledge = useCallback(() => {
+    const observation = criticalAlertDialog.observation;
+    if (observation) {
+      // Publish acknowledgment event for audit trail
+      publish(CLINICAL_EVENTS.RESULT_ACKNOWLEDGED, {
+        observationId: observation.id,
+        patientId: patientId,
+        acknowledgedAt: new Date().toISOString(),
+        critical: true
+      });
+    }
+    setCriticalAlertDialog({ open: false, observation: null });
+  }, [criticalAlertDialog.observation, patientId, publish]);
+
+  // Get formatted critical value details
+  const getCriticalValueDetails = useCallback((observation) => {
+    if (!observation) return {};
+
+    const value = observation.valueQuantity?.value;
+    const unit = observation.valueQuantity?.unit || '';
+    const code = observation.code?.text || observation.code?.coding?.[0]?.display || 'Unknown Test';
+    const refRange = observation.referenceRange?.[0];
+    const low = refRange?.low?.value;
+    const high = refRange?.high?.value;
+
+    return {
+      testName: code,
+      value: value !== undefined ? `${value} ${unit}` : observation.valueString || 'Unknown',
+      referenceRange: low !== undefined && high !== undefined ? `${low} - ${high} ${unit}` : 'Not available',
+      effectiveDate: observation.effectiveDateTime ? formatClinicalDate(observation.effectiveDateTime) : 'Unknown',
+      status: getResultStatus(observation)
+    };
+  }, []);
 
   // Apply filters to data
   const filteredData = useMemo(() => {
@@ -711,7 +801,7 @@ const ResultsTabOptimized = ({
                   </TableCell>
                   <TableCell>
                     <Typography variant="caption">
-                      {date ? format(parseISO(date), 'MMM d, yyyy h:mm a') : 'No date'}
+                      {date ? formatClinicalDate(date, 'withTime') : 'No date'}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -917,6 +1007,137 @@ const ResultsTabOptimized = ({
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDetailsDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Critical Value Alert Dialog */}
+      <Dialog
+        open={criticalAlertDialog.open}
+        onClose={handleCriticalAlertAcknowledge}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderLeft: '6px solid',
+            borderColor: 'error.main',
+            boxShadow: theme.shadows[20]
+          }
+        }}
+      >
+        <DialogTitle
+          sx={{
+            bgcolor: alpha(theme.palette.error.main, 0.1),
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}
+        >
+          <AbnormalIcon color="error" sx={{ fontSize: 28 }} />
+          <Typography variant="h6" component="span" color="error.main" fontWeight="bold">
+            CRITICAL VALUE ALERT
+          </Typography>
+          <IconButton
+            aria-label="close"
+            onClick={handleCriticalAlertAcknowledge}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          {criticalAlertDialog.observation && (() => {
+            const details = getCriticalValueDetails(criticalAlertDialog.observation);
+            return (
+              <Box>
+                <Alert severity="error" sx={{ mb: 3 }}>
+                  <Typography variant="body1" fontWeight="medium">
+                    Immediate action may be required!
+                  </Typography>
+                </Alert>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Test Name
+                    </Typography>
+                    <Typography variant="h6" fontWeight="medium">
+                      {details.testName}
+                    </Typography>
+                  </Grid>
+
+                  <Grid item xs={6}>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Result Value
+                    </Typography>
+                    <Typography
+                      variant="h5"
+                      color="error.main"
+                      fontWeight="bold"
+                      sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                    >
+                      {details.status?.icon}
+                      {details.value}
+                    </Typography>
+                  </Grid>
+
+                  <Grid item xs={6}>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Reference Range
+                    </Typography>
+                    <Typography variant="body1">
+                      {details.referenceRange}
+                    </Typography>
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Result Date/Time
+                    </Typography>
+                    <Typography variant="body1">
+                      {details.effectiveDate}
+                    </Typography>
+                  </Grid>
+
+                  {currentPatient && (
+                    <Grid item xs={12}>
+                      <Divider sx={{ my: 1 }} />
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Patient
+                      </Typography>
+                      <Typography variant="body1">
+                        {currentPatient.name?.[0]?.text ||
+                          `${currentPatient.name?.[0]?.given?.join(' ')} ${currentPatient.name?.[0]?.family}` ||
+                          'Unknown Patient'}
+                      </Typography>
+                    </Grid>
+                  )}
+                </Grid>
+              </Box>
+            );
+          })()}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, bgcolor: alpha(theme.palette.error.main, 0.05) }}>
+          <Button
+            onClick={() => {
+              handleCriticalAlertAcknowledge();
+              // Navigate to result details
+              if (criticalAlertDialog.observation) {
+                setSelectedResult(criticalAlertDialog.observation);
+                setDetailsDialogOpen(true);
+              }
+            }}
+            color="inherit"
+          >
+            View Details
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleCriticalAlertAcknowledge}
+            startIcon={<CheckCircle />}
+          >
+            Acknowledge Alert
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

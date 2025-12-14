@@ -16,8 +16,7 @@ import {
   Button,
   Menu,
   MenuItem,
-  useTheme,
-  alpha
+  useTheme
 } from '@mui/material';
 import {
   Medication as MedicationIcon,
@@ -35,10 +34,8 @@ import {
 import { ClinicalResourceCard } from '../../shared/cards';
 import { ClinicalDataList } from '../../shared/tables';
 import { useTabFilters, useTabSearch, useExportData } from '../../../../hooks/clinical';
-import {
-  getStatusColor,
-  formatDate
-} from '../../../../utils/clinicalHelpers';
+import { getStatusColor } from '../../../../utils/status';
+import { formatDate } from '../../../../utils/date';
 import { 
   getMedicationStatus, 
   isMedicationActive, 

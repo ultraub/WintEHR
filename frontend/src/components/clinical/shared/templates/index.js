@@ -3,19 +3,29 @@
  * Export all clinical card templates for FHIR resources
  */
 
-export { default as ConditionCardTemplate } from './ConditionCardTemplate';
-export { default as MedicationCardTemplate } from './MedicationCardTemplate';
-export { default as AllergyCardTemplate } from './AllergyCardTemplate';
-export { default as ObservationCardTemplate } from './ObservationCardTemplate';
-export { default as ProcedureCardTemplate } from './ProcedureCardTemplate';
-export { default as DocumentCardTemplate } from './DocumentCardTemplate';
+import ConditionCardTemplate from './ConditionCardTemplate';
+import MedicationCardTemplate from './MedicationCardTemplate';
+import AllergyCardTemplate from './AllergyCardTemplate';
+import ObservationCardTemplate from './ObservationCardTemplate';
+import ProcedureCardTemplate from './ProcedureCardTemplate';
+import DocumentCardTemplate from './DocumentCardTemplate';
 
-// Convenience export for all templates
+// Named exports for individual templates
+export {
+  ConditionCardTemplate,
+  MedicationCardTemplate,
+  AllergyCardTemplate,
+  ObservationCardTemplate,
+  ProcedureCardTemplate,
+  DocumentCardTemplate
+};
+
+// Convenience export for all templates (using ES module imports)
 export const ClinicalCardTemplates = {
-  Condition: require('./ConditionCardTemplate').default,
-  MedicationRequest: require('./MedicationCardTemplate').default,
-  AllergyIntolerance: require('./AllergyCardTemplate').default,
-  Observation: require('./ObservationCardTemplate').default,
-  Procedure: require('./ProcedureCardTemplate').default,
-  DocumentReference: require('./DocumentCardTemplate').default
+  Condition: ConditionCardTemplate,
+  MedicationRequest: MedicationCardTemplate,
+  AllergyIntolerance: AllergyCardTemplate,
+  Observation: ObservationCardTemplate,
+  Procedure: ProcedureCardTemplate,
+  DocumentReference: DocumentCardTemplate
 };

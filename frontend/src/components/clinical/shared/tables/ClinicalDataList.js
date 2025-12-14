@@ -30,7 +30,8 @@ import {
   ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
 import { useTabSearch, useExpandableList } from '../../../../hooks/clinical';
-import { getStatusColor, truncateText } from '../../../../utils/clinicalHelpers';
+import { getStatusColor } from '../../../../utils/status';
+import { truncateText } from '../../../../utils/fhir';
 import ClinicalEmptyState from '../ClinicalEmptyState';
 
 const ClinicalDataList = ({

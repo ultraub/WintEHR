@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { intelligentCache } from '../core/fhir/utils/intelligentCache';
-import { useStableCallback } from '../hooks/useStableReferences';
+import { useStableCallback } from '../hooks/ui/useStableReferences';
 import performanceMonitor from '../utils/performanceMonitor';
 
 // Action Types
@@ -770,9 +770,42 @@ export function FHIRResourceProvider({ children }) {
         Object.entries(includedResources).forEach(([includedType, resources]) => {
           setResources(includedType, resources);
         });
-        
+
         // Store included resources info in result for easy access
         result.includedResources = includedResources;
+
+        // Enrich MedicationRequest resources with resolved medication names
+        if (resourceType === 'MedicationRequest' && includedResources.Medication?.length > 0) {
+          const medicationLookup = {};
+          includedResources.Medication.forEach(med => {
+            if (med.id) {
+              medicationLookup[med.id] = med;
+            }
+          });
+
+          // Update MedicationRequests that use medicationReference
+          result.resources = result.resources.map(medRequest => {
+            if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
+              const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
+              const medication = medicationLookup[refId];
+              if (medication?.code) {
+                // Add resolved medication name as medicationCodeableConcept for display
+                return {
+                  ...medRequest,
+                  _resolvedMedicationCodeableConcept: medication.code,
+                  medicationReference: {
+                    ...medRequest.medicationReference,
+                    display: medication.code.text || medication.code.coding?.[0]?.display
+                  }
+                };
+              }
+            }
+            return medRequest;
+          });
+
+          // Update state with enriched resources
+          setResources(resourceType, result.resources);
+        }
       }
       
       setCachedData('searches', searchKey, result, 300000, resourceType); // 5 minute cache for searches
@@ -912,14 +945,44 @@ export function FHIRResourceProvider({ children }) {
             }
             resourcesByType[resource.resourceType].push(resource);
           });
-          
+
+          // Enrich MedicationRequest resources with resolved medication names
+          // Note: $everything may include Medication resources if they're in the patient compartment
+          if (resourcesByType.MedicationRequest?.length > 0 && resourcesByType.Medication?.length > 0) {
+            const medicationLookup = {};
+            resourcesByType.Medication.forEach(med => {
+              if (med.id) {
+                medicationLookup[med.id] = med;
+              }
+            });
+
+            // Update MedicationRequests that use medicationReference
+            resourcesByType.MedicationRequest = resourcesByType.MedicationRequest.map(medRequest => {
+              if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
+                const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
+                const medication = medicationLookup[refId];
+                if (medication?.code) {
+                  return {
+                    ...medRequest,
+                    _resolvedMedicationCodeableConcept: medication.code,
+                    medicationReference: {
+                      ...medRequest.medicationReference,
+                      display: medication.code.text || medication.code.coding?.[0]?.display
+                    }
+                  };
+                }
+              }
+              return medRequest;
+            });
+          }
+
           // Update state for each resource type
           Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
             setResources(resourceType, resources);
-            
+
             // Update relationships
             resources.forEach(resource => {
-              
+
               // Check various reference patterns that FHIR resources use
               // Different resource types use different fields to reference patients
               let patientRef = null;
@@ -1113,7 +1176,9 @@ export function FHIRResourceProvider({ children }) {
               params.set('_sort', '-date');
               params.set('_count', priority === 'all' ? '100' : '10');
             } else if (resourceType === 'MedicationRequest') {
-              params.set('_sort', '-authored');
+              params.set('_sort', '-authoredon');
+              // Include referenced Medication resources for proper name resolution
+              params.set('_include', 'MedicationRequest:medication');
               // Increased count for comprehensive medication history
               if (priority === 'all') {
                 params.set('_count', '100');
@@ -1180,7 +1245,36 @@ export function FHIRResourceProvider({ children }) {
               }
             }
           });
-          
+
+          // Enrich MedicationRequest resources with resolved medication names
+          if (resourcesByType.MedicationRequest?.length > 0 && resourcesByType.Medication?.length > 0) {
+            const medicationLookup = {};
+            resourcesByType.Medication.forEach(med => {
+              if (med.id) {
+                medicationLookup[med.id] = med;
+              }
+            });
+
+            // Update MedicationRequests that use medicationReference
+            resourcesByType.MedicationRequest = resourcesByType.MedicationRequest.map(medRequest => {
+              if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
+                const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
+                const medication = medicationLookup[refId];
+                if (medication?.code) {
+                  return {
+                    ...medRequest,
+                    _resolvedMedicationCodeableConcept: medication.code,
+                    medicationReference: {
+                      ...medRequest.medicationReference,
+                      display: medication.code.text || medication.code.coding?.[0]?.display
+                    }
+                  };
+                }
+              }
+              return medRequest;
+            });
+          }
+
           // Update state with all resources and relationships
           Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
             setResources(resourceType, resources);
@@ -1382,7 +1476,8 @@ export function FHIRResourceProvider({ children }) {
                 params.append('_sort', '-recorded-date');
               } else if (resourceType === 'MedicationRequest') {
                 params.append('_count', '50'); // Get all medications
-                params.append('_sort', '-authored');
+                params.append('_sort', '-authoredon');
+                params.append('_include', 'MedicationRequest:medication'); // Include referenced Medication resources
               } else if (resourceType === 'AllergyIntolerance') {
                 params.append('_count', '20'); // Get all allergies
                 params.append('_sort', '-date');
@@ -1439,11 +1534,40 @@ export function FHIRResourceProvider({ children }) {
               }
             });
             
+            // Enrich MedicationRequest resources with resolved medication names
+            if (resourcesByType.MedicationRequest?.length > 0 && resourcesByType.Medication?.length > 0) {
+              const medicationLookup = {};
+              resourcesByType.Medication.forEach(med => {
+                if (med.id) {
+                  medicationLookup[med.id] = med;
+                }
+              });
+
+              // Update MedicationRequests that use medicationReference
+              resourcesByType.MedicationRequest = resourcesByType.MedicationRequest.map(medRequest => {
+                if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
+                  const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
+                  const medication = medicationLookup[refId];
+                  if (medication?.code) {
+                    return {
+                      ...medRequest,
+                      _resolvedMedicationCodeableConcept: medication.code,
+                      medicationReference: {
+                        ...medRequest.medicationReference,
+                        display: medication.code.text || medication.code.coding?.[0]?.display
+                      }
+                    };
+                  }
+                }
+                return medRequest;
+              });
+            }
+
             // Update state with resources
             Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
               setResources(resourceType, resources);
-              
-              
+
+
               resources.forEach(resource => {
                 // Check for both standard FHIR references and URN format (used by Synthea)
                 const subjectRef = resource.subject?.reference;
@@ -1559,7 +1683,7 @@ export function FHIRResourceProvider({ children }) {
             params._sort = '-date';
             break;
           case 'MedicationRequest':
-            params._sort = '-authored';
+            params._sort = '-authoredon';
             break;
           case 'Condition':
             params._sort = '-recorded-date';
@@ -1813,7 +1937,7 @@ export function usePatientResources(patientId, resourceType = null) {
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
         params.date = `ge${sixMonthsAgo.toISOString().split('T')[0]}`;
       } else if (resourceType === 'MedicationRequest') {
-        params._sort = '-authored';
+        params._sort = '-authoredon';
         params.status = 'active,on-hold'; // Only active medications
       } else if (resourceType === 'Condition') {
         params._sort = '-recorded-date';

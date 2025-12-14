@@ -15,11 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
 # FHIR client for accessing HAPI FHIR REST API
-from services.fhir_client_config import get_fhir_server
-from fhirclient.models.medicationrequest import MedicationRequest
-from fhirclient.models.condition import Condition
-from fhirclient.models.observation import Observation
-from fhirclient.models.patient import Patient
+from services.hapi_fhir_client import HAPIFHIRClient
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +37,6 @@ class CatalogExtractor:
         Args:
             session: Database session (kept for backward compatibility, but not used)
         """
-        self.server = get_fhir_server()
         self.extracted_data = {
             "medications": {},
             "conditions": {},
@@ -82,10 +77,10 @@ class CatalogExtractor:
     async def _get_patient_count(self) -> int:
         """Get total number of patients via HAPI FHIR API."""
         try:
+            hapi_client = HAPIFHIRClient()
             # Use FHIR search with _summary=count to get total
-            search = Patient.where(struct={"_summary": "count"})
-            bundle = search.perform(self.server)
-            return bundle.total if bundle and hasattr(bundle, 'total') else 0
+            bundle = await hapi_client.search('Patient', {"_summary": "count"})
+            return bundle.get('total', 0) if isinstance(bundle, dict) else 0
         except Exception as e:
             logger.warning(f"Error getting patient count via FHIR API: {e}")
             return 0
@@ -95,30 +90,28 @@ class CatalogExtractor:
         medications_dict = {}
 
         try:
+            hapi_client = HAPIFHIRClient()
             # Search for all MedicationRequest resources
             # Use pagination to handle large datasets
-            search = MedicationRequest.where(struct={
+            bundle = await hapi_client.search('MedicationRequest', {
                 "_count": 1000,  # Max per page
                 "_elements": "medicationCodeableConcept,status"
             })
 
-            bundle = search.perform(self.server)
-            if not bundle or not bundle.entry:
+            entries = bundle.get('entry', []) if isinstance(bundle, dict) else []
+            if not entries:
                 logger.info("No medication requests found")
                 self.extracted_data["medications"] = medications_dict
                 return
 
             # Process all resources in the bundle
-            for entry in bundle.entry:
-                if not entry.resource:
+            for entry in entries:
+                med_request = entry.get('resource', entry)
+                if not med_request:
                     continue
 
-                med_request = entry.resource
-                medication_data = None
-
                 # Get medication data
-                if hasattr(med_request, 'medicationCodeableConcept') and med_request.medicationCodeableConcept:
-                    medication_data = med_request.medicationCodeableConcept.as_json()
+                medication_data = med_request.get('medicationCodeableConcept')
 
                 if not medication_data:
                     continue
@@ -183,35 +176,31 @@ class CatalogExtractor:
         conditions_dict = {}
 
         try:
+            hapi_client = HAPIFHIRClient()
             # Search for all Condition resources
             # Use pagination to handle large datasets
-            search = Condition.where(struct={
+            bundle = await hapi_client.search('Condition', {
                 "_count": 1000,  # Max per page
                 "_elements": "code,clinicalStatus"
             })
 
-            bundle = search.perform(self.server)
-            if not bundle or not bundle.entry:
+            entries = bundle.get('entry', []) if isinstance(bundle, dict) else []
+            if not entries:
                 logger.info("No conditions found")
                 self.extracted_data["conditions"] = conditions_dict
                 return
 
             # Process all resources in the bundle
-            for entry in bundle.entry:
-                if not entry.resource:
+            for entry in entries:
+                condition = entry.get('resource', entry)
+                if not condition:
                     continue
 
-                condition = entry.resource
-                condition_data = None
-                clinical_status = None
-
                 # Get condition code data
-                if hasattr(condition, 'code') and condition.code:
-                    condition_data = condition.code.as_json()
+                condition_data = condition.get('code')
 
                 # Get clinical status
-                if hasattr(condition, 'clinicalStatus') and condition.clinicalStatus:
-                    clinical_status = condition.clinicalStatus.as_json()
+                clinical_status = condition.get('clinicalStatus')
 
                 if not condition_data:
                     continue
@@ -261,41 +250,35 @@ class CatalogExtractor:
         lab_tests_dict = {}
 
         try:
+            hapi_client = HAPIFHIRClient()
             # Search for all Observation resources with laboratory category
             # Use pagination to handle large datasets
-            search = Observation.where(struct={
+            bundle = await hapi_client.search('Observation', {
                 "_count": 1000,  # Max per page
                 "category": "laboratory",
                 "_elements": "code,category,valueQuantity,referenceRange"
             })
 
-            bundle = search.perform(self.server)
-            if not bundle or not bundle.entry:
+            entries = bundle.get('entry', []) if isinstance(bundle, dict) else []
+            if not entries:
                 logger.info("No laboratory observations found")
                 self.extracted_data["lab_tests"] = lab_tests_dict
                 return
 
             # Process all resources in the bundle
-            for entry in bundle.entry:
-                if not entry.resource:
+            for entry in entries:
+                observation = entry.get('resource', entry)
+                if not observation:
                     continue
 
-                observation = entry.resource
-                test_data = None
-                value_quantity = None
-                reference_range = None
-
                 # Get observation code data
-                if hasattr(observation, 'code') and observation.code:
-                    test_data = observation.code.as_json()
+                test_data = observation.get('code')
 
                 # Get value quantity
-                if hasattr(observation, 'valueQuantity') and observation.valueQuantity:
-                    value_quantity = observation.valueQuantity.as_json()
+                value_quantity = observation.get('valueQuantity')
 
                 # Get reference range
-                if hasattr(observation, 'referenceRange') and observation.referenceRange:
-                    reference_range = [r.as_json() for r in observation.referenceRange]
+                reference_range = observation.get('referenceRange')
 
                 if not test_data:
                     continue

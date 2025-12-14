@@ -33,16 +33,14 @@ import {
   ArrowForward as ForwardIcon,
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
-  Schedule as ScheduleIcon
+  Error as ErrorIcon
 } from '@mui/icons-material';
-import { 
-  getClinicalContext, 
+import {
+  getClinicalContext,
   getSeverityColor,
   getClinicalAnimation,
-  getClinicalSpacing 
+  getClinicalSpacing
 } from '../../themes/clinicalThemeUtils';
-import StatusChip from '../clinical/common/StatusChip';
 import { MedicalThemeContext } from '../../App';
 
 const EnhancedBaseResourceDialog = ({

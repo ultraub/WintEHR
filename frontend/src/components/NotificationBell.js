@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   IconButton,
   Menu,
-  MenuItem,
   Typography,
   Box,
   Divider,
@@ -25,12 +24,12 @@ import {
   CheckCircle as SuccessIcon,
   MarkEmailRead as MarkReadIcon
 } from '@mui/icons-material';
-import { useNotifications } from '../hooks/useNotifications';
+import { useNotifications } from '../hooks/ui/useNotifications';
 import { formatDistanceToNow } from 'date-fns';
 
 const NotificationBell = () => {
   const [anchorEl, setAnchorEl] = useState(null);
-  const { count, notifications, loading, fetchNotifications, markAsRead, markAllAsRead } = useNotifications();
+  const { count, notifications, fetchNotifications, markAsRead, markAllAsRead } = useNotifications();
   const [loadingNotifications, setLoadingNotifications] = useState(false);
 
   const handleClick = async (event) => {

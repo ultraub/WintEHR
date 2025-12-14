@@ -276,5 +276,6 @@ async def get_current_user_or_demo(
             username="demo",
             email="demo@example.com",
             name="Demo User",
-            role="user"
+            role="user",
+            permissions=["read", "write"]
         )

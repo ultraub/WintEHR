@@ -373,11 +373,16 @@ export const DocumentationProvider = ({ children }) => {
       if (currentPatient?.id) {
         await refreshPatientResources(currentPatient.id);
       }
-      
+
       // Reload the note to get updated status
       await loadNote(currentNote.id);
+
+      // Reload recent notes list to reflect the signed status immediately
+      if (currentPatient?.id) {
+        await loadRecentNotes(currentPatient.id);
+      }
     } catch (error) {
-      
+
       throw error;
     }
   };

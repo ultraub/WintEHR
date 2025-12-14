@@ -4,6 +4,7 @@
  */
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
+import { EXTENSION_URLS } from '../constants/fhirExtensions';
 
 class MedicationReconciliationService {
   constructor() {
@@ -497,7 +498,7 @@ class MedicationReconciliationService {
         text: `Added during medication reconciliation: ${change.reason}`
       }],
       extension: [{
-        url: 'http://example.org/fhir/reconciliation-action',
+        url: EXTENSION_URLS.RECONCILIATION_ACTION,
         valueCode: 'reconciliation-add'
       }]
     };

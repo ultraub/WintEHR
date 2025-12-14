@@ -14,9 +14,7 @@ import {
   Tooltip,
   Popover,
   Typography,
-  Divider,
   Button,
-  Alert,
   useTheme,
   alpha,
   Collapse,
@@ -31,18 +29,13 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
-import { useCDS, CDS_HOOK_TYPES } from '../../../contexts/CDSContext';
-import { useClinical } from '../../../contexts/ClinicalContext';
-import CDSCard from './CDSCard';
-import CDSPresentation, { PRESENTATION_MODES } from './CDSPresentation';
+import { useCDS } from '../../../contexts/CDSContext';
 
 const CDSAlertPills = ({ maxVisible = 3, hookType = 'patient-view' }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
   const [expandedCard, setExpandedCard] = useState(null);
-  const { currentPatient } = useClinical();
-  const { getAlerts, loading: allLoading, executeCDSHooks } = useCDS();
-  const loading = allLoading[hookType] || false;
+  const { getAlerts } = useCDS();
   
   // Get alerts from CDSContext
   const alerts = getAlerts(hookType) || [];
@@ -121,16 +114,6 @@ const CDSAlertPills = ({ maxVisible = 3, hookType = 'patient-view' }) => {
   const handleClose = () => {
     setAnchorEl(null);
     setExpandedCard(null);
-  };
-  
-  const handleAcceptSuggestion = async (suggestion) => {
-    // Handle suggestion acceptance
-    console.log('Accepting suggestion:', suggestion);
-  };
-  
-  const handleDismissCard = (card, reasonKey, comment) => {
-    // Handle card dismissal
-    console.log('Dismissing card:', card, reasonKey, comment);
   };
   
   // Don't render if no alerts

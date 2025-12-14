@@ -4,7 +4,7 @@
  * Part of Phase 2 Implementation: MedicationAdministration Integration
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
@@ -17,7 +17,6 @@ import {
   TableHead,
   TableRow,
   Button,
-  IconButton,
   Chip,
   Stack,
   Alert,
@@ -35,17 +34,10 @@ import {
   CardContent,
   CardHeader,
   Badge,
-  Tooltip,
   LinearProgress,
   Accordion,
   AccordionSummary,
-  AccordionDetails,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  ListItemSecondaryAction,
-  Divider
+  AccordionDetails
 } from '@mui/material';
 import {
   Medication as MedicationIcon,
@@ -53,20 +45,13 @@ import {
   Cancel as MissedIcon,
   Schedule as PendingIcon,
   Warning as AlertIcon,
-  Info as InfoIcon,
-  Person as PatientIcon,
   AccessTime as TimeIcon,
-  CalendarToday as DateIcon,
-  Add as AddIcon,
-  Edit as EditIcon,
-  History as HistoryIcon,
   Assessment as MetricsIcon,
   ExpandMore as ExpandMoreIcon,
   Print as PrintIcon,
-  Refresh as RefreshIcon,
-  Notifications as NotificationIcon
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
-import { format, parseISO, isToday, isBefore, isAfter } from 'date-fns';
+import { format, isToday, isAfter } from 'date-fns';
 import { useMedicationAdministrationRecord, useMedicationAdministrationMetrics } from '../../../hooks/useMedicationAdministration';
 import { getMedicationName } from '../../../core/fhir/utils/medicationDisplayUtils';
 

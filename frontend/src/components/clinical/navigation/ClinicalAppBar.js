@@ -19,26 +19,21 @@ import {
   ListItemText,
   Tooltip,
   Button,
-  Chip,
   Stack,
   useTheme,
   useMediaQuery,
   alpha,
-  LinearProgress,
-  Paper
+  LinearProgress
 } from '@mui/material';
 import {
   Notifications as NotificationsIcon,
   Settings as SettingsIcon,
   Person as PersonIcon,
   ExitToApp as LogoutIcon,
-  Print as PrintIcon,
-  Share as ShareIcon,
-  Home as HomeIcon,
-  Warning as AlertIcon
+  Home as HomeIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { format, differenceInYears } from 'date-fns';
+import { format } from 'date-fns';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import QuickThemeToggle from '../../theme/QuickThemeToggle';
 import WebSocketStatus from '../../common/WebSocketStatus';
@@ -60,19 +55,8 @@ const ClinicalAppBar = ({
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationAnchor, setNotificationAnchor] = useState(null);
   const { notifications, clearNotifications } = useClinicalWorkflow();
-  
-  // Get critical alerts count
-  const criticalAlerts = patient?.alerts?.filter(a => a.severity === 'critical').length || 0;
+
   const unreadNotifications = notifications.filter(n => !n.read).length;
-  
-  const calculateAge = (birthDate) => {
-    if (!birthDate) return 'Unknown';
-    try {
-      return differenceInYears(new Date(), new Date(birthDate));
-    } catch {
-      return 'Unknown';
-    }
-  };
 
   const handleUserMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -93,15 +77,6 @@ const ClinicalAppBar = ({
   const handleLogout = () => {
     handleUserMenuClose();
     navigate('/login');
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleShare = () => {
-    // Implementation for sharing patient data
-    console.log('Share patient data');
   };
 
   return (

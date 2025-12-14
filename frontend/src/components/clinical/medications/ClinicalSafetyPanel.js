@@ -19,10 +19,8 @@ import {
   Chip,
   Stack,
   IconButton,
-  Tooltip,
   Badge,
   Collapse,
-  Divider,
   LinearProgress,
   Grid,
   Accordion,
@@ -31,8 +29,7 @@ import {
   CircularProgress,
   Paper,
   Avatar,
-  useTheme,
-  alpha
+  useTheme
 } from '@mui/material';
 import {
   Shield as SafetyIcon,
@@ -47,7 +44,6 @@ import {
   Person as PersonIcon,
   Assignment as TaskIcon,
   Schedule as ScheduleIcon,
-  Medication as MedicationIcon,
   Psychology as CognitionIcon,
   Accessibility as AccessibilityIcon,
   LocalHospital as ClinicalIcon,

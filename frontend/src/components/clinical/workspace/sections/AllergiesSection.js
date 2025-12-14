@@ -14,8 +14,7 @@ import {
   TextField,
   InputAdornment,
   Alert,
-  useTheme,
-  alpha
+  useTheme
 } from '@mui/material';
 import {
   Warning as WarningIcon,
@@ -31,10 +30,8 @@ import {
 import { ClinicalResourceCard } from '../../shared/cards';
 import { ClinicalDataList } from '../../shared/tables';
 import { useTabFilters, useTabSearch } from '../../../../hooks/clinical';
-import {
-  getStatusColor,
-  formatDate
-} from '../../../../utils/clinicalHelpers';
+import { getStatusColor } from '../../../../utils/status';
+import { formatDate } from '../../../../utils/date';
 import { 
   getResourceDisplayText,
   getCodeableConceptDisplay 

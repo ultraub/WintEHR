@@ -33,7 +33,6 @@ import {
   LinearProgress,
   CircularProgress,
   useTheme,
-  alpha,
   Tabs,
   Tab,
   Badge,
@@ -93,6 +92,7 @@ import {
   Remove as NoChangeIcon
 } from '@mui/icons-material';
 import { format, parseISO, formatDistanceToNow, isPast, isFuture, differenceInDays, addDays, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
@@ -198,7 +198,7 @@ const EnhancedGoalCard = ({ goal, onEdit, onViewProgress, onUpdateProgress, dens
   const details = [
     { label: 'Category', value: categoryConfig.label },
     { label: 'Progress', value: `${progressPercentage}%` },
-    { label: 'Target Date', value: targetDate ? format(parseISO(targetDate), 'MMM d, yyyy') : 'No deadline' },
+    { label: 'Target Date', value: targetDate ? formatClinicalDate(targetDate) : 'No deadline' },
     { label: 'Status', value: goal.lifecycleStatus || 'active' }
   ];
 
@@ -344,13 +344,13 @@ const GoalProgressChart = ({ goal, observations }) => {
       </Box>
       <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}>
         <Typography variant="caption" color="text.secondary">
-          {format(parseISO(chartData[0].date), 'MMM d')}
+          {formatClinicalDate(chartData[0].date, 'monthDay')}
         </Typography>
         <Typography variant="caption" color="text.secondary">
           Latest: {chartData[chartData.length - 1].value} {chartData[chartData.length - 1].unit}
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          {format(parseISO(chartData[chartData.length - 1].date), 'MMM d')}
+          {formatClinicalDate(chartData[chartData.length - 1].date, 'monthDay')}
         </Typography>
       </Stack>
     </Box>
@@ -590,7 +590,7 @@ const CarePlanTabEnhanced = ({
           content += '</p>';
           
           if (targetDate) {
-            content += `<p><strong>Target Date:</strong> ${format(parseISO(targetDate), 'MMMM d, yyyy')}</p>`;
+            content += `<p><strong>Target Date:</strong> ${formatClinicalDate(targetDate, 'verbose')}</p>`;
           }
           
           if (goal.target?.[0]?.measure) {
@@ -1101,7 +1101,7 @@ const CarePlanTabEnhanced = ({
                     secondary={
                       <Stack direction="row" spacing={1} alignItems="center">
                         <Typography variant="caption">
-                          {format(parseISO(item.date), 'MMM d, yyyy')}
+                          {formatClinicalDate(item.date)}
                         </Typography>
                         <Chip
                           label={item.status || 'active'}
@@ -1229,7 +1229,7 @@ const CarePlanTabEnhanced = ({
                 <Typography variant="body2">
                   <strong>Category:</strong> {goalCategories[selectedGoal.category?.[0]?.coding?.[0]?.code || 'health-maintenance']?.label}
                   {selectedGoal.target?.[0]?.dueDate && (
-                    <> • <strong>Due:</strong> {format(parseISO(selectedGoal.target[0].dueDate), 'MMM d, yyyy')}</>
+                    <> • <strong>Due:</strong> {formatClinicalDate(selectedGoal.target[0].dueDate)}</>
                   )}
                 </Typography>
               </Alert>

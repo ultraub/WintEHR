@@ -24,8 +24,7 @@ import {
   Autocomplete,
   FormControlLabel,
   Switch,
-  useTheme,
-  alpha
+  useTheme
 } from '@mui/material';
 import {
   Send as SendIcon,

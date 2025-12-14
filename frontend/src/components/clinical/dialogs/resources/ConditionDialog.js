@@ -22,8 +22,7 @@ import {
   Switch,
   RadioGroup,
   Radio,
-  useTheme,
-  alpha
+  useTheme
 } from '@mui/material';
 import SimplifiedClinicalDialog from '../../common/SimplifiedClinicalDialog';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';

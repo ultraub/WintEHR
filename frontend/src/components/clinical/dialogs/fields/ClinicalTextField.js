@@ -14,25 +14,21 @@ import {
   ListItemIcon,
   Box,
   Typography,
-  Chip,
   CircularProgress,
   Tooltip,
   Alert,
   useTheme,
   alpha,
-  Paper,
   Divider
 } from '@mui/material';
 import {
   Search as SearchIcon,
   Close as ClearIcon,
-  Info as InfoIcon,
   Warning as WarningIcon,
   CheckCircle as ValidIcon,
   Error as ErrorIcon,
   Mic as MicIcon,
   MicOff as MicOffIcon,
-  History as HistoryIcon,
   TrendingUp as FrequentIcon,
   Article as TemplateIcon
 } from '@mui/icons-material';

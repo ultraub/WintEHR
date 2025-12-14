@@ -245,43 +245,41 @@ backend/MIGRATION_SUMMARY_2025-10-04.md
 backend/PROXY_CONFIGURATION_FIX_2025-10-04.md
 backend/archived/*
 deployment_prompt.txt
-
-# Serena MCP memory files
-.serena/
-
-# Code graph MCP
-code-graph-mcp/
-
-# Claude-generated documentation (not committed)
-claudedocs/
-
-# CDS Studio work in progress
-backend/api/cds_studio/
-frontend/src/modules/cds-studio/
-
-# Temporary deployment and fix scripts
+code-graph-mcp/*
+deploy-fix-23.sh
+.gitignore
+check-imaging.sh
+docs/CODE_GRAPH_MCP.md
+FIX_SUMMARY_2025-10-16.md
+HTTPS_DEPLOYMENT_SUCCESS_2025-10-14.md
 DEPLOY_NOW.md
-FIX_SUMMARY_*.md
-HTTPS_DEPLOYMENT_*.md
-deploy-fix-*.sh
-check-*.sh
-
-# Temporary implementation summaries (move to docs/ when ready)
-backend/api/*/IMPLEMENTATION_SUMMARY.md
-
-# Backend scripts for one-off tasks
-backend/scripts/fix_*.py
-backend/scripts/update_*.py
-
-# Frontend setup notes
+.mcp.json
+backend/scripts/create_ivan_labs.py
+backend/scripts/export_ivan_complete_record.py
+backend/scripts/fix_ivan_age_and_encounter.py
+backend/scripts/fix_ivan_clinical_note.py
+backend/scripts/update_ivan_annual_wellness.py
+backend/scripts/update_ivan_prostate_findings.py
+backend/scripts/patient_exports/import_ivan_record.py
+backend/scripts/patient_exports/ivan_139915_summary_20251112_115648.txt
+claudedocs/SCHEMA_MISMATCH_COMPREHENSIVE_FIX.md
+claudedocs/VISUAL_BUILDER_COMPLETE_FIX_SUMMARY.md
+claudedocs/VISUAL_BUILDER_PYDANTIC_FIX.md
+docs/CDS_STUDIO_DEPLOYMENT_CHECKLIST.md
+docs/CDS_STUDIO_IMPLEMENTATION_SUMMARY.md
+docs/CDS_STUDIO_QUICK_REFERENCE.md
+docs/CDS_STUDIO_VISUAL_BUILDER.md
+docs/CDS_VISUAL_BUILDER_DEPLOYMENT.md
+docs/EXTERNAL_SERVICES_INTEGRATION.md
+claudedocs/DOCUMENTATION_UPDATE_SUMMARY_2025-11-08.md
+frontend/src/modules/cds-studio/VISUAL_BUILDER_FIXES.md
 frontend/MONACO_SETUP.md
-
-# Temporary pytest config (move to proper location when ready)
-backend/pytest.ini
-
-# CDS documentation (work in progress)
-docs/CDS_STUDIO_*.md
-docs/CDS_VISUAL_*.md
-docs/EXTERNAL_SERVICES_*.md
-docs/CODE_GRAPH_*.md
-docs/INDEX.md
+claudedocs/*
+claudedocs/patient_name_and_header_updates.md
+backend/scripts/patient_exports/README.md
+.serena
+.serena/*
+backend/api/cds_hooks/IMPLEMENTATION_SUMMARY.md
+backend/api/cds_hooks/VISUAL_BUILDER_SCHEMA.md
+backend/api/cds_studio/IMPLEMENTATION_SUMMARY.md
+.kiro

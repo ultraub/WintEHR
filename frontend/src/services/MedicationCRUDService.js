@@ -15,6 +15,7 @@
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
 import { format, addDays, addWeeks, addMonths, parseISO, isAfter, differenceInDays } from 'date-fns';
+import { EXTENSION_URLS } from '../constants/fhirExtensions';
 
 class MedicationCRUDService {
   constructor() {
@@ -295,7 +296,7 @@ class MedicationCRUDService {
         extension: [
           ...(originalRequest.extension || []),
           {
-            url: 'http://example.org/fhir/medication-discontinuation',
+            url: EXTENSION_URLS.MEDICATION_DISCONTINUATION,
             extension: this.buildDiscontinuationExtension(discontinuationData)
           }
         ]
@@ -422,7 +423,7 @@ class MedicationCRUDService {
           text: `Monitoring plan for ${medication.name || 'medication'} effectiveness`
         }],
         extension: [{
-          url: 'http://example.org/fhir/medication-monitoring',
+          url: EXTENSION_URLS.MEDICATION_MONITORING,
           extension: [
             {
               url: 'medication-class',

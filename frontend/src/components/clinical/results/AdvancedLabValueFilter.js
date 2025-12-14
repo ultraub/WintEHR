@@ -26,7 +26,6 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Divider,
   Badge
 } from '@mui/material';
 import {
@@ -337,7 +336,7 @@ const AdvancedLabValueFilter = ({ onFilterChange, initialFilters = null, patient
               of clinically significant results using FHIR R4 value-quantity search capabilities.
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Example: Filter for glucose > 250 mg/dL to identify severe hyperglycemia requiring immediate intervention
+              Example: Filter for glucose &gt; 250 mg/dL to identify severe hyperglycemia requiring immediate intervention
             </Typography>
           </Alert>
         )}

@@ -25,13 +25,13 @@ def register_all_routers(app: FastAPI) -> None:
     # 1. Core FHIR APIs - HAPI FHIR Proxy
     # Proxy forwards /fhir/R4/* requests to HAPI FHIR JPA Server at http://hapi-fhir:8080
     try:
-        from api.hapi_fhir_proxy import router as hapi_fhir_proxy
+        from api.fhir.proxy import router as hapi_fhir_proxy
 
         app.include_router(hapi_fhir_proxy, tags=["FHIR R4 (HAPI Proxy)"])
         logger.info("✓ HAPI FHIR proxy router registered")
 
         # Keep FHIR relationship and search value routers (may still be useful)
-        from api.fhir_relationships_router import relationships_router
+        from api.fhir.routers.relationships import relationships_router
         from api.fhir.search_values import router as search_values_router
 
         app.include_router(relationships_router, prefix="/api", tags=["FHIR Relationships"])
@@ -53,6 +53,7 @@ def register_all_routers(app: FastAPI) -> None:
         from api.catalogs import router as catalogs_router
         from api.clinical.orders.orders_router import router as clinical_orders_router
         from api.clinical.pharmacy.pharmacy_router import router as pharmacy_router
+        from api.clinical.results.results_router import router as clinical_results_router
         from api.clinical.tasks.router import router as clinical_tasks_router
         from api.clinical.alerts.router import router as clinical_alerts_router
         from api.clinical.inbox.router import router as clinical_inbox_router
@@ -66,6 +67,7 @@ def register_all_routers(app: FastAPI) -> None:
         app.include_router(dynamic_catalog_router, tags=["Dynamic Catalog (Legacy)"])
         app.include_router(clinical_orders_router, prefix="/api", tags=["Clinical Orders (CPOE)"])
         app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
+        app.include_router(clinical_results_router, tags=["Clinical Results"])
         app.include_router(medication_lists_router, tags=["Medication Lists"])
         app.include_router(drug_safety_router, prefix="/api/clinical", tags=["Drug Safety"])
         app.include_router(clinical_notes_router, tags=["Clinical Documentation"])
@@ -89,29 +91,26 @@ def register_all_routers(app: FastAPI) -> None:
     # 5. Integration Services
     try:
         from api.cds_hooks.cds_hooks_router import router as cds_hooks_router
-        from api.cds_hooks.service_executor_router import router as cds_executor_router
+        from api.cds_studio.visual_builder_router import router as visual_builder_router
         from api.ui_composer import router as ui_composer_router
         from api.websocket.websocket_router import router as websocket_router
         from api.websocket.monitoring import router as websocket_monitoring_router
-        from api.fhir_schema_router import router as fhir_schema_router
-        from api.fhir_capability_schema_router import router as fhir_capability_schema_router
-        
+        from api.fhir.routers.schema import router as fhir_schema_router
+        from api.fhir.routers.capability import router as fhir_capability_schema_router
+        from api.external_services.router import router as external_services_router
+        from api.cds_studio.router import router as cds_studio_router
+
         app.include_router(cds_hooks_router, prefix="/api", tags=["CDS Hooks"])
-        app.include_router(cds_executor_router, prefix="/api", tags=["CDS Service Executor"])
+        app.include_router(visual_builder_router, tags=["CDS Visual Builder"])
         app.include_router(ui_composer_router, tags=["UI Composer"])
         app.include_router(websocket_router, prefix="/api", tags=["WebSocket"])
         app.include_router(websocket_monitoring_router, tags=["WebSocket Monitoring"])
         app.include_router(fhir_schema_router, tags=["FHIR Schemas"])
         app.include_router(fhir_capability_schema_router, tags=["FHIR Schemas V2"])
-        
-        # CDS Hooks v2.0 Complete Implementation
-        try:
-            from api.cds_hooks.cds_hooks_v2_complete import router as cds_hooks_v2_router
-            app.include_router(cds_hooks_v2_router, prefix="/api", tags=["CDS Hooks v2.0"])
-            logger.info("✓ CDS Hooks v2.0 router registered")
-        except Exception as v2_error:
-            logger.warning(f"CDS Hooks v2.0 router not available: {v2_error}")
-        
+        app.include_router(external_services_router, tags=["External Services"])
+        app.include_router(cds_studio_router, tags=["CDS Management Studio"])
+
+
         logger.info("✓ Integration service routers registered")
     except Exception as e:
         logger.error(f"Failed to register integration routers: {e}")
@@ -149,7 +148,7 @@ def register_all_routers(app: FastAPI) -> None:
     
     # 9. Monitoring & Performance
     try:
-        from api.monitoring import monitoring_router
+        from api.system.monitoring import monitoring_router
         app.include_router(monitoring_router, tags=["Monitoring"])
         logger.info("✓ Monitoring router registered")
     except Exception as e:
@@ -159,7 +158,7 @@ def register_all_routers(app: FastAPI) -> None:
     try:
         import os
         if os.getenv("DEBUG", "false").lower() == "true":
-            from api.debug_router import debug_router
+            from api.system.debug_router import debug_router
             app.include_router(debug_router, tags=["Debug"])
             logger.info("✓ Debug router registered (DEBUG mode)")
     except Exception as e:

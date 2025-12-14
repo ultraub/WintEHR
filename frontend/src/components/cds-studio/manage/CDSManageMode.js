@@ -40,20 +40,14 @@ import {
   Switch,
   FormControlLabel,
   CircularProgress,
-  Snackbar,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
+  Snackbar
 } from '@mui/material';
 import {
   Search as SearchIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   ContentCopy as DuplicateIcon,
-  MoreVert as MoreIcon,
   Analytics as AnalyticsIcon,
-  Group as TeamIcon,
   History as HistoryIcon,
   Add as AddIcon,
   Webhook as WebhookIcon,
@@ -95,12 +89,12 @@ const CDSManageMode = ({ onEditService, refreshTrigger }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [anchorEl, setAnchorEl] = useState(null);
-  const [selectedService, setSelectedService] = useState(null);
+  const [, setSelectedService] = useState(null);
   const [serviceSettings, setServiceSettings] = useState({});
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [testPatientId, setTestPatientId] = useState('test-patient-123');
-  const [testContext, setTestContext] = useState({});
-  const [displayBehavior, setDisplayBehavior] = useState({
+  const [, setTestContext] = useState({});
+  const [, setDisplayBehavior] = useState({
     displayMode: 'immediate',
     position: 'top',
     maxCards: 10,

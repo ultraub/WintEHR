@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 
 from database import get_db_session as get_session
-from services.fhir_client_config import search_resources
+from services.hapi_fhir_client import HAPIFHIRClient
 from api.services.clinical.provider_directory_service import ProviderDirectoryService
 from api.auth.service import get_optional_current_user, get_current_user_or_demo
 from api.auth.models import User
@@ -463,16 +463,17 @@ async def get_location_providers(
     """
     try:
         provider_service = ProviderDirectoryService(session)
-        
+        hapi_client = HAPIFHIRClient()
+
         # Search for practitioner roles at this location
         search_params = {
             'location': f"Location/{location_id}"
         }
-        
-        roles_response = search_resources('PractitionerRole', search_params)
+
+        roles_bundle = await hapi_client.search('PractitionerRole', search_params)
         providers = []
-        
-        for entry in roles_response.get('entry', []):
+
+        for entry in roles_bundle.get('entry', []):
             role_resource = entry['resource']
             
             practitioner_ref = role_resource.get('practitioner', {}).get('reference', '')
@@ -508,22 +509,13 @@ async def get_available_specialties(
     Get all available provider specialties in the system.
     """
     try:
+        hapi_client = HAPIFHIRClient()
+
         # Search all PractitionerRole resources to get unique specialties
-        roles_response = search_resources('PractitionerRole', {})
-        
-        # Handle different response formats from search_resources
-        entries = []
-        if isinstance(roles_response, tuple):
-            # If it's a tuple, first element might be the data
-            data = roles_response[0] if roles_response else []
-            if isinstance(data, dict) and 'entry' in data:
-                entries = data.get('entry', [])
-            elif isinstance(data, list):
-                entries = data
-        elif isinstance(roles_response, dict) and 'entry' in roles_response:
-            entries = roles_response.get('entry', [])
-        elif isinstance(roles_response, list):
-            entries = roles_response
+        roles_bundle = await hapi_client.search('PractitionerRole', {})
+
+        # Extract entries from bundle (HAPIFHIRClient returns FHIR Bundle)
+        entries = roles_bundle.get('entry', [])
             
         specialties = []
         specialty_codes = set()
@@ -532,17 +524,17 @@ async def get_available_specialties(
             # Handle both direct resources and bundle entries
             if isinstance(entry, dict):
                 role_resource = entry.get('resource', entry)
-            
-            for specialty in role_resource.get('specialty', []):
-                for coding in specialty.get('coding', []):
-                    code = coding.get('code')
-                    if code and code not in specialty_codes:
-                        specialty_codes.add(code)
-                        specialties.append({
-                            'code': code,
-                            'display': coding.get('display', code),
-                            'system': coding.get('system', '')
-                        })
+
+                for specialty in role_resource.get('specialty', []):
+                    for coding in specialty.get('coding', []):
+                        code = coding.get('code')
+                        if code and code not in specialty_codes:
+                            specialty_codes.add(code)
+                            specialties.append({
+                                'code': code,
+                                'display': coding.get('display', code),
+                                'system': coding.get('system', '')
+                            })
         
         return {
             "specialties": sorted(specialties, key=lambda x: x['display']),
@@ -563,25 +555,16 @@ async def get_available_organizations(
     Get all available organizations in the system.
     """
     try:
+        hapi_client = HAPIFHIRClient()
+
         # For now, don't filter by active status
         # TODO: Fix search parameter handling
         search_params = {}
 
-        orgs_response = search_resources('Organization', search_params)
-        
-        # Handle different response formats from search_resources
-        entries = []
-        if isinstance(orgs_response, tuple):
-            # If it's a tuple, first element might be the data
-            data = orgs_response[0] if orgs_response else []
-            if isinstance(data, dict) and 'entry' in data:
-                entries = data.get('entry', [])
-            elif isinstance(data, list):
-                entries = data
-        elif isinstance(orgs_response, dict) and 'entry' in orgs_response:
-            entries = orgs_response.get('entry', [])
-        elif isinstance(orgs_response, list):
-            entries = orgs_response
+        orgs_bundle = await hapi_client.search('Organization', search_params)
+
+        # Extract entries from bundle (HAPIFHIRClient returns FHIR Bundle)
+        entries = orgs_bundle.get('entry', [])
             
         organizations = []
         

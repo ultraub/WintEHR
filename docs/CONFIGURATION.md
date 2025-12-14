@@ -1,5 +1,8 @@
 # WintEHR Configuration Guide
 
+**Version**: 1.1.0
+**Last Updated**: December 14, 2025
+
 Complete reference for configuring and deploying WintEHR with the configuration management system.
 
 ## Table of Contents
@@ -138,8 +141,8 @@ Environment-specific configuration overrides.
 
 **Supported Environments**:
 - `config.dev.yaml` - Development
-- `config.staging.yaml` - Staging
-- `config.prod.yaml` - Production
+- `config.azure-prod.yaml` - Azure Production
+- `config.prod.yaml` - Production (generic)
 
 **Example** (`config.dev.yaml`):
 ```yaml
@@ -492,14 +495,14 @@ services:
     frontend: 3001
 ```
 
-**Staging** (`config.staging.yaml`):
+**Azure Production** (`config.azure-prod.yaml`):
 ```yaml
 deployment:
-  patient_count: 50
+  patient_count: 100
   enable_ssl: true
 
 ssl:
-  domain_name: staging.wintehr.com
+  domain_name: wintehr.yourdomain.com
 ```
 
 **Production** (`config.prod.yaml`):
@@ -873,5 +876,5 @@ print(template.render(domain='example.com', patients=50))
 ## See Also
 
 - [Main README](../README.md) - Project overview
-- [Deployment Guide](DEPLOYMENT_STATUS.md) - Deployment procedures
+- [Deployment Guide](DEPLOYMENT.md) - Deployment procedures
 - [Scripts Guide](../backend/scripts/CLAUDE.md) - Data management scripts

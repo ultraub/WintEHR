@@ -2,23 +2,18 @@
  * Main Application Search Bar Component
  * Provides global search functionality across patients and clinical resources
  */
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
   InputBase,
   Paper,
   IconButton,
-  Autocomplete,
   Typography,
-  Chip,
-  Stack,
   CircularProgress,
-  List,
   ListItem,
   ListItemIcon,
   ListItemText,
-  ListItemSecondaryAction,
   Divider,
   alpha,
   Popper,
