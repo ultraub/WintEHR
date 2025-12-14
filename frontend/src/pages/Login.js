@@ -139,7 +139,7 @@ const Login = () => {
             fontWeight: 700,
             color: 'text.primary',
           }}>
-            Welcome to MedFlow
+            Welcome to WintEHR
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
             Select your provider profile to continue
@@ -194,7 +194,7 @@ const Login = () => {
               fontSize: '1rem',
             }}
           >
-            {loading ? 'Logging in...' : 'Sign In to MedFlow'}
+            {loading ? 'Logging in...' : 'Sign In to WintEHR'}
           </Button>
         </Box>
 

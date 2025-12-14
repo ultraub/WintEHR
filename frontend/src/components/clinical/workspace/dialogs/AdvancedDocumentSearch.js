@@ -146,14 +146,19 @@ const AdvancedDocumentSearch = ({
       params.facility = searchParams.facility;
     }
 
-    // Period search
+    // Period search - use array for proper FHIR query encoding
     if (searchParams.periodStart || searchParams.periodEnd) {
-      if (searchParams.periodStart && searchParams.periodEnd) {
-        params.period = `ge${searchParams.periodStart.toISOString().split('T')[0]}&period=le${searchParams.periodEnd.toISOString().split('T')[0]}`;
-      } else if (searchParams.periodStart) {
-        params.period = `ge${searchParams.periodStart.toISOString().split('T')[0]}`;
-      } else if (searchParams.periodEnd) {
-        params.period = `le${searchParams.periodEnd.toISOString().split('T')[0]}`;
+      const periodFilters = [];
+      if (searchParams.periodStart) {
+        periodFilters.push(`ge${searchParams.periodStart.toISOString().split('T')[0]}`);
+      }
+      if (searchParams.periodEnd) {
+        periodFilters.push(`le${searchParams.periodEnd.toISOString().split('T')[0]}`);
+      }
+      if (periodFilters.length === 1) {
+        params.period = periodFilters[0];
+      } else if (periodFilters.length > 1) {
+        params.period = periodFilters; // Array becomes multiple query params
       }
     }
 

@@ -22,9 +22,11 @@ COPY . .
 ENV REACT_APP_API_URL=${REACT_APP_API_URL}
 ENV REACT_APP_FHIR_ENDPOINT=${REACT_APP_FHIR_ENDPOINT}
 ENV REACT_APP_WS_URL=${REACT_APP_WS_URL}
+ENV NODE_ENV=production
 
 # Build the application with production URLs baked in
-RUN npm run build
+# CI=false prevents treating warnings as errors during build
+RUN CI=false npm run build
 
 # Production stage
 FROM nginx:alpine

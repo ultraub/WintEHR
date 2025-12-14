@@ -125,6 +125,10 @@ while [[ $# -gt 0 ]]; do
             BASE_URL="$2"
             shift 2
             ;;
+        --domain)
+            DEPLOY_DOMAIN="$2"
+            shift 2
+            ;;
         --help|-h)
             cat << EOF
 WintEHR Deployment Script
@@ -141,6 +145,7 @@ Commands:
 
 Options:
   --environment, -e ENV    Docker Compose profile: dev (default), prod
+  --domain DOMAIN          Domain name for production (auto-configures .env)
   --validate-only          Validate configuration without deploying
   --skip-build             Skip Docker image builds
   --skip-data              Skip patient data generation
@@ -151,6 +156,7 @@ Options:
 Examples:
   ./deploy.sh                          # Dev deployment (default)
   ./deploy.sh --environment prod       # Production deployment
+  ./deploy.sh -e prod --domain example.com  # Production with auto-configured domain
   ./deploy.sh --validate-only          # Only validate config
   ./deploy.sh --skip-data              # Deploy without generating data
   ./deploy.sh stop                     # Stop all services
@@ -267,6 +273,75 @@ echo -e "${GREEN}✅ Configuration loaded${NC}"
 echo "   Profile: $PROFILE"
 echo "   Environment: ${ENVIRONMENT:-dev}"
 echo ""
+
+# Auto-configure production settings if needed
+if [ "$PROFILE" = "prod" ]; then
+    CURRENT_DOMAIN="${DOMAIN:-localhost}"
+
+    # If --domain was provided, use it
+    if [ -n "$DEPLOY_DOMAIN" ]; then
+        CURRENT_DOMAIN="$DEPLOY_DOMAIN"
+    fi
+
+    # Check if domain needs configuration
+    if [ "$CURRENT_DOMAIN" = "localhost" ]; then
+        echo -e "${YELLOW}⚠️  Production deployment requires a domain name${NC}"
+        echo "   Current DOMAIN in .env: localhost"
+        echo ""
+
+        if [ -t 0 ]; then
+            # Interactive mode - prompt for domain
+            read -p "Enter your domain name (e.g., example.com): " DEPLOY_DOMAIN
+            if [ -z "$DEPLOY_DOMAIN" ]; then
+                echo -e "${RED}❌ Domain name is required for production deployment${NC}"
+                exit 1
+            fi
+            CURRENT_DOMAIN="$DEPLOY_DOMAIN"
+        else
+            # Non-interactive mode - fail
+            echo -e "${RED}❌ Error: Production deployment requires --domain flag${NC}"
+            echo "   Usage: ./deploy.sh -e prod --domain example.com"
+            exit 1
+        fi
+    fi
+
+    # Update .env with production values if domain changed or is new
+    if [ "$CURRENT_DOMAIN" != "localhost" ]; then
+        echo -e "${BLUE}🔧 Configuring production settings for: $CURRENT_DOMAIN${NC}"
+
+        # Update all production values in .env
+        sed -i.bak \
+            -e "s|^DOMAIN=.*|DOMAIN=$CURRENT_DOMAIN|" \
+            -e "s|^ENVIRONMENT=.*|ENVIRONMENT=prod|" \
+            -e "s|^REACT_APP_API_URL=.*|REACT_APP_API_URL=https://$CURRENT_DOMAIN|" \
+            -e "s|^REACT_APP_FHIR_ENDPOINT=.*|REACT_APP_FHIR_ENDPOINT=https://$CURRENT_DOMAIN/fhir/R4|" \
+            -e "s|^REACT_APP_EMR_API=.*|REACT_APP_EMR_API=https://$CURRENT_DOMAIN/api/emr|" \
+            -e "s|^REACT_APP_CLINICAL_CANVAS_API=.*|REACT_APP_CLINICAL_CANVAS_API=https://$CURRENT_DOMAIN/api/clinical-canvas|" \
+            -e "s|^REACT_APP_WS_URL=.*|REACT_APP_WS_URL=wss://$CURRENT_DOMAIN/ws|" \
+            .env
+        rm -f .env.bak
+
+        # Update nginx-prod.conf SSL certificate paths
+        if [ -f "nginx-prod.conf" ]; then
+            sed -i.bak \
+                -e "s|/etc/letsencrypt/live/[^/]*/fullchain.pem|/etc/letsencrypt/live/$CURRENT_DOMAIN/fullchain.pem|g" \
+                -e "s|/etc/letsencrypt/live/[^/]*/privkey.pem|/etc/letsencrypt/live/$CURRENT_DOMAIN/privkey.pem|g" \
+                nginx-prod.conf
+            rm -f nginx-prod.conf.bak
+        fi
+
+        # Reload .env with updated values
+        set -a
+        source .env
+        set +a
+
+        echo -e "${GREEN}✅ Production configuration updated${NC}"
+        echo "   Domain: $CURRENT_DOMAIN"
+        echo "   API URL: https://$CURRENT_DOMAIN"
+        echo "   FHIR: https://$CURRENT_DOMAIN/fhir/R4"
+        echo ""
+    fi
+fi
 
 # Optional: Load additional config from config.yaml if present
 if [ -f "config.yaml" ] && [ -f "deploy/load_config.sh" ]; then
@@ -487,12 +562,31 @@ SSL_DOMAIN="${WINTEHR_SSL_DOMAIN_NAME:-${DOMAIN:-localhost}}"
 if [ "$PROFILE" = "prod" ] && [ "$SSL_DOMAIN" != "localhost" ]; then
     echo -e "${BLUE}🔒 Setting up SSL certificate for ${SSL_DOMAIN}...${NC}"
 
-    if [ -f "deploy/setup-ssl.sh" ]; then
-        bash deploy/setup-ssl.sh
-        echo -e "${GREEN}✅ SSL certificate configured${NC}"
+    # Check if certificates already exist
+    CERT_FILE="./certbot/conf/live/$SSL_DOMAIN/fullchain.pem"
+    if [ -f "$CERT_FILE" ]; then
+        # Check if it's a real cert or placeholder
+        ISSUER=$(openssl x509 -issuer -noout -in "$CERT_FILE" 2>/dev/null || echo "")
+        if echo "$ISSUER" | grep -q "Let's Encrypt\|R3\|E1"; then
+            echo -e "${GREEN}✅ Valid SSL certificate already exists${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Placeholder certificate detected - obtaining real certificate...${NC}"
+            if [ -f "deploy/init-ssl.sh" ]; then
+                bash deploy/init-ssl.sh "$SSL_DOMAIN"
+            fi
+        fi
     else
-        echo -e "${YELLOW}⚠️  SSL setup script not found${NC}"
-        echo "   Manually configure SSL certificate for: $SSL_DOMAIN"
+        # No certificate exists - run full SSL setup
+        if [ -f "deploy/init-ssl.sh" ]; then
+            bash deploy/init-ssl.sh "$SSL_DOMAIN"
+            echo -e "${GREEN}✅ SSL certificate configured${NC}"
+        elif [ -f "deploy/setup-ssl.sh" ]; then
+            bash deploy/setup-ssl.sh
+            echo -e "${GREEN}✅ SSL certificate configured${NC}"
+        else
+            echo -e "${YELLOW}⚠️  SSL setup script not found${NC}"
+            echo "   Run: ./deploy/init-ssl.sh $SSL_DOMAIN"
+        fi
     fi
     echo ""
 fi

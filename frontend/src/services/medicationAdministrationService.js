@@ -120,11 +120,18 @@ class MedicationAdministrationService {
         }
 
         if (filters.dateRange) {
+          // Build array for proper FHIR query encoding (avoids URL-encoding & in values)
+          const dateFilters = [];
           if (filters.dateRange.start) {
-            searchParams['effective-time'] = `ge${filters.dateRange.start}`;
+            dateFilters.push(`ge${filters.dateRange.start}`);
           }
           if (filters.dateRange.end) {
-            searchParams['effective-time'] = `${searchParams['effective-time'] || ''}$le${filters.dateRange.end}`;
+            dateFilters.push(`le${filters.dateRange.end}`);
+          }
+          if (dateFilters.length === 1) {
+            searchParams['effective-time'] = dateFilters[0];
+          } else if (dateFilters.length > 1) {
+            searchParams['effective-time'] = dateFilters; // Array becomes multiple query params
           }
         }
 
