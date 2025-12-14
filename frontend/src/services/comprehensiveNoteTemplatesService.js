@@ -42,9 +42,9 @@ export class ComprehensiveNoteTemplatesService {
         documentReferences
       ] = await Promise.all([
         fhirClient.read('Patient', patientId),
-        fhirClient.search('Condition', { patient: patientId, _sort: '-date' }),
-        fhirClient.search('MedicationRequest', { patient: patientId, _sort: '-dateWritten' }),
-        fhirClient.search('AllergyIntolerance', { patient: patientId, _sort: '-date' }),
+        fhirClient.search('Condition', { patient: patientId, _sort: '-recorded-date' }),
+        fhirClient.search('MedicationRequest', { patient: patientId, _sort: '-authoredon' }),
+        fhirClient.search('AllergyIntolerance', { patient: patientId, _sort: '-recorded-date' }),
         fhirClient.search('Immunization', { patient: patientId, _sort: '-date' }),
         fhirClient.search('Observation', { patient: patientId, _sort: '-date', _count: 50 }),
         fhirClient.search('DiagnosticReport', { patient: patientId, _sort: '-date', _count: 20 }),
