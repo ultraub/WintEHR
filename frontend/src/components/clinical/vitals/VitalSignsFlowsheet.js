@@ -114,8 +114,26 @@ const VITAL_SIGNS_CONFIG = {
   }
 };
 
+// Helper function to extract value from observation
+// Handles both simple valueQuantity and component-based observations (like blood pressure)
+const extractObservationValue = (obs, loincCode) => {
+  // Check if observation has components (e.g., blood pressure)
+  if (obs.component && obs.component.length > 0) {
+    // Find the component matching the LOINC code
+    const component = obs.component.find(c =>
+      c.code?.coding?.some(coding => coding.code === loincCode)
+    );
+    return component?.valueQuantity?.value;
+  }
+
+  // Otherwise, use direct valueQuantity
+  return obs.valueQuantity?.value;
+};
+
 // Chart View Component
 const VitalsChart = ({ vitalType, data, config }) => {
+  const loincCode = config.loincCodes[0]; // Get the LOINC code for this vital type
+
   const chartData = data.map(obs => ({
     date: format(parseISO(obs.effectiveDateTime), 'MMM yyyy'),
     value: parseFloat(obs.valueQuantity?.value || 0),
@@ -268,13 +286,30 @@ const VitalSignsFlowsheet = ({ patientId, height = '600px' }) => {
 
         // Get the most recent value for this date
         const latestVital = vitalsForDate[0];
-        row[vitalType] = latestVital ? {
-          value: latestVital.valueQuantity?.value,
-          unit: latestVital.valueQuantity?.unit,
-          time: latestVital.effectiveDateTime || latestVital.issued,
-          interpretation: latestVital.interpretation?.[0]?.coding?.[0]?.code,
-          observation: latestVital
-        } : null;
+        const loincCode = config.loincCodes[0]; // Get the LOINC code for extraction
+
+        if (latestVital) {
+          const value = extractObservationValue(latestVital, loincCode);
+
+          // Determine unit - check component first, then fallback to direct valueQuantity
+          let unit = latestVital.valueQuantity?.unit;
+          if (latestVital.component && latestVital.component.length > 0) {
+            const component = latestVital.component.find(c =>
+              c.code?.coding?.some(coding => coding.code === loincCode)
+            );
+            unit = component?.valueQuantity?.unit || unit;
+          }
+
+          row[vitalType] = {
+            value: value,
+            unit: unit,
+            time: latestVital.effectiveDateTime || latestVital.issued,
+            interpretation: latestVital.interpretation?.[0]?.coding?.[0]?.code,
+            observation: latestVital
+          };
+        } else {
+          row[vitalType] = null;
+        }
       });
 
       return row;

@@ -46,7 +46,7 @@ const ClinicalAppBar = ({
   patient,
   loading = false,
   user,
-  department = 'Emergency',
+  department = 'Clinic',
   shift = 'Day'
 }) => {
   const theme = useTheme();
