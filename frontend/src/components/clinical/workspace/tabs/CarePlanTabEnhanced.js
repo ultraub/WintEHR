@@ -10,7 +10,7 @@
  * - Integrated with new UI components
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -417,17 +417,52 @@ const CarePlanTabEnhanced = ({
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [activityDialogOpen, setActivityDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Form refs for Goal dialog
+  const goalDescriptionRef = useRef(null);
+  const goalCategoryRef = useRef(null);
+  const goalTargetDateRef = useRef(null);
+  const goalPriorityRef = useRef(null);
+  const goalNotesRef = useRef(null);
+
+  // Form refs for Activity dialog
+  const activityDescriptionRef = useRef(null);
+  const activityStatusRef = useRef(null);
+  const activityCategoryRef = useRef(null);
+  const activityAssignedRef = useRef(null);
+  const activityLocationRef = useRef(null);
+  const activityFrequencyRef = useRef(null);
+  const activityPeriodRef = useRef(null);
+  const activityDurationRef = useRef(null);
+  const activityNotesRef = useRef(null);
+
+  // Form refs for Team Member dialog
+  const teamMemberNameRef = useRef(null);
+  const teamMemberRoleRef = useRef(null);
+  const teamMemberContactRef = useRef(null);
+  const teamMemberStartDateRef = useRef(null);
+  const teamMemberEndDateRef = useRef(null);
+  const teamMemberNotesRef = useRef(null);
 
   // Get resources
   const carePlans = getPatientResources(patientId, 'CarePlan') || [];
   const goals = getPatientResources(patientId, 'Goal') || [];
   const careTeams = getPatientResources(patientId, 'CareTeam') || [];
-  
+
   // Get active care plan
   const activeCarePlan = carePlans.find(cp => cp.status === 'active') || carePlans[0];
   const activities = activeCarePlan?.activity || [];
   const careTeam = careTeams[0];
-  
+
+  // Load optional resources (CarePlan, CareTeam, Goal) when tab mounts
+  useEffect(() => {
+    if (patientId) {
+      // Fetch optional resources that may not be loaded by default
+      refreshPatientResources(patientId);
+    }
+  }, [patientId, refreshPatientResources]);
+
   // Filter and sort goals
   const filteredGoals = useMemo(() => {
     return goals.filter(goal => {
@@ -518,6 +553,366 @@ const CarePlanTabEnhanced = ({
       resource: goal
     }));
   }, [sortedGoals]);
+
+  // ========================================
+  // Save Handlers for FHIR Resources
+  // ========================================
+
+  /**
+   * Save Goal to FHIR
+   * Creates or updates a Goal resource
+   */
+  const handleSaveGoal = useCallback(async () => {
+    if (!patientId) return;
+
+    const description = goalDescriptionRef.current?.value?.trim();
+    if (!description) {
+      setSnackbar({
+        open: true,
+        message: 'Goal description is required',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const category = goalCategoryRef.current?.value || 'health-maintenance';
+      const targetDate = goalTargetDateRef.current?.value;
+      const priority = goalPriorityRef.current?.value || 'medium';
+      const notes = goalNotesRef.current?.value?.trim();
+
+      const goalResource = {
+        resourceType: 'Goal',
+        lifecycleStatus: selectedGoal?.lifecycleStatus || 'active',
+        achievementStatus: selectedGoal?.achievementStatus || {
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/goal-achievement',
+            code: 'in-progress',
+            display: 'In Progress'
+          }]
+        },
+        category: [{
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/goal-category',
+            code: category,
+            display: goalCategories[category]?.label || category
+          }]
+        }],
+        priority: {
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/goal-priority',
+            code: priority,
+            display: priority.charAt(0).toUpperCase() + priority.slice(1)
+          }]
+        },
+        description: {
+          text: description
+        },
+        subject: {
+          reference: `Patient/${patientId}`
+        },
+        startDate: selectedGoal?.startDate || new Date().toISOString().split('T')[0]
+      };
+
+      // Add target date if provided
+      if (targetDate) {
+        goalResource.target = [{
+          dueDate: targetDate
+        }];
+      }
+
+      // Add notes if provided
+      if (notes) {
+        goalResource.note = [{
+          text: notes,
+          time: new Date().toISOString()
+        }];
+      }
+
+      let result;
+      if (selectedGoal?.id) {
+        // Update existing goal
+        goalResource.id = selectedGoal.id;
+        result = await fhirClient.update('Goal', selectedGoal.id, goalResource);
+      } else {
+        // Create new goal
+        result = await fhirClient.create('Goal', goalResource);
+      }
+
+      // Refresh patient resources to get updated data
+      await refreshPatientResources(patientId, ['Goal']);
+
+      // Publish clinical event
+      publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
+        type: 'Goal',
+        resourceId: result.id,
+        patientId,
+        action: selectedGoal?.id ? 'updated' : 'created'
+      });
+
+      setSnackbar({
+        open: true,
+        message: selectedGoal ? 'Goal updated successfully' : 'Goal created successfully',
+        severity: 'success'
+      });
+      setGoalDialogOpen(false);
+      setSelectedGoal(null);
+
+    } catch (error) {
+      console.error('Error saving goal:', error);
+      setSnackbar({
+        open: true,
+        message: `Failed to save goal: ${error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [patientId, selectedGoal, refreshPatientResources, publish]);
+
+  /**
+   * Save Activity to CarePlan
+   * Updates the CarePlan with new/modified activity
+   */
+  const handleSaveActivity = useCallback(async () => {
+    if (!patientId || !activeCarePlan) {
+      setSnackbar({
+        open: true,
+        message: 'No active care plan found',
+        severity: 'error'
+      });
+      return;
+    }
+
+    const description = activityDescriptionRef.current?.value?.trim();
+    if (!description) {
+      setSnackbar({
+        open: true,
+        message: 'Activity description is required',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const status = activityStatusRef.current?.value || 'not-started';
+      const category = activityCategoryRef.current?.value || 'other';
+      const assigned = activityAssignedRef.current?.value?.trim();
+      const location = activityLocationRef.current?.value?.trim();
+      const frequency = parseInt(activityFrequencyRef.current?.value) || 1;
+      const period = activityPeriodRef.current?.value || 'd';
+      const duration = parseInt(activityDurationRef.current?.value) || 1;
+
+      const newActivity = {
+        detail: {
+          status: status,
+          description: description,
+          category: {
+            coding: [{
+              system: 'http://terminology.hl7.org/CodeSystem/care-plan-activity-kind',
+              code: category,
+              display: category.charAt(0).toUpperCase() + category.slice(1)
+            }]
+          }
+        }
+      };
+
+      // Add performer if assigned
+      if (assigned) {
+        newActivity.detail.performer = [{
+          display: assigned
+        }];
+      }
+
+      // Add location if provided
+      if (location) {
+        newActivity.detail.location = {
+          display: location
+        };
+      }
+
+      // Add scheduled timing
+      newActivity.detail.scheduledTiming = {
+        repeat: {
+          frequency: frequency,
+          period: duration,
+          periodUnit: period
+        }
+      };
+
+      // Update care plan with new/modified activity
+      const updatedActivities = [...(activeCarePlan.activity || [])];
+
+      if (selectedActivity) {
+        // Find and update existing activity
+        const activityIndex = updatedActivities.findIndex(
+          a => a.detail?.description === selectedActivity.detail?.description
+        );
+        if (activityIndex >= 0) {
+          updatedActivities[activityIndex] = newActivity;
+        }
+      } else {
+        // Add new activity
+        updatedActivities.push(newActivity);
+      }
+
+      const updatedCarePlan = {
+        ...activeCarePlan,
+        activity: updatedActivities
+      };
+
+      await fhirClient.update('CarePlan', activeCarePlan.id, updatedCarePlan);
+
+      // Refresh patient resources
+      await refreshPatientResources(patientId, ['CarePlan']);
+
+      // Publish clinical event
+      publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
+        type: 'CarePlan',
+        resourceId: activeCarePlan.id,
+        patientId,
+        action: 'activity_updated'
+      });
+
+      setSnackbar({
+        open: true,
+        message: selectedActivity ? 'Activity updated successfully' : 'Activity added successfully',
+        severity: 'success'
+      });
+      setActivityDialogOpen(false);
+      setSelectedActivity(null);
+
+    } catch (error) {
+      console.error('Error saving activity:', error);
+      setSnackbar({
+        open: true,
+        message: `Failed to save activity: ${error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [patientId, activeCarePlan, selectedActivity, refreshPatientResources, publish]);
+
+  /**
+   * Save Team Member to CareTeam
+   * Updates the CareTeam with new/modified participant
+   */
+  const handleSaveTeamMember = useCallback(async () => {
+    if (!patientId) return;
+
+    const memberName = teamMemberNameRef.current?.value?.trim();
+    if (!memberName) {
+      setSnackbar({
+        open: true,
+        message: 'Team member name is required',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const role = teamMemberRoleRef.current?.value || 'caregiver';
+      const contact = teamMemberContactRef.current?.value?.trim();
+      const startDate = teamMemberStartDateRef.current?.value;
+      const endDate = teamMemberEndDateRef.current?.value;
+
+      const newParticipant = {
+        role: [{
+          coding: [{
+            system: 'http://snomed.info/sct',
+            code: role,
+            display: role.charAt(0).toUpperCase() + role.replace(/-/g, ' ').slice(1)
+          }]
+        }],
+        member: {
+          display: memberName
+        }
+      };
+
+      // Add period if dates provided
+      if (startDate || endDate) {
+        newParticipant.period = {};
+        if (startDate) newParticipant.period.start = startDate;
+        if (endDate) newParticipant.period.end = endDate;
+      }
+
+      let targetCareTeam = careTeam;
+
+      if (!targetCareTeam) {
+        // Create new CareTeam if none exists
+        targetCareTeam = {
+          resourceType: 'CareTeam',
+          status: 'active',
+          name: `Care Team for Patient`,
+          subject: {
+            reference: `Patient/${patientId}`
+          },
+          participant: []
+        };
+      }
+
+      // Update care team with new/modified participant
+      const updatedParticipants = [...(targetCareTeam.participant || [])];
+
+      if (selectedParticipant) {
+        // Find and update existing participant by display name
+        const participantIndex = updatedParticipants.findIndex(
+          p => p.member?.display === selectedParticipant.member?.display
+        );
+        if (participantIndex >= 0) {
+          updatedParticipants[participantIndex] = newParticipant;
+        }
+      } else {
+        // Add new participant
+        updatedParticipants.push(newParticipant);
+      }
+
+      const updatedCareTeam = {
+        ...targetCareTeam,
+        participant: updatedParticipants
+      };
+
+      let result;
+      if (targetCareTeam.id) {
+        result = await fhirClient.update('CareTeam', targetCareTeam.id, updatedCareTeam);
+      } else {
+        result = await fhirClient.create('CareTeam', updatedCareTeam);
+      }
+
+      // Refresh patient resources
+      await refreshPatientResources(patientId, ['CareTeam']);
+
+      // Publish clinical event
+      publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
+        type: 'CareTeam',
+        resourceId: result.id,
+        patientId,
+        action: selectedParticipant ? 'participant_updated' : 'participant_added'
+      });
+
+      setSnackbar({
+        open: true,
+        message: selectedParticipant ? 'Team member updated successfully' : 'Team member added successfully',
+        severity: 'success'
+      });
+      setTeamDialogOpen(false);
+      setSelectedParticipant(null);
+
+    } catch (error) {
+      console.error('Error saving team member:', error);
+      setSnackbar({
+        open: true,
+        message: `Failed to save team member: ${error.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [patientId, careTeam, selectedParticipant, refreshPatientResources, publish]);
 
   // Quick actions for FAB
   const quickActions = [
@@ -1152,12 +1547,14 @@ const CarePlanTabEnhanced = ({
               rows={3}
               defaultValue={selectedGoal?.description?.text || ''}
               placeholder="Enter goal description..."
+              inputRef={goalDescriptionRef}
             />
             <FormControl fullWidth>
               <InputLabel>Category</InputLabel>
               <Select
                 defaultValue={selectedGoal?.category?.[0]?.coding?.[0]?.code || 'health-maintenance'}
                 label="Category"
+                onChange={(e) => { goalCategoryRef.current = e.target.value; }}
               >
                 {Object.entries(goalCategories).map(([key, config]) => (
                   <MenuItem key={key} value={key}>
@@ -1175,12 +1572,14 @@ const CarePlanTabEnhanced = ({
               type="date"
               InputLabelProps={{ shrink: true }}
               defaultValue={selectedGoal?.target?.[0]?.dueDate?.split('T')[0] || ''}
+              inputRef={goalTargetDateRef}
             />
             <FormControl fullWidth>
               <InputLabel>Priority</InputLabel>
               <Select
                 defaultValue={selectedGoal?.priority?.coding?.[0]?.code || 'medium'}
                 label="Priority"
+                onChange={(e) => { goalPriorityRef.current = e.target.value; }}
               >
                 <MenuItem value="high">High</MenuItem>
                 <MenuItem value="medium">Medium</MenuItem>
@@ -1194,25 +1593,19 @@ const CarePlanTabEnhanced = ({
               rows={2}
               defaultValue={selectedGoal?.note?.[0]?.text || ''}
               placeholder="Additional notes..."
+              inputRef={goalNotesRef}
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setGoalDialogOpen(false)} sx={{ borderRadius: 0 }}>Cancel</Button>
-          <Button 
-            variant="contained" 
+          <Button onClick={() => setGoalDialogOpen(false)} sx={{ borderRadius: 0 }} disabled={isSaving}>Cancel</Button>
+          <Button
+            variant="contained"
             sx={{ borderRadius: 0 }}
-            onClick={() => {
-              // Here you would implement the actual save logic
-              setSnackbar({
-                open: true,
-                message: selectedGoal ? 'Goal updated successfully' : 'Goal created successfully',
-                severity: 'success'
-              });
-              setGoalDialogOpen(false);
-            }}
+            onClick={handleSaveGoal}
+            disabled={isSaving}
           >
-            Save
+            {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1322,12 +1715,14 @@ const CarePlanTabEnhanced = ({
               label="Member Name"
               defaultValue={selectedParticipant?.member?.display || ''}
               placeholder="Enter team member name..."
+              inputRef={teamMemberNameRef}
             />
             <FormControl fullWidth>
               <InputLabel>Role</InputLabel>
               <Select
                 defaultValue={selectedParticipant?.role?.[0]?.coding?.[0]?.code || 'caregiver'}
                 label="Role"
+                onChange={(e) => { teamMemberRoleRef.current = e.target.value; }}
               >
                 <MenuItem value="caregiver">Caregiver</MenuItem>
                 <MenuItem value="physician">Physician</MenuItem>
@@ -1346,6 +1741,7 @@ const CarePlanTabEnhanced = ({
               label="Contact Information"
               placeholder="Phone, email, or other contact details..."
               defaultValue={selectedParticipant?.telecom?.[0]?.value || ''}
+              inputRef={teamMemberContactRef}
             />
             <TextField
               fullWidth
@@ -1353,6 +1749,7 @@ const CarePlanTabEnhanced = ({
               type="date"
               InputLabelProps={{ shrink: true }}
               defaultValue={selectedParticipant?.period?.start?.split('T')[0] || ''}
+              inputRef={teamMemberStartDateRef}
             />
             <TextField
               fullWidth
@@ -1360,6 +1757,7 @@ const CarePlanTabEnhanced = ({
               type="date"
               InputLabelProps={{ shrink: true }}
               defaultValue={selectedParticipant?.period?.end?.split('T')[0] || ''}
+              inputRef={teamMemberEndDateRef}
             />
             <TextField
               fullWidth
@@ -1367,24 +1765,19 @@ const CarePlanTabEnhanced = ({
               multiline
               rows={2}
               placeholder="Additional notes about this team member's role..."
+              inputRef={teamMemberNotesRef}
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTeamDialogOpen(false)} sx={{ borderRadius: 0 }}>Cancel</Button>
-          <Button 
-            variant="contained" 
+          <Button onClick={() => setTeamDialogOpen(false)} sx={{ borderRadius: 0 }} disabled={isSaving}>Cancel</Button>
+          <Button
+            variant="contained"
             sx={{ borderRadius: 0 }}
-            onClick={() => {
-              setSnackbar({
-                open: true,
-                message: selectedParticipant ? 'Team member updated successfully' : 'Team member added successfully',
-                severity: 'success'
-              });
-              setTeamDialogOpen(false);
-            }}
+            onClick={handleSaveTeamMember}
+            disabled={isSaving}
           >
-            Save
+            {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1403,12 +1796,14 @@ const CarePlanTabEnhanced = ({
               rows={3}
               defaultValue={selectedActivity?.detail?.description || ''}
               placeholder="Describe the activity or intervention..."
+              inputRef={activityDescriptionRef}
             />
             <FormControl fullWidth>
               <InputLabel>Status</InputLabel>
               <Select
                 defaultValue={selectedActivity?.detail?.status || 'not-started'}
                 label="Status"
+                onChange={(e) => { activityStatusRef.current = e.target.value; }}
               >
                 <MenuItem value="not-started">Not Started</MenuItem>
                 <MenuItem value="scheduled">Scheduled</MenuItem>
@@ -1425,6 +1820,7 @@ const CarePlanTabEnhanced = ({
               <Select
                 defaultValue={selectedActivity?.detail?.category?.coding?.[0]?.code || 'other'}
                 label="Category"
+                onChange={(e) => { activityCategoryRef.current = e.target.value; }}
               >
                 <MenuItem value="diet">Diet</MenuItem>
                 <MenuItem value="drug">Medication</MenuItem>
@@ -1440,12 +1836,14 @@ const CarePlanTabEnhanced = ({
               label="Assigned To"
               defaultValue={selectedActivity?.detail?.performer?.[0]?.display || ''}
               placeholder="Provider or team member responsible..."
+              inputRef={activityAssignedRef}
             />
             <TextField
               fullWidth
               label="Location"
               defaultValue={selectedActivity?.detail?.location?.display || ''}
               placeholder="Where will this activity take place..."
+              inputRef={activityLocationRef}
             />
             <Stack direction="row" spacing={2}>
               <TextField
@@ -1453,12 +1851,14 @@ const CarePlanTabEnhanced = ({
                 type="number"
                 defaultValue={selectedActivity?.detail?.scheduledTiming?.repeat?.frequency || 1}
                 sx={{ width: '30%' }}
+                inputRef={activityFrequencyRef}
               />
               <FormControl sx={{ width: '35%' }}>
                 <InputLabel>Period</InputLabel>
                 <Select
                   defaultValue={selectedActivity?.detail?.scheduledTiming?.repeat?.periodUnit || 'd'}
                   label="Period"
+                  onChange={(e) => { activityPeriodRef.current = e.target.value; }}
                 >
                   <MenuItem value="s">Seconds</MenuItem>
                   <MenuItem value="min">Minutes</MenuItem>
@@ -1474,6 +1874,7 @@ const CarePlanTabEnhanced = ({
                 type="number"
                 defaultValue={selectedActivity?.detail?.scheduledTiming?.repeat?.period || 1}
                 sx={{ width: '35%' }}
+                inputRef={activityDurationRef}
               />
             </Stack>
             <TextField
@@ -1482,24 +1883,19 @@ const CarePlanTabEnhanced = ({
               multiline
               rows={2}
               placeholder="Additional notes about this activity..."
+              inputRef={activityNotesRef}
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setActivityDialogOpen(false)} sx={{ borderRadius: 0 }}>Cancel</Button>
-          <Button 
-            variant="contained" 
+          <Button onClick={() => setActivityDialogOpen(false)} sx={{ borderRadius: 0 }} disabled={isSaving}>Cancel</Button>
+          <Button
+            variant="contained"
             sx={{ borderRadius: 0 }}
-            onClick={() => {
-              setSnackbar({
-                open: true,
-                message: selectedActivity ? 'Activity updated successfully' : 'Activity added successfully',
-                severity: 'success'
-              });
-              setActivityDialogOpen(false);
-            }}
+            onClick={handleSaveActivity}
+            disabled={isSaving}
           >
-            Save
+            {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>

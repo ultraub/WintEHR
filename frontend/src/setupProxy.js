@@ -66,7 +66,17 @@ module.exports = function(app) {
       return '/api' + path;
     })
   );
-  
+
+  // DICOM routes - proxy to backend (preserve /dicom prefix)
+  // Used by DICOMViewer for imaging study metadata and images
+  app.use(
+    '/dicom',
+    createProxy('DICOM', (path, req) => {
+      // Preserve the /dicom prefix
+      return '/dicom' + path;
+    })
+  );
+
   // FHIR routes - proxy to HAPI FHIR server
   app.use(
     '/fhir',
