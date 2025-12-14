@@ -1113,7 +1113,7 @@ export function FHIRResourceProvider({ children }) {
     const resourceTypesByPriority = {
       critical: ['Patient', 'Encounter', 'Condition', 'MedicationRequest', 'AllergyIntolerance'],
       important: ['Observation', 'Procedure', 'DiagnosticReport', 'Coverage', 'DocumentReference'],
-      optional: ['Immunization', 'CarePlan', 'CareTeam', 'ImagingStudy']
+      optional: ['Immunization', 'CarePlan', 'CareTeam', 'Goal', 'ImagingStudy']
     };
     
     let types;
@@ -1650,9 +1650,9 @@ export function FHIRResourceProvider({ children }) {
       
       // Clear related search caches
       const resourceTypes = [
-        'Encounter', 'Condition', 'Observation', 'MedicationRequest', 
+        'Encounter', 'Condition', 'Observation', 'MedicationRequest',
         'Procedure', 'DiagnosticReport', 'AllergyIntolerance', 'Immunization',
-        'CarePlan', 'CareTeam', 'Coverage', 'DocumentReference', 'ImagingStudy'
+        'CarePlan', 'CareTeam', 'Goal', 'Coverage', 'DocumentReference', 'ImagingStudy'
       ];
       
       resourceTypes.forEach(resourceType => {

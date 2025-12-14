@@ -47,6 +47,7 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
+  ListItemAvatar,
   ListItemSecondaryAction,
   Paper,
   Card,
@@ -400,7 +401,7 @@ const CarePlanTabEnhanced = ({
   const theme = useTheme();
   const { density, setDensity } = useDensity();
   
-  const { getPatientResources, isLoading, refreshPatientResources } = useFHIRResource();
+  const { getPatientResources, isLoading, refreshPatientResources, searchResources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
   
   // State
@@ -445,23 +446,97 @@ const CarePlanTabEnhanced = ({
   const teamMemberEndDateRef = useRef(null);
   const teamMemberNotesRef = useRef(null);
 
-  // Get resources
+  // Track if we've attempted to load resources for this patient
+  const loadAttemptedRef = useRef(null);
+
+  // Get resources from context - context persists across remounts
   const carePlans = getPatientResources(patientId, 'CarePlan') || [];
   const goals = getPatientResources(patientId, 'Goal') || [];
   const careTeams = getPatientResources(patientId, 'CareTeam') || [];
+
+  // Debug logging
+  console.log('CarePlanTab RENDER:', {
+    patientId,
+    carePlans: carePlans.length,
+    careTeams: careTeams.length,
+    goals: goals.length,
+    loadAttemptedFor: loadAttemptedRef.current
+  });
 
   // Get active care plan
   const activeCarePlan = carePlans.find(cp => cp.status === 'active') || carePlans[0];
   const activities = activeCarePlan?.activity || [];
   const careTeam = careTeams[0];
 
-  // Load optional resources (CarePlan, CareTeam, Goal) when tab mounts
+  console.log('CarePlanTab: activeCarePlan=', activeCarePlan?.id, 'activities=', activities.length, 'careTeam=', careTeam?.id);
+
+  // Load resources when tab mounts - store in context (persists across remounts)
   useEffect(() => {
-    if (patientId) {
-      // Fetch optional resources that may not be loaded by default
-      refreshPatientResources(patientId);
-    }
-  }, [patientId, refreshPatientResources]);
+    const loadCarePlanResources = async () => {
+      // Skip if no patient
+      if (!patientId) return;
+
+      // Check what's missing from context
+      const existingCarePlans = getPatientResources(patientId, 'CarePlan') || [];
+      const existingCareTeams = getPatientResources(patientId, 'CareTeam') || [];
+      const existingGoals = getPatientResources(patientId, 'Goal') || [];
+
+      const needsCarePlans = existingCarePlans.length === 0;
+      const needsCareTeams = existingCareTeams.length === 0;
+      const needsGoals = existingGoals.length === 0;
+
+      // Skip if all data is already loaded
+      if (!needsCarePlans && !needsCareTeams && !needsGoals) {
+        console.log('CarePlanTab: All data already in context, skipping fetch');
+        return;
+      }
+
+      // Check if we've already tried fetching for this patient
+      if (loadAttemptedRef.current === patientId) {
+        console.log('CarePlanTab: Already attempted load for this patient');
+        return;
+      }
+
+      loadAttemptedRef.current = patientId;
+      console.log('CarePlanTab: Loading resources for patient', patientId, '- needs:', { needsCarePlans, needsCareTeams, needsGoals });
+
+      try {
+        // Fetch only what's missing in parallel using searchResources (creates patient relationships)
+        const fetchPromises = [];
+        if (needsCarePlans) {
+          fetchPromises.push(
+            searchResources('CarePlan', { patient: patientId, _count: 100 })
+              .then(r => ({ type: 'CarePlan', count: r?.resources?.length || 0 }))
+          );
+        }
+        if (needsCareTeams) {
+          fetchPromises.push(
+            searchResources('CareTeam', { patient: patientId, _count: 100 })
+              .then(r => ({ type: 'CareTeam', count: r?.resources?.length || 0 }))
+          );
+        }
+        if (needsGoals) {
+          fetchPromises.push(
+            searchResources('Goal', { patient: patientId, _count: 100 })
+              .then(r => ({ type: 'Goal', count: r?.resources?.length || 0 }))
+          );
+        }
+
+        const results = await Promise.all(fetchPromises);
+
+        // searchResources automatically stores resources AND creates patient relationships
+        results.forEach(({ type, count }) => {
+          console.log('CarePlanTab: Fetched', count, type);
+        });
+
+        console.log('CarePlanTab: Resources stored in context with relationships');
+      } catch (err) {
+        console.error('CarePlanTab: Fetch failed:', err);
+      }
+    };
+
+    loadCarePlanResources();
+  }, [patientId, getPatientResources, searchResources]);
 
   // Filter and sort goals
   const filteredGoals = useMemo(() => {
@@ -504,42 +579,95 @@ const CarePlanTabEnhanced = ({
     });
   }, [filteredGoals]);
 
-  // Calculate metrics
+  // Aggregate care team members across all CareTeams (deduplicated)
+  const aggregatedCareTeam = useMemo(() => {
+    const memberMap = new Map();
+    careTeams.forEach(team => {
+      team.participant?.forEach(participant => {
+        const memberId = participant.member?.reference || participant.member?.display || JSON.stringify(participant);
+        if (!memberMap.has(memberId)) {
+          memberMap.set(memberId, {
+            ...participant,
+            careTeams: [team.id],
+            carePlansInvolved: []
+          });
+        } else {
+          memberMap.get(memberId).careTeams.push(team.id);
+        }
+      });
+    });
+
+    // Link care team members to CarePlans
+    carePlans.forEach(plan => {
+      plan.careTeam?.forEach(teamRef => {
+        const teamId = teamRef.reference?.split('/')[1];
+        memberMap.forEach((member) => {
+          if (member.careTeams.includes(teamId)) {
+            if (!member.carePlansInvolved.includes(plan.id)) {
+              member.carePlansInvolved.push(plan.id);
+            }
+          }
+        });
+      });
+    });
+
+    return Array.from(memberMap.values());
+  }, [careTeams, carePlans]);
+
+  // Categorize CarePlans by status
+  const categorizedCarePlans = useMemo(() => {
+    const active = carePlans.filter(cp => cp.status === 'active' || cp.status === 'on-hold');
+    const completed = carePlans.filter(cp => cp.status === 'completed' || cp.status === 'revoked' || cp.status === 'entered-in-error');
+    return { active, completed };
+  }, [carePlans]);
+
+  // Calculate care-focused metrics
   const metrics = useMemo(() => {
+    const activeCarePlans = categorizedCarePlans.active;
     const activeGoals = goals.filter(g => g.lifecycleStatus === 'active');
-    const completedGoals = goals.filter(g => g.lifecycleStatus === 'completed');
-    const overdueGoals = activeGoals.filter(g => 
+    const overdueGoals = activeGoals.filter(g =>
       g.target?.[0]?.dueDate && isPast(parseISO(g.target[0].dueDate))
     );
-    
+
+    // Count unique conditions being managed
+    const conditions = new Set();
+    carePlans.forEach(plan => {
+      plan.category?.forEach(cat => {
+        const code = cat.coding?.[0]?.display || cat.text;
+        if (code && code !== 'assess-plan') {
+          conditions.add(code);
+        }
+      });
+    });
+
     return [
+      {
+        label: 'Active Care Plans',
+        value: activeCarePlans.length,
+        color: activeCarePlans.length > 0 ? 'primary' : 'default',
+        icon: <InterventionIcon />
+      },
+      {
+        label: 'Conditions Managed',
+        value: conditions.size || carePlans.length,
+        color: 'info',
+        icon: <MedicalIcon />
+      },
+      {
+        label: 'Care Team',
+        value: aggregatedCareTeam.filter(m => m.role?.[0]?.text !== 'Patient').length,
+        color: 'secondary',
+        icon: <TeamIcon />
+      },
       {
         label: 'Active Goals',
         value: activeGoals.length,
-        color: 'primary',
-        icon: <InProgressIcon />
-      },
-      {
-        label: 'Completed',
-        value: completedGoals.length,
-        color: 'success',
-        icon: <CompletedIcon />
-      },
-      {
-        label: 'Overdue',
-        value: overdueGoals.length,
-        color: overdueGoals.length > 0 ? 'error' : 'default',
-        icon: <OverdueIcon />
-      },
-      {
-        label: 'Success Rate',
-        value: goals.length > 0 ? 
-          `${Math.round((completedGoals.length / goals.length) * 100)}%` : '0%',
-        color: 'info',
-        icon: <AchievementIcon />
+        color: overdueGoals.length > 0 ? 'error' : activeGoals.length > 0 ? 'success' : 'default',
+        icon: overdueGoals.length > 0 ? <OverdueIcon /> : <GoalIcon />,
+        subtitle: overdueGoals.length > 0 ? `${overdueGoals.length} overdue` : null
       }
     ];
-  }, [goals]);
+  }, [carePlans, categorizedCarePlans, goals, aggregatedCareTeam]);
 
   // Timeline data for goals
   const timelineData = useMemo(() => {
@@ -1062,29 +1190,29 @@ const CarePlanTabEnhanced = ({
         ))}
       </Stack>
       
-      {/* Tabs */}
+      {/* Tabs - Reordered for Option B: Longitudinal Care Coordination */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>
-          <Tab 
+          <Tab
             label={
-              <Badge badgeContent={sortedGoals.length} color="primary">
-                Goals
+              <Badge badgeContent={carePlans.length} color="primary">
+                Care Plans
               </Badge>
-            } 
+            }
           />
-          <Tab 
+          <Tab
             label={
-              <Badge badgeContent={activities.length} color="secondary">
-                Activities
-              </Badge>
-            } 
-          />
-          <Tab 
-            label={
-              <Badge badgeContent={careTeam?.participant?.length || 0} color="info">
+              <Badge badgeContent={aggregatedCareTeam.filter(m => m.role?.[0]?.text !== 'Patient').length} color="info">
                 Care Team
               </Badge>
-            } 
+            }
+          />
+          <Tab
+            label={
+              <Badge badgeContent={sortedGoals.length} color={sortedGoals.length > 0 ? "success" : "default"}>
+                Goals
+              </Badge>
+            }
           />
           <Tab label="Timeline" />
         </Tabs>
@@ -1092,8 +1220,272 @@ const CarePlanTabEnhanced = ({
       
       {/* Content Area */}
       <Box sx={{ flex: 1, overflow: 'auto' }}>
-        {/* Goals Tab */}
+        {/* Care Plans Tab (Tab 0) - NEW: Longitudinal Care View */}
         {activeTab === 0 && (
+          <Box sx={{ p: 2 }}>
+            <Stack spacing={3}>
+              {/* Active Care Plans Section */}
+              {categorizedCarePlans.active.length > 0 && (
+                <Box>
+                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <InterventionIcon color="primary" />
+                    Active Care Plans
+                  </Typography>
+                  <Stack spacing={2}>
+                    {categorizedCarePlans.active.map((plan) => {
+                      const planCondition = plan.category?.find(c => c.coding?.[0]?.display && c.coding?.[0]?.display !== 'assess-plan')?.coding?.[0]?.display
+                        || plan.category?.find(c => c.text)?.text
+                        || 'General Care Plan';
+                      const planActivities = plan.activity || [];
+                      const planTeam = careTeams.find(t => plan.careTeam?.some(ref => ref.reference?.includes(t.id)));
+
+                      return (
+                        <Card key={plan.id} sx={{ borderRadius: 0, borderLeft: 4, borderLeftColor: 'primary.main' }}>
+                          <CardHeader
+                            avatar={<MedicalIcon color="primary" />}
+                            title={planCondition}
+                            subheader={
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Chip label={plan.status} size="small" color="primary" sx={{ borderRadius: '4px' }} />
+                                {plan.period?.start && (
+                                  <Typography variant="caption" color="text.secondary">
+                                    Since {formatClinicalDate(plan.period.start)}
+                                  </Typography>
+                                )}
+                              </Stack>
+                            }
+                            action={
+                              <IconButton onClick={() => { setSelectedActivity(null); setActivityDialogOpen(true); }}>
+                                <AddIcon />
+                              </IconButton>
+                            }
+                          />
+                          <CardContent>
+                            <Grid container spacing={2}>
+                              {/* Activities */}
+                              <Grid item xs={12} md={6}>
+                                <Typography variant="subtitle2" gutterBottom>
+                                  <TaskIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
+                                  Activities ({planActivities.length})
+                                </Typography>
+                                {planActivities.length === 0 ? (
+                                  <Typography variant="body2" color="text.secondary">No activities defined</Typography>
+                                ) : (
+                                  <List dense disablePadding>
+                                    {planActivities.slice(0, 3).map((activity, idx) => (
+                                      <ListItem key={idx} disablePadding sx={{ py: 0.5 }}>
+                                        <ListItemIcon sx={{ minWidth: 32 }}>
+                                          {activity.detail?.status === 'completed' ? <CompletedIcon color="success" fontSize="small" /> :
+                                           activity.detail?.status === 'in-progress' ? <InProgressIcon color="primary" fontSize="small" /> :
+                                           <TaskIcon fontSize="small" color="action" />}
+                                        </ListItemIcon>
+                                        <ListItemText
+                                          primary={activity.detail?.description || 'Activity'}
+                                          primaryTypographyProps={{ variant: 'body2' }}
+                                        />
+                                      </ListItem>
+                                    ))}
+                                    {planActivities.length > 3 && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ pl: 4 }}>
+                                        +{planActivities.length - 3} more activities
+                                      </Typography>
+                                    )}
+                                  </List>
+                                )}
+                              </Grid>
+                              {/* Care Team for this plan */}
+                              <Grid item xs={12} md={6}>
+                                <Typography variant="subtitle2" gutterBottom>
+                                  <TeamIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
+                                  Care Team
+                                </Typography>
+                                {planTeam?.participant?.filter(p => p.role?.[0]?.text !== 'Patient').length > 0 ? (
+                                  <List dense disablePadding>
+                                    {planTeam.participant.filter(p => p.role?.[0]?.text !== 'Patient').slice(0, 4).map((p, idx) => (
+                                      <ListItem key={idx} disablePadding sx={{ py: 0.25 }}>
+                                        <ListItemIcon sx={{ minWidth: 32 }}>
+                                          <Avatar sx={{ width: 24, height: 24, bgcolor: 'secondary.main' }}>
+                                            <PersonIcon sx={{ fontSize: 14 }} />
+                                          </Avatar>
+                                        </ListItemIcon>
+                                        <ListItemText
+                                          primary={p.member?.display || 'Team Member'}
+                                          secondary={p.role?.[0]?.text || p.role?.[0]?.coding?.[0]?.display || 'Provider'}
+                                          primaryTypographyProps={{ variant: 'body2' }}
+                                          secondaryTypographyProps={{ variant: 'caption' }}
+                                        />
+                                      </ListItem>
+                                    ))}
+                                    {planTeam.participant.filter(p => p.role?.[0]?.text !== 'Patient').length > 4 && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ pl: 4 }}>
+                                        +{planTeam.participant.filter(p => p.role?.[0]?.text !== 'Patient').length - 4} more members
+                                      </Typography>
+                                    )}
+                                  </List>
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary">No team assigned</Typography>
+                                )}
+                              </Grid>
+                            </Grid>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </Stack>
+                </Box>
+              )}
+
+              {/* Historical Care Plans Section */}
+              {categorizedCarePlans.completed.length > 0 && (
+                <Box>
+                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+                    <CompletedIcon />
+                    Care History ({categorizedCarePlans.completed.length})
+                  </Typography>
+                  <Stack spacing={1}>
+                    {categorizedCarePlans.completed.map((plan) => {
+                      const planCondition = plan.category?.find(c => c.coding?.[0]?.display && c.coding?.[0]?.display !== 'assess-plan')?.coding?.[0]?.display
+                        || plan.category?.find(c => c.text)?.text
+                        || 'Care Plan';
+                      return (
+                        <Card key={plan.id} sx={{ borderRadius: 0, opacity: 0.8, bgcolor: 'action.hover' }}>
+                          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <MedicalIcon color="action" fontSize="small" />
+                                <Typography variant="body2">{planCondition}</Typography>
+                                <Chip label={plan.status} size="small" variant="outlined" sx={{ borderRadius: '4px' }} />
+                              </Stack>
+                              <Typography variant="caption" color="text.secondary">
+                                {plan.period?.start && plan.period?.end
+                                  ? `${formatClinicalDate(plan.period.start)} - ${formatClinicalDate(plan.period.end)}`
+                                  : plan.period?.start ? `Started ${formatClinicalDate(plan.period.start)}` : ''
+                                }
+                              </Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </Stack>
+                </Box>
+              )}
+
+              {/* Empty State */}
+              {carePlans.length === 0 && (
+                <ClinicalEmptyState
+                  title="No care plans found"
+                  message="Care plans help coordinate ongoing treatment for chronic conditions and complex care needs."
+                  actions={[
+                    {
+                      label: 'Create Care Plan',
+                      onClick: () => {
+                        // TODO: Open care plan creation dialog
+                        setSnackbar({ open: true, message: 'Care plan creation coming soon', severity: 'info' });
+                      },
+                      color: 'primary'
+                    }
+                  ]}
+                />
+              )}
+            </Stack>
+          </Box>
+        )}
+
+        {/* Care Team Tab (Tab 1) - Aggregated across all plans */}
+        {activeTab === 1 && (
+          <Box sx={{ p: 2 }}>
+            <Stack spacing={2}>
+              <Paper sx={{ p: 2, borderRadius: 0 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                  <Typography variant="h6">
+                    Care Team Members
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => {
+                      setSelectedParticipant(null);
+                      setTeamDialogOpen(true);
+                    }}
+                  >
+                    Add Member
+                  </Button>
+                </Stack>
+
+                {aggregatedCareTeam.filter(m => m.role?.[0]?.text !== 'Patient').length === 0 ? (
+                  <ClinicalEmptyState
+                    title="No care team members"
+                    message="Care team members collaborate to provide coordinated patient care across all conditions."
+                    actions={[
+                      {
+                        label: 'Add Member',
+                        onClick: () => {
+                          setSelectedParticipant(null);
+                          setTeamDialogOpen(true);
+                        },
+                        color: 'primary'
+                      }
+                    ]}
+                  />
+                ) : (
+                  <List>
+                    {aggregatedCareTeam.filter(m => m.role?.[0]?.text !== 'Patient').map((member, index) => (
+                      <React.Fragment key={index}>
+                        <ListItem>
+                          <ListItemAvatar>
+                            <Avatar sx={{ bgcolor: 'secondary.main' }}>
+                              <PersonIcon />
+                            </Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={member.member?.display || 'Team Member'}
+                            secondary={
+                              <Stack spacing={0.5}>
+                                <Typography variant="body2" color="text.secondary">
+                                  {member.role?.[0]?.text || member.role?.[0]?.coding?.[0]?.display || 'Role not specified'}
+                                </Typography>
+                                {member.carePlansInvolved.length > 0 && (
+                                  <Typography variant="caption" color="text.secondary">
+                                    Involved in {member.carePlansInvolved.length} care plan{member.carePlansInvolved.length !== 1 ? 's' : ''}
+                                  </Typography>
+                                )}
+                              </Stack>
+                            }
+                          />
+                          <ListItemSecondaryAction>
+                            <IconButton
+                              edge="end"
+                              size="small"
+                              onClick={() => {
+                                setSelectedParticipant(member);
+                                setTeamDialogOpen(true);
+                              }}
+                            >
+                              <EditIcon />
+                            </IconButton>
+                          </ListItemSecondaryAction>
+                        </ListItem>
+                        {index < aggregatedCareTeam.filter(m => m.role?.[0]?.text !== 'Patient').length - 1 && <Divider />}
+                      </React.Fragment>
+                    ))}
+                  </List>
+                )}
+              </Paper>
+
+              {/* Patient is also part of the care team */}
+              {aggregatedCareTeam.some(m => m.role?.[0]?.text === 'Patient') && (
+                <Alert severity="info" sx={{ borderRadius: 0 }}>
+                  <AlertTitle>Patient Involvement</AlertTitle>
+                  The patient is an active participant in their care coordination.
+                </Alert>
+              )}
+            </Stack>
+          </Box>
+        )}
+
+        {/* Goals Tab (Tab 2) - With improved empty state */}
+        {activeTab === 2 && (
           <Box sx={{ p: 2 }}>
           <Stack spacing={2}>
             {/* Filters */}
@@ -1268,199 +1660,7 @@ const CarePlanTabEnhanced = ({
           </Box>
         )}
         
-        {/* Activities Tab */}
-        {activeTab === 1 && (
-          <Box sx={{ p: 2 }}>
-          <Stack spacing={2}>
-            <Paper sx={{ p: 2, borderRadius: 0 }}>
-              <Typography variant="h6" gutterBottom>
-                Activities & Interventions
-              </Typography>
-              {activities.length === 0 ? (
-                <ClinicalEmptyState
-                  title="No activities defined"
-                  message="Add activities and interventions to the care plan."
-                  actions={[
-                    {
-                      label: 'Add Activity',
-                      onClick: () => {
-                        setSelectedActivity(null);
-                        setActivityDialogOpen(true);
-                      },
-                      color: 'primary'
-                    }
-                  ]}
-                />
-              ) : (
-                <List>
-                  {activities.map((activity, index) => {
-                    const status = activity.detail?.status || 'not-started';
-                    const statusColor = status === 'completed' ? 'success' :
-                                      status === 'cancelled' ? 'error' :
-                                      status === 'in-progress' ? 'primary' : 'default';
-                    
-                    return (
-                      <React.Fragment key={index}>
-                        <ListItem>
-                          <ListItemIcon>
-                            <TaskIcon color={status === 'overdue' ? 'error' : 'action'} />
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={
-                              <Stack direction="row" spacing={1} alignItems="center">
-                                <Typography variant="body1">
-                                  {activity.detail?.description || 'Activity'}
-                                </Typography>
-                                <Chip label={status} size="small" color={statusColor} />
-                              </Stack>
-                            }
-                            secondary={
-                              <Stack spacing={0.5}>
-                                {activity.detail?.scheduledTiming?.repeat?.frequency && (
-                                  <Typography variant="caption">
-                                    Frequency: {activity.detail.scheduledTiming.repeat.frequency} times per{' '}
-                                    {activity.detail.scheduledTiming.repeat.period} {activity.detail.scheduledTiming.repeat.periodUnit}
-                                  </Typography>
-                                )}
-                                {activity.detail?.location && (
-                                  <Typography variant="caption">
-                                    Location: {activity.detail.location.display}
-                                  </Typography>
-                                )}
-                                {activity.detail?.performer?.[0] && (
-                                  <Typography variant="caption">
-                                    Assigned to: {activity.detail.performer[0].display || 'Provider'}
-                                  </Typography>
-                                )}
-                              </Stack>
-                            }
-                          />
-                          <ListItemSecondaryAction>
-                            <IconButton 
-                              edge="end" 
-                              size="small" 
-                              onClick={() => {
-                                setSelectedActivity(activity);
-                                setActivityDialogOpen(true);
-                              }}
-                            >
-                              <EditIcon />
-                            </IconButton>
-                          </ListItemSecondaryAction>
-                        </ListItem>
-                        {index < activities.length - 1 && <Divider component="li" />}
-                      </React.Fragment>
-                    );
-                  })}
-                </List>
-              )}
-            </Paper>
-          </Stack>
-          </Box>
-        )}
-        
-        {/* Care Team Tab */}
-        {activeTab === 2 && (
-          <Box sx={{ p: 2 }}>
-          <Stack spacing={2}>
-            <Paper sx={{ p: 2, borderRadius: 0 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">
-                  Care Team Members
-                </Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => {
-                    setSelectedParticipant(null);
-                    setTeamDialogOpen(true);
-                  }}
-                >
-                  Add Member
-                </Button>
-              </Stack>
-              
-              {!careTeam || careTeam.participant?.length === 0 ? (
-                <ClinicalEmptyState
-                  title="No care team members"
-                  message="Add care team members to collaborate on patient care."
-                  actions={[
-                    {
-                      label: 'Add Member',
-                      onClick: () => {
-                        setSelectedParticipant(null);
-                        setTeamDialogOpen(true);
-                      },
-                      color: 'primary'
-                    }
-                  ]}
-                />
-              ) : (
-                <List>
-                  {careTeam.participant.map((participant, index) => (
-                    <CareTeamMember
-                      key={index}
-                      participant={participant}
-                      onEdit={() => {
-                        setSelectedParticipant(participant);
-                        setTeamDialogOpen(true);
-                      }}
-                    />
-                  ))}
-                </List>
-              )}
-            </Paper>
-            
-            {/* Team Collaboration Summary */}
-            <Paper sx={{ p: 2, borderRadius: 0 }}>
-              <Typography variant="h6" gutterBottom>
-                Collaboration Summary
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <Stack direction="row" spacing={2}>
-                    <ClinicalSummaryCard
-                      title="Total Members"
-                      value={careTeam?.participant?.length || 0}
-                      severity="normal"
-                      icon={<TeamIcon />}
-                    />
-                    <ClinicalSummaryCard
-                      title="Active Tasks"
-                      value={activities.filter(a => a.detail?.status === 'in-progress').length}
-                      severity="moderate"
-                      icon={<TaskIcon />}
-                    />
-                  </Stack>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" gutterBottom>Role Distribution</Typography>
-                  <Stack spacing={1}>
-                    {careTeam?.participant?.reduce((acc, p) => {
-                      const role = p.role?.[0]?.text || p.role?.[0]?.coding?.[0]?.display || 'Unknown';
-                      acc[role] = (acc[role] || 0) + 1;
-                      return acc;
-                    }, {}) && Object.entries(
-                      careTeam.participant.reduce((acc, p) => {
-                        const role = p.role?.[0]?.text || p.role?.[0]?.coding?.[0]?.display || 'Unknown';
-                        acc[role] = (acc[role] || 0) + 1;
-                        return acc;
-                      }, {})
-                    ).map(([role, count]) => (
-                      <Stack key={role} direction="row" justifyContent="space-between">
-                        <Typography variant="body2">{role}</Typography>
-                        <Chip label={count} size="small" sx={{ borderRadius: '4px' }} />
-                      </Stack>
-                    ))}
-                  </Stack>
-                </Grid>
-              </Grid>
-            </Paper>
-          </Stack>
-          </Box>
-        )}
-        
-        {/* Timeline Tab */}
+        {/* Timeline Tab (Tab 3) */}
         {activeTab === 3 && (
           <Box sx={{ p: 2 }}>
             <ClinicalFilterPanel

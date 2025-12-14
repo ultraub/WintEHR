@@ -70,11 +70,18 @@ const CareTeamSummary = ({ patientId, onViewFullTeam }) => {
       // Extract unique provider references
       const providerRefs = new Set();
       
-      // From care teams
+      // From care teams - collect both reference and display name
+      const careTeamParticipants = [];
       careTeams.forEach(team => {
         team.participant?.forEach(participant => {
           if (participant.member?.reference?.startsWith('Practitioner/')) {
             providerRefs.add(participant.member.reference);
+            // Also store the display name from the CareTeam
+            careTeamParticipants.push({
+              reference: participant.member.reference,
+              display: participant.member.display,
+              role: participant.role?.[0]?.text || participant.role?.[0]?.coding?.[0]?.display
+            });
           }
         });
       });
@@ -103,25 +110,48 @@ const CareTeamSummary = ({ patientId, onViewFullTeam }) => {
         Array.from(providerRefs).slice(0, 6).map(async (ref) => {
           try {
             const providerId = ref.split('/')[1];
-            const profile = await getProviderProfile(providerId);
-            
+            let profile = null;
+
+            // Try to get full provider profile
+            try {
+              profile = await getProviderProfile(providerId);
+            } catch (profileError) {
+              // Profile lookup failed - will use CareTeam display name as fallback
+              console.log('Provider profile lookup failed for', providerId, '- using CareTeam display name');
+            }
+
+            // Get display name from CareTeam participant as fallback
+            const careTeamParticipant = careTeamParticipants.find(p => p.reference === ref);
+
+            // Create profile with fallback name if needed
+            if (!profile) {
+              profile = {
+                displayName: careTeamParticipant?.display || null,
+                fallbackRole: careTeamParticipant?.role || null
+              };
+            } else if (!profile.displayName && !profile.name) {
+              // Profile exists but has no name - add fallback
+              profile.displayName = careTeamParticipant?.display || null;
+            }
+
             return {
               id: providerId,
               reference: ref,
               profile,
+              careTeamRole: careTeamParticipant?.role,
               // Determine primary role from encounters
-              isPrimary: encounters.some(enc => 
-                enc.participant?.some(p => 
+              isPrimary: encounters.some(enc =>
+                enc.participant?.some(p =>
                   (p.individual?.reference === ref || p.actor?.reference === ref) &&
-                  p.type?.some(t => 
+                  p.type?.some(t =>
                     t.coding?.some(c => c.code === 'ATND' || c.code === 'PPRF')
                   )
                 )
               ),
               // Get recent encounter date
               lastSeen: encounters
-                .filter(enc => 
-                  enc.participant?.some(p => 
+                .filter(enc =>
+                  enc.participant?.some(p =>
                     p.individual?.reference === ref || p.actor?.reference === ref
                   )
                 )
@@ -130,7 +160,18 @@ const CareTeamSummary = ({ patientId, onViewFullTeam }) => {
                 .sort((a, b) => new Date(b) - new Date(a))[0]
             };
           } catch (error) {
-            // Error resolving provider - skipping this provider
+            // Error resolving provider - try to return basic info from CareTeam
+            const careTeamParticipant = careTeamParticipants.find(p => p.reference === ref);
+            if (careTeamParticipant?.display) {
+              return {
+                id: ref.split('/')[1],
+                reference: ref,
+                profile: { displayName: careTeamParticipant.display },
+                careTeamRole: careTeamParticipant.role,
+                isPrimary: false,
+                lastSeen: null
+              };
+            }
             return null;
           }
         })
@@ -161,19 +202,30 @@ const CareTeamSummary = ({ patientId, onViewFullTeam }) => {
   };
 
   const formatProviderRole = (provider) => {
-    if (!provider.profile?.roles?.length) return 'Provider';
-    
-    const primaryRole = provider.profile.roles[0];
-    const specialty = primaryRole.specialty?.[0];
-    
-    if (specialty?.coding?.[0]?.display) {
-      return specialty.coding[0].display;
+    // Try to get role from profile
+    if (provider.profile?.roles?.length) {
+      const primaryRole = provider.profile.roles[0];
+      const specialty = primaryRole.specialty?.[0];
+
+      if (specialty?.coding?.[0]?.display) {
+        return specialty.coding[0].display;
+      }
+
+      if (specialty?.text) {
+        return specialty.text;
+      }
     }
-    
-    if (specialty?.text) {
-      return specialty.text;
+
+    // Fallback to CareTeam role
+    if (provider.careTeamRole) {
+      return provider.careTeamRole;
     }
-    
+
+    // Fallback from profile
+    if (provider.profile?.fallbackRole) {
+      return provider.profile.fallbackRole;
+    }
+
     return 'Provider';
   };
 
