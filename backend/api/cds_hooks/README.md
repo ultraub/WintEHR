@@ -1,22 +1,33 @@
 # CDS Hooks Module Documentation
 
 ## Overview
-The CDS Hooks module implements the HL7 CDS Hooks 1.0 specification, providing clinical decision support integration points throughout the EMR. It enables real-time, context-aware clinical guidance through standardized service discovery and card-based recommendations.
+The CDS Hooks module implements the HL7 CDS Hooks 2.0 specification, providing clinical decision support integration points throughout the EMR. It enables real-time, context-aware clinical guidance through standardized service discovery and card-based recommendations.
 
-**⚠️ Important Update (2025-08-04)**: The module has been updated to be fully CDS Hooks 1.0 compliant:
-- API endpoints changed from `/cds-hooks` to `/cds-services`
-- Terminology updated: "services" instead of "hooks"
-- Service registry pattern implemented
-- Non-standard fields removed (conditions, displayBehavior)
+**Architecture Version**: 3.0 (Restructured Architecture)
+**Last Updated**: 2025-11-26
+
+### Key Architecture Features (v3.0)
+- CDS Hooks 2.0 specification compliance
+- API endpoints at `/api/cds-services` (discovery) and `/api/cds-services/{id}` (execution)
+- CDSService abstract base class for all services
+- ConditionEngine for declarative condition evaluation
+- ServiceOrchestrator for parallel service execution
+- ServiceRegistry for service discovery
+- PrefetchEngine for FHIR query template resolution
 
 ## Current Implementation Details
 
 ### Core Components
-- **cds_hooks_router.py**: Main FastAPI router for CDS Hooks endpoints
-- **service_registry.py**: Service registry pattern for clean separation
-- **service_implementations.py**: Example service implementations
-- **hook_persistence.py**: Database storage for legacy hooks
-- **models.py**: Pydantic models for CDS Hooks data structures
+- **cds_hooks_router.py**: Main FastAPI router (~55KB, hook engine)
+- **models.py**: Pydantic data models for CDS Hooks structures
+- **services/**: Service base class and built-in implementations
+- **conditions/**: ConditionEngine for declarative evaluation
+- **orchestrator/**: ServiceOrchestrator + CDSHookEngine
+- **registry/**: ServiceRegistry for discovery
+- **prefetch/**: PrefetchEngine for FHIR query execution
+- **hooks/**: Hook configurations and persistence
+- **feedback/**: Feedback tracking and analytics
+- **rules_engine/**: Clinical rules engine integration
 
 ### Implemented Hooks
 1. **patient-view**: Triggered when opening a patient chart
@@ -171,58 +182,79 @@ The CDS Hooks module implements the HL7 CDS Hooks 1.0 specification, providing c
 
 **Exercise**: Optimize a slow-running CDS service
 
-## Service Registry Pattern
+## Service Registry Pattern (v3.0 Architecture)
 
 ### Overview
-The service registry pattern provides a clean separation between service configuration and implementation logic:
+The v3.0 architecture provides clean separation between service configuration and implementation using the CDSService base class:
 
 ```python
-# Define service metadata
-definition = ServiceDefinition(
-    id="diabetes-screening",
-    hook="patient-view",
-    title="Diabetes Screening",
-    description="Screens for diabetes",
-    prefetch={
-        "patient": "Patient/{{context.patientId}}"
+"""
+New pattern: Inherit from CDSService base class
+Located in: services/base_service.py
+"""
+from api.cds_hooks.services import CDSService, HookType
+from api.cds_hooks.conditions import ConditionEngine
+from api.cds_hooks.registry import register_service
+
+class DiabetesScreeningService(CDSService):
+    """
+    Example: Diabetes screening reminder service
+    """
+    # Class-level metadata
+    service_id = "diabetes-screening"
+    hook_type = HookType.PATIENT_VIEW
+    title = "Diabetes Screening Reminder"
+    description = "Reminds providers to screen eligible patients"
+    prefetch_templates = {
+        "patient": "Patient/{{context.patientId}}",
+        "recentLabs": "Observation?patient={{context.patientId}}&code=4548-4&_count=5"
     }
-)
 
-# Implement service logic
-class DiabetesScreeningService(ServiceImplementation):
     async def should_execute(self, context, prefetch):
-        # Logic replaces "conditions" configuration
-        patient = prefetch.get("patient")
-        age = calculate_age(patient.get("birthDate"))
-        return age >= 45
-    
-    async def execute(self, context, prefetch):
-        # Generate cards based on logic
-        return [self.create_card(...)]
+        """Determine if service should run"""
+        engine = ConditionEngine()
+        result = await engine.evaluate(
+            [ConditionEngine.age_at_least(45)],
+            context, prefetch
+        )
+        return result.satisfied
 
-# Register the service
-service_registry.register_service(definition, implementation)
+    async def execute(self, context, prefetch):
+        """Generate recommendation cards"""
+        return [self.create_card(
+            summary="Diabetes screening recommended",
+            indicator="warning",
+            detail="Patient is over 45 and has no recent A1C test."
+        )]
+
+# Register with the global registry
+register_service(DiabetesScreeningService())
 ```
 
 ### Usage
 ```bash
-# Enable service registry
-GET /cds-services?use_registry=true
-POST /cds-services/{id}?use_registry=true
+# Discovery endpoint
+GET /api/cds-services
 
-# View registry services
-GET /cds-services/registry/services
+# Execute service
+POST /api/cds-services/{service_id}
+
+# Service with prefetch
+POST /api/cds-services/diabetes-screening-reminder
 ```
 
 ## Best Practices Demonstrated
 
 ### 1. **Service Discovery**
 ```python
+# Located in cds_hooks_router.py
+# Registered at /api/cds-services via routers/__init__.py
+
 @router.get("/cds-services")
 async def discover_services():
-    """CDS Hooks discovery endpoint."""
-    services = service_registry.list_services()
-    return {"services": services}
+    """CDS Hooks 2.0 discovery endpoint."""
+    registry = get_registry()
+    return get_discovery_response(registry)
 ```
 
 ### 2. **Context Processing**

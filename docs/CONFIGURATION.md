@@ -873,5 +873,5 @@ print(template.render(domain='example.com', patients=50))
 ## See Also
 
 - [Main README](../README.md) - Project overview
-- [Deployment Guide](DEPLOYMENT_STATUS.md) - Deployment procedures
+- [Deployment Guide](DEPLOYMENT.md) - Deployment procedures
 - [Scripts Guide](../backend/scripts/CLAUDE.md) - Data management scripts

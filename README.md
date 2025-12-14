@@ -51,46 +51,30 @@ The system will be available at:
 - **FHIR API**: http://localhost:8888/fhir
 - **API Documentation**: http://localhost:8000/docs
 
-### Azure Production Deployment (Fully Automated)
+### Production Deployment
 
-**Complete automated deployment with server wipe and SSL setup:**
+For production deployment (including Azure):
 
 ```bash
-# 1. Configure Azure deployment
+# 1. Configure production settings
 cp config.azure-prod.yaml config.yaml
-vim config.yaml  # Set your Azure VM details and domain
+vim config.yaml  # Set your deployment details and domain
 
-# 2. Setup SSH key
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/WintEHR-key.pem
-# Upload public key to your Azure VM
-
-# 3. ONE COMMAND AUTOMATED DEPLOYMENT
-./deploy-azure-production.sh --yes
+# 2. Deploy with production profile
+./deploy.sh --environment prod
 ```
 
-**What this does automatically:**
-- ✅ Wipes server completely (fresh start guaranteed)
-- ✅ Clones latest code from GitHub
-- ✅ Builds Docker images (backend + frontend)
-- ✅ Deploys all services with health checks
-- ✅ Generates 100 synthetic patients with DICOM imaging
-- ✅ Obtains Let's Encrypt SSL certificate
-- ✅ Configures nginx with HTTPS
-- ✅ Verifies deployment success
-
-**Total time:** ~25-30 minutes for complete deployment
-
-**Access your production system:**
-```
-https://your-domain.cloudapp.azure.com
-```
+See [docs/AZURE_DEPLOYMENT.md](docs/AZURE_DEPLOYMENT.md) for complete Azure deployment instructions including:
+- SSL/TLS configuration with Let's Encrypt
+- Azure VM setup and networking
+- Production security hardening
 
 ### Build Options
 
 #### Option 1: Quick Deploy (Recommended)
 ```bash
-./deploy.sh                    # Local development
-./deploy-azure-production.sh   # Azure production (automated)
+./deploy.sh                    # Local development (dev profile)
+./deploy.sh --environment prod # Production deployment
 ```
 
 #### Option 2: Manual Docker Build
@@ -261,10 +245,10 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for:
 WintEHR includes Synthea integration for realistic test data:
 
 ```bash
-# Generate and load patients (handled automatically during deployment)
-./deploy.sh --patients 50
+# Patients are generated automatically during deployment
+# Configure patient count in config.yaml: patient_count: 50
 
-# Or manually load data
+# Or manually load data after deployment
 docker exec emr-backend python scripts/synthea_to_hapi_pipeline.py 50 Massachusetts
 ```
 
@@ -363,12 +347,14 @@ WS     /ws/clinical-events
 ## 🧪 Testing
 
 ```bash
-# Run all tests
-npm test           # Frontend
-pytest            # Backend
+# Frontend tests
+cd frontend && npm test
 
-# Integration tests
-./run-integration-tests.sh
+# Backend tests
+cd backend && pytest tests/ -v
+
+# With coverage
+cd backend && pytest tests/ --cov=api --cov-report=html
 ```
 
 ## 📈 Performance
