@@ -162,7 +162,7 @@ const ChartReviewTabOptimized = ({
   });
 
   // Resolve medication references for medications that use medicationReference instead of medicationCodeableConcept
-  const { resolvedMedications } = useMedicationResolver(medications);
+  const { resolvedMedications, getMedicationDisplay } = useMedicationResolver(medications);
 
   // View and filter states
   const [viewMode, setViewMode] = useState('dashboard'); // dashboard, timeline, list
@@ -981,7 +981,7 @@ const ChartReviewTabOptimized = ({
                                 onEdit={() => handleOpenDialog('medication', medication)}
                                 isAlternate={index % 2 === 1}  // For alternating rows
                                 onNavigateToTab={onNavigateToTab}
-                                resolvedName={resolvedMedications[medication.id]?.name}
+                                resolvedName={getMedicationDisplay(medication)}
                               />
                             ))}
                           </StaggeredFadeIn>

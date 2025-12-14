@@ -39,6 +39,7 @@ import { getClinicalContext } from '../../../themes/clinicalThemeUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import CDSPresentation, { PRESENTATION_MODES } from '../cds/CDSPresentation';
 import { useCDS } from '../../../contexts/CDSContext';
+import { useMedicationResolver } from '../../../core/fhir/hooks/useMedicationResolver';
 
 const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
   
@@ -179,7 +180,10 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
     const resources = getPatientResources(patientId, 'MedicationRequest') || [];
     return resources;
   }, [patientId, getPatientResources]);
-  
+
+  // Resolve medication references to get display names
+  const { getMedicationDisplay, loading: medicationsLoading } = useMedicationResolver(medications);
+
   const observations = useMemo(() => {
     const resources = getPatientResources(patientId, 'Observation') || [];
     return resources;
@@ -659,12 +663,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   {currentMedications.slice(0, 3).map((med, index) => (
                     <Box key={med.id} sx={{ py: 0.5 }}>
                       <Typography variant="body2" noWrap>
-                        {med.medicationCodeableConcept?.text ||
-                         med.medicationCodeableConcept?.coding?.[0]?.display ||
-                         med.medication?.concept?.text ||
-                         med.medication?.concept?.coding?.[0]?.display ||
-                         med.medication?.display ||
-                         'Unknown medication'}
+                        {getMedicationDisplay(med)}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {med.dosageInstruction?.[0]?.text || 'See instructions'}

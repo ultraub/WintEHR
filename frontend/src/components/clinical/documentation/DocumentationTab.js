@@ -44,7 +44,7 @@ import { format } from 'date-fns';
 import { useDocumentation } from '../../../contexts/DocumentationContext';
 import { useClinical } from '../../../contexts/ClinicalContext';
 import SOAPEditor from './SOAPEditor';
-import { fhirClient } from '../../../services/fhirClient';
+import fhirClient from '../../../core/fhir/services/fhirClient';
 
 const DocumentationTab = () => {
   const { currentPatient } = useClinical();

@@ -515,20 +515,28 @@ const DocumentationTabEnhanced = ({
   }, [patientId, searchResources, getPatientResources]);
 
   // Handle document updates
-  const handleDocumentUpdate = useCallback((eventType, eventData) => {
+  const handleDocumentUpdate = useCallback(async (eventType, eventData) => {
     console.log('[DocumentationTab] Handling document update:', eventType, eventData);
-    
+
     // Extract the document from the event data
     const document = eventData.document || eventData.note || eventData.resource;
-    
+
     if (!document) {
       console.warn('[DocumentationTab] No document in event data');
       return;
     }
 
-    // Refresh documents to get the update
-    // In a real implementation, we would update state incrementally
-    loadDocuments();
+    // Force refresh documents to get the update (bypass the existingDocs check in loadDocuments)
+    try {
+      await searchResources('DocumentReference', {
+        patient: patientId,
+        _count: 50,
+        _sort: '-date',
+        _timestamp: Date.now() // Force cache bypass
+      });
+    } catch (error) {
+      console.error('[DocumentationTab] Error refreshing documents:', error);
+    }
 
     // Show notification based on event type
     switch (eventType) {
@@ -580,7 +588,7 @@ const DocumentationTabEnhanced = ({
         });
         break;
     }
-  }, [patientId, loadDocuments]);
+  }, [patientId, searchResources]);
 
   // Real-time updates subscription
   useEffect(() => {
@@ -1067,6 +1075,25 @@ const DocumentationTabEnhanced = ({
       const result = await fhirClient.update('DocumentReference', resourceId, updatedResource);
       
       if (result) {
+        setSnackbar({
+          open: true,
+          message: 'Note signed successfully',
+          severity: 'success'
+        });
+
+        // Force a refresh of DocumentReference resources to show updated status immediately
+        try {
+          await searchResources('DocumentReference', {
+            patient: patientId,
+            _count: 50,
+            _sort: '-date',
+            _timestamp: Date.now() // Force cache bypass
+          });
+        } catch (refreshError) {
+          console.warn('Failed to refresh documents after signing:', refreshError);
+        }
+
+        // Publish event for signing (using DOCUMENTATION_CREATED with isSigned flag)
         await publish(CLINICAL_EVENTS.DOCUMENTATION_CREATED, {
           ...updatedResource,
           noteType: note.type?.coding?.[0]?.display || 'Clinical Note',
@@ -1075,29 +1102,6 @@ const DocumentationTabEnhanced = ({
           patientId,
           timestamp: new Date().toISOString()
         });
-        
-        setSnackbar({
-          open: true,
-          message: 'Note signed successfully',
-          severity: 'success'
-        });
-        
-        // Force a refresh of DocumentReference resources to show updated status
-        try {
-          await searchResources('DocumentReference', {
-            patient: patientId,
-            _count: 50,
-            _sort: '-date'
-          });
-        } catch (refreshError) {
-          console.warn('Failed to refresh documents after signing:', refreshError);
-          // Fallback to event dispatch if direct refresh fails
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
-              detail: { patientId } 
-            }));
-          }, 500);
-        }
       }
     } catch (error) {
       setSnackbar({
