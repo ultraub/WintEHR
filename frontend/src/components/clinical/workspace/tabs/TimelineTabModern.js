@@ -890,20 +890,15 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         setLoadingError(null);
         
         const promises = Array.from(selectedTypes).map(async (resourceType) => {
-          const params = {
-            patient: patientId,
-            _count: 100, // Load more resources for better timeline
-            _sort: '-date'
-          };
-          
-          // Add date range filters - use correct HAPI FHIR search parameter names
+          // Get the correct HAPI FHIR search parameter name for date filtering and sorting
+          // Each resource type has specific valid search parameters
           const dateParam = (() => {
             switch (resourceType) {
               case 'Condition': return 'recorded-date';
-              case 'MedicationRequest': return 'authoredon'; // HAPI FHIR uses 'authoredon'
-              case 'MedicationStatement': return 'effective'; // HAPI FHIR uses 'effective'
+              case 'MedicationRequest': return 'authoredon';
+              case 'MedicationStatement': return 'effective';
               case 'Observation': return 'date';
-              case 'Procedure': return 'date'; // 'performed' is not standard, use 'date'
+              case 'Procedure': return 'date';
               case 'Encounter': return 'date';
               case 'Immunization': return 'date';
               case 'DocumentReference': return 'date';
@@ -912,6 +907,12 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
               default: return 'date';
             }
           })();
+
+          const params = {
+            patient: patientId,
+            _count: 100, // Load more resources for better timeline
+            _sort: `-${dateParam}` // Use the same valid parameter for sorting (descending)
+          };
 
           if (dateRange.start && dateRange.end) {
             // Use array for proper FHIR query encoding (avoids URL-encoding & in values)

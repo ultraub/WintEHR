@@ -138,7 +138,7 @@ export class QualityMeasureDocumentationService {
       // Get patient data
       const [patient, conditions, observations, procedures, encounters] = await Promise.all([
         fhirClient.read('Patient', patientId),
-        fhirClient.search('Condition', { patient: patientId, _sort: '-date' }),
+        fhirClient.search('Condition', { patient: patientId, _sort: '-recorded-date' }),
         fhirClient.search('Observation', { patient: patientId, _sort: '-date', _count: 50 }),
         fhirClient.search('Procedure', { patient: patientId, _sort: '-date' }),
         fhirClient.search('Encounter', { patient: patientId, _sort: '-date', _count: 10 })
