@@ -603,7 +603,7 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       // Load recent results
       const observations = getPatientResources(patientId, 'Observation') || [];
       const recentResults = observations
-        .sort((a, b) => new Date(b.effectiveDateTime || 0) - new Date(a.effectiveDateTime || 0))
+        .sort((a, b) => new Date(b.effectiveDateTime || b.issued || 0) - new Date(a.effectiveDateTime || a.issued || 0))
         .slice(0, 10);
       
       // Load encounters

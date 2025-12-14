@@ -57,6 +57,7 @@ import { useNavigate } from 'react-router-dom';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import websocketService from '../../../services/websocket';
 import { useDataQualityLogger } from '../../../core/fhir/utils/dataQualityLogger';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 
 // Collapse states for progressive compression
 const COLLAPSE_STATES = {
@@ -91,11 +92,41 @@ const CollapsiblePatientHeaderOptimized = ({
   const lastScrollTopRef = useRef(0);
   const lastStateChangeRef = useRef(0);
 
+  // State for freshly fetched vital signs (more reliable than cached data)
+  const [vitalSignsObservations, setVitalSignsObservations] = useState([]);
+
   // Get patient resources - already memoized in FHIRResourceContext
   const allergies = getPatientResources(patientId, 'AllergyIntolerance') || [];
   const conditions = getPatientResources(patientId, 'Condition') || [];
   const medications = getPatientResources(patientId, 'MedicationRequest') || [];
   const observations = getPatientResources(patientId, 'Observation') || [];
+
+  // Fetch vital signs directly for accurate header display
+  useEffect(() => {
+    if (!patientId) return;
+
+    const fetchVitalSigns = async () => {
+      try {
+        const result = await fhirClient.search('Observation', {
+          patient: patientId,
+          category: 'vital-signs',
+          _sort: '-date',
+          _count: 50
+        });
+        setVitalSignsObservations(result.resources || []);
+      } catch (err) {
+        console.error('Failed to fetch vital signs for header:', err);
+        // Fallback to cached observations if fetch fails
+        setVitalSignsObservations(observations.filter(obs =>
+          obs.category?.some(cat =>
+            cat.coding?.some(c => c.code === 'vital-signs')
+          )
+        ));
+      }
+    };
+
+    fetchVitalSigns();
+  }, [patientId]); // Only re-fetch when patient changes
   
   // Calculate active counts - memoized to prevent re-filtering on every render
   const activeAllergies = useMemo(() => 
@@ -397,55 +428,68 @@ const CollapsiblePatientHeaderOptimized = ({
     return phone?.value || 'No phone';
   };
 
-  // Get most recent vitals - memoized
+  // Get most recent vitals - memoized, using freshly fetched vital signs data
   const latestVitals = useMemo(() => {
+    // Use freshly fetched vital signs, fallback to cached observations if empty
+    const vitalsData = vitalSignsObservations.length > 0 ? vitalSignsObservations : observations;
+
     const getLatestVital = (type) => {
-      const vitals = observations.filter(obs => {
-        const coding = obs.code?.coding?.[0];
+      const vitals = vitalsData.filter(obs => {
+        const codings = obs.code?.coding || [];
+        const hasCode = (targetCode) => codings.some(c => c.code === targetCode);
+        const hasDisplayMatch = (term) => codings.some(c => c.display?.toLowerCase().includes(term));
+
         switch(type) {
           case 'bp':
-            return coding?.code === '85354-9' || coding?.display?.toLowerCase().includes('blood pressure');
+            // 85354-9 is the BP panel code (composite with systolic/diastolic components)
+            return hasCode('85354-9') || hasDisplayMatch('blood pressure');
           case 'pulse':
-            return coding?.code === '8867-4' || coding?.display?.toLowerCase().includes('heart rate');
+            return hasCode('8867-4') || hasDisplayMatch('heart rate');
           case 'temp':
-            return coding?.code === '8310-5' || coding?.display?.toLowerCase().includes('temperature');
+            return hasCode('8310-5') || hasDisplayMatch('temperature');
           default:
             return false;
         }
       });
-      
-      const sorted = vitals.sort((a, b) => 
-        new Date(b.effectiveDateTime || 0) - new Date(a.effectiveDateTime || 0)
+
+      // Sort by date descending (most recent first) - data from FHIR is already sorted
+      // but we sort again to ensure proper ordering across data sources
+      const sorted = vitals.sort((a, b) =>
+        new Date(b.effectiveDateTime || b.issued || 0) - new Date(a.effectiveDateTime || a.issued || 0)
       );
-      
+
       return sorted[0];
     };
-    
+
     return {
       bp: getLatestVital('bp'),
       pulse: getLatestVital('pulse'),
       temp: getLatestVital('temp')
     };
-  }, [observations]);
+  }, [vitalSignsObservations, observations]);
 
   // Format vital values
   const formatVital = (obs) => {
     if (!obs) return null;
-    
-    // Blood pressure (has systolic and diastolic)
-    if (obs.component?.length === 2) {
-      const systolic = obs.component.find(c => c.code?.coding?.[0]?.code === '8480-6');
-      const diastolic = obs.component.find(c => c.code?.coding?.[0]?.code === '8462-4');
+
+    // Blood pressure (has systolic and diastolic components)
+    if (obs.component?.length >= 2) {
+      const systolic = obs.component.find(c =>
+        c.code?.coding?.some(coding => coding.code === '8480-6')
+      );
+      const diastolic = obs.component.find(c =>
+        c.code?.coding?.some(coding => coding.code === '8462-4')
+      );
       if (systolic && diastolic) {
         return `${systolic.valueQuantity?.value}/${diastolic.valueQuantity?.value}`;
       }
     }
-    
+
     // Single value vitals
     if (obs.valueQuantity) {
       return `${obs.valueQuantity.value}${obs.valueQuantity.unit ? ' ' + obs.valueQuantity.unit : ''}`;
     }
-    
+
     return null;
   };
 

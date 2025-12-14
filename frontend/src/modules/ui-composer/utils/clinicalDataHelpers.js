@@ -251,8 +251,8 @@ export const extractVitalSigns = (observations) => {
   
   // Sort by date
   Object.keys(vitalSigns).forEach(type => {
-    vitalSigns[type].sort((a, b) => 
-      new Date(b.effectiveDateTime || 0) - new Date(a.effectiveDateTime || 0)
+    vitalSigns[type].sort((a, b) =>
+      new Date(b.effectiveDateTime || b.issued || 0) - new Date(a.effectiveDateTime || a.issued || 0)
     );
   });
   
