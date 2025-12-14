@@ -179,10 +179,39 @@ const CareTeamSummary = ({ patientId, onViewFullTeam }) => {
 
   const formatProviderName = (provider) => {
     if (!provider.profile) return 'Unknown Provider';
-    
-    return provider.profile.displayName || 
-           provider.profile.name?.[0]?.text || 
-           'Unknown Provider';
+
+    // Handle displayName first
+    if (provider.profile.displayName) {
+      return provider.profile.displayName;
+    }
+
+    // Handle name as string (from provider directory API)
+    if (typeof provider.profile.name === 'string' && provider.profile.name) {
+      return provider.profile.name;
+    }
+
+    // Handle name as FHIR HumanName array
+    if (Array.isArray(provider.profile.name) && provider.profile.name.length > 0) {
+      const humanName = provider.profile.name[0];
+      if (humanName.text) return humanName.text;
+
+      // Build name from given + family
+      const given = humanName.given?.join(' ') || '';
+      const family = humanName.family || '';
+      const fullName = `${given} ${family}`.trim();
+      if (fullName) return fullName;
+    }
+
+    // Fallback to practitioner resource if available
+    if (provider.profile.practitioner?.name?.[0]) {
+      const humanName = provider.profile.practitioner.name[0];
+      const given = humanName.given?.join(' ') || '';
+      const family = humanName.family || '';
+      const fullName = `${given} ${family}`.trim();
+      if (fullName) return fullName;
+    }
+
+    return 'Unknown Provider';
   };
 
   const formatProviderLocation = (provider) => {

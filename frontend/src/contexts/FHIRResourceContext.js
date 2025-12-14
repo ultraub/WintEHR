@@ -1213,18 +1213,17 @@ export function FHIRResourceProvider({ children }) {
         
         // Execute batch request
         const batchResult = await fhirClient.batch(batchRequests);
-        
+
         // Process batch response
         const resourcesByType = {};
         let totalResources = 0;
-        
-        if (batchResult.entry && batchResult.results) {
-          batchResult.entry.forEach((entry, index) => {
-            const result = batchResult.results[index];
-            
-            if (result.success && entry.resource) {
-              const resource = entry.resource;
-              
+
+        // batchResult is an array of BatchResult objects: [{success, resource, error, status}, ...]
+        if (Array.isArray(batchResult) && batchResult.length > 0) {
+          batchResult.forEach((result) => {
+            if (result.success && result.resource) {
+              const resource = result.resource;
+
               if (resource.resourceType === 'Bundle') {
                 // This is a search result bundle
                 const searchResults = resource.entry?.map(e => e.resource) || [];
@@ -1509,14 +1508,13 @@ export function FHIRResourceProvider({ children }) {
           
           // Execute batch request
           const batchResult = await fhirClient.batch(batchRequests);
-          
-          // Process the batch response using existing logic
-          if (batchResult.entry && batchResult.results) {
+
+          // Process the batch response - batchResult is an array of BatchResult objects
+          if (Array.isArray(batchResult) && batchResult.length > 0) {
             const resourcesByType = {};
-            batchResult.entry.forEach((entry, index) => {
-              const result = batchResult.results[index];
-              if (result.success && entry.resource) {
-                const resource = entry.resource;
+            batchResult.forEach((result) => {
+              if (result.success && result.resource) {
+                const resource = result.resource;
                 if (resource.resourceType === 'Bundle') {
                   const searchResults = resource.entry?.map(e => e.resource) || [];
                   searchResults.forEach(res => {

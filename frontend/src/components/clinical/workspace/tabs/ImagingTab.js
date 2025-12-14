@@ -171,6 +171,19 @@ const getModalityColor = (modality) => {
   }
 };
 
+// Extract modality code from ImagingStudy (handles both top-level and series modality)
+const getStudyModalityCode = (study) => {
+  // Check top-level modality array first
+  if (study?.modality?.[0]) {
+    return study.modality[0].code || study.modality[0].display;
+  }
+  // Fall back to first series modality
+  if (study?.series?.[0]?.modality) {
+    return study.series[0].modality.code || study.series[0].modality.display;
+  }
+  return null;
+};
+
 // Get study status color
 const getStudyStatusColor = (status) => {
   switch (status?.toLowerCase()) {
@@ -306,7 +319,8 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
   };
 
   const getModality = () => {
-    const modality = study.modality?.[0];
+    // Check top-level modality first, then fall back to series[0].modality
+    const modality = study.modality?.[0] || study.series?.[0]?.modality;
     return modality?.display || modality?.code || 'Unknown';
   };
 
@@ -543,15 +557,18 @@ const ImagingTab = ({
           const endpoint = endpointMap.get(endpointRef);
 
           if (endpoint?.address) {
-            // Extract directory name from file:// address or URL
-            if (endpoint.address.startsWith('file://')) {
-              const filePath = endpoint.address.replace('file://', '');
-              const pathParts = filePath.split('/');
-              studyDirectory = pathParts[pathParts.length - 1];
+            // Extract directory name from endpoint address
+            // Address format: http://localhost:8000/dicom/studies/study_xxx/metadata
+            // We need to extract "study_xxx" (second-to-last segment)
+            const pathParts = endpoint.address.split('/').filter(p => p && p !== '');
+
+            // Check if address ends with /metadata - if so, get the segment before it
+            const lastSegment = pathParts[pathParts.length - 1];
+            if (lastSegment === 'metadata') {
+              studyDirectory = pathParts[pathParts.length - 2];
             } else {
-              // For other address formats, extract last path segment
-              const pathParts = endpoint.address.split('/');
-              studyDirectory = pathParts[pathParts.length - 1];
+              // Otherwise use the last segment (e.g., for file:// paths)
+              studyDirectory = lastSegment;
             }
           }
         }
@@ -738,7 +755,7 @@ const ImagingTab = ({
     
     // Modality filter
     if (filterModality !== 'all') {
-      const modality = study.modality?.[0]?.code || study.modality;
+      const modality = getStudyModalityCode(study);
       if (modality?.toLowerCase() !== filterModality.toLowerCase()) {
         return false;
       }
@@ -776,9 +793,9 @@ const ImagingTab = ({
         study.description,
         study.procedureCode?.[0]?.coding?.[0]?.display,
         study.bodySite?.[0]?.display,
-        study.modality?.[0]?.display || study.modality?.[0]?.code
+        getStudyModalityCode(study)
       ].filter(Boolean).join(' ').toLowerCase();
-      
+
       if (!searchableText.includes(searchTerm.toLowerCase())) {
         return false;
       }
@@ -791,7 +808,7 @@ const ImagingTab = ({
   // Group studies by modality - memoized for performance
   const studiesByModality = useMemo(() => {
     return filteredStudies.reduce((acc, study) => {
-      const modality = study.modality?.[0]?.code || study.modality || 'Unknown';
+      const modality = getStudyModalityCode(study) || 'Unknown';
       if (!acc[modality]) acc[modality] = [];
       acc[modality].push(study);
       return acc;
@@ -800,12 +817,12 @@ const ImagingTab = ({
 
   const handleViewStudy = async (study) => {
     setViewerDialog({ open: true, study });
-    
+
     // Publish imaging study viewed event
     await publish(CLINICAL_EVENTS.IMAGING_STUDY_VIEWED, {
       studyId: study.id,
       patientId,
-      modality: study.modality?.code || 'Unknown',
+      modality: getStudyModalityCode(study) || 'Unknown',
       studyDate: study.started,
       description: study.description,
       timestamp: new Date().toISOString()
@@ -830,7 +847,7 @@ const ImagingTab = ({
     content += `<h3>${study.description || 'Imaging Study'}</h3>`;
     content += '<table>';
     content += `<tr><td><strong>Study Date:</strong></td><td>${formatClinicalDate(study.started, 'verboseWithTime', 'Unknown')}</td></tr>`;
-    content += `<tr><td><strong>Modality:</strong></td><td>${study.modality?.[0]?.code || 'Unknown'}</td></tr>`;
+    content += `<tr><td><strong>Modality:</strong></td><td>${getStudyModalityCode(study) || 'Unknown'}</td></tr>`;
     content += `<tr><td><strong>Body Part:</strong></td><td>${study.bodySite?.[0]?.display || 'Not specified'}</td></tr>`;
     content += `<tr><td><strong>Accession Number:</strong></td><td>${study.identifier?.[0]?.value || 'Not available'}</td></tr>`;
     content += `<tr><td><strong>Number of Series:</strong></td><td>${study.numberOfSeries || 0}</td></tr>`;
@@ -934,7 +951,7 @@ const ImagingTab = ({
 
   // Extract unique modalities - memoized for performance
   const modalities = useMemo(() => {
-    return [...new Set(studies.map(s => s.modality?.[0]?.code || s.modality).filter(Boolean))];
+    return [...new Set(studies.map(s => getStudyModalityCode(s)).filter(Boolean))];
   }, [studies]);
   
   // Prepare timeline resources
@@ -1028,9 +1045,9 @@ const ImagingTab = ({
     if (studyObj.id) {
       // Determine study type from modality or description
       let studyType = 'CT_CHEST'; // Default
-      
-      if (studyObj.modality && studyObj.modality.length > 0) {
-        const modalityCode = studyObj.modality[0].code;
+
+      const modalityCode = getStudyModalityCode(studyObj);
+      if (modalityCode) {
         if (modalityCode === 'CT') {
           studyType = studyObj.description?.toLowerCase().includes('head') ? 'CT_HEAD' : 'CT_CHEST';
         } else if (modalityCode === 'MR') {
@@ -1041,7 +1058,7 @@ const ImagingTab = ({
           studyType = 'XR_CHEST';
         }
       }
-      
+
       // Generate directory name based on our convention
       return `${studyType}_${studyObj.id.replace(/-/g, '')}`;
     }
@@ -1059,9 +1076,9 @@ const ImagingTab = ({
       width: 100,
       renderCell: ({ row }) => (
         <Stack direction="row" spacing={1} alignItems="center">
-          {getModalityIcon(row.modality?.[0]?.code || row.modality)}
+          {getModalityIcon(getStudyModalityCode(row))}
           <Typography variant="caption">
-            {row.modality?.[0]?.code || row.modality || 'Unknown'}
+            {getStudyModalityCode(row) || 'Unknown'}
           </Typography>
         </Stack>
       )
@@ -1435,12 +1452,12 @@ const ImagingTab = ({
                               <Typography variant="subtitle1">{config.label}</Typography>
                             </Stack>
                             <Stack direction="row" spacing={1}>
-                              {[...new Set(regionStudies.map(s => s.modality?.[0]?.code || s.modality))]
+                              {[...new Set(regionStudies.map(s => getStudyModalityCode(s)))]
                                 .filter(Boolean)
                                 .map(modality => (
                                   <Chip
                                     key={modality}
-                                    label={`${regionStudies.filter(s => (s.modality?.[0]?.code || s.modality) === modality).length} ${modality}`}
+                                    label={`${regionStudies.filter(s => getStudyModalityCode(s) === modality).length} ${modality}`}
                                     size="small"
                                     color={getModalityColor(modality)}
                                     variant="outlined"

@@ -341,10 +341,19 @@ const DICOMViewer = ({ study, onClose }) => {
     isDragging.current = false;
   }, []);
 
-  const handleWheel = useCallback((e) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(prev => Math.max(0.1, Math.min(10, prev * delta)));
+  // Wheel event handler for zooming - uses native event listener for non-passive behavior
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheel = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      setZoom(prev => Math.max(0.1, Math.min(10, prev * delta)));
+    };
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
   }, []);
 
   // Keyboard handlers
@@ -440,19 +449,25 @@ const DICOMViewer = ({ study, onClose }) => {
           <Grid item>
             <ButtonGroup variant="outlined" size="small">
               <Tooltip title="Previous (← ↓)">
-                <IconButton onClick={handlePrevious} disabled={instances.length <= 1}>
-                  <PrevIcon />
-                </IconButton>
+                <span>
+                  <IconButton onClick={handlePrevious} disabled={instances.length <= 1}>
+                    <PrevIcon />
+                  </IconButton>
+                </span>
               </Tooltip>
               <Tooltip title="Play/Pause (Space)">
-                <IconButton onClick={handlePlayPause} disabled={instances.length <= 1}>
-                  {isPlaying ? <PauseIcon /> : <PlayIcon />}
-                </IconButton>
+                <span>
+                  <IconButton onClick={handlePlayPause} disabled={instances.length <= 1}>
+                    {isPlaying ? <PauseIcon /> : <PlayIcon />}
+                  </IconButton>
+                </span>
               </Tooltip>
               <Tooltip title="Next (→ ↑)">
-                <IconButton onClick={handleNext} disabled={instances.length <= 1}>
-                  <NextIcon />
-                </IconButton>
+                <span>
+                  <IconButton onClick={handleNext} disabled={instances.length <= 1}>
+                    <NextIcon />
+                  </IconButton>
+                </span>
               </Tooltip>
             </ButtonGroup>
           </Grid>
@@ -571,7 +586,6 @@ const DICOMViewer = ({ study, onClose }) => {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          onWheel={handleWheel}
         />
 
         {/* Instance slider overlay */}
