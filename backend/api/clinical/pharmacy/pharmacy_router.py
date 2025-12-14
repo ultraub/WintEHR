@@ -579,3 +579,860 @@ def _extract_pharmacy_notes(medication_request: Dict[str, Any]) -> Optional[str]
             return note_text.replace('Pharmacy:', '').strip()
 
     return None
+
+
+# =============================================================================
+# Refill Management Endpoints - FHIR-based Implementation
+# =============================================================================
+
+class RefillRequest(BaseModel):
+    """Request model for medication refill"""
+    medication_request_id: str
+    patient_id: str
+    reason: Optional[str] = None
+    requested_quantity: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class RefillDecision(BaseModel):
+    """Request model for refill approval/rejection"""
+    pharmacist_id: str
+    decision_notes: Optional[str] = None
+    modified_quantity: Optional[float] = None
+
+
+class RefillResponse(BaseModel):
+    """Response model for refill operations"""
+    refill_task_id: str
+    medication_request_id: str
+    status: str
+    message: str
+    new_medication_request_id: Optional[str] = None
+
+
+@router.get("/refills", response_model=List[Dict[str, Any]])
+async def get_pending_refills(
+    patient_id: Optional[str] = None,
+    status: str = "requested"
+):
+    """
+    Get pending refill requests using FHIR Task resources.
+    
+    FHIR Implementation:
+    - Uses Task resources with code 'fulfill' to represent refill requests
+    - Task.focus references the original MedicationRequest
+    - Task.status tracks the refill workflow state
+    
+    Educational notes:
+    - FHIR Task is the standard way to represent workflow items
+    - Task.businessStatus can track pharmacy-specific states
+    """
+    try:
+        hapi_client = HAPIFHIRClient()
+        
+        # Search for refill tasks
+        search_params = {
+            "code": "fulfill",  # FHIR task code for fulfillment requests
+            "status": status,
+            "_sort": "-authored-on",
+            "_count": 100
+        }
+        
+        if patient_id:
+            search_params["patient"] = f"Patient/{patient_id}" if not patient_id.startswith("Patient/") else patient_id
+        
+        # Search for Tasks that represent refill requests
+        task_bundle = await hapi_client.search("Task", search_params)
+        
+        refills = []
+        for entry in task_bundle.get("entry", []):
+            task = entry.get("resource", {})
+            
+            # Only include tasks that are refill requests (check extension or description)
+            task_description = task.get("description", "")
+            if "refill" not in task_description.lower():
+                # Check extension for refill type
+                is_refill = False
+                for ext in task.get("extension", []):
+                    if ext.get("url") == f"{ExtensionURLs.BASE_URL}/task-type" and ext.get("valueString") == "refill":
+                        is_refill = True
+                        break
+                if not is_refill:
+                    continue
+            
+            # Extract medication request reference
+            focus_ref = task.get("focus", {}).get("reference", "")
+            med_request_id = focus_ref.replace("MedicationRequest/", "") if focus_ref.startswith("MedicationRequest/") else None
+            
+            # Extract patient reference
+            for_ref = task.get("for", {}).get("reference", "")
+            task_patient_id = for_ref.replace("Patient/", "") if for_ref.startswith("Patient/") else None
+            
+            refill_info = {
+                "task_id": task.get("id"),
+                "medication_request_id": med_request_id,
+                "patient_id": task_patient_id,
+                "status": task.get("status"),
+                "business_status": task.get("businessStatus", {}).get("text"),
+                "priority": task.get("priority", "routine"),
+                "authored_on": task.get("authoredOn"),
+                "description": task.get("description"),
+                "notes": [note.get("text") for note in task.get("note", [])]
+            }
+            
+            refills.append(refill_info)
+        
+        return refills
+        
+    except Exception as e:
+        logger.error(f"Failed to get refill requests: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get refill requests: {str(e)}"
+        )
+
+
+@router.post("/refills/request", response_model=RefillResponse)
+async def request_refill(refill_request: RefillRequest):
+    """
+    Create a new refill request using FHIR Task resource.
+    
+    FHIR Implementation:
+    - Creates a Task resource with intent 'order' and code 'fulfill'
+    - Task.focus references the original MedicationRequest to be refilled
+    - Task.for references the patient
+    - Uses extensions to track refill-specific data
+    
+    Educational notes:
+    - This follows the FHIR workflow pattern for pharmacy operations
+    - Task resources are the standard way to request actions on other resources
+    """
+    try:
+        hapi_client = HAPIFHIRClient()
+        
+        # Verify the original medication request exists
+        original_med_request = await hapi_client.read("MedicationRequest", refill_request.medication_request_id)
+        if not original_med_request:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="Original medication request not found"
+            )
+        
+        # Check if refills are allowed
+        dispense_request = original_med_request.get("dispenseRequest", {})
+        repeats_allowed = dispense_request.get("numberOfRepeatsAllowed", 0)
+        
+        # Count existing refills (completed Tasks referencing this MedicationRequest)
+        existing_refills = await hapi_client.search("Task", {
+            "focus": f"MedicationRequest/{refill_request.medication_request_id}",
+            "status": "completed",
+            "code": "fulfill"
+        })
+        completed_refills = len(existing_refills.get("entry", []))
+        
+        if completed_refills >= repeats_allowed:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=f"No refills remaining. {completed_refills}/{repeats_allowed} refills used."
+            )
+        
+        # Create FHIR Task for refill request
+        current_time = datetime.now(timezone.utc)
+        task_id = str(uuid.uuid4())
+        
+        medication_name = (
+            original_med_request.get("medicationCodeableConcept", {}).get("text") or
+            original_med_request.get("medicationCodeableConcept", {}).get("coding", [{}])[0].get("display") or
+            "Unknown Medication"
+        )
+        
+        refill_task = {
+            "resourceType": "Task",
+            "identifier": [{
+                "system": f"{ExtensionURLs.BASE_URL}/pharmacy/refill-id",
+                "value": f"REFILL-{task_id[:8].upper()}"
+            }],
+            "status": "requested",
+            "businessStatus": {
+                "coding": [{
+                    "system": f"{ExtensionURLs.BASE_URL}/pharmacy/refill-status",
+                    "code": "pending-review",
+                    "display": "Pending Pharmacist Review"
+                }],
+                "text": "Pending Pharmacist Review"
+            },
+            "intent": "order",
+            "priority": original_med_request.get("priority", "routine"),
+            "code": {
+                "coding": [{
+                    "system": "http://hl7.org/fhir/CodeSystem/task-code",
+                    "code": "fulfill",
+                    "display": "Fulfill the focal request"
+                }],
+                "text": "Medication Refill Request"
+            },
+            "description": f"Refill request for {medication_name}",
+            "focus": {
+                "reference": f"MedicationRequest/{refill_request.medication_request_id}",
+                "display": medication_name
+            },
+            "for": {
+                "reference": f"Patient/{refill_request.patient_id}"
+            },
+            "authoredOn": current_time.isoformat(),
+            "lastModified": current_time.isoformat(),
+            "extension": [
+                {
+                    "url": f"{ExtensionURLs.BASE_URL}/task-type",
+                    "valueString": "refill"
+                },
+                {
+                    "url": f"{ExtensionURLs.BASE_URL}/refills-remaining",
+                    "valueInteger": repeats_allowed - completed_refills - 1
+                }
+            ]
+        }
+        
+        # Add requested quantity if specified
+        if refill_request.requested_quantity:
+            refill_task["extension"].append({
+                "url": f"{ExtensionURLs.BASE_URL}/requested-quantity",
+                "valueQuantity": {
+                    "value": refill_request.requested_quantity,
+                    "unit": dispense_request.get("quantity", {}).get("unit", "units")
+                }
+            })
+        
+        # Add reason and notes
+        if refill_request.reason:
+            refill_task["reasonCode"] = {
+                "text": refill_request.reason
+            }
+        
+        if refill_request.notes:
+            refill_task["note"] = [{
+                "text": refill_request.notes,
+                "time": current_time.isoformat()
+            }]
+        
+        # Create the task in HAPI FHIR
+        created_task = await hapi_client.create("Task", refill_task)
+        
+        logger.info(f"Created refill request Task/{created_task.get('id')} for MedicationRequest/{refill_request.medication_request_id}")
+        
+        return RefillResponse(
+            refill_task_id=created_task.get("id"),
+            medication_request_id=refill_request.medication_request_id,
+            status="requested",
+            message=f"Refill request created successfully. {repeats_allowed - completed_refills - 1} refills remaining after this one."
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create refill request: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create refill request: {str(e)}"
+        )
+
+
+@router.post("/refills/{task_id}/approve", response_model=RefillResponse)
+async def approve_refill(task_id: str, decision: RefillDecision):
+    """
+    Approve a refill request and create a new MedicationRequest.
+    
+    FHIR Implementation:
+    - Updates Task status to 'completed'
+    - Creates a new MedicationRequest based on the original
+    - Links the new request to the original via priorPrescription
+    - Updates Task.output with reference to new MedicationRequest
+    
+    Educational notes:
+    - FHIR MedicationRequest.priorPrescription links refills to originals
+    - This maintains the prescription chain for audit purposes
+    """
+    try:
+        hapi_client = HAPIFHIRClient()
+        
+        # Get the refill task
+        task = await hapi_client.read("Task", task_id)
+        if not task:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="Refill request not found"
+            )
+        
+        # Verify task is in correct state
+        if task.get("status") not in ["requested", "received", "accepted"]:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot approve refill in status '{task.get('status')}'"
+            )
+        
+        # Get the original medication request
+        focus_ref = task.get("focus", {}).get("reference", "")
+        original_med_request_id = focus_ref.replace("MedicationRequest/", "")
+        
+        original_med_request = await hapi_client.read("MedicationRequest", original_med_request_id)
+        if not original_med_request:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="Original medication request not found"
+            )
+        
+        current_time = datetime.now(timezone.utc)
+        
+        # Create new MedicationRequest for the refill
+        new_med_request = {
+            "resourceType": "MedicationRequest",
+            "status": "active",
+            "intent": "reflex-order",  # Indicates this is a refill
+            "priority": original_med_request.get("priority", "routine"),
+            "medicationCodeableConcept": original_med_request.get("medicationCodeableConcept"),
+            "subject": original_med_request.get("subject"),
+            "authoredOn": current_time.isoformat(),
+            "requester": {
+                "reference": f"Practitioner/{decision.pharmacist_id}",
+                "display": "Pharmacist"
+            },
+            # FHIR R4: priorPrescription links to the original prescription
+            "priorPrescription": {
+                "reference": f"MedicationRequest/{original_med_request_id}"
+            },
+            "dosageInstruction": original_med_request.get("dosageInstruction", []),
+            "dispenseRequest": original_med_request.get("dispenseRequest", {}),
+            "substitution": original_med_request.get("substitution"),
+            "extension": [
+                {
+                    "url": f"{ExtensionURLs.BASE_URL}/refill-of",
+                    "valueReference": {
+                        "reference": f"MedicationRequest/{original_med_request_id}"
+                    }
+                },
+                {
+                    "url": f"{ExtensionURLs.BASE_URL}/approved-by",
+                    "valueReference": {
+                        "reference": f"Practitioner/{decision.pharmacist_id}"
+                    }
+                }
+            ]
+        }
+        
+        # Copy encounter if present
+        if original_med_request.get("encounter"):
+            new_med_request["encounter"] = original_med_request["encounter"]
+        
+        # Modify quantity if pharmacist specified different amount
+        if decision.modified_quantity:
+            new_med_request["dispenseRequest"]["quantity"]["value"] = decision.modified_quantity
+        
+        # Add pharmacist notes
+        if decision.decision_notes:
+            new_med_request["note"] = [{
+                "text": f"Refill approved: {decision.decision_notes}",
+                "time": current_time.isoformat()
+            }]
+        
+        # Create the new medication request
+        created_med_request = await hapi_client.create("MedicationRequest", new_med_request)
+        
+        # Update the task to completed
+        task["status"] = "completed"
+        task["businessStatus"] = {
+            "coding": [{
+                "system": f"{ExtensionURLs.BASE_URL}/pharmacy/refill-status",
+                "code": "approved",
+                "display": "Approved"
+            }],
+            "text": "Approved"
+        }
+        task["lastModified"] = current_time.isoformat()
+        task["output"] = [{
+            "type": {
+                "text": "New MedicationRequest"
+            },
+            "valueReference": {
+                "reference": f"MedicationRequest/{created_med_request.get('id')}"
+            }
+        }]
+        
+        if decision.decision_notes:
+            if "note" not in task:
+                task["note"] = []
+            task["note"].append({
+                "text": f"Approved by pharmacist: {decision.decision_notes}",
+                "time": current_time.isoformat()
+            })
+        
+        await hapi_client.update("Task", task_id, task)
+        
+        logger.info(f"Approved refill Task/{task_id}, created MedicationRequest/{created_med_request.get('id')}")
+        
+        return RefillResponse(
+            refill_task_id=task_id,
+            medication_request_id=original_med_request_id,
+            status="approved",
+            message="Refill approved successfully",
+            new_medication_request_id=created_med_request.get("id")
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to approve refill: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to approve refill: {str(e)}"
+        )
+
+
+@router.post("/refills/{task_id}/reject", response_model=RefillResponse)
+async def reject_refill(task_id: str, decision: RefillDecision):
+    """
+    Reject a refill request.
+    
+    FHIR Implementation:
+    - Updates Task status to 'rejected'
+    - Records rejection reason in Task.statusReason
+    - Maintains audit trail via Task.note
+    
+    Educational notes:
+    - FHIR Task.statusReason captures why a task was rejected
+    - This is important for clinical documentation and appeals
+    """
+    try:
+        hapi_client = HAPIFHIRClient()
+        
+        # Get the refill task
+        task = await hapi_client.read("Task", task_id)
+        if not task:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="Refill request not found"
+            )
+        
+        # Verify task is in correct state
+        if task.get("status") not in ["requested", "received", "accepted"]:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot reject refill in status '{task.get('status')}'"
+            )
+        
+        current_time = datetime.now(timezone.utc)
+        
+        # Update task to rejected
+        task["status"] = "rejected"
+        task["businessStatus"] = {
+            "coding": [{
+                "system": f"{ExtensionURLs.BASE_URL}/pharmacy/refill-status",
+                "code": "rejected",
+                "display": "Rejected"
+            }],
+            "text": "Rejected"
+        }
+        task["lastModified"] = current_time.isoformat()
+        
+        # Add rejection reason
+        if decision.decision_notes:
+            task["statusReason"] = {
+                "text": decision.decision_notes
+            }
+            
+            if "note" not in task:
+                task["note"] = []
+            task["note"].append({
+                "text": f"Rejected by pharmacist: {decision.decision_notes}",
+                "time": current_time.isoformat()
+            })
+        
+        # Record who rejected it
+        if "extension" not in task:
+            task["extension"] = []
+        task["extension"].append({
+            "url": f"{ExtensionURLs.BASE_URL}/rejected-by",
+            "valueReference": {
+                "reference": f"Practitioner/{decision.pharmacist_id}"
+            }
+        })
+        
+        await hapi_client.update("Task", task_id, task)
+        
+        # Get original medication request ID for response
+        focus_ref = task.get("focus", {}).get("reference", "")
+        original_med_request_id = focus_ref.replace("MedicationRequest/", "")
+        
+        logger.info(f"Rejected refill Task/{task_id}")
+        
+        return RefillResponse(
+            refill_task_id=task_id,
+            medication_request_id=original_med_request_id,
+            status="rejected",
+            message=f"Refill rejected: {decision.decision_notes or 'No reason provided'}"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to reject refill: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reject refill: {str(e)}"
+        )
+
+
+# =============================================================================
+# Medication Administration Record (MAR) - FHIR MedicationAdministration
+# =============================================================================
+
+class MedicationAdministrationRequest(BaseModel):
+    """Request model for recording medication administration"""
+    medication_request_id: str
+    patient_id: str
+    administered_by: str  # Practitioner ID
+    administered_at: Optional[datetime] = None
+    dose_given: float
+    dose_unit: str
+    route: Optional[str] = None
+    site: Optional[str] = None
+    status: str = "completed"  # completed, not-done, entered-in-error
+    reason_not_given: Optional[str] = None  # If status is 'not-done'
+    notes: Optional[str] = None
+
+
+class MAREntry(BaseModel):
+    """Model for a MAR entry"""
+    administration_id: str
+    medication_request_id: str
+    patient_id: str
+    medication_name: str
+    scheduled_time: Optional[datetime]
+    administered_at: Optional[datetime]
+    administered_by: Optional[str]
+    dose_given: Optional[float]
+    dose_unit: Optional[str]
+    route: Optional[str]
+    status: str
+    notes: Optional[str]
+
+
+@router.get("/mar/{patient_id}", response_model=List[MAREntry])
+async def get_medication_administration_record(
+    patient_id: str,
+    date: Optional[str] = Query(None, description="Filter by date (YYYY-MM-DD)"),
+    medication_request_id: Optional[str] = Query(None, description="Filter by specific medication"),
+    status: Optional[str] = Query(None, description="Filter by status")
+):
+    """
+    Get Medication Administration Record (MAR) for a patient.
+    
+    FHIR Implementation:
+    - Queries MedicationAdministration resources from HAPI FHIR
+    - Links to MedicationRequest via request reference
+    - Returns chronological administration history
+    
+    Educational notes:
+    - FHIR MedicationAdministration tracks actual medication given
+    - This is distinct from MedicationRequest (the order) and MedicationDispense (pharmacy)
+    - MAR is critical for inpatient medication safety
+    """
+    try:
+        hapi_client = HAPIFHIRClient()
+        
+        # Build search parameters
+        search_params = {
+            "patient": f"Patient/{patient_id}" if not patient_id.startswith("Patient/") else patient_id,
+            "_sort": "-effective-time",
+            "_count": 200
+        }
+        
+        if date:
+            search_params["effective-time"] = date
+        if medication_request_id:
+            search_params["request"] = f"MedicationRequest/{medication_request_id}"
+        if status:
+            search_params["status"] = status
+        
+        # Query HAPI FHIR for MedicationAdministration resources
+        bundle = await hapi_client.search("MedicationAdministration", search_params)
+        
+        mar_entries = []
+        for entry in bundle.get("entry", []):
+            admin = entry.get("resource", {})
+            
+            # Extract medication name
+            medication_name = (
+                admin.get("medicationCodeableConcept", {}).get("text") or
+                admin.get("medicationCodeableConcept", {}).get("coding", [{}])[0].get("display") or
+                "Unknown Medication"
+            )
+            
+            # Extract medication request ID
+            request_ref = admin.get("request", {}).get("reference", "")
+            med_request_id = request_ref.replace("MedicationRequest/", "") if request_ref.startswith("MedicationRequest/") else None
+            
+            # Extract administered time
+            administered_at = None
+            if admin.get("effectiveDateTime"):
+                try:
+                    administered_at = datetime.fromisoformat(admin["effectiveDateTime"].replace("Z", "+00:00"))
+                except:
+                    pass
+            elif admin.get("effectivePeriod", {}).get("start"):
+                try:
+                    administered_at = datetime.fromisoformat(admin["effectivePeriod"]["start"].replace("Z", "+00:00"))
+                except:
+                    pass
+            
+            # Extract performer (who administered)
+            administered_by = None
+            for performer in admin.get("performer", []):
+                actor_ref = performer.get("actor", {}).get("reference", "")
+                if actor_ref.startswith("Practitioner/"):
+                    administered_by = performer.get("actor", {}).get("display") or actor_ref.replace("Practitioner/", "")
+                    break
+            
+            # Extract dosage
+            dosage = admin.get("dosage", {})
+            dose_given = dosage.get("dose", {}).get("value")
+            dose_unit = dosage.get("dose", {}).get("unit", "")
+            route = dosage.get("route", {}).get("text") or dosage.get("route", {}).get("coding", [{}])[0].get("display")
+            
+            # Extract notes
+            notes = None
+            if admin.get("note"):
+                notes = admin["note"][0].get("text")
+            
+            mar_entries.append(MAREntry(
+                administration_id=admin.get("id"),
+                medication_request_id=med_request_id,
+                patient_id=patient_id,
+                medication_name=medication_name,
+                scheduled_time=None,  # Would come from MedicationRequest timing
+                administered_at=administered_at,
+                administered_by=administered_by,
+                dose_given=dose_given,
+                dose_unit=dose_unit,
+                route=route,
+                status=admin.get("status", "unknown"),
+                notes=notes
+            ))
+        
+        return mar_entries
+        
+    except Exception as e:
+        logger.error(f"Failed to get MAR: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get medication administration record: {str(e)}"
+        )
+
+
+@router.post("/mar/administer", response_model=Dict[str, Any])
+async def record_medication_administration(admin_request: MedicationAdministrationRequest):
+    """
+    Record a medication administration event.
+    
+    FHIR Implementation:
+    - Creates MedicationAdministration resource in HAPI FHIR
+    - Links to the authorizing MedicationRequest
+    - Records who administered, when, and dosage details
+    
+    Educational notes:
+    - MedicationAdministration is a key safety record
+    - Status can be 'completed', 'not-done', or 'entered-in-error'
+    - 'not-done' requires a reason (patient refused, held, etc.)
+    """
+    try:
+        hapi_client = HAPIFHIRClient()
+        
+        # Get the medication request to copy medication details
+        med_request = await hapi_client.read("MedicationRequest", admin_request.medication_request_id)
+        if not med_request:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="Medication request not found"
+            )
+        
+        current_time = admin_request.administered_at or datetime.now(timezone.utc)
+        
+        # Build FHIR MedicationAdministration resource
+        med_admin = {
+            "resourceType": "MedicationAdministration",
+            "status": admin_request.status,
+            "medicationCodeableConcept": med_request.get("medicationCodeableConcept"),
+            "subject": {
+                "reference": f"Patient/{admin_request.patient_id}"
+            },
+            "effectiveDateTime": current_time.isoformat(),
+            "performer": [{
+                "actor": {
+                    "reference": f"Practitioner/{admin_request.administered_by}",
+                    "display": "Nurse"  # Would look up actual name
+                }
+            }],
+            "request": {
+                "reference": f"MedicationRequest/{admin_request.medication_request_id}"
+            },
+            "dosage": {
+                "dose": {
+                    "value": admin_request.dose_given,
+                    "unit": admin_request.dose_unit,
+                    "system": "http://unitsofmeasure.org",
+                    "code": admin_request.dose_unit
+                }
+            }
+        }
+        
+        # Add route if provided
+        if admin_request.route:
+            med_admin["dosage"]["route"] = {
+                "text": admin_request.route
+            }
+        
+        # Add site if provided
+        if admin_request.site:
+            med_admin["dosage"]["site"] = {
+                "text": admin_request.site
+            }
+        
+        # Add encounter context if available from medication request
+        if med_request.get("encounter"):
+            med_admin["context"] = med_request["encounter"]
+        
+        # Handle not-done status
+        if admin_request.status == "not-done":
+            if not admin_request.reason_not_given:
+                raise HTTPException(
+                    status_code=http_status.HTTP_400_BAD_REQUEST,
+                    detail="Reason is required when medication is not given"
+                )
+            med_admin["statusReason"] = [{
+                "text": admin_request.reason_not_given
+            }]
+        
+        # Add notes if provided
+        if admin_request.notes:
+            med_admin["note"] = [{
+                "text": admin_request.notes,
+                "time": current_time.isoformat()
+            }]
+        
+        # Create the resource in HAPI FHIR
+        created_admin = await hapi_client.create("MedicationAdministration", med_admin)
+        
+        logger.info(f"Created MedicationAdministration/{created_admin.get('id')} for MedicationRequest/{admin_request.medication_request_id}")
+        
+        return {
+            "message": "Medication administration recorded successfully",
+            "administration_id": created_admin.get("id"),
+            "medication_request_id": admin_request.medication_request_id,
+            "status": admin_request.status,
+            "administered_at": current_time.isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to record medication administration: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to record medication administration: {str(e)}"
+        )
+
+
+@router.get("/mar/schedule/{patient_id}")
+async def get_medication_schedule(
+    patient_id: str,
+    date: Optional[str] = Query(None, description="Date for schedule (YYYY-MM-DD), defaults to today")
+):
+    """
+    Get medication administration schedule for a patient.
+    
+    FHIR Implementation:
+    - Queries active MedicationRequests for the patient
+    - Parses timing/frequency to generate scheduled times
+    - Cross-references with MedicationAdministration to show given/due status
+    
+    Educational notes:
+    - This combines order data with administration data
+    - Helps nurses see what's due and what's been given
+    """
+    try:
+        hapi_client = HAPIFHIRClient()
+        
+        # Default to today
+        if not date:
+            date = datetime.now().strftime("%Y-%m-%d")
+        
+        # Get active medication requests
+        med_requests = await hapi_client.search("MedicationRequest", {
+            "patient": f"Patient/{patient_id}",
+            "status": "active",
+            "_count": 100
+        })
+        
+        # Get today's administrations
+        administrations = await hapi_client.search("MedicationAdministration", {
+            "patient": f"Patient/{patient_id}",
+            "effective-time": date,
+            "_count": 200
+        })
+        
+        # Build administration lookup by medication request
+        admin_by_request = {}
+        for entry in administrations.get("entry", []):
+            admin = entry.get("resource", {})
+            request_ref = admin.get("request", {}).get("reference", "")
+            med_request_id = request_ref.replace("MedicationRequest/", "")
+            if med_request_id not in admin_by_request:
+                admin_by_request[med_request_id] = []
+            admin_by_request[med_request_id].append(admin)
+        
+        schedule = []
+        for entry in med_requests.get("entry", []):
+            med_request = entry.get("resource", {})
+            med_request_id = med_request.get("id")
+            
+            medication_name = (
+                med_request.get("medicationCodeableConcept", {}).get("text") or
+                med_request.get("medicationCodeableConcept", {}).get("coding", [{}])[0].get("display") or
+                "Unknown Medication"
+            )
+            
+            # Parse frequency from dosage instruction
+            dosage = med_request.get("dosageInstruction", [{}])[0] if med_request.get("dosageInstruction") else {}
+            frequency = dosage.get("timing", {}).get("code", {}).get("text") or "As directed"
+            dose_text = dosage.get("text", "")
+            
+            # Get administrations for this medication
+            given_times = []
+            for admin in admin_by_request.get(med_request_id, []):
+                if admin.get("status") == "completed":
+                    admin_time = admin.get("effectiveDateTime")
+                    if admin_time:
+                        given_times.append(admin_time)
+            
+            schedule.append({
+                "medication_request_id": med_request_id,
+                "medication_name": medication_name,
+                "dose": dose_text,
+                "frequency": frequency,
+                "route": dosage.get("route", {}).get("text"),
+                "times_given_today": len(given_times),
+                "given_times": given_times,
+                "prn": dosage.get("asNeededBoolean", False)
+            })
+        
+        return {
+            "patient_id": patient_id,
+            "date": date,
+            "medications": schedule
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get medication schedule: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get medication schedule: {str(e)}"
+        )

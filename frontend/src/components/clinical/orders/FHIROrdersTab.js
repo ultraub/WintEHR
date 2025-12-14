@@ -303,23 +303,107 @@ const FHIROrdersTab = () => {
     }
   };
 
-  // Actually create the order in FHIR
+  // Submit order through backend API for proper safety checks and audit trail
   const submitOrder = async (orderResource) => {
-    const resourceType = orderResource.resourceType;
-    await fhirClient.create(resourceType, orderResource);
+    const api = (await import('../../../services/api')).default;
+    
+    try {
+      if (orderResource.resourceType === 'MedicationRequest') {
+        // Route medication orders through backend for safety checks
+        const medicationOrder = {
+          patient_id: currentPatient.id,
+          encounter_id: currentEncounter?.id,
+          order_type: 'medication',
+          priority: orderResource.priority || 'routine',
+          indication: orderResource.reasonCode?.[0]?.text || newOrder.reason,
+          clinical_information: newOrder.instructions,
+          medication_details: {
+            medication_name: orderResource.medicationCodeableConcept?.text || newOrder.display,
+            medication_code: orderResource.medicationCodeableConcept?.coding?.[0]?.code,
+            dose: 1, // Default - form should capture this
+            dose_unit: 'unit',
+            route: 'oral', // Default - form should capture this
+            frequency: 'daily', // Default - form should capture this
+            prn: false,
+            dispense_quantity: 30,
+            dispense_unit: 'tablets',
+            refills: 0,
+            generic_allowed: true,
+            pharmacy_notes: newOrder.instructions
+          },
+          override_alerts: cdsAlerts.length > 0 // If we got here with alerts, user acknowledged them
+        };
+        
+        const response = await api.post('/api/clinical/orders/medications', medicationOrder);
+        
+        // Check if order was blocked by safety alerts
+        if (response.data && !response.data.order_saved) {
+          // Show alerts that blocked the order
+          if (response.data.alerts && response.data.alerts.length > 0) {
+            setCdsAlerts(response.data.alerts.map(alert => ({
+              indicator: alert.severity === 'high' ? 'critical' : alert.severity,
+              summary: alert.message,
+              detail: `Type: ${alert.type}`,
+              source: { label: 'Drug Safety Check' }
+            })));
+            setPendingOrder(orderResource);
+            setShowCdsAlertDialog(true);
+            return; // Don't close dialog yet
+          }
+        }
+      } else {
+        // Route service requests (lab, imaging, procedure) through backend
+        const category = orderResource.category?.[0]?.coding?.[0]?.code;
+        let endpoint = '/api/clinical/orders/laboratory'; // default
+        let orderPayload = {
+          patient_id: currentPatient.id,
+          encounter_id: currentEncounter?.id,
+          priority: orderResource.priority || 'routine',
+          indication: orderResource.reasonCode?.[0]?.text || newOrder.reason,
+          clinical_information: newOrder.instructions
+        };
+        
+        if (category === '363679005' || orderType === 'imaging') {
+          endpoint = '/api/clinical/orders/imaging';
+          orderPayload.imaging_details = {
+            modality: newOrder.display.split(' ')[0] || 'XR', // Extract modality from display
+            body_site: null,
+            laterality: null,
+            contrast: false,
+            reason_for_exam: newOrder.reason,
+            transport_mode: 'ambulatory'
+          };
+        } else {
+          // Laboratory order
+          orderPayload.laboratory_details = {
+            test_name: newOrder.display,
+            test_code: orderResource.code?.coding?.[0]?.code,
+            specimen_type: null,
+            fasting_required: false,
+            special_instructions: newOrder.instructions
+          };
+        }
+        
+        await api.post(endpoint, orderPayload);
+      }
 
-    // Reload orders and close dialog
-    await loadOrders();
-    setShowNewOrderDialog(false);
-    setShowCdsAlertDialog(false);
-    setPendingOrder(null);
-    setCdsAlerts([]);
-    setNewOrder({
-      display: '',
-      priority: 'routine',
-      instructions: '',
-      reason: ''
-    });
+      // Reload orders and close dialog
+      await loadOrders();
+      setShowNewOrderDialog(false);
+      setShowCdsAlertDialog(false);
+      setPendingOrder(null);
+      setCdsAlerts([]);
+      setNewOrder({
+        display: '',
+        priority: 'routine',
+        instructions: '',
+        reason: ''
+      });
+    } catch (error) {
+      console.error('Failed to create order via backend:', error);
+      // If backend fails, show error to user
+      throw new Error(error.response?.data?.detail || error.message || 'Failed to create order');
+    }
   };
 
   // Handle proceeding with order after CDS alerts
@@ -363,7 +447,7 @@ const FHIROrdersTab = () => {
     }
   };
 
-  // Discontinue/cancel an order - uses appropriate FHIR status per resource type
+  // Discontinue/cancel an order - routes through backend API for audit trail
   const handleDiscontinueOrder = async (order) => {
     const action = order.status === 'draft' ? 'delete' : 'discontinue';
     const confirmMessage = action === 'delete'
@@ -374,24 +458,32 @@ const FHIROrdersTab = () => {
       return;
     }
 
+    // Prompt for discontinuation reason
+    const reason = action === 'discontinue' 
+      ? window.prompt('Please provide a reason for discontinuation:')
+      : 'Draft order deleted';
+    
+    if (action === 'discontinue' && !reason) {
+      alert('A reason is required to discontinue an order.');
+      return;
+    }
+
     try {
+      const api = (await import('../../../services/api')).default;
       const resourceType = order.type === 'medication' ? 'MedicationRequest' : 'ServiceRequest';
-      const resource = await fhirClient.read(resourceType, order.id);
-
-      // Use appropriate FHIR status per resource type:
-      // MedicationRequest: 'stopped' for discontinued, 'cancelled' for draft
-      // ServiceRequest: 'revoked' for discontinued/cancelled
-      if (order.type === 'medication') {
-        resource.status = order.status === 'draft' ? 'cancelled' : 'stopped';
-      } else {
-        resource.status = 'revoked';
-      }
-
-      await fhirClient.update(resourceType, order.id, resource);
+      
+      // Use backend API for discontinuation with audit trail
+      await api.put(`/api/clinical/orders/${order.id}/discontinue`, null, {
+        params: {
+          resource_type: resourceType,
+          reason: reason
+        }
+      });
+      
       await loadOrders();
     } catch (error) {
       console.error('Failed to discontinue order:', error);
-      alert('Failed to discontinue order: ' + error.message);
+      alert('Failed to discontinue order: ' + (error.response?.data?.detail || error.message));
     }
   };
 

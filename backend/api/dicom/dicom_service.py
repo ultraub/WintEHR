@@ -154,11 +154,40 @@ async def list_dicom_studies():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list DICOM studies: {e}")
 
+def validate_study_dir(study_dir: str) -> Path:
+    """
+    Validate and sanitize study directory to prevent path traversal attacks.
+    
+    Security: Ensures the study_dir doesn't contain path traversal sequences
+    and resolves to a path within DICOM_BASE_DIR.
+    """
+    # Reject obvious path traversal attempts
+    if '..' in study_dir or study_dir.startswith('/') or study_dir.startswith('\\'):
+        raise HTTPException(
+            status_code=400, 
+            detail="Invalid study directory: path traversal not allowed"
+        )
+    
+    # Resolve the full path and verify it's within DICOM_BASE_DIR
+    study_path = (DICOM_BASE_DIR / study_dir).resolve()
+    
+    # Ensure the resolved path is still within DICOM_BASE_DIR
+    try:
+        study_path.relative_to(DICOM_BASE_DIR.resolve())
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid study directory: path outside allowed directory"
+        )
+    
+    return study_path
+
+
 @router.get("/studies/{study_dir}/metadata")
 async def get_study_metadata(study_dir: str):
     """Get metadata for all instances in a study."""
     try:
-        study_path = DICOM_BASE_DIR / study_dir
+        study_path = validate_study_dir(study_dir)
         
         if not study_path.exists():
             raise HTTPException(status_code=404, detail="Study directory not found")
@@ -193,7 +222,7 @@ async def get_instance_image(
 ):
     """Get image data for a specific DICOM instance."""
     try:
-        study_path = DICOM_BASE_DIR / study_dir
+        study_path = validate_study_dir(study_dir)
         
         if not study_path.exists():
             raise HTTPException(status_code=404, detail="Study directory not found")
@@ -235,7 +264,7 @@ async def download_study(study_dir: str):
         import zipfile
         import tempfile
         
-        study_path = DICOM_BASE_DIR / study_dir
+        study_path = validate_study_dir(study_dir)
         
         if not study_path.exists():
             raise HTTPException(status_code=404, detail="Study directory not found")
@@ -272,7 +301,7 @@ async def download_study(study_dir: str):
 async def get_viewer_config(study_dir: str):
     """Get configuration for DICOM viewer (Cornerstone 3D compatible)."""
     try:
-        study_path = DICOM_BASE_DIR / study_dir
+        study_path = validate_study_dir(study_dir)
         
         if not study_path.exists():
             raise HTTPException(status_code=404, detail="Study directory not found")
