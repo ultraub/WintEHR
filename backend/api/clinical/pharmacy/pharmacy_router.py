@@ -3,7 +3,7 @@ Pharmacy Workflow API Router - Pure FHIR Implementation
 Handles medication dispensing, status tracking, and pharmacy queue management using HAPI FHIR
 """
 
-from fastapi import APIRouter, HTTPException, status as http_status
+from fastapi import APIRouter, HTTPException, status as http_status, Query
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, timezone
 import uuid

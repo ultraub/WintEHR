@@ -2,9 +2,13 @@
  * Medication Administration Service
  * FHIR R4 MedicationAdministration resource management
  * Part of Phase 2 Implementation: MedicationAdministration Integration
+ *
+ * Updated to use backend APIs for core operations while maintaining
+ * FHIR client fallback for direct operations when needed.
  */
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
+import { apiClient } from './api';
 import { v4 as uuidv4 } from 'uuid';
 
 class MedicationAdministrationService {
@@ -13,60 +17,172 @@ class MedicationAdministrationService {
   }
 
   /**
-   * Create a new MedicationAdministration resource
+   * Create a new MedicationAdministration resource via backend API
    * @param {Object} administrationData - Administration data
    * @returns {Promise<Object>} Created MedicationAdministration resource
    */
   async createMedicationAdministration(administrationData) {
-    this.validateAdministrationData(administrationData);
-    
-    const medicationAdministration = this.prepareFHIRResource(administrationData);
-    
     try {
-      const response = await fhirClient.create(this.resourceType, medicationAdministration);
-      return response;
+      // Use backend API for medication administration (preferred)
+      // This ensures consistent business logic, audit logging, and CDS integration
+      const backendRequest = {
+        medication_request_id: administrationData.medicationRequestId ||
+          administrationData.request?.reference?.replace('MedicationRequest/', ''),
+        patient_id: administrationData.patientId ||
+          administrationData.subject?.reference?.replace('Patient/', ''),
+        administered_by: administrationData.administeredBy ||
+          administrationData.performer?.[0]?.actor?.reference?.replace('Practitioner/', ''),
+        administered_at: administrationData.effectiveDateTime || new Date().toISOString(),
+        dose_given: administrationData.doseGiven ||
+          administrationData.dosage?.dose?.value || 1,
+        dose_unit: administrationData.doseUnit ||
+          administrationData.dosage?.dose?.unit || 'dose',
+        route: administrationData.route ||
+          administrationData.dosage?.route?.coding?.[0]?.code || 'oral',
+        status: administrationData.status || 'completed',
+        notes: administrationData.notes || administrationData.note?.[0]?.text
+      };
+
+      // Add optional reason if status is not-done
+      if (administrationData.status === 'not-done') {
+        backendRequest.reason_not_given = administrationData.statusReason?.[0]?.coding?.[0]?.code ||
+          administrationData.reasonNotGiven || 'other';
+      }
+
+      const response = await apiClient.post('/api/clinical/pharmacy/mar/administer', backendRequest);
+      return response.data;
     } catch (error) {
-      throw new Error(`Failed to create MedicationAdministration: ${error.message}`);
+      // Fallback to direct FHIR client if backend fails
+      console.warn('Backend MAR API failed, falling back to FHIR client:', error.message);
+
+      this.validateAdministrationData(administrationData);
+      const medicationAdministration = this.prepareFHIRResource(administrationData);
+
+      try {
+        const response = await fhirClient.create(this.resourceType, medicationAdministration);
+        return response;
+      } catch (fhirError) {
+        throw new Error(`Failed to create MedicationAdministration: ${fhirError.message}`);
+      }
     }
   }
 
   /**
-   * Get medication administrations for a patient
+   * Get medication administrations for a patient via backend API
    * @param {string} patientId - Patient ID
    * @param {Object} filters - Optional filters
    * @returns {Promise<Array>} Array of MedicationAdministration resources
    */
   async getPatientAdministrations(patientId, filters = {}) {
     try {
-      const searchParams = {
-        patient: patientId,
-        _sort: '-effective-time',
-        _count: filters.limit || 100,
-        ...filters
-      };
+      // Build query params for backend API
+      const queryParams = new URLSearchParams();
+
+      if (filters.dateRange?.start) {
+        // Extract date from ISO string if provided
+        const date = filters.dateRange.start.split('T')[0];
+        queryParams.append('date', date);
+      }
 
       if (filters.medicationRequest) {
-        searchParams.request = filters.medicationRequest;
+        queryParams.append('medication_request_id', filters.medicationRequest.replace('MedicationRequest/', ''));
       }
 
       if (filters.status) {
-        searchParams.status = filters.status;
+        queryParams.append('status', filters.status);
       }
 
-      if (filters.dateRange) {
-        if (filters.dateRange.start) {
-          searchParams['effective-time'] = `ge${filters.dateRange.start}`;
-        }
-        if (filters.dateRange.end) {
-          searchParams['effective-time'] = `${searchParams['effective-time'] || ''}$le${filters.dateRange.end}`;
-        }
-      }
+      const queryString = queryParams.toString();
+      const url = `/api/clinical/pharmacy/mar/${patientId}${queryString ? `?${queryString}` : ''}`;
 
-      const response = await fhirClient.search(this.resourceType, searchParams);
-      return response.entry?.map(entry => entry.resource) || [];
+      const response = await apiClient.get(url);
+
+      // Transform backend MAR entries to FHIR-like format for compatibility
+      return response.data.map(entry => this.transformMAREntryToFHIR(entry));
     } catch (error) {
-      throw new Error(`Failed to fetch patient administrations: ${error.message}`);
+      // Fallback to direct FHIR search if backend fails
+      console.warn('Backend MAR API failed, falling back to FHIR client:', error.message);
+
+      try {
+        const searchParams = {
+          patient: patientId,
+          _sort: '-effective-time',
+          _count: filters.limit || 100,
+          ...filters
+        };
+
+        if (filters.medicationRequest) {
+          searchParams.request = filters.medicationRequest;
+        }
+
+        if (filters.status) {
+          searchParams.status = filters.status;
+        }
+
+        if (filters.dateRange) {
+          if (filters.dateRange.start) {
+            searchParams['effective-time'] = `ge${filters.dateRange.start}`;
+          }
+          if (filters.dateRange.end) {
+            searchParams['effective-time'] = `${searchParams['effective-time'] || ''}$le${filters.dateRange.end}`;
+          }
+        }
+
+        const fhirResponse = await fhirClient.search(this.resourceType, searchParams);
+        return fhirResponse.entry?.map(entry => entry.resource) || [];
+      } catch (fhirError) {
+        throw new Error(`Failed to fetch patient administrations: ${fhirError.message}`);
+      }
     }
+  }
+
+  /**
+   * Transform backend MAR entry to FHIR-like structure for compatibility
+   * @param {Object} marEntry - Backend MAR entry
+   * @returns {Object} FHIR-like MedicationAdministration
+   */
+  transformMAREntryToFHIR(marEntry) {
+    return {
+      resourceType: 'MedicationAdministration',
+      id: marEntry.administration_id,
+      status: marEntry.status,
+      medicationCodeableConcept: {
+        text: marEntry.medication_name,
+        coding: marEntry.medication_code ? [{
+          display: marEntry.medication_name,
+          code: marEntry.medication_code
+        }] : []
+      },
+      subject: {
+        reference: `Patient/${marEntry.patient_id}`
+      },
+      effectiveDateTime: marEntry.administered_at,
+      performer: marEntry.administered_by ? [{
+        actor: {
+          reference: `Practitioner/${marEntry.administered_by}`,
+          display: marEntry.administered_by_name
+        }
+      }] : [],
+      dosage: {
+        dose: {
+          value: marEntry.dose_given,
+          unit: marEntry.dose_unit
+        },
+        route: marEntry.route ? {
+          coding: [{ code: marEntry.route, display: marEntry.route }]
+        } : undefined
+      },
+      request: marEntry.medication_request_id ? {
+        reference: `MedicationRequest/${marEntry.medication_request_id}`
+      } : undefined,
+      statusReason: marEntry.reason_not_given ? [{
+        coding: [{
+          code: marEntry.reason_not_given,
+          display: this.getStatusReasonDisplay(marEntry.reason_not_given)
+        }]
+      }] : undefined,
+      note: marEntry.notes ? [{ text: marEntry.notes }] : []
+    };
   }
 
   /**
@@ -83,6 +199,31 @@ class MedicationAdministrationService {
       return response.entry?.map(entry => entry.resource) || [];
     } catch (error) {
       throw new Error(`Failed to fetch administrations by request: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get medication administration schedule for a patient via backend API
+   * Shows what medications are due, given, or missed
+   * @param {string} patientId - Patient ID
+   * @param {string} date - Date for schedule (YYYY-MM-DD), defaults to today
+   * @returns {Promise<Object>} Medication schedule with due/given status
+   */
+  async getMedicationSchedule(patientId, date = null) {
+    try {
+      const dateParam = date || new Date().toISOString().split('T')[0];
+      const url = `/api/clinical/pharmacy/mar/schedule/${patientId}?date=${dateParam}`;
+
+      const response = await apiClient.get(url);
+      return response.data;
+    } catch (error) {
+      console.warn('Backend schedule API failed:', error.message);
+      // Return empty schedule on error
+      return {
+        date: date || new Date().toISOString().split('T')[0],
+        medications: [],
+        error: error.message
+      };
     }
   }
 

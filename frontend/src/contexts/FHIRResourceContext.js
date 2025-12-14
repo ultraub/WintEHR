@@ -770,9 +770,42 @@ export function FHIRResourceProvider({ children }) {
         Object.entries(includedResources).forEach(([includedType, resources]) => {
           setResources(includedType, resources);
         });
-        
+
         // Store included resources info in result for easy access
         result.includedResources = includedResources;
+
+        // Enrich MedicationRequest resources with resolved medication names
+        if (resourceType === 'MedicationRequest' && includedResources.Medication?.length > 0) {
+          const medicationLookup = {};
+          includedResources.Medication.forEach(med => {
+            if (med.id) {
+              medicationLookup[med.id] = med;
+            }
+          });
+
+          // Update MedicationRequests that use medicationReference
+          result.resources = result.resources.map(medRequest => {
+            if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
+              const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
+              const medication = medicationLookup[refId];
+              if (medication?.code) {
+                // Add resolved medication name as medicationCodeableConcept for display
+                return {
+                  ...medRequest,
+                  _resolvedMedicationCodeableConcept: medication.code,
+                  medicationReference: {
+                    ...medRequest.medicationReference,
+                    display: medication.code.text || medication.code.coding?.[0]?.display
+                  }
+                };
+              }
+            }
+            return medRequest;
+          });
+
+          // Update state with enriched resources
+          setResources(resourceType, result.resources);
+        }
       }
       
       setCachedData('searches', searchKey, result, 300000, resourceType); // 5 minute cache for searches
@@ -1114,6 +1147,8 @@ export function FHIRResourceProvider({ children }) {
               params.set('_count', priority === 'all' ? '100' : '10');
             } else if (resourceType === 'MedicationRequest') {
               params.set('_sort', '-authoredon');
+              // Include referenced Medication resources for proper name resolution
+              params.set('_include', 'MedicationRequest:medication');
               // Increased count for comprehensive medication history
               if (priority === 'all') {
                 params.set('_count', '100');
@@ -1180,7 +1215,36 @@ export function FHIRResourceProvider({ children }) {
               }
             }
           });
-          
+
+          // Enrich MedicationRequest resources with resolved medication names
+          if (resourcesByType.MedicationRequest?.length > 0 && resourcesByType.Medication?.length > 0) {
+            const medicationLookup = {};
+            resourcesByType.Medication.forEach(med => {
+              if (med.id) {
+                medicationLookup[med.id] = med;
+              }
+            });
+
+            // Update MedicationRequests that use medicationReference
+            resourcesByType.MedicationRequest = resourcesByType.MedicationRequest.map(medRequest => {
+              if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
+                const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
+                const medication = medicationLookup[refId];
+                if (medication?.code) {
+                  return {
+                    ...medRequest,
+                    _resolvedMedicationCodeableConcept: medication.code,
+                    medicationReference: {
+                      ...medRequest.medicationReference,
+                      display: medication.code.text || medication.code.coding?.[0]?.display
+                    }
+                  };
+                }
+              }
+              return medRequest;
+            });
+          }
+
           // Update state with all resources and relationships
           Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
             setResources(resourceType, resources);
@@ -1383,6 +1447,7 @@ export function FHIRResourceProvider({ children }) {
               } else if (resourceType === 'MedicationRequest') {
                 params.append('_count', '50'); // Get all medications
                 params.append('_sort', '-authoredon');
+                params.append('_include', 'MedicationRequest:medication'); // Include referenced Medication resources
               } else if (resourceType === 'AllergyIntolerance') {
                 params.append('_count', '20'); // Get all allergies
                 params.append('_sort', '-date');
@@ -1439,11 +1504,40 @@ export function FHIRResourceProvider({ children }) {
               }
             });
             
+            // Enrich MedicationRequest resources with resolved medication names
+            if (resourcesByType.MedicationRequest?.length > 0 && resourcesByType.Medication?.length > 0) {
+              const medicationLookup = {};
+              resourcesByType.Medication.forEach(med => {
+                if (med.id) {
+                  medicationLookup[med.id] = med;
+                }
+              });
+
+              // Update MedicationRequests that use medicationReference
+              resourcesByType.MedicationRequest = resourcesByType.MedicationRequest.map(medRequest => {
+                if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
+                  const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
+                  const medication = medicationLookup[refId];
+                  if (medication?.code) {
+                    return {
+                      ...medRequest,
+                      _resolvedMedicationCodeableConcept: medication.code,
+                      medicationReference: {
+                        ...medRequest.medicationReference,
+                        display: medication.code.text || medication.code.coding?.[0]?.display
+                      }
+                    };
+                  }
+                }
+                return medRequest;
+              });
+            }
+
             // Update state with resources
             Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
               setResources(resourceType, resources);
-              
-              
+
+
               resources.forEach(resource => {
                 // Check for both standard FHIR references and URN format (used by Synthea)
                 const subjectRef = resource.subject?.reference;

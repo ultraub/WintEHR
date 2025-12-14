@@ -791,6 +791,169 @@ async def get_active_orders(
     )
 
 
+# =============================================================================
+# Order-Result Linking - Bidirectional Navigation
+# =============================================================================
+
+class OrderResultSummary(BaseModel):
+    """Summary of results linked to an order"""
+    order_id: str
+    order_type: str  # ServiceRequest or MedicationRequest
+    has_results: bool
+    diagnostic_reports: List[Dict[str, Any]] = []
+    observations: List[Dict[str, Any]] = []
+    total_results: int = 0
+    result_status: str = "pending"  # pending, partial, complete
+
+
+@router.get("/{order_id}/results", response_model=OrderResultSummary)
+async def get_order_results(
+    order_id: str,
+    resource_type: str = Query("ServiceRequest", description="ServiceRequest or MedicationRequest"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get results linked to an order via FHIR basedOn reference.
+
+    FHIR R4 Order-Result Linking:
+    - DiagnosticReport.basedOn references the originating ServiceRequest
+    - Observation.basedOn can also reference ServiceRequest
+    - This enables bidirectional navigation between orders and results
+
+    Educational notes:
+    - FHIR R4 uses basedOn for order-result traceability
+    - Results may arrive at different times (partial results)
+    - Complete status is determined by result availability
+    """
+    hapi_client = HAPIFHIRClient()
+
+    try:
+        # First verify the order exists
+        order = await hapi_client.read(resource_type, order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        # Determine order type from resource
+        if resource_type == "MedicationRequest":
+            order_type = "medication"
+        else:
+            categories = order.get("category", [])
+            if categories:
+                category_text = categories[0].get("text", "").lower()
+                if "lab" in category_text:
+                    order_type = "laboratory"
+                elif "imaging" in category_text:
+                    order_type = "imaging"
+                else:
+                    order_type = "procedure"
+            else:
+                order_type = "procedure"
+
+        # Build reference string for basedOn search
+        based_on_ref = f"{resource_type}/{order_id}"
+
+        # Query DiagnosticReports with basedOn reference
+        diagnostic_reports = []
+        try:
+            dr_bundle = await hapi_client.search("DiagnosticReport", {
+                "based-on": based_on_ref,
+                "_sort": "-issued",
+                "_count": 50
+            })
+
+            for entry in dr_bundle.get("entry", []):
+                dr = entry.get("resource", {})
+                diagnostic_reports.append({
+                    "id": dr.get("id"),
+                    "status": dr.get("status"),
+                    "code": dr.get("code", {}).get("text") or
+                            (dr.get("code", {}).get("coding", [{}])[0].get("display") if dr.get("code", {}).get("coding") else "Unknown"),
+                    "issued": dr.get("issued"),
+                    "conclusion": dr.get("conclusion"),
+                    "category": dr.get("category", [{}])[0].get("text") if dr.get("category") else None,
+                    "result_count": len(dr.get("result", []))
+                })
+        except Exception as e:
+            logger.warning(f"DiagnosticReport search failed for {based_on_ref}: {e}")
+
+        # Query Observations with basedOn reference
+        observations = []
+        try:
+            obs_bundle = await hapi_client.search("Observation", {
+                "based-on": based_on_ref,
+                "_sort": "-date",
+                "_count": 100
+            })
+
+            for entry in obs_bundle.get("entry", []):
+                obs = entry.get("resource", {})
+
+                # Extract value based on type
+                value = None
+                if "valueQuantity" in obs:
+                    vq = obs["valueQuantity"]
+                    value = f"{vq.get('value', '')} {vq.get('unit', '')}"
+                elif "valueString" in obs:
+                    value = obs["valueString"]
+                elif "valueCodeableConcept" in obs:
+                    value = obs["valueCodeableConcept"].get("text")
+
+                # Check for abnormal interpretation
+                interpretation = None
+                if obs.get("interpretation"):
+                    interp_coding = obs["interpretation"][0].get("coding", [{}])[0]
+                    interpretation = interp_coding.get("code")
+
+                observations.append({
+                    "id": obs.get("id"),
+                    "status": obs.get("status"),
+                    "code": obs.get("code", {}).get("text") or
+                            (obs.get("code", {}).get("coding", [{}])[0].get("display") if obs.get("code", {}).get("coding") else "Unknown"),
+                    "value": value,
+                    "effectiveDateTime": obs.get("effectiveDateTime"),
+                    "interpretation": interpretation,
+                    "referenceRange": obs.get("referenceRange", [{}])[0].get("text") if obs.get("referenceRange") else None
+                })
+        except Exception as e:
+            logger.warning(f"Observation search failed for {based_on_ref}: {e}")
+
+        # Determine overall result status
+        total_results = len(diagnostic_reports) + len(observations)
+        if total_results == 0:
+            result_status = "pending"
+        else:
+            # Check if any results are still pending/preliminary
+            all_final = all(
+                dr.get("status") in ["final", "amended", "corrected"]
+                for dr in diagnostic_reports
+            ) and all(
+                obs.get("status") in ["final", "amended", "corrected"]
+                for obs in observations
+            )
+            result_status = "complete" if all_final else "partial"
+
+        logger.info(f"Retrieved {total_results} results for {resource_type}/{order_id}")
+
+        return OrderResultSummary(
+            order_id=order_id,
+            order_type=order_type,
+            has_results=total_results > 0,
+            diagnostic_reports=diagnostic_reports,
+            observations=observations,
+            total_results=total_results,
+            result_status=result_status
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving results for order {order_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve order results: {str(e)}"
+        )
+
+
 @router.put("/{order_id}/discontinue")
 async def discontinue_order(
     order_id: str,

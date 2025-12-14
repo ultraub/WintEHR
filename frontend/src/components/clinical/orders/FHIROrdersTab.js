@@ -36,13 +36,16 @@ import {
   Delete as DeleteIcon,
   CheckCircle as ActiveIcon,
   Schedule as DraftIcon,
-  Cancel as CancelledIcon
+  Cancel as CancelledIcon,
+  Visibility as ViewResultsIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { useClinical } from '../../../contexts/ClinicalContext';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
 import { useAuth } from '../../../contexts/AuthContext';
+import { enhancedOrderSearchService } from '../../../services/enhancedOrderSearch';
+import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 
 const TabPanel = ({ children, value, index }) => (
   <div hidden={value !== index} style={{ paddingTop: 16 }}>
@@ -53,6 +56,7 @@ const TabPanel = ({ children, value, index }) => (
 const FHIROrdersTab = () => {
   const { currentPatient, currentEncounter } = useClinical();
   const { user } = useAuth();
+  const { publish } = useClinicalWorkflow();
   const [activeTab, setActiveTab] = useState(0);
   const [orders, setOrders] = useState({
     medications: [],
@@ -73,6 +77,8 @@ const FHIROrdersTab = () => {
   const [showCdsAlertDialog, setShowCdsAlertDialog] = useState(false);
   const [pendingOrder, setPendingOrder] = useState(null);
   const [patientAllergies, setPatientAllergies] = useState([]);
+  // Order-Result linking: Track which orders have results
+  const [orderResults, setOrderResults] = useState({}); // { orderId: { has_results, total_results, result_status } }
 
   useEffect(() => {
     if (currentPatient) {
@@ -80,6 +86,50 @@ const FHIROrdersTab = () => {
       loadPatientAllergies();
     }
   }, [currentPatient?.id, currentEncounter?.id]);
+
+  // Check for results when orders are loaded (Order-Result Linking)
+  useEffect(() => {
+    const checkOrderResults = async () => {
+      const allOrders = [
+        ...orders.labs.map(o => ({ ...o, resourceType: 'ServiceRequest' })),
+        ...orders.imaging.map(o => ({ ...o, resourceType: 'ServiceRequest' })),
+        ...orders.procedures.map(o => ({ ...o, resourceType: 'ServiceRequest' })),
+        ...orders.medications.map(o => ({ ...o, resourceType: 'MedicationRequest' }))
+      ];
+
+      if (allOrders.length === 0) return;
+
+      const resultsMap = {};
+
+      // Check results for lab and imaging orders (most likely to have results)
+      const ordersToCheck = [...orders.labs, ...orders.imaging];
+
+      await Promise.all(
+        ordersToCheck.map(async (order) => {
+          try {
+            const results = await enhancedOrderSearchService.getOrderResults(
+              order.id,
+              'ServiceRequest'
+            );
+            resultsMap[order.id] = {
+              has_results: results.has_results,
+              total_results: results.total_results,
+              result_status: results.result_status
+            };
+          } catch (error) {
+            console.error(`Failed to check results for order ${order.id}:`, error);
+            resultsMap[order.id] = { has_results: false, total_results: 0, result_status: 'error' };
+          }
+        })
+      );
+
+      setOrderResults(resultsMap);
+    };
+
+    if (orders.labs.length > 0 || orders.imaging.length > 0) {
+      checkOrderResults();
+    }
+  }, [orders.labs, orders.imaging]);
 
   // Load patient allergies from FHIR
   const loadPatientAllergies = async () => {
@@ -490,6 +540,32 @@ const FHIROrdersTab = () => {
   // Alias for backward compatibility
   const handleDeleteOrder = handleDiscontinueOrder;
 
+  // Navigate to Results tab with order context (Order-Result Linking)
+  const handleViewResults = async (order) => {
+    try {
+      // Publish clinical event to navigate to Results tab with order filter
+      // This allows the Results tab to filter and highlight results linked to this order
+      publish('TAB_UPDATE', {
+        targetTab: 'results',
+        filter: {
+          basedOn: `ServiceRequest/${order.id}`,
+          orderId: order.id,
+          orderDisplay: order.display
+        }
+      });
+
+      // Also publish a specific order-result navigation event for debugging/logging
+      publish('ORDER_RESULT_NAVIGATION', {
+        orderId: order.id,
+        orderType: order.type === 'medication' ? 'MedicationRequest' : 'ServiceRequest',
+        orderDisplay: order.display,
+        patientId: currentPatient?.id
+      });
+    } catch (error) {
+      console.error('Failed to navigate to results:', error);
+    }
+  };
+
   const renderOrderList = (orderList, type) => {
     if (orderList.length === 0) {
       return (
@@ -509,7 +585,7 @@ const FHIROrdersTab = () => {
                   <Typography variant="h6" component="div">
                     {order.display}
                   </Typography>
-                  <Box display="flex" gap={1} mt={1} mb={1}>
+                  <Box display="flex" gap={1} mt={1} mb={1} flexWrap="wrap">
                     <Chip
                       icon={getStatusIcon(order.status)}
                       label={order.status}
@@ -521,6 +597,15 @@ const FHIROrdersTab = () => {
                       size="small"
                       color={getPriorityColor(order.priority)}
                     />
+                    {/* Result status indicator - Order-Result Linking */}
+                    {orderResults[order.id]?.has_results && (
+                      <Chip
+                        icon={<ViewResultsIcon fontSize="small" />}
+                        label={orderResults[order.id].result_status === 'complete' ? 'Results Ready' : 'Partial Results'}
+                        size="small"
+                        color={orderResults[order.id].result_status === 'complete' ? 'success' : 'warning'}
+                      />
+                    )}
                   </Box>
                   {order.dosage && (
                     <Typography variant="body2" color="text.secondary">
@@ -541,7 +626,26 @@ const FHIROrdersTab = () => {
                     Ordered by {order.requester} on {format(new Date(order.authoredOn), 'MM/dd/yyyy')}
                   </Typography>
                 </Box>
-                <Box>
+                <Box display="flex" gap={1} alignItems="center">
+                  {/* View Results button - Order-Result Linking */}
+                  {(type === 'laboratory' || type === 'imaging') && (
+                    <Button
+                      size="small"
+                      onClick={() => handleViewResults(order)}
+                      color="primary"
+                      variant={orderResults[order.id]?.has_results ? 'contained' : 'outlined'}
+                      startIcon={<ViewResultsIcon />}
+                      title={
+                        orderResults[order.id]?.has_results
+                          ? `View ${orderResults[order.id].total_results} result(s)`
+                          : 'Check for results'
+                      }
+                    >
+                      {orderResults[order.id]?.has_results
+                        ? `Results (${orderResults[order.id].total_results})`
+                        : 'View Results'}
+                    </Button>
+                  )}
                   {order.status === 'draft' && (
                     <IconButton
                       size="small"

@@ -546,6 +546,79 @@ class EnhancedOrderSearchService {
   }
 
   /**
+   * Get results linked to an order via FHIR basedOn reference.
+   *
+   * This enables bidirectional navigation between orders and their results:
+   * - From Orders tab: Click "View Results" to see linked DiagnosticReports/Observations
+   * - From Results tab: See the originating order context
+   *
+   * @param {string} orderId - The order ID (ServiceRequest or MedicationRequest)
+   * @param {string} resourceType - 'ServiceRequest' or 'MedicationRequest' (default: 'ServiceRequest')
+   * @returns {Promise<Object>} Results summary with diagnostic reports and observations
+   */
+  async getOrderResults(orderId, resourceType = 'ServiceRequest') {
+    try {
+      const url = `/api/clinical/orders/${orderId}/results?resource_type=${resourceType}`;
+
+      // Check cache first
+      const cacheKey = `order-results-${orderId}-${resourceType}`;
+      const cached = this.getCachedResult(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return {
+            order_id: orderId,
+            order_type: resourceType === 'MedicationRequest' ? 'medication' : 'procedure',
+            has_results: false,
+            diagnostic_reports: [],
+            observations: [],
+            total_results: 0,
+            result_status: 'not_found'
+          };
+        }
+        throw new Error(`Failed to get order results: ${response.statusText}`);
+      }
+
+      const results = await response.json();
+
+      // Cache for 2 minutes (results can change more frequently)
+      this.setCachedResult(cacheKey, results);
+
+      return results;
+    } catch (error) {
+      console.error('Error getting order results:', error);
+      throw new Error(`Failed to retrieve order results: ${error.message}`);
+    }
+  }
+
+  /**
+   * Check if an order has linked results (lightweight check)
+   * @param {string} orderId - The order ID
+   * @param {string} resourceType - 'ServiceRequest' or 'MedicationRequest'
+   * @returns {Promise<boolean>} True if the order has results
+   */
+  async orderHasResults(orderId, resourceType = 'ServiceRequest') {
+    try {
+      const results = await this.getOrderResults(orderId, resourceType);
+      return results.has_results;
+    } catch (error) {
+      console.error('Error checking order results:', error);
+      return false;
+    }
+  }
+
+  /**
    * Cache management methods
    */
   getCachedResult(key) {

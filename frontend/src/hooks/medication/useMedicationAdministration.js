@@ -122,6 +122,9 @@ export const useMedicationAdministrationRecord = (patientId, encounterId = null,
   const [error, setError] = useState(null);
   const { publish } = useClinicalWorkflow();
 
+  // Convert date to string for stable dependency comparison
+  const dateString = date instanceof Date ? date.toISOString().split('T')[0] : date;
+
   const refreshMAR = useCallback(async () => {
     if (!patientId) return;
 
@@ -140,7 +143,7 @@ export const useMedicationAdministrationRecord = (patientId, encounterId = null,
     } finally {
       setLoading(false);
     }
-  }, [patientId, encounterId, date]);
+  }, [patientId, encounterId, dateString]); // Use dateString instead of date object
 
   useEffect(() => {
     refreshMAR();

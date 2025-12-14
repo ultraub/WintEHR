@@ -5,30 +5,79 @@
 
 /**
  * Gets medication name from either R4 (medicationCodeableConcept) or R5 (medication.concept) format
+ * Also supports resolving medicationReference if a lookup map or array is provided
  * @param {Object} medicationRequest - FHIR MedicationRequest object
+ * @param {Object|Array} medicationsLookup - Optional map (id -> Medication) or array of Medication resources
  * @returns {string} - Medication name
  */
-export const getMedicationName = (medicationRequest) => {
+export const getMedicationName = (medicationRequest, medicationsLookup = null) => {
   if (!medicationRequest) return 'Unknown medication';
-  
+
   // R5 format: medication.concept
   if (medicationRequest.medication?.concept) {
     const concept = medicationRequest.medication.concept;
     return concept.text || concept.coding?.[0]?.display || 'Unknown medication';
   }
-  
+
   // R4 format: medicationCodeableConcept (legacy support)
   if (medicationRequest.medicationCodeableConcept) {
     const concept = medicationRequest.medicationCodeableConcept;
     return concept.text || concept.coding?.[0]?.display || 'Unknown medication';
   }
-  
-  // Reference format (fallback)
+
+  // Check for resolved medication concept (added by FHIRResourceContext from _include)
+  if (medicationRequest._resolvedMedicationCodeableConcept) {
+    const concept = medicationRequest._resolvedMedicationCodeableConcept;
+    return concept.text || concept.coding?.[0]?.display || 'Unknown medication';
+  }
+
+  // Reference format - try to resolve from lookup
   if (medicationRequest.medicationReference) {
+    const refString = medicationRequest.medicationReference.reference || '';
+    const medicationId = refString.replace('Medication/', '');
+
+    // Check if display is already in the reference
+    if (medicationRequest.medicationReference.display) {
+      return medicationRequest.medicationReference.display;
+    }
+
+    // Try to resolve from lookup
+    if (medicationsLookup) {
+      let medication = null;
+
+      if (Array.isArray(medicationsLookup)) {
+        // Lookup is an array of Medication resources
+        medication = medicationsLookup.find(m => m.id === medicationId);
+      } else if (typeof medicationsLookup === 'object') {
+        // Lookup is a map: id -> Medication
+        medication = medicationsLookup[medicationId];
+      }
+
+      if (medication?.code) {
+        return medication.code.text || medication.code.coding?.[0]?.display || 'Unknown medication';
+      }
+    }
+
+    // Could not resolve, return generic
     return 'Medication (reference)';
   }
-  
+
   return 'Unknown medication';
+};
+
+/**
+ * Builds a medication lookup map from an array of Medication resources
+ * @param {Array} medications - Array of FHIR Medication resources
+ * @returns {Object} - Map of medication id -> Medication resource
+ */
+export const buildMedicationLookup = (medications) => {
+  if (!Array.isArray(medications)) return {};
+  return medications.reduce((acc, med) => {
+    if (med?.id) {
+      acc[med.id] = med;
+    }
+    return acc;
+  }, {});
 };
 
 /**
