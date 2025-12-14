@@ -1,112 +1,94 @@
-# WintEHR - Modern FHIR-Native Electronic Health Record System
+# WintEHR
 
-[![Version](https://img.shields.io/badge/Version-1.2.0-blue.svg)](https://github.com/ultraub/WintEHR/releases)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://opensource.org/licenses/Apache-2.0)
-[![FHIR R4](https://img.shields.io/badge/FHIR-R4-orange.svg)](http://hl7.org/fhir/R4/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-brightgreen.svg)](https://www.docker.com/)
+An educational electronic health record system for learning healthcare IT, FHIR, and clinical informatics.
 
-## 🏥 Overview
+**Important**: This is an educational platform designed for learning with synthetic patient data. It should never be used with real patient information.
 
-WintEHR is a complete, FHIR-native Electronic Health Record system designed for healthcare organizations, researchers, and developers. Built on modern web technologies, it provides a production-ready platform for managing clinical workflows, medical imaging, and real-time clinical decision support.
+## What is WintEHR?
 
-### ✨ Key Capabilities
+WintEHR is a complete, working EHR system built specifically for people learning healthcare information technology. Whether you're a clinical informatics student, a developer new to healthcare, or an educator building curriculum, WintEHR provides hands-on experience with the standards, workflows, and architectures that power modern healthcare systems.
 
-- **Complete Clinical Workflows** - Chart review, orders, results, pharmacy, and imaging modules
-- **FHIR R4 Native** - 38+ resource types with full CRUD operations and search
-- **Medical Imaging** - Automated DICOM generation + integrated viewer with multi-modality support
-- **Clinical Decision Support** - CDS Hooks 2.0 implementation with 10+ built-in rules
-- **Real-time Updates** - WebSocket-based live clinical events and notifications
-- **Enterprise Ready** - JWT authentication, audit logging, and scalable architecture
+Most healthcare IT education relies on reading specifications or working with simplified examples. WintEHR fills that gap by giving you a fully functional system where you can:
 
-## 🚀 Quick Start
+- See how FHIR resources actually flow through a clinical application
+- Understand how CDS Hooks integrate with clinical workflows
+- Experience realistic EHR interfaces and data patterns
+- Experiment with healthcare APIs without needing access to production systems
 
-### Prerequisites
+## What You'll Learn
 
-- **Docker & Docker Compose** (20.10+ recommended)
-- **Python 3.9+** (for configuration validation)
-- **8GB RAM minimum** (16GB recommended for production)
-- **20GB free disk space** (100GB for production)
+### Healthcare Data Standards
 
-### Local Development Setup (5 Minutes)
+- **FHIR R4** - The modern healthcare interoperability standard. WintEHR uses HAPI FHIR Server with 38+ resource types, so you can explore how Patient, Observation, MedicationRequest, and other resources work together in practice.
+
+- **Clinical Terminologies** - See ICD-10, SNOMED CT, LOINC, and RxNorm codes in context. The synthetic patient data includes realistic coded diagnoses, lab results, and medications.
+
+- **DICOM** - Medical imaging standard. WintEHR generates synthetic DICOM images and includes a viewer, so you can understand how imaging integrates with clinical records.
+
+### Clinical Decision Support
+
+- **CDS Hooks 2.0** - Learn the specification by using it. WintEHR implements patient-view, order-select, and order-sign hooks with working alert cards.
+
+- **CDS Studio** - A visual builder for creating decision support rules. Understand how clinical alerts are structured and triggered.
+
+### Clinical Workflows
+
+Rather than abstract diagrams, you can walk through actual workflows:
+
+- **Chart Review** - How clinicians access problem lists, medications, allergies, vital signs, and notes
+- **Order Entry (CPOE)** - How orders are placed, validated, and tracked
+- **Results Review** - How lab and imaging results are displayed and trended
+- **Medication Management** - Prescribing, dispensing, and drug interaction checking
+
+## Supported Clinical Workflows
+
+| Workflow | What You Can Explore |
+|----------|---------------------|
+| **Patient Lookup** | Demographics, insurance, contact management, patient matching |
+| **Chart Review** | Problem list, medications, allergies, vitals, clinical notes |
+| **Order Entry** | Lab orders, imaging orders, medication orders with CDS alerts |
+| **Results Review** | Lab results with trending, radiology reports, result status tracking |
+| **Pharmacy** | Prescription management, dispensing workflow, medication history |
+| **Medical Imaging** | DICOM viewer, multi-modality support (CT, MR, X-ray, Ultrasound) |
+| **Clinical Alerts** | Real-time CDS cards, drug interactions, preventive care reminders |
+
+## Getting Started
+
+### What You'll Need
+
+- Git
+- Docker and Docker Compose (version 20.10+)
+- Python 3.9+ (for configuration validation)
+- 8GB RAM and 20GB disk space
+
+### Quick Start
 
 ```bash
-# 1. Clone repository
+# Clone the repository
 git clone https://github.com/ultraub/WintEHR.git
 cd WintEHR
 
-# 2. Copy and configure for development
+# Optional: customize settings
 cp config.example.yaml config.yaml
 
-# 3. Edit config.yaml for local development
-#    Set: environment: dev
-#         enable_ssl: false
-#         patient_count: 20
-
-# 4. ONE COMMAND DEPLOYMENT
+# Deploy (15-25 minutes the first time)
 ./deploy.sh
+
+# Verify everything is running
+./deploy.sh status
 ```
 
-The system will be available at:
-- **Clinical Portal**: http://localhost:3000
-- **FHIR API**: http://localhost:8888/fhir
-- **API Documentation**: http://localhost:8000/docs
+The first deployment takes longer because it downloads Docker images, initializes the database, and generates synthetic patient data. Subsequent starts take about 5 minutes.
 
-### Production Deployment
+### Access Points
 
-For production deployment (including Azure):
+| Service | URL | Purpose |
+|---------|-----|---------|
+| Clinical Portal | http://localhost:3000 | Main EHR interface |
+| FHIR API | http://localhost:8888/fhir | Direct FHIR server access |
+| Backend API | http://localhost:8000/docs | API documentation |
 
-```bash
-# 1. Configure production settings
-cp config.azure-prod.yaml config.yaml
-vim config.yaml  # Set your deployment details and domain
-
-# 2. Deploy with production profile
-./deploy.sh --environment prod
-```
-
-See [docs/AZURE_DEPLOYMENT.md](docs/AZURE_DEPLOYMENT.md) for complete Azure deployment instructions including:
-- SSL/TLS configuration with Let's Encrypt
-- Azure VM setup and networking
-- Production security hardening
-
-### Build Options
-
-#### Option 1: Quick Deploy (Recommended)
-```bash
-./deploy.sh                    # Local development (dev profile)
-./deploy.sh --environment prod # Production deployment
-```
-
-#### Option 2: Manual Docker Build
-```bash
-# Build backend
-docker build -t wintehr-backend:latest -f backend/Dockerfile backend/
-
-# Build frontend
-docker build -t wintehr-frontend:latest -f frontend/Dockerfile frontend/
-
-# Start services
-docker-compose up -d
-```
-
-#### Option 3: Development with Hot Reload
-```bash
-# Backend
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-
-# Frontend
-cd frontend
-npm install
-npm start
-```
-
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for advanced deployment options.
-
-### Default Users
+### Demo Users
 
 | Username | Password | Role |
 |----------|----------|------|
@@ -115,329 +97,55 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for advanced deployment options.
 | pharmacist | password | Pharmacist |
 | admin | password | Administrator |
 
-## 🏗️ Architecture
+## Architecture Overview
 
-WintEHR uses a modern microservices architecture:
+WintEHR is built on production-grade technologies so you're learning patterns that transfer to real-world systems:
 
-- **Frontend**: React 18 with Material-UI
+- **Frontend**: React with Material-UI
 - **Backend**: FastAPI (Python) with async support
-- **FHIR Server**: HAPI FHIR JPA Server (industry-standard)
-- **Database**: PostgreSQL 15 with HAPI JPA schema
-- **Cache**: Redis for sessions and performance
-- **Reverse Proxy**: Nginx with SSL/TLS support
-- **Containerization**: Docker with orchestration
+- **FHIR Server**: HAPI FHIR JPA Server (the same server used in production healthcare)
+- **Database**: PostgreSQL
+- **Cache**: Redis
 
-## ⚙️ Configuration
+The system generates realistic patient data using [Synthea](https://synthea.mitre.org/), an open-source synthetic patient generator.
 
-WintEHR uses a comprehensive configuration management system for flexible deployments:
+## Documentation
 
-### Configuration Files
+Detailed documentation is available in the `docs/` directory:
 
-- **config.yaml** - Main configuration (deployment settings, Azure, SSL, services)
-- **.env** - Secrets (database passwords, API keys)
-- **config.{env}.yaml** - Environment-specific overrides (dev, staging, prod)
+- [Deployment Guide](docs/DEPLOYMENT.md) - Detailed setup and configuration
+- [Configuration Reference](docs/CONFIGURATION.md) - All configuration options
+- [Azure Deployment](docs/AZURE_DEPLOYMENT.md) - Cloud deployment guide
+- [CDS Studio Guide](docs/CDS_STUDIO_QUICK_REFERENCE.md) - Building clinical decision support
 
-### Key Features
+## For Educators
 
-- **Single Source of Truth**: All settings in one place
-- **Environment Overrides**: Easy dev/staging/prod configurations
-- **Validation**: Pre-deployment checks catch errors early
-- **Secrets Management**: Secure handling of passwords and API keys
-- **Azure Integration**: Automatic NSG and resource configuration
-- **SSL Automation**: Let's Encrypt certificate management
+WintEHR works well for:
 
-### Configuration Options
+- **Classroom demonstrations** - Show real FHIR queries and clinical workflows
+- **Hands-on labs** - Students can modify CDS rules, explore the API, or build integrations
+- **Capstone projects** - A foundation for building healthcare applications
+- **Self-paced learning** - Comprehensive documentation for independent study
 
-```yaml
-deployment:
-  environment: production    # dev, staging, production
-  patient_count: 50         # Synthea patients to generate
-  enable_ssl: true          # Automatic SSL with Let's Encrypt
+The synthetic data is generated fresh on each deployment, so students can experiment freely without worrying about breaking anything permanent.
 
-azure:
-  resource_group: wintehr-rg
-  vm_name: wintehr-vm
-  location: eastus2
+## Contributing
 
-ssl:
-  domain_name: wintehr.eastus2.cloudapp.azure.com
-  ssl_email: admin@example.com
+Contributions are welcome, especially those that improve the educational value of the project. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-services:
-  ports:                    # Customize all service ports
-    frontend: 3000
-    backend: 8000
-    hapi_fhir: 8888
+## License
 
-hapi_fhir:
-  memory: 2g               # JVM memory allocation
-  validation_mode: NEVER   # FHIR validation level
+Apache License 2.0 - see [LICENSE](LICENSE) for details.
 
-synthea:
-  state: Massachusetts     # US state for patient data
-  jar_version: 3.2.0       # Synthea version
-```
+## Acknowledgments
 
-### Complete Documentation
+WintEHR builds on excellent open-source projects:
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for:
-- Complete configuration reference
-- Environment-specific setup
-- Azure deployment guide
-- SSL configuration
-- Secrets management
-- Troubleshooting
-
-## 📋 Clinical Modules
-
-### Core Modules
-
-1. **Patient Management**
-   - Demographics and registration
-   - Insurance and coverage
-   - Contact information
-   - Patient search and matching
-
-2. **Chart Review**
-   - Problem list
-   - Medications
-   - Allergies
-   - Vital signs
-   - Clinical notes
-
-3. **Orders & Results**
-   - CPOE (Computerized Physician Order Entry)
-   - Lab results with trending
-   - Radiology reports
-   - Order tracking
-
-4. **Pharmacy**
-   - Prescription management
-   - Dispensing workflow
-   - Drug interaction checking
-   - Medication history
-
-5. **Medical Imaging**
-   - DICOM viewer with multi-modality support
-   - **Automated DICOM generation** from ImagingStudy resources
-   - Multi-slice navigation (CT, MR, XR, US, DX, CR, MG)
-   - Windowing controls
-   - Measurement tools
-   - Realistic synthetic medical images
-
-6. **Clinical Decision Support**
-   - Real-time alerts
-   - Drug interactions
-   - Dosing recommendations
-   - Preventive care reminders
-
-### Advanced Features
-
-- **FHIR Explorer v4** - Visual query builder and resource browser
-- **CDS Studio** - Create and manage clinical decision support rules
-- **Analytics Dashboard** - Real-time clinical metrics
-- **Audit System** - Complete audit trail for compliance
-
-## 💾 Data Management
-
-### Synthetic Data Generation
-
-WintEHR includes Synthea integration for realistic test data:
-
-```bash
-# Patients are generated automatically during deployment
-# Configure patient count in config.yaml: patient_count: 50
-
-# Or manually load data after deployment
-docker exec emr-backend python scripts/synthea_to_hapi_pipeline.py 50 Massachusetts
-```
-
-### Database Schema
-
-FHIR resources are managed by HAPI FHIR JPA Server using industry-standard tables:
-- `hfj_resource` - FHIR resource storage with versioning
-- `hfj_spidx_*` - Search parameter indexes (string, token, date, number, quantity)
-- `hfj_res_link` - Resource references and relationships
-- `hfj_res_tag` - Resource tags and security labels
-
-Clinical workflow data uses dedicated tables:
-- `clinical_notes` - Clinical documentation
-- `orders` - Order management
-- `tasks` - Clinical task tracking
-- `clinical_catalogs` - Medication, condition, and lab catalogs
-
-## 🔧 Deployment Options
-
-### Development Mode
-```bash
-# Configure dev settings in config.yaml (or config.dev.yaml)
-# Set: environment: dev, enable_ssl: false, patient_count: 20
-
-./deploy.sh --environment dev
-```
-- JWT authentication disabled
-- Demo users enabled
-- Hot-reload active
-
-### Production Mode
-```bash
-# Configure production settings in config.yaml
-# Set: environment: production, enable_ssl: true, patient_count: 100
-
-./deploy.sh
-```
-- JWT authentication required
-- SSL/TLS ready
-- Performance optimized
-
-### Cloud Deployment
-
-WintEHR is tested on:
-- AWS EC2 (t3.xlarge recommended)
-- Docker Swarm
-- Kubernetes (Helm chart available)
-
-## 📊 System Requirements
-
-### Minimum Requirements
-- 2 CPU cores
-- 8GB RAM
-- 20GB storage
-- Docker 20.10+
-
-### Recommended for Production
-- 4+ CPU cores
-- 16GB RAM
-- 100GB SSD storage
-- PostgreSQL dedicated instance
-
-## 🔒 Security Features
-
-- JWT-based authentication
-- Role-based access control (RBAC)
-- Audit logging for all FHIR operations
-- Rate limiting and DDoS protection
-- Encrypted data at rest and in transit
-- HIPAA compliance considerations
-
-## 📚 API Documentation
-
-### FHIR Endpoints
-
-All standard FHIR R4 operations are supported:
-
-```
-GET    /fhir/R4/{ResourceType}/{id}
-POST   /fhir/R4/{ResourceType}
-PUT    /fhir/R4/{ResourceType}/{id}
-DELETE /fhir/R4/{ResourceType}/{id}
-GET    /fhir/R4/{ResourceType}?{search-parameters}
-```
-
-### Custom Endpoints
-
-```
-POST   /api/auth/login
-GET    /api/services
-POST   /api/cds-services/{service-id}
-GET    /api/catalogs/{type}
-WS     /ws/clinical-events
-```
-
-## 🧪 Testing
-
-```bash
-# Frontend tests
-cd frontend && npm test
-
-# Backend tests
-cd backend && pytest tests/ -v
-
-# With coverage
-cd backend && pytest tests/ --cov=api --cov-report=html
-```
-
-## 📈 Performance
-
-- Supports 1000+ concurrent users
-- Sub-second response times for most operations
-- Optimized FHIR search with indexed parameters
-- Redis caching for frequently accessed data
-- Connection pooling for database efficiency
-
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Development Workflow
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
-
-## 📄 License
-
-Apache License 2.0 - see [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [HL7 FHIR](http://hl7.org/fhir/) - Healthcare data standard
-- [Synthea](https://synthea.mitre.org/) - Synthetic patient generator
+- [HL7 FHIR](http://hl7.org/fhir/) - Healthcare interoperability standard
+- [HAPI FHIR](https://hapifhir.io/) - FHIR server implementation
+- [Synthea](https://synthea.mitre.org/) - Synthetic patient data
 - [CDS Hooks](https://cds-hooks.org/) - Clinical decision support specification
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/ultraub/WintEHR/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/ultraub/WintEHR/discussions)
-- **Documentation**: [Wiki](https://github.com/ultraub/WintEHR/wiki)
-
-## 🚦 Release Notes
-
-### Version 1.1.0 (October 2025)
-
-**Major Improvements:**
-- ✅ **Fully Automated Azure Deployment** - One-command deployment with complete server wipe
-- ✅ **Automated SSL Configuration** - Let's Encrypt certificates obtained automatically
-- ✅ **Robust Build Process** - Fixed SSH timeout issues during long Docker builds
-- ✅ **Health Check Improvements** - Reliable container health monitoring
-- ✅ **DICOM Endpoint Generation** - Automatic DICOM endpoint creation for all imaging studies
-
-**Deployment Fixes:**
-- Fix #17: Backend health check using Docker inspect instead of curl
-- Fix #18: SSH keepalive configuration prevents timeout during builds
-- Fix #19: Simplified Docker build process (removed complex heredoc)
-- Fix #20: Non-blocking SSL certificate verification
-- Fix #21: Asynchronous Docker build with background nohup
-- Fix #22: Direct SSH in polling loop avoids echo output interference
-
-**Infrastructure:**
-- Complete server wipe before every deployment (mandatory)
-- No manual interventions required
-- Automated patient data generation (100+ patients with DICOM)
-- Total deployment time: ~25-30 minutes
-
-### Version 1.0.0 (August 2025)
-
-**Features:**
-- Complete FHIR R4 implementation
-- 38 resource types with full CRUD support
-- Integrated DICOM medical imaging
-- CDS Hooks 2.0 with visual rule builder
-- Real-time WebSocket clinical events
-- FHIR Explorer with relationship mapping
-- Pharmacy workflow automation
-- Clinical catalog generation
-- Synthea data integration
-
-**Known Limitations:**
-- Authentication system requires hardening for production
-- Some FHIR operations not yet implemented
-- Performance optimization ongoing for large datasets
 
 ---
 
-**WintEHR v1.1.0** - A complete FHIR-native EHR system with fully automated deployment.
-
-Built with ❤️ for the healthcare community.
+Questions or feedback? Open an issue on [GitHub](https://github.com/ultraub/WintEHR/issues).
