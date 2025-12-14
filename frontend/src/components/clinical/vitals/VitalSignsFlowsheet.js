@@ -117,7 +117,7 @@ const VITAL_SIGNS_CONFIG = {
 // Chart View Component
 const VitalsChart = ({ vitalType, data, config }) => {
   const chartData = data.map(obs => ({
-    date: format(parseISO(obs.effectiveDateTime), 'MM/dd'),
+    date: format(parseISO(obs.effectiveDateTime), 'MMM yyyy'),
     value: parseFloat(obs.valueQuantity?.value || 0),
     fullDate: obs.effectiveDateTime
   })).sort((a, b) => new Date(a.fullDate) - new Date(b.fullDate));

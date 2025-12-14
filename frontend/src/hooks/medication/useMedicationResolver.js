@@ -225,28 +225,42 @@ export const useMedicationResolver = (medicationRequests = []) => {
     if (!medicationRequest?.id) {
       return 'Unknown medication';
     }
-    
+
     const resolved = resolvedMedications[medicationRequest.id];
     if (resolved) {
       return resolved.name;
     }
-    
+
+    // Check for enriched medication data (from _include resolution)
+    if (medicationRequest._resolvedMedicationCodeableConcept) {
+      const enrichedName = medicationRequest._resolvedMedicationCodeableConcept.text ||
+                          medicationRequest._resolvedMedicationCodeableConcept.coding?.[0]?.display;
+      if (enrichedName) {
+        return enrichedName;
+      }
+    }
+
+    // Check medicationReference.display (may be enriched from _include)
+    if (medicationRequest.medicationReference?.display) {
+      return medicationRequest.medicationReference.display;
+    }
+
     // Fallback to medication field (R5 format) or medicationCodeableConcept (R4 format)
     if (medicationRequest.medication?.concept) {
       // FHIR R5 format
       const concept = medicationRequest.medication.concept;
-      const fallbackName = concept.text || 
-                          concept.coding?.[0]?.display || 
+      const fallbackName = concept.text ||
+                          concept.coding?.[0]?.display ||
                           'Unknown medication';
       return fallbackName;
     } else if (medicationRequest.medicationCodeableConcept) {
       // FHIR R4 format
-      const fallbackName = medicationRequest.medicationCodeableConcept.text || 
-                          medicationRequest.medicationCodeableConcept.coding?.[0]?.display || 
+      const fallbackName = medicationRequest.medicationCodeableConcept.text ||
+                          medicationRequest.medicationCodeableConcept.coding?.[0]?.display ||
                           'Unknown medication';
       return fallbackName;
     }
-    
+
     return 'Unknown medication';
   }, [resolvedMedications]);
 

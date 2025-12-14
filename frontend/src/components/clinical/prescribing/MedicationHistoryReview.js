@@ -97,19 +97,51 @@ const MedicationHistoryReview = ({
       // Calculate date range
       const dateFrom = subMonths(new Date(), timeRange).toISOString();
 
-      // Search for medication requests
+      // Search for medication requests with included Medication resources
       const searchParams = {
         patient: patientId,
         _sort: '-date',
         date: `ge${dateFrom}`,
-        _count: 100
+        _count: 100,
+        _include: 'MedicationRequest:medication'
       };
 
       const medicationRequests = await fhirClient.search('MedicationRequest', searchParams);
-      const requests = medicationRequests?.entry?.map(e => e.resource) || [];
 
-      // Store raw requests for the resolver hook to process
-      setRawMedicationRequests(requests);
+      // Extract MedicationRequest and Medication resources from results
+      const allResources = medicationRequests?.entry?.map(e => e.resource) || [];
+      const medicationResources = allResources.filter(r => r.resourceType === 'Medication');
+      const requests = allResources.filter(r => r.resourceType === 'MedicationRequest');
+
+      // Build medication lookup and enrich requests
+      const medicationLookup = {};
+      medicationResources.forEach(med => {
+        if (med.id) {
+          medicationLookup[med.id] = med;
+        }
+      });
+
+      // Enrich MedicationRequests that use medicationReference
+      const enrichedRequests = requests.map(medRequest => {
+        if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
+          const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
+          const medication = medicationLookup[refId];
+          if (medication?.code) {
+            return {
+              ...medRequest,
+              _resolvedMedicationCodeableConcept: medication.code,
+              medicationReference: {
+                ...medRequest.medicationReference,
+                display: medication.code.text || medication.code.coding?.[0]?.display
+              }
+            };
+          }
+        }
+        return medRequest;
+      });
+
+      // Store enriched requests for the resolver hook to process
+      setRawMedicationRequests(enrichedRequests);
     } catch (err) {
       setError('Failed to load medication history');
       setLoading(false);

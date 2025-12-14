@@ -63,8 +63,10 @@ const MedicationItem = ({
   const [expanded, setExpanded] = useState(false);
 
   const getMedicationName = () => {
-    return medication.medicationCodeableConcept?.text || 
+    return medication.medicationCodeableConcept?.text ||
            medication.medicationCodeableConcept?.coding?.[0]?.display ||
+           medication._resolvedMedicationCodeableConcept?.text ||
+           medication._resolvedMedicationCodeableConcept?.coding?.[0]?.display ||
            medication.medicationReference?.display ||
            'Unknown Medication';
   };
@@ -428,11 +430,12 @@ const MedicationReconciliation = ({ patientId, encounterId, mode = 'admission' }
     setError(null);
 
     try {
-      // Fetch all medication requests for the patient
+      // Fetch all medication requests for the patient with included Medication resources
       const medicationRequests = await fhirClient.search('MedicationRequest', {
         patient: patientId,
         _sort: '-_lastUpdated',
-        _count: 100
+        _count: 100,
+        _include: 'MedicationRequest:medication'
       });
 
       // Fetch medication statements (patient-reported medications)
@@ -442,8 +445,40 @@ const MedicationReconciliation = ({ patientId, encounterId, mode = 'admission' }
         _count: 100
       });
 
+      // Extract and enrich MedicationRequest resources with included Medication data
+      const allMedRequestResources = medicationRequests.resources || [];
+      const medicationResources = allMedRequestResources.filter(r => r.resourceType === 'Medication');
+      const medicationRequestResources = allMedRequestResources.filter(r => r.resourceType === 'MedicationRequest');
+
+      // Build medication lookup for name resolution
+      const medicationLookup = {};
+      medicationResources.forEach(med => {
+        if (med.id) {
+          medicationLookup[med.id] = med;
+        }
+      });
+
+      // Enrich MedicationRequests that use medicationReference
+      const enrichedMedRequests = medicationRequestResources.map(medRequest => {
+        if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
+          const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
+          const medication = medicationLookup[refId];
+          if (medication?.code) {
+            return {
+              ...medRequest,
+              _resolvedMedicationCodeableConcept: medication.code,
+              medicationReference: {
+                ...medRequest.medicationReference,
+                display: medication.code.text || medication.code.coding?.[0]?.display
+              }
+            };
+          }
+        }
+        return medRequest;
+      });
+
       const allMedications = [
-        ...(medicationRequests.resources || []),
+        ...enrichedMedRequests,
         ...(medicationStatements.resources || [])
       ];
 

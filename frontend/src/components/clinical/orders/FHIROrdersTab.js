@@ -159,11 +159,12 @@ const FHIROrdersTab = () => {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      // Load MedicationRequests
+      // Load MedicationRequests with included Medication resources for name resolution
       const medRequests = await fhirClient.search('MedicationRequest', {
         patient: currentPatient.id,
         _sort: '-authored-on',
-        _count: 100
+        _count: 100,
+        _include: 'MedicationRequest:medication'
       });
 
       // Load ServiceRequests for labs, imaging, and procedures
@@ -173,8 +174,40 @@ const FHIROrdersTab = () => {
         _count: 100
       });
 
+      // Extract and enrich MedicationRequest resources with included Medication data
+      const allResources = medRequests.resources || [];
+      const medicationResources = allResources.filter(r => r.resourceType === 'Medication');
+      const medicationRequestResources = allResources.filter(r => r.resourceType === 'MedicationRequest');
+
+      // Build medication lookup for name resolution
+      const medicationLookup = {};
+      medicationResources.forEach(med => {
+        if (med.id) {
+          medicationLookup[med.id] = med;
+        }
+      });
+
+      // Enrich MedicationRequests that use medicationReference
+      const enrichedMedRequests = medicationRequestResources.map(medRequest => {
+        if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
+          const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
+          const medication = medicationLookup[refId];
+          if (medication?.code) {
+            return {
+              ...medRequest,
+              _resolvedMedicationCodeableConcept: medication.code,
+              medicationReference: {
+                ...medRequest.medicationReference,
+                display: medication.code.text || medication.code.coding?.[0]?.display
+              }
+            };
+          }
+        }
+        return medRequest;
+      });
+
       // Categorize orders
-      const medications = (medRequests.resources || []).map(transformMedicationRequest);
+      const medications = enrichedMedRequests.map(transformMedicationRequest);
       
       const labs = [];
       const imaging = [];
@@ -204,8 +237,10 @@ const FHIROrdersTab = () => {
   const transformMedicationRequest = (medReq) => ({
     id: medReq.id,
     type: 'medication',
-    display: medReq.medicationCodeableConcept?.text || 
+    display: medReq.medicationCodeableConcept?.text ||
              medReq.medicationCodeableConcept?.coding?.[0]?.display ||
+             medReq._resolvedMedicationCodeableConcept?.text ||
+             medReq._resolvedMedicationCodeableConcept?.coding?.[0]?.display ||
              medReq.medicationReference?.display || 'Unknown Medication',
     status: medReq.status,
     priority: medReq.priority || 'routine',

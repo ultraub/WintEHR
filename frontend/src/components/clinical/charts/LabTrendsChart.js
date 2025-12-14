@@ -403,15 +403,12 @@ const LabTrendsChart = ({ patientId, observations, selectedProfile = 'synthea-av
           <ResponsiveContainer width="100%" height={height}>
             <LineChart data={processedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
-              <XAxis 
-                dataKey="date" 
+              <XAxis
+                dataKey="date"
                 tickFormatter={(date) => {
                   const d = new Date(date);
-                  // Show year for better long-term trends
-                  if (timeRange >= 365) {
-                    return format(d, 'MMM yyyy');
-                  }
-                  return format(d, 'MMM d');
+                  // Always show year for clinical data clarity
+                  return format(d, 'MMM yyyy');
                 }}
                 tick={{ fontSize: 12 }}
                 stroke={theme.palette.text.secondary}

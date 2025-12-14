@@ -945,14 +945,44 @@ export function FHIRResourceProvider({ children }) {
             }
             resourcesByType[resource.resourceType].push(resource);
           });
-          
+
+          // Enrich MedicationRequest resources with resolved medication names
+          // Note: $everything may include Medication resources if they're in the patient compartment
+          if (resourcesByType.MedicationRequest?.length > 0 && resourcesByType.Medication?.length > 0) {
+            const medicationLookup = {};
+            resourcesByType.Medication.forEach(med => {
+              if (med.id) {
+                medicationLookup[med.id] = med;
+              }
+            });
+
+            // Update MedicationRequests that use medicationReference
+            resourcesByType.MedicationRequest = resourcesByType.MedicationRequest.map(medRequest => {
+              if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
+                const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
+                const medication = medicationLookup[refId];
+                if (medication?.code) {
+                  return {
+                    ...medRequest,
+                    _resolvedMedicationCodeableConcept: medication.code,
+                    medicationReference: {
+                      ...medRequest.medicationReference,
+                      display: medication.code.text || medication.code.coding?.[0]?.display
+                    }
+                  };
+                }
+              }
+              return medRequest;
+            });
+          }
+
           // Update state for each resource type
           Object.entries(resourcesByType).forEach(([resourceType, resources]) => {
             setResources(resourceType, resources);
-            
+
             // Update relationships
             resources.forEach(resource => {
-              
+
               // Check various reference patterns that FHIR resources use
               // Different resource types use different fields to reference patients
               let patientRef = null;

@@ -266,7 +266,7 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
       .map(vital => {
         const baseData = {
           date: vital.observation_date,
-          displayDate: format(parseISO(vital.observation_date), 'MMM dd')
+          displayDate: format(parseISO(vital.observation_date), 'MMM yyyy')
         };
 
         // Handle blood pressure specially (split systolic/diastolic)
