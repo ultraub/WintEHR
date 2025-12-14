@@ -1,7 +1,7 @@
 # WintEHR Deployment Guide
 
-**Version**: 1.2.0
-**Last Updated**: November 26, 2025
+**Version**: 1.2.1
+**Last Updated**: December 14, 2025
 
 This guide covers all deployment options for WintEHR, from local development to production deployment.
 
@@ -283,6 +283,23 @@ docker build -t wintehr-frontend:latest -f frontend/Dockerfile frontend/
 - Use Docker layer caching for faster rebuilds
 - `.dockerignore` excludes unnecessary files
 - Multi-stage builds reduce final image size
+
+### Dockerfile Variants
+
+WintEHR provides multiple Dockerfile variants for different use cases:
+
+| File | Purpose | Use Case |
+|------|---------|----------|
+| `Dockerfile` (root) | All-in-one container | Single-container deployment |
+| `backend/Dockerfile` | Main backend image | Docker Compose dev/prod |
+| `backend/Dockerfile.dev` | Development backend | Hot-reload, debugging |
+| `backend/Dockerfile.production` | Optimized backend | Production deployment |
+| `frontend/Dockerfile` | Main frontend image | Docker Compose dev/prod |
+| `frontend/Dockerfile.dev` | Development frontend | Hot-reload, debugging |
+| `frontend/Dockerfile.production` | Optimized frontend | Production deployment |
+| `frontend/Dockerfile.build` | Build-only | CI/CD pipelines |
+
+**Note**: Docker Compose automatically selects the appropriate Dockerfile based on the profile (dev/prod).
 
 ### Manual Build Process
 

@@ -203,13 +203,7 @@ if [ "$CLEAN_FIRST" = true ]; then
     echo -e "${YELLOW}CLEANUP MODE: Wiping server before deployment${NC}"
     echo ""
 
-    if [ -f "./deploy/cleanup.sh" ]; then
-        echo -e "${BLUE}Executing cleanup script...${NC}"
-        bash ./deploy/cleanup.sh
-        echo ""
-        echo -e "${GREEN}✅ Server wiped - ready for fresh deployment${NC}"
-        echo ""
-    elif [ -f "./cleanup-server.sh" ]; then
+    if [ -f "./cleanup-server.sh" ]; then
         echo -e "${BLUE}Executing cleanup script...${NC}"
         bash ./cleanup-server.sh
         echo ""

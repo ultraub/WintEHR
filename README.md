@@ -1,6 +1,6 @@
 # WintEHR - Modern FHIR-Native Electronic Health Record System
 
-[![Version](https://img.shields.io/badge/Version-1.1.0-blue.svg)](https://github.com/ultraub/WintEHR/releases)
+[![Version](https://img.shields.io/badge/Version-1.2.0-blue.svg)](https://github.com/ultraub/WintEHR/releases)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://opensource.org/licenses/Apache-2.0)
 [![FHIR R4](https://img.shields.io/badge/FHIR-R4-orange.svg)](http://hl7.org/fhir/R4/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-brightgreen.svg)](https://www.docker.com/)
