@@ -180,13 +180,18 @@ class MedicationDispenseService {
     }
     
     if (dateRange) {
+      // Build array for proper FHIR query encoding (avoids URL-encoding & in values)
+      const dateFilters = [];
       if (dateRange.start) {
-        searchParams['whenhandover'] = `ge${dateRange.start}`;
+        dateFilters.push(`ge${dateRange.start}`);
       }
       if (dateRange.end) {
-        searchParams['whenhandover'] = searchParams['whenhandover'] ? 
-          `${searchParams['whenhandover']}&whenhandover=le${dateRange.end}` :
-          `le${dateRange.end}`;
+        dateFilters.push(`le${dateRange.end}`);
+      }
+      if (dateFilters.length === 1) {
+        searchParams['whenhandover'] = dateFilters[0];
+      } else if (dateFilters.length > 1) {
+        searchParams['whenhandover'] = dateFilters; // Array becomes multiple query params
       }
     }
     

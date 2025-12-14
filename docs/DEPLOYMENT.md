@@ -134,6 +134,24 @@ WintEHR uses Docker Compose profiles for environment-specific deployment. Produc
 
 #### Production Configuration
 
+**Option 1: Automated Setup (Recommended)**
+
+The `--domain` flag automatically configures all production settings:
+
+```bash
+# One-command production deployment with automatic configuration
+./deploy.sh --environment prod --domain wintehr.yourdomain.com
+```
+
+This automatically:
+- Sets `DOMAIN` in `.env`
+- Configures all `REACT_APP_*` URLs for HTTPS
+- Updates `nginx-prod.conf` with SSL certificate paths
+- Obtains Let's Encrypt SSL certificates
+- Generates 100 synthetic patients
+
+**Option 2: Manual Configuration**
+
 ```bash
 # 1. Copy and edit environment file
 cp .env.example .env
@@ -154,7 +172,7 @@ POSTGRES_PASSWORD=<strong-password>
 SECRET_KEY=<generate-with-secrets.token_urlsafe(50)>
 JWT_SECRET=<generate-with-secrets.token_urlsafe(50)>
 
-# Production URLs
+# Production URLs (auto-configured if using --domain flag)
 REACT_APP_API_URL=https://wintehr.yourdomain.com
 REACT_APP_FHIR_ENDPOINT=https://wintehr.yourdomain.com/fhir/R4
 REACT_APP_WS_URL=wss://wintehr.yourdomain.com/ws

@@ -48,13 +48,18 @@ export function usePaginatedObservations(patientId, options = {}) {
     }
     
     if (dateRange) {
+      // Build date array for proper FHIR query encoding (avoids URL-encoding & in values)
+      const dateFilters = [];
       if (dateRange.start) {
-        params.date = `ge${dateRange.start.toISOString().split('T')[0]}`;
+        dateFilters.push(`ge${dateRange.start.toISOString().split('T')[0]}`);
       }
       if (dateRange.end) {
-        params.date = params.date 
-          ? `${params.date}&le${dateRange.end.toISOString().split('T')[0]}`
-          : `le${dateRange.end.toISOString().split('T')[0]}`;
+        dateFilters.push(`le${dateRange.end.toISOString().split('T')[0]}`);
+      }
+      if (dateFilters.length === 1) {
+        params.date = dateFilters[0];
+      } else if (dateFilters.length > 1) {
+        params.date = dateFilters; // Array becomes multiple query params
       }
     }
     

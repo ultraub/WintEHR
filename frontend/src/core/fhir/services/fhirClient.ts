@@ -224,12 +224,32 @@ class FHIRClient {
     this.responseInterceptors = config.interceptors?.response || [];
     this.errorInterceptors = config.interceptors?.error || [];
 
-    // Create axios instance
+    // Create axios instance with FHIR-compatible parameter serialization
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
       headers: {
         'Content-Type': 'application/fhir+json',
         'Accept': 'application/fhir+json'
+      },
+      // Custom params serializer for FHIR-compliant array handling
+      // FHIR expects repeated params: date=ge2024-01-01&date=le2024-12-31
+      // NOT bracket notation: date[]=... or comma-separated: date=a,b
+      paramsSerializer: (params) => {
+        const searchParams = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+          if (value === undefined || value === null) return;
+          if (Array.isArray(value)) {
+            // Add each array item as a separate parameter with the same key
+            value.forEach(item => {
+              if (item !== undefined && item !== null) {
+                searchParams.append(key, String(item));
+              }
+            });
+          } else {
+            searchParams.append(key, String(value));
+          }
+        });
+        return searchParams.toString();
       }
     });
 
@@ -1046,11 +1066,23 @@ class FHIRClient {
     resourceType: T['resourceType'], 
     params: SearchParams = {}
   ): Promise<SearchResult<T>> {
-    const queryString = new URLSearchParams(
-      Object.entries(params)
-        .filter(([_, value]) => value !== undefined && value !== null)
-        .map(([key, value]) => [key, String(value)])
-    ).toString();
+    // Build query string with proper FHIR array handling for cache key
+    const querySearchParams = new URLSearchParams();
+    Object.entries(params)
+      .filter(([_, value]) => value !== undefined && value !== null)
+      .forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          // Handle arrays by appending each value with the same key
+          value.forEach(item => {
+            if (item !== undefined && item !== null) {
+              querySearchParams.append(key, String(item));
+            }
+          });
+        } else {
+          querySearchParams.append(key, String(value));
+        }
+      });
+    const queryString = querySearchParams.toString();
     
     const cacheKey = `${resourceType}?${queryString}`;
     const cached = this.getFromCache<SearchResult<T>>(cacheKey);

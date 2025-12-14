@@ -896,24 +896,29 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
             _sort: '-date'
           };
           
-          // Add date range filters
+          // Add date range filters - use correct HAPI FHIR search parameter names
           const dateParam = (() => {
             switch (resourceType) {
               case 'Condition': return 'recorded-date';
-              case 'MedicationRequest': return 'authored';
+              case 'MedicationRequest': return 'authoredon'; // HAPI FHIR uses 'authoredon'
+              case 'MedicationStatement': return 'effective'; // HAPI FHIR uses 'effective'
               case 'Observation': return 'date';
-              case 'Procedure': return 'performed';
+              case 'Procedure': return 'date'; // 'performed' is not standard, use 'date'
               case 'Encounter': return 'date';
               case 'Immunization': return 'date';
               case 'DocumentReference': return 'date';
               case 'DiagnosticReport': return 'date';
-              case 'AllergyIntolerance': return 'date';
+              case 'AllergyIntolerance': return 'recorded-date';
               default: return 'date';
             }
           })();
-          
+
           if (dateRange.start && dateRange.end) {
-            params[dateParam] = `ge${dateRange.start.toISOString().split('T')[0]}&${dateParam}=le${dateRange.end.toISOString().split('T')[0]}`;
+            // Use array for proper FHIR query encoding (avoids URL-encoding & in values)
+            params[dateParam] = [
+              `ge${dateRange.start.toISOString().split('T')[0]}`,
+              `le${dateRange.end.toISOString().split('T')[0]}`
+            ];
           }
           
           try {

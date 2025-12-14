@@ -138,7 +138,9 @@ services:
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
       - ENVIRONMENT=${ENVIRONMENT:-development}
     networks:
-      - emr-network
+      emr-network:
+        aliases:
+          - backend  # Alias so nginx config works for both dev and prod
     depends_on:
       postgres:
         condition: service_healthy
@@ -172,7 +174,9 @@ services:
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
       - ENVIRONMENT=${ENVIRONMENT:-production}
     networks:
-      - emr-network
+      emr-network:
+        aliases:
+          - backend  # Alias so nginx config works for both dev and prod
     depends_on:
       postgres:
         condition: service_healthy
