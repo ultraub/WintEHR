@@ -54,59 +54,112 @@ class CDSStudioService:
         search: Optional[str] = None
     ) -> ServiceListResponse:
         """
-        Get list of all CDS services from HAPI FHIR with optional filtering.
+        Get list of all CDS services with optional filtering.
+
+        Hybrid approach:
+        1. Built-in services from ServiceRegistry (Python implementations)
+        2. External/custom services from HAPI FHIR PlanDefinitions
         """
+        services = []
+        seen_service_ids = set()
+
         try:
-            # Build FHIR search parameters
-            params = {
-                "status": "active,draft",
-                "_count": "100"
-            }
+            # 1. Get built-in services from ServiceRegistry
+            if origin is None or origin == ServiceOrigin.BUILT_IN:
+                try:
+                    from api.cds_hooks.registry import get_registry
+                    registry = get_registry()
+                    registry_services = registry.list_services(enabled_only=True)
 
-            # Search HAPI FHIR for PlanDefinition resources
-            bundle = await self.hapi_client.search("PlanDefinition", params)
+                    for svc in registry_services:
+                        service_id = svc.service_id
+                        service_hook_type = HookType(svc.hook_type.value)
 
-            services = []
-            for entry in bundle.get("entry", []):
-                resource = entry.get("resource", {})
+                        # Apply filters
+                        if hook_type and service_hook_type != hook_type:
+                            continue
+                        if search and search.lower() not in svc.title.lower() and search.lower() not in service_id.lower():
+                            continue
 
-                # Extract extensions
-                extensions = {
-                    ext["url"].split("/")[-1]: ext.get(f"value{ext['url'].split('value')[-1] if 'value' in ext['url'] else 'String'}", ext.get("valueString", ext.get("valueCode", ext.get("valueInteger"))))
-                    for ext in resource.get("extension", [])
+                        # Get metrics from database (if available)
+                        metrics = await self._get_service_metrics_summary(service_id)
+
+                        # Generate stable integer ID from service_id
+                        list_item_id = abs(hash(service_id)) % 100000
+
+                        services.append(ServiceListItem(
+                            id=list_item_id,
+                            service_id=service_id,
+                            title=svc.title,
+                            hook_type=service_hook_type,
+                            origin=ServiceOrigin.BUILT_IN,
+                            status=ServiceStatus.ACTIVE,
+                            version="1.0.0",
+                            last_executed=metrics.get("last_executed"),
+                            execution_count_24h=metrics.get("count_24h", 0),
+                            success_rate=metrics.get("success_rate", 0.0)
+                        ))
+                        seen_service_ids.add(service_id)
+
+                    logger.info(f"CDS Studio: Found {len(registry_services)} built-in services from ServiceRegistry")
+                except Exception as e:
+                    logger.warning(f"Failed to get services from ServiceRegistry: {e}")
+
+            # 2. Get external/custom services from HAPI FHIR PlanDefinitions
+            try:
+                params = {
+                    "status": "active,draft",
+                    "_count": "100"
                 }
+                bundle = await self.hapi_client.search("PlanDefinition", params)
 
-                service_origin = ServiceOrigin(extensions.get("service-origin", "built-in"))
-                service_hook_type = HookType(extensions.get("hook-type", "patient-view"))
-                service_id = extensions.get("hook-service-id", resource.get("id"))
+                for entry in bundle.get("entry", []):
+                    resource = entry.get("resource", {})
 
-                # Apply filters
-                if hook_type and service_hook_type != hook_type:
-                    continue
-                if origin and service_origin != origin:
-                    continue
-                if search and search.lower() not in resource.get("title", "").lower() and search.lower() not in service_id.lower():
-                    continue
+                    # Extract extensions
+                    extensions = {
+                        ext["url"].split("/")[-1]: ext.get(f"value{ext['url'].split('value')[-1] if 'value' in ext['url'] else 'String'}", ext.get("valueString", ext.get("valueCode", ext.get("valueInteger"))))
+                        for ext in resource.get("extension", [])
+                    }
 
-                # Get metrics from database (if available)
-                metrics = await self._get_service_metrics_summary(service_id)
+                    service_origin = ServiceOrigin(extensions.get("service-origin", "built-in"))
+                    service_hook_type = HookType(extensions.get("hook-type", "patient-view"))
+                    service_id = extensions.get("hook-service-id", resource.get("id"))
 
-                # Generate stable integer ID from service_id (hash-based)
-                # For external services, use hash of UUID; for built-in, use hash of service_id
-                list_item_id = abs(hash(service_id)) % 100000
+                    # Skip if already added from ServiceRegistry
+                    if service_id in seen_service_ids:
+                        continue
 
-                services.append(ServiceListItem(
-                    id=list_item_id,
-                    service_id=service_id,
-                    title=resource.get("title", service_id),
-                    hook_type=service_hook_type,
-                    origin=service_origin,
-                    status=ServiceStatus(resource.get("status", "active")),
-                    version=extensions.get("version", "1.0.0"),
-                    last_executed=metrics.get("last_executed"),
-                    execution_count_24h=metrics.get("count_24h", 0),
-                    success_rate=metrics.get("success_rate", 0.0)
-                ))
+                    # Apply filters
+                    if hook_type and service_hook_type != hook_type:
+                        continue
+                    if origin and service_origin != origin:
+                        continue
+                    if search and search.lower() not in resource.get("title", "").lower() and search.lower() not in service_id.lower():
+                        continue
+
+                    # Get metrics from database (if available)
+                    metrics = await self._get_service_metrics_summary(service_id)
+
+                    # Generate stable integer ID from service_id
+                    list_item_id = abs(hash(service_id)) % 100000
+
+                    services.append(ServiceListItem(
+                        id=list_item_id,
+                        service_id=service_id,
+                        title=resource.get("title", service_id),
+                        hook_type=service_hook_type,
+                        origin=service_origin,
+                        status=ServiceStatus(resource.get("status", "active")),
+                        version=extensions.get("version", "1.0.0"),
+                        last_executed=metrics.get("last_executed"),
+                        execution_count_24h=metrics.get("count_24h", 0),
+                        success_rate=metrics.get("success_rate", 0.0)
+                    ))
+                    seen_service_ids.add(service_id)
+
+            except Exception as e:
+                logger.warning(f"Failed to get services from HAPI FHIR: {e}")
 
             return ServiceListResponse(
                 services=services,
@@ -126,9 +179,54 @@ class CDSStudioService:
     async def get_service_configuration(self, service_id: str) -> Optional[ServiceConfiguration]:
         """
         Get complete configuration for a service.
+
+        Checks both ServiceRegistry (built-in) and HAPI FHIR (external).
         """
         try:
-            # Get PlanDefinition from HAPI FHIR
+            # 1. First check ServiceRegistry for built-in services
+            try:
+                from api.cds_hooks.registry import get_registry
+                registry = get_registry()
+                registered_service = registry.get(service_id)
+
+                if registered_service:
+                    # Build configuration from registered service
+                    metadata = ServiceMetadata(
+                        service_id=service_id,
+                        title=registered_service.title,
+                        description=registered_service.description,
+                        hook_type=HookType(registered_service.hook_type.value),
+                        origin=ServiceOrigin.BUILT_IN,
+                        status=ServiceStatus.ACTIVE,
+                        version="1.0.0"
+                    )
+
+                    # Get prefetch template from service
+                    prefetch_template = registered_service.prefetch_templates
+
+                    # Build a synthetic PlanDefinition for display purposes
+                    plan_def = self._build_plan_definition(
+                        service_id=service_id,
+                        title=registered_service.title,
+                        description=registered_service.description,
+                        hook_type=HookType(registered_service.hook_type.value),
+                        prefetch_template=prefetch_template,
+                        service_origin="built-in",
+                        python_class_path=f"{registered_service.__class__.__module__}.{registered_service.__class__.__name__}"
+                    )
+
+                    return ServiceConfiguration(
+                        metadata=metadata,
+                        prefetch_template=prefetch_template,
+                        python_class_path=f"{registered_service.__class__.__module__}.{registered_service.__class__.__name__}",
+                        source_code=None,
+                        plan_definition_id=service_id,
+                        plan_definition=plan_def
+                    )
+            except Exception as e:
+                logger.debug(f"Service {service_id} not found in ServiceRegistry: {e}")
+
+            # 2. Fall back to HAPI FHIR PlanDefinition
             plan_def = await self._get_plan_definition(service_id)
             if not plan_def:
                 return None
@@ -172,25 +270,67 @@ class CDSStudioService:
     async def get_configuration_breakdown(self, service_id: str) -> Optional[ConfigurationView]:
         """
         Get configuration view with JSON + human-readable breakdown.
+
+        Checks both ServiceRegistry (built-in) and HAPI FHIR (external).
         """
         try:
-            plan_def = await self._get_plan_definition(service_id)
-            if not plan_def:
-                return None
+            plan_def = None
+            service_origin = "built-in"
+            hook_type = "patient-view"
+            python_class_path = None
 
-            extensions = self._extract_extensions(plan_def)
-            service_origin = extensions.get("service-origin", "built-in")
-            hook_type = extensions.get("hook-type", "patient-view")
+            # 1. First check ServiceRegistry for built-in services
+            try:
+                from api.cds_hooks.registry import get_registry
+                registry = get_registry()
+                registered_service = registry.get(service_id)
+
+                if registered_service:
+                    service_origin = "built-in"
+                    hook_type = registered_service.hook_type.value
+                    python_class_path = f"{registered_service.__class__.__module__}.{registered_service.__class__.__name__}"
+
+                    # Build a synthetic PlanDefinition for display purposes
+                    plan_def = self._build_plan_definition(
+                        service_id=service_id,
+                        title=registered_service.title,
+                        description=registered_service.description,
+                        hook_type=HookType(hook_type),
+                        prefetch_template=registered_service.prefetch_templates,
+                        service_origin="built-in",
+                        python_class_path=python_class_path
+                    )
+            except Exception as e:
+                logger.debug(f"Service {service_id} not found in ServiceRegistry: {e}")
+
+            # 2. Fall back to HAPI FHIR PlanDefinition
+            if not plan_def:
+                plan_def = await self._get_plan_definition(service_id)
+                if not plan_def:
+                    return None
+
+                extensions = self._extract_extensions(plan_def)
+                service_origin = extensions.get("service-origin", "built-in")
+                hook_type = extensions.get("hook-type", "patient-view")
+                python_class_path = extensions.get("python-class")
 
             # Build breakdown
+            extensions_dict = {"python-class": python_class_path} if python_class_path else {}
+            prefetch_str = None
+            if plan_def:
+                for ext in plan_def.get("extension", []):
+                    if ext.get("url", "").endswith("prefetch-template"):
+                        prefetch_str = ext.get("valueString")
+                        break
+
             breakdown = ServiceBreakdown(
                 service_origin=service_origin,
                 service_origin_explanation=self._get_origin_explanation(service_origin),
                 hook_type=hook_type,
                 hook_type_description=self._get_hook_description(hook_type),
                 execution_method=self._get_execution_method(service_origin),
-                execution_details=self._get_execution_details(service_origin, extensions),
-                prefetch_summary=self._get_prefetch_summary(extensions.get("prefetch-template")),
+                execution_details=self._get_execution_details(service_origin, extensions_dict),
+                prefetch_summary=self._get_prefetch_summary(prefetch_str),
                 extensions=[
                     {
                         "url": ext["url"],
