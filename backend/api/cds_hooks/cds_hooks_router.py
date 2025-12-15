@@ -486,10 +486,36 @@ async def execute_service(
                     logger.error(f"External service metadata not found: {external_service_id}")
                     raise HTTPException(status_code=500, detail="External service not registered")
 
+                # Resolve prefetch for external services
+                # External services often require prefetch data to function correctly
+                resolved_prefetch = request.prefetch or {}
+                if not resolved_prefetch:
+                    # Get prefetch template from PlanDefinition extension
+                    prefetch_template = _build_prefetch_from_plan_definition(plan_definition)
+                    if prefetch_template:
+                        try:
+                            logger.info(f"Resolving prefetch for external service {service_id}: {list(prefetch_template.keys())}")
+                            context = request.context if isinstance(request.context, dict) else request.context.dict()
+                            prefetch_context = {"context": context}
+                            resolved_prefetch = await execute_prefetch(prefetch_template, prefetch_context)
+                            logger.info(f"Resolved prefetch keys for external service: {list(resolved_prefetch.keys())}")
+                        except Exception as e:
+                            logger.warning(f"Failed to resolve prefetch for external service {service_id}: {e}")
+
+                # Create updated request with resolved prefetch
+                updated_request = CDSHookRequest(
+                    hook=request.hook,
+                    hookInstance=request.hookInstance,
+                    fhirServer=request.fhirServer,
+                    fhirAuthorization=request.fhirAuthorization,
+                    context=request.context,
+                    prefetch=resolved_prefetch
+                )
+
                 provider = RemoteServiceProvider(db)
                 response = await provider.execute(
                     plan_definition,
-                    request,
+                    updated_request,
                     service_metadata=dict(service_metadata)
                 )
                 cards = response.cards
