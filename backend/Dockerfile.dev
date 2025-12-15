@@ -47,9 +47,9 @@ RUN set -e && \
     ls -lh /app/synthea/build/libs/synthea-with-dependencies.jar && \
     echo "Synthea JAR successfully downloaded and verified!"
 
-# Make entrypoint executable (if it exists)
-COPY docker-entrypoint.sh* ./
-RUN chmod +x docker-entrypoint.sh 2>/dev/null || true
+# Copy and make entrypoint executable
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
 
 # Expose port
 EXPOSE 8000
@@ -57,6 +57,9 @@ EXPOSE 8000
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
+
+# Set entrypoint for initialization (Synthea check, DB verification, etc.)
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # Development command with hot reload
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app"]

@@ -90,10 +90,26 @@ echo "ℹ️ FHIR resource management handled by HAPI FHIR server"
 
 # Create necessary directories
 echo "Creating directories..."
-mkdir -p /app/data/generated_dicoms /app/data/dicom_uploads /app/logs
+mkdir -p /app/data/generated_dicoms /app/data/dicom_uploads /app/logs /app/synthea/build/libs /app/synthea/output
 
 # Set permissions
 chmod -R 755 /app/data
+
+# Ensure Synthea JAR exists (may be missing if volume mount overwrites /app)
+SYNTHEA_JAR="/app/synthea/build/libs/synthea-with-dependencies.jar"
+if [ ! -f "$SYNTHEA_JAR" ]; then
+    echo "📦 Synthea JAR not found, downloading..."
+    curl -fL --progress-bar --retry 3 --retry-delay 5 \
+        https://github.com/synthetichealth/synthea/releases/download/v3.3.0/synthea-with-dependencies.jar \
+        -o "$SYNTHEA_JAR"
+    if [ -f "$SYNTHEA_JAR" ] && [ -s "$SYNTHEA_JAR" ]; then
+        echo "✅ Synthea JAR downloaded successfully"
+    else
+        echo "⚠️ Failed to download Synthea JAR - patient generation may not work"
+    fi
+else
+    echo "✅ Synthea JAR found"
+fi
 
 # Ensure we're in the correct directory for the application
 cd /app
