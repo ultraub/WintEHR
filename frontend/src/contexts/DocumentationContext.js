@@ -6,9 +6,15 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { useClinical } from './ClinicalContext';
 import { useFHIRResource } from './FHIRResourceContext';
-import { useClinicalWorkflow } from './ClinicalWorkflowContext';
+import ClinicalWorkflowContext from './ClinicalWorkflowContext';
 import { documentReferenceConverter } from '../core/fhir/converters/DocumentReferenceConverter';
 import { CLINICAL_EVENTS } from '../constants/clinicalEvents';
+
+// Safe hook that returns null if ClinicalWorkflowProvider isn't available
+// This allows DocumentationProvider to work outside of ClinicalWorkflowProvider
+const useClinicalWorkflowSafe = () => {
+  return useContext(ClinicalWorkflowContext);
+};
 
 const DocumentationContext = createContext(undefined);
 
@@ -23,7 +29,9 @@ export const useDocumentation = () => {
 export const DocumentationProvider = ({ children }) => {
   const { currentPatient, currentEncounter, setCurrentNote: setClinicalContextNote } = useClinical();
   const { refreshPatientResources } = useFHIRResource();
-  const { publish } = useClinicalWorkflow();
+  // Use safe version that doesn't throw if ClinicalWorkflowProvider isn't available
+  const clinicalWorkflow = useClinicalWorkflowSafe();
+  const publish = clinicalWorkflow?.publish || (() => {});
   const [currentNote, setCurrentNote] = useState(null);
   const [noteTemplates, setNoteTemplates] = useState([]);
   const [recentNotes, setRecentNotes] = useState([]);
