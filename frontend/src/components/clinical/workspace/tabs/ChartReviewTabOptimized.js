@@ -463,7 +463,7 @@ const ChartReviewTabOptimized = ({
       // Determine if this is an update or create based on whether the resource has an ID
       const isUpdate = resource.id && selectedResource?.id === resource.id;
       let result;
-      
+
       if (isUpdate) {
         // Update existing resource
         result = await fhirClient.update(resource.resourceType, resource.id, resource);
@@ -477,10 +477,15 @@ const ChartReviewTabOptimized = ({
         addResource(resource.resourceType, result);
         enqueueSnackbar(`${resource.resourceType} created successfully`, { variant: 'success' });
       }
-      
-      // Don't refresh - real-time updates will handle the change
-      // Save complete, real-time updates will handle refresh
-      
+
+      // Dispatch fhir-resources-updated event to trigger FHIRResourceContext refresh
+      // This ensures all caches are properly invalidated and fresh data is fetched
+      if (patientId) {
+        window.dispatchEvent(new CustomEvent('fhir-resources-updated', {
+          detail: { patientId }
+        }));
+      }
+
       // Return the saved resource
       return result;
     } catch (error) {
@@ -488,7 +493,7 @@ const ChartReviewTabOptimized = ({
       enqueueSnackbar(`Failed to save ${resource.resourceType}. Please try again.`, { variant: 'error' });
       throw error; // Re-throw to let dialog handle error state
     }
-  }, [selectedResource, enqueueSnackbar, refresh]);
+  }, [selectedResource, enqueueSnackbar, patientId, updateResource, addResource]);
   
   // Search and filter handlers
   const handleSearch = useCallback((query) => {

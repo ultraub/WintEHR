@@ -6,7 +6,9 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { useClinical } from './ClinicalContext';
 import { useFHIRResource } from './FHIRResourceContext';
+import { useClinicalWorkflow } from './ClinicalWorkflowContext';
 import { documentReferenceConverter } from '../core/fhir/converters/DocumentReferenceConverter';
+import { CLINICAL_EVENTS } from '../constants/clinicalEvents';
 
 const DocumentationContext = createContext(undefined);
 
@@ -21,6 +23,7 @@ export const useDocumentation = () => {
 export const DocumentationProvider = ({ children }) => {
   const { currentPatient, currentEncounter, setCurrentNote: setClinicalContextNote } = useClinical();
   const { refreshPatientResources } = useFHIRResource();
+  const { publish } = useClinicalWorkflow();
   const [currentNote, setCurrentNote] = useState(null);
   const [noteTemplates, setNoteTemplates] = useState([]);
   const [recentNotes, setRecentNotes] = useState([]);
@@ -332,6 +335,14 @@ export const DocumentationProvider = ({ children }) => {
       setClinicalContextNote(savedNote);
       setIsDirty(false);
 
+      // Publish clinical event for cross-module updates
+      const isNewNote = !currentNote.id;
+      const eventType = isNewNote ? CLINICAL_EVENTS.DOCUMENT_CREATED : CLINICAL_EVENTS.DOCUMENT_UPDATED;
+      publish(eventType, {
+        resource: result,
+        patientId: currentPatient.id
+      });
+
       // Refresh patient resources to update all contexts
       if (currentPatient?.id) {
         await refreshPatientResources(currentPatient.id);
@@ -367,8 +378,14 @@ export const DocumentationProvider = ({ children }) => {
         valueDateTime: new Date().toISOString()
       });
       
-      await fhirClient.update('DocumentReference', currentNote.id, fhirDoc);
-      
+      const result = await fhirClient.update('DocumentReference', currentNote.id, fhirDoc);
+
+      // Publish clinical event for cross-module updates
+      publish(CLINICAL_EVENTS.DOCUMENT_UPDATED, {
+        resource: result,
+        patientId: currentPatient?.id
+      });
+
       // Refresh patient resources to update all contexts
       if (currentPatient?.id) {
         await refreshPatientResources(currentPatient.id);
@@ -434,6 +451,12 @@ export const DocumentationProvider = ({ children }) => {
 
       const result = await fhirClient.create('DocumentReference', fhirDoc);
 
+      // Publish clinical event for cross-module updates
+      publish(CLINICAL_EVENTS.DOCUMENT_CREATED, {
+        resource: result,
+        patientId: currentPatient.id
+      });
+
       // Refresh patient resources to update all contexts
       if (currentPatient?.id) {
         await refreshPatientResources(currentPatient.id);
@@ -441,10 +464,10 @@ export const DocumentationProvider = ({ children }) => {
 
       // Reload recent notes
       await loadRecentNotes(currentPatient.id);
-      
+
       return result;
     } catch (error) {
-      
+
       throw error;
     }
   };
