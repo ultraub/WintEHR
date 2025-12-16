@@ -90,7 +90,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
               await fetchPatientEverything(patientId, {
                 types: ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Observation', 'Encounter'],
                 count: 200, // Higher count to ensure we get all critical resources
-                autoSince: true, // Auto-calculate _since for 3 months
+                autoSince: false, // Disabled - was excluding older medications/conditions
                 forceRefresh: false
               });
             } catch (everythingError) {

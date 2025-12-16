@@ -865,13 +865,13 @@ export function FHIRResourceProvider({ children }) {
 
   // New optimized $everything-based patient bundle fetch
   const fetchPatientEverything = useCallback(async (patientId, options = {}) => {
-    const { 
-      types = null, 
-      since = null, 
+    const {
+      types = null,
+      since = null,
       count = 50, // Reduced default from 200 to 50
       offset = 0,
       forceRefresh = false,
-      autoSince = true // Auto-calculate _since if not provided
+      autoSince = false // Disabled by default - time filter was excluding older clinical data
     } = options;
     
     // Build cache key from parameters
@@ -1407,7 +1407,7 @@ export function FHIRResourceProvider({ children }) {
           await fetchPatientEverything(patientId, {
             types: ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Observation', 'Encounter'],
             count: 100,
-            autoSince: true, // Last 3 months
+            autoSince: false, // Disabled - was excluding older medications/conditions
             forceRefresh: false
           });
         } catch (everythingError) {
