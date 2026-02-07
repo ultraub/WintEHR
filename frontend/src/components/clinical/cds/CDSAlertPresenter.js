@@ -42,6 +42,7 @@ import {
   Launch as LaunchIcon
 } from '@mui/icons-material';
 import { clinicalCDSService } from '../../../services/clinicalCDSService';
+import DOMPurify from 'dompurify';
 
 // Alert presentation modes
 export const ALERT_MODES = {
@@ -285,7 +286,7 @@ const CDSAlertPresenter = ({
                 variant="body2" 
                 color="text.secondary" 
                 paragraph
-                dangerouslySetInnerHTML={{ __html: alert.displayDetail }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(alert.displayDetail || '') }}
               />
               
               {/* Links */}
@@ -741,7 +742,7 @@ const CDSAlertPresenter = ({
             <Box>
               <Alert severity={SEVERITY_CONFIG[selectedAlert.indicator]?.color || 'info'} sx={{ mb: 2 }}>
                 <AlertTitle>{selectedAlert.displaySummary}</AlertTitle>
-                <Typography variant="body2" dangerouslySetInnerHTML={{ __html: selectedAlert.displayDetail }} />
+                <Typography variant="body2" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selectedAlert.displayDetail || '') }} />
               </Alert>
               
               <TextField

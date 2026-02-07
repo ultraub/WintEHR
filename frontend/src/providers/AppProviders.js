@@ -11,6 +11,7 @@ import { AppointmentProvider } from '../contexts/AppointmentContext';
 import { ClinicalWorkflowProvider } from '../contexts/ClinicalWorkflowContext';
 import { CDSProvider } from '../contexts/CDSContext';
 import { ProviderDirectoryProvider } from '../contexts/ProviderDirectoryContext';
+import { SMARTProvider } from '../contexts/SMARTContext';
 import { createCompoundProvider } from '../utils/providerOptimization';
 
 // Create compound providers to reduce nesting depth
@@ -21,7 +22,8 @@ const CoreDataProvider = createCompoundProvider([
   AuthProvider,
   FHIRResourceProvider,
   ProviderDirectoryProvider,
-  CDSProvider
+  CDSProvider,
+  SMARTProvider  // SMART on FHIR app integration
 ]);
 
 // Clinical domain providers (often update together)

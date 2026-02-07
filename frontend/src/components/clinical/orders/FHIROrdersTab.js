@@ -46,6 +46,7 @@ import { cdsHooksClient } from '../../../services/cdsHooksClient';
 import { useAuth } from '../../../contexts/AuthContext';
 import { enhancedOrderSearchService } from '../../../services/enhancedOrderSearch';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
+import { MedicationOrderFields, LabOrderFields, ImagingOrderFields } from './fields';
 
 const TabPanel = ({ children, value, index }) => (
   <div hidden={value !== index} style={{ paddingTop: 16 }}>
@@ -71,7 +72,37 @@ const FHIROrdersTab = () => {
     display: '',
     priority: 'routine',
     instructions: '',
-    reason: ''
+    reason: '',
+    // Medication fields
+    dose: '',
+    doseUnit: 'mg',
+    route: 'oral',
+    frequency: 'daily',
+    duration: '',
+    durationUnit: 'days',
+    prn: false,
+    prnReason: '',
+    dispenseQuantity: '',
+    dispenseUnit: 'tablets',
+    refills: 0,
+    genericAllowed: true,
+    // Lab fields
+    specimenType: '',
+    specimenSource: '',
+    fastingRequired: false,
+    statCollection: false,
+    collectionDateTime: '',
+    specialInstructions: '',
+    // Imaging fields
+    modality: '',
+    bodySite: '',
+    laterality: 'na',
+    contrastRequired: false,
+    contrastNotes: '',
+    transportMode: 'ambulatory',
+    isolationRequired: false,
+    scheduledDateTime: '',
+    clinicalHistory: ''
   });
   const [cdsAlerts, setCdsAlerts] = useState([]);
   const [showCdsAlertDialog, setShowCdsAlertDialog] = useState(false);
@@ -405,15 +436,18 @@ const FHIROrdersTab = () => {
           medication_details: {
             medication_name: orderResource.medicationCodeableConcept?.text || newOrder.display,
             medication_code: orderResource.medicationCodeableConcept?.coding?.[0]?.code,
-            dose: 1, // Default - form should capture this
-            dose_unit: 'unit',
-            route: 'oral', // Default - form should capture this
-            frequency: 'daily', // Default - form should capture this
-            prn: false,
-            dispense_quantity: 30,
-            dispense_unit: 'tablets',
-            refills: 0,
-            generic_allowed: true,
+            dose: parseFloat(newOrder.dose) || 1,
+            dose_unit: newOrder.doseUnit || 'mg',
+            route: newOrder.route || 'oral',
+            frequency: newOrder.frequency || 'daily',
+            duration: newOrder.duration ? parseInt(newOrder.duration) : null,
+            duration_unit: newOrder.durationUnit || 'days',
+            prn: newOrder.prn || false,
+            prn_reason: newOrder.prnReason || null,
+            dispense_quantity: parseInt(newOrder.dispenseQuantity) || 30,
+            dispense_unit: newOrder.dispenseUnit || 'tablets',
+            refills: parseInt(newOrder.refills) || 0,
+            generic_allowed: newOrder.genericAllowed !== false,
             pharmacy_notes: newOrder.instructions
           },
           override_alerts: cdsAlerts.length > 0 // If we got here with alerts, user acknowledged them
@@ -451,21 +485,28 @@ const FHIROrdersTab = () => {
         if (category === '363679005' || orderType === 'imaging') {
           endpoint = '/api/clinical/orders/imaging';
           orderPayload.imaging_details = {
-            modality: newOrder.display.split(' ')[0] || 'XR', // Extract modality from display
-            body_site: null,
-            laterality: null,
-            contrast: false,
-            reason_for_exam: newOrder.reason,
-            transport_mode: 'ambulatory'
+            modality: newOrder.modality || 'XR',
+            body_site: newOrder.bodySite || null,
+            laterality: newOrder.laterality !== 'na' ? newOrder.laterality : null,
+            contrast: newOrder.contrastRequired || false,
+            contrast_notes: newOrder.contrastNotes || null,
+            reason_for_exam: newOrder.reason || newOrder.clinicalHistory,
+            clinical_history: newOrder.clinicalHistory || null,
+            transport_mode: newOrder.transportMode || 'ambulatory',
+            isolation_required: newOrder.isolationRequired || false,
+            scheduled_datetime: newOrder.scheduledDateTime || null
           };
         } else {
           // Laboratory order
           orderPayload.laboratory_details = {
             test_name: newOrder.display,
             test_code: orderResource.code?.coding?.[0]?.code,
-            specimen_type: null,
-            fasting_required: false,
-            special_instructions: newOrder.instructions
+            specimen_type: newOrder.specimenType || null,
+            specimen_source: newOrder.specimenSource || null,
+            fasting_required: newOrder.fastingRequired || false,
+            stat_collection: newOrder.statCollection || false,
+            collection_datetime: newOrder.collectionDateTime || null,
+            special_instructions: newOrder.specialInstructions || newOrder.instructions
           };
         }
         
@@ -482,7 +523,37 @@ const FHIROrdersTab = () => {
         display: '',
         priority: 'routine',
         instructions: '',
-        reason: ''
+        reason: '',
+        // Medication fields
+        dose: '',
+        doseUnit: 'mg',
+        route: 'oral',
+        frequency: 'daily',
+        duration: '',
+        durationUnit: 'days',
+        prn: false,
+        prnReason: '',
+        dispenseQuantity: '',
+        dispenseUnit: 'tablets',
+        refills: 0,
+        genericAllowed: true,
+        // Lab fields
+        specimenType: '',
+        specimenSource: '',
+        fastingRequired: false,
+        statCollection: false,
+        collectionDateTime: '',
+        specialInstructions: '',
+        // Imaging fields
+        modality: '',
+        bodySite: '',
+        laterality: 'na',
+        contrastRequired: false,
+        contrastNotes: '',
+        transportMode: 'ambulatory',
+        isolationRequired: false,
+        scheduledDateTime: '',
+        clinicalHistory: ''
       });
     } catch (error) {
       console.error('Failed to create order via backend:', error);
@@ -868,6 +939,26 @@ const FHIROrdersTab = () => {
                 onChange={(e) => setNewOrder({ ...newOrder, reason: e.target.value })}
               />
             </Grid>
+
+            {/* Order Type-Specific Fields */}
+            {orderType === 'medication' && (
+              <MedicationOrderFields
+                values={newOrder}
+                onChange={setNewOrder}
+              />
+            )}
+            {orderType === 'lab' && (
+              <LabOrderFields
+                values={newOrder}
+                onChange={setNewOrder}
+              />
+            )}
+            {orderType === 'imaging' && (
+              <ImagingOrderFields
+                values={newOrder}
+                onChange={setNewOrder}
+              />
+            )}
           </Grid>
         </DialogContent>
         <DialogActions>

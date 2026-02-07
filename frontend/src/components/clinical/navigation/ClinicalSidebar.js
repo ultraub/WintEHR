@@ -41,10 +41,13 @@ import {
   Favorite as FavoritesIcon,
   Settings as SettingsIcon,
   Help as HelpIcon,
+  Apps as AppsIcon,
   ExpandLess,
   ExpandMore
 } from '@mui/icons-material';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
+import { useSMART } from '../../../contexts/SMARTContext';
+import SMARTAppLauncher from '../../smart/SMARTAppLauncher';
 
 // Sidebar width constants
 const SIDEBAR_WIDTH = 280;
@@ -139,7 +142,9 @@ const ClinicalSidebar = ({
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [patientSectionOpen, setPatientSectionOpen] = useState(true);
   const [recentPatientsOpen, setRecentPatientsOpen] = useState(false);
+  const [smartDrawerOpen, setSmartDrawerOpen] = useState(false);
   const { notifications } = useClinicalWorkflow();
+  const { runningAppCount } = useSMART();
 
   // Get notification counts for badges
   const getNotificationCount = (moduleId) => {
@@ -381,6 +386,27 @@ const ClinicalSidebar = ({
 
       {/* Bottom Actions */}
       <List sx={{ py: 1 }}>
+        {/* SMART Apps Launcher */}
+        <ListItem disablePadding sx={{ px: 1 }}>
+          <Tooltip title={collapsed ? 'SMART Apps' : ''} placement="right">
+            <ListItemButton
+              onClick={() => setSmartDrawerOpen(true)}
+              sx={{ borderRadius: 1 }}
+            >
+              <ListItemIcon sx={{ minWidth: collapsed ? 0 : 56 }}>
+                <Badge
+                  badgeContent={runningAppCount}
+                  color="success"
+                  invisible={runningAppCount === 0}
+                >
+                  <AppsIcon color="primary" />
+                </Badge>
+              </ListItemIcon>
+              {!collapsed && <ListItemText primary="SMART Apps" />}
+            </ListItemButton>
+          </Tooltip>
+        </ListItem>
+
         <ListItem disablePadding sx={{ px: 1 }}>
           <Tooltip title={collapsed ? 'Settings' : ''} placement="right">
             <ListItemButton sx={{ borderRadius: 1 }}>
@@ -403,6 +429,12 @@ const ClinicalSidebar = ({
           </Tooltip>
         </ListItem>
       </List>
+
+      {/* SMART App Launcher Drawer */}
+      <SMARTAppLauncher
+        open={smartDrawerOpen}
+        onClose={() => setSmartDrawerOpen(false)}
+      />
     </Box>
   );
 

@@ -47,7 +47,15 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Authentication router registered")
     except Exception as e:
         logger.error(f"Failed to register auth router: {e}")
-    
+
+    # 2b. SMART on FHIR Authorization
+    try:
+        from api.smart.router import router as smart_router
+        app.include_router(smart_router, tags=["SMART on FHIR"])
+        logger.info("✓ SMART on FHIR router registered")
+    except Exception as e:
+        logger.error(f"Failed to register SMART router: {e}")
+
     # 3. Clinical Workflows
     try:
         from api.catalogs import router as catalogs_router

@@ -1025,46 +1025,22 @@ const ImagingTab = ({
     }
   };
 
+  /**
+   * Extract study directory from study object.
+   * Uses studyDirectory property if available, otherwise falls back to standard format.
+   * Backend expects format: study_{id}
+   */
   const extractStudyDirectory = (studyObj) => {
-    // Same logic as in DICOMViewer
-    if (studyObj.studyDirectory) {
+    // Primary: Use studyDirectory property (set during loading)
+    if (studyObj?.studyDirectory) {
       return studyObj.studyDirectory;
     }
-    
-    // Check for DICOM directory in extensions
-    if (studyObj.extension) {
-      const dicomDirExt = studyObj.extension.find(
-        ext => ext.url === EXTENSION_URLS.DICOM_DIRECTORY
-      );
-      if (dicomDirExt && dicomDirExt.valueString) {
-        return dicomDirExt.valueString;
-      }
-    }
-    
-    // Try to derive from study ID
-    if (studyObj.id) {
-      // Determine study type from modality or description
-      let studyType = 'CT_CHEST'; // Default
 
-      const modalityCode = getStudyModalityCode(studyObj);
-      if (modalityCode) {
-        if (modalityCode === 'CT') {
-          studyType = studyObj.description?.toLowerCase().includes('head') ? 'CT_HEAD' : 'CT_CHEST';
-        } else if (modalityCode === 'MR') {
-          studyType = 'MR_BRAIN';
-        } else if (modalityCode === 'US') {
-          studyType = 'US_ABDOMEN';
-        } else if (modalityCode === 'CR' || modalityCode === 'DX') {
-          studyType = 'XR_CHEST';
-        }
-      }
-
-      // Generate directory name based on our convention
-      return `${studyType}_${studyObj.id.replace(/-/g, '')}`;
+    // Fallback: Use standard format matching backend convention
+    if (studyObj?.id) {
+      return `study_${studyObj.id}`;
     }
-    
-    // Should not reach here
-    // Unable to determine study directory - return null
+
     return null;
   };
   
