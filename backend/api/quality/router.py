@@ -134,7 +134,7 @@ async def calculate_preventive_screening_measure(db: AsyncSession, provider_id: 
                         if patient_id:
                             # Store patient reference
                             eligible_patients.add(f"Patient/{patient_id}")
-                except:
+                except (ValueError, TypeError):
                     pass
 
     denominator = len(eligible_patients)

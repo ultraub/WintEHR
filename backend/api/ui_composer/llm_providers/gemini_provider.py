@@ -124,7 +124,7 @@ Return only valid JSON, no markdown formatting."""
                 if response.startswith("json"):
                     response = response[4:]
             return json.loads(response.strip())
-        except:
+        except (json.JSONDecodeError, ValueError):
             return {"error": "Failed to parse FHIR queries", "raw": response}
             
     async def generate_ui_component(self, 

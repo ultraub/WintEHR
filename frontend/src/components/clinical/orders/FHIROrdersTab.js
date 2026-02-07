@@ -25,7 +25,8 @@ import {
   Alert,
   Grid,
   Card,
-  CardContent
+  CardContent,
+  Snackbar
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -110,6 +111,7 @@ const FHIROrdersTab = () => {
   const [patientAllergies, setPatientAllergies] = useState([]);
   // Order-Result linking: Track which orders have results
   const [orderResults, setOrderResults] = useState({}); // { orderId: { has_results, total_results, result_status } }
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
 
   useEffect(() => {
     if (currentPatient) {
@@ -259,7 +261,7 @@ const FHIROrdersTab = () => {
 
       setOrders({ medications, labs, imaging, procedures });
     } catch (error) {
-      
+      console.error('Failed to load orders:', error);
     } finally {
       setLoading(false);
     }
@@ -569,7 +571,7 @@ const FHIROrdersTab = () => {
         await submitOrder(pendingOrder);
       } catch (error) {
         console.error('Failed to create order:', error);
-        alert('Failed to create order: ' + error.message);
+        setSnackbar({ open: true, message: 'Failed to create order: ' + error.message, severity: 'error' });
       }
     }
   };
@@ -599,7 +601,7 @@ const FHIROrdersTab = () => {
       }
     } catch (error) {
       console.error('Failed to create order:', error);
-      alert('Failed to create order: ' + error.message);
+      setSnackbar({ open: true, message: 'Failed to create order: ' + error.message, severity: 'error' });
     }
   };
 
@@ -620,7 +622,7 @@ const FHIROrdersTab = () => {
       : 'Draft order deleted';
     
     if (action === 'discontinue' && !reason) {
-      alert('A reason is required to discontinue an order.');
+      setSnackbar({ open: true, message: 'A reason is required to discontinue an order.', severity: 'warning' });
       return;
     }
 
@@ -639,7 +641,7 @@ const FHIROrdersTab = () => {
       await loadOrders();
     } catch (error) {
       console.error('Failed to discontinue order:', error);
-      alert('Failed to discontinue order: ' + (error.response?.data?.detail || error.message));
+      setSnackbar({ open: true, message: 'Failed to discontinue order: ' + (error.response?.data?.detail || error.message), severity: 'error' });
     }
   };
 
@@ -1018,6 +1020,20 @@ const FHIROrdersTab = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+          severity={snackbar.severity}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

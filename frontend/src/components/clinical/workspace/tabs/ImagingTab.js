@@ -607,12 +607,9 @@ const ImagingTab = ({
 
   // Handle imaging study updates
   const handleImagingUpdate = useCallback((eventType, eventData) => {
-    console.log('[ImagingTab] Handling imaging update:', eventType, eventData);
-    
     const study = eventData.study || eventData.imagingStudy || eventData.resource;
-    
+
     if (!study) {
-      console.warn('[ImagingTab] No study in event data');
       return;
     }
 
@@ -671,8 +668,6 @@ const ImagingTab = ({
   useEffect(() => {
     if (!patientId) return;
 
-    console.log('[ImagingTab] Setting up real-time subscriptions for patient:', patientId);
-
     const subscriptions = [];
 
     // Subscribe to imaging-specific events
@@ -686,16 +681,8 @@ const ImagingTab = ({
 
     imagingEvents.forEach(eventType => {
       const unsubscribe = subscribe(eventType, (event) => {
-        console.log('[ImagingTab] Event received:', {
-          eventType,
-          eventPatientId: event.patientId,
-          currentPatientId: patientId,
-          event
-        });
-        
         // Handle update if the event is for the current patient
         if (event.patientId === patientId) {
-          console.log('[ImagingTab] Updating imaging tab for event:', eventType);
           handleImagingUpdate(eventType, event);
         }
       });
@@ -703,7 +690,6 @@ const ImagingTab = ({
     });
 
     return () => {
-      console.log('[ImagingTab] Cleaning up subscriptions');
       subscriptions.forEach(unsub => unsub());
     };
   }, [patientId, subscribe, handleImagingUpdate]);
@@ -711,8 +697,6 @@ const ImagingTab = ({
   // WebSocket patient room subscription for multi-user sync
   useEffect(() => {
     if (!patientId || !websocketService.isConnected) return;
-
-    console.log('[ImagingTab] Setting up WebSocket patient room subscription for:', patientId);
 
     let subscriptionId = null;
 
@@ -726,7 +710,6 @@ const ImagingTab = ({
         ];
 
         subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
-        console.log('[ImagingTab] Successfully subscribed to patient room:', subscriptionId);
       } catch (error) {
         console.error('[ImagingTab] Failed to subscribe to patient room:', error);
       }
@@ -736,7 +719,6 @@ const ImagingTab = ({
 
     return () => {
       if (subscriptionId) {
-        console.log('[ImagingTab] Unsubscribing from patient room:', subscriptionId);
         websocketService.unsubscribeFromPatient(subscriptionId);
       }
     };

@@ -477,7 +477,7 @@ def _build_pharmacy_queue_item(medication_request: Dict[str, Any]) -> PharmacyQu
     if medication_request.get('authoredOn'):
         try:
             prescribed_date = datetime.fromisoformat(medication_request['authoredOn'].replace('Z', '+00:00'))
-        except:
+        except (ValueError, TypeError):
             pass
 
     # Get pharmacy status
@@ -530,7 +530,7 @@ def _get_pharmacy_status(medication_request: Dict[str, Any]) -> str:
                 return 'pending'
             else:
                 return 'verified'
-        except:
+        except (ValueError, TypeError):
             pass
 
     return 'pending'
@@ -563,7 +563,7 @@ def _calculate_priority(medication_request: Dict[str, Any], pharmacy_status: str
                 priority = min(priority, 1)  # Highest priority
             elif hours_old > 12:  # Over 12 hours old
                 priority = min(priority, 2)  # High priority
-        except:
+        except (ValueError, TypeError):
             pass
 
     return priority
@@ -1176,12 +1176,12 @@ async def get_medication_administration_record(
             if admin.get("effectiveDateTime"):
                 try:
                     administered_at = datetime.fromisoformat(admin["effectiveDateTime"].replace("Z", "+00:00"))
-                except:
+                except (ValueError, TypeError):
                     pass
             elif admin.get("effectivePeriod", {}).get("start"):
                 try:
                     administered_at = datetime.fromisoformat(admin["effectivePeriod"]["start"].replace("Z", "+00:00"))
-                except:
+                except (ValueError, TypeError):
                     pass
             
             # Extract performer (who administered)

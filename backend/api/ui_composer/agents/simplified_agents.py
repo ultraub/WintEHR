@@ -224,9 +224,9 @@ Return a valid JSON object with components array and layout information."""
             if json_match:
                 try:
                     return json.loads(json_match.group())
-                except:
+                except (json.JSONDecodeError, ValueError):
                     pass
-                    
+
         # Return minimal spec if parsing fails
         return self._get_fallback_spec("Data visualization")
         

@@ -108,6 +108,7 @@ const CDSAlertPresenter = ({
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [snoozeMinutes, setSnoozeMinutes] = useState(60);
   const [acknowledgmentNotes, setAcknowledgmentNotes] = useState('');
+  const [hintMessage, setHintMessage] = useState('');
 
   // Process and sort alerts
   useEffect(() => {
@@ -565,6 +566,11 @@ const CDSAlertPresenter = ({
               ))}
             </DialogContent>
             
+            {hintMessage && (
+              <Alert severity="info" sx={{ mx: 2, mb: 1 }} onClose={() => setHintMessage('')}>
+                {hintMessage}
+              </Alert>
+            )}
             <DialogActions>
               <Button onClick={() => setModalOpen(false)}>Close</Button>
               {alerts.some(a => !acknowledgments.has(a.id)) && (
@@ -574,7 +580,7 @@ const CDSAlertPresenter = ({
                     if (requireAcknowledgment) {
                       // For required acknowledgment, they need to acknowledge individually
                       // with reasons, so we'll just close the modal
-                      alert('Please acknowledge each alert individually with a reason.');
+                      setHintMessage('Please acknowledge each alert individually with a reason.');
                     } else {
                       // Acknowledge all without reason
                       alerts.forEach(alert => {

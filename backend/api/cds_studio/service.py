@@ -759,7 +759,7 @@ class CDSStudioService:
         try:
             prefetch = json.loads(prefetch_str)
             return f"{len(prefetch)} prefetch queries defined: {', '.join(prefetch.keys())}"
-        except:
+        except (json.JSONDecodeError, ValueError):
             return "Invalid prefetch template"
 
     def _get_extension_description(self, url: str) -> str:

@@ -308,7 +308,7 @@ async def notify_appointment_reminder(
     try:
         appt_time = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
         time_str = appt_time.strftime("%B %d at %I:%M %p")
-    except:
+    except (ValueError, TypeError):
         time_str = "upcoming appointment"
     
     subject = "Appointment Reminder"

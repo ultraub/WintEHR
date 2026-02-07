@@ -163,7 +163,6 @@ const DICOMViewer = ({ study, onClose }) => {
       return `study_${studyObj.id}`;
     }
 
-    console.warn('[DICOMViewer] Unable to determine study directory:', studyObj);
     return null;
   };
 

@@ -112,7 +112,7 @@ Return only valid JSON."""
         
         try:
             return json.loads(response)
-        except:
+        except (json.JSONDecodeError, ValueError):
             return {"error": "Failed to parse FHIR queries", "raw": response}
             
     async def generate_ui_component(self, 
