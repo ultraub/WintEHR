@@ -66,13 +66,11 @@ def register_all_routers(app: FastAPI) -> None:
         from api.clinical.alerts.router import router as clinical_alerts_router
         from api.clinical.inbox.router import router as clinical_inbox_router
         from api.clinical.cds_clinical_data import router as cds_clinical_data_router
-        from api.clinical.dynamic_catalog_router import router as dynamic_catalog_router
         from api.clinical.medication_lists_router import router as medication_lists_router
         from api.clinical.drug_safety_router import router as drug_safety_router
         from api.clinical.documentation.notes_router import router as clinical_notes_router
 
         app.include_router(catalogs_router, tags=["Clinical Catalogs"])
-        app.include_router(dynamic_catalog_router, tags=["Dynamic Catalog (Legacy)"])
         app.include_router(clinical_orders_router, prefix="/api", tags=["Clinical Orders (CPOE)"])
         app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
         app.include_router(clinical_results_router, tags=["Clinical Results"])
