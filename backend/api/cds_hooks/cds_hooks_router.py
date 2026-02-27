@@ -25,7 +25,6 @@ from shared.exceptions import (
     FHIRConnectionError,
     FHIRResourceNotFoundError,
     CDSExecutionError,
-    CDSRuleEvaluationError,
     CDSPrefetchError,
     CDSServiceNotFoundError,
     DatabaseQueryError,
@@ -36,7 +35,7 @@ from database import get_db_session
 # v3.0 Architecture imports
 from .services import CDSService as CDSServiceBase, HookType as ServiceHookType
 from .conditions import ConditionEngine
-from .orchestrator import ServiceOrchestrator, get_orchestrator, execute_hook, CDSHookEngine, get_hook_engine
+from .orchestrator import ServiceOrchestrator, get_orchestrator, execute_hook
 from .registry import ServiceRegistry, get_registry, register_service, get_discovery_response
 from .prefetch import PrefetchEngine, get_prefetch_engine, execute_prefetch
 
@@ -75,8 +74,6 @@ from .models import (
     HookAction
 )
 from .hooks import medication_prescribe_hooks
-from .rules_engine.integration import cds_integration
-from .rules_engine.safety import safety_manager, FeatureFlag
 from services.hapi_fhir_client import HAPIFHIRClient
 from .hapi_cds_integration import get_hapi_cds_integrator
 
@@ -110,8 +107,6 @@ router.include_router(audit_router, prefix="", tags=["CDS Audit"])
 SAMPLE_HOOKS = get_default_hooks()
 
 
-# CDSHookEngine has been moved to orchestrator/hook_engine.py
-# Import: from .orchestrator import CDSHookEngine, get_hook_engine
 
 
 # Helper functions for HAPI FHIR PlanDefinition conversion
@@ -1042,243 +1037,8 @@ async def toggle_service(service_id: str, enabled: bool, db: AsyncSession = Depe
         logger.error(f"Data error toggling service {service_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to toggle service")
 
-@router.post("/services/test/{service_id}")
-async def test_service(
-    service_id: str,
-    test_context: Dict[str, Any],
-    db: AsyncSession = Depends(get_db_session)
-):
-    """Test a specific service with provided context"""
-    try:
-        # Get hook configuration
-        manager = await get_persistence_manager(db)
-        hook_config = await manager.get_hook(service_id)
-        if not hook_config:
-            hook_config = SAMPLE_HOOKS.get(service_id)
-        
-        if not hook_config:
-            raise HTTPException(status_code=404, detail="Service not found")
-        
-        # Create test request
-        test_request = CDSHookRequest(
-            hook=hook_config.hook,
-            hookInstance=f"test-{service_id}-{datetime.now().timestamp()}",
-            context=test_context
-        )
-        
-        # Execute hook
-        engine = CDSHookEngine(db)
-        cards = await engine.evaluate_hook(hook_config, test_request)
-        
-        return {
-            "service_id": service_id,
-            "test_context": test_context,
-            "cards": [card.dict() for card in cards],
-            "cards_count": len(cards),
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except HTTPException:
-        raise
-    except CDSExecutionError as e:
-        logger.error(f"CDS execution error testing service {service_id}: {e.message}")
-        raise HTTPException(status_code=500, detail="Failed to test service")
-    except DatabaseQueryError as e:
-        logger.error(f"Database error testing service {service_id}: {e.message}")
-        raise HTTPException(status_code=500, detail="Failed to test service")
-    except (ValueError, TypeError, KeyError, AttributeError) as e:
-        logger.error(f"Data error testing service {service_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to test service")
 
-# Rules Engine Management Endpoints
-@router.get("/rules-engine/statistics")
-async def get_rules_statistics():
-    """Get statistics about the rules engine"""
-    try:
-        stats = await cds_integration.get_rule_statistics()
-        return {
-            "status": "success",
-            "statistics": stats,
-            "timestamp": datetime.now().isoformat()
-        }
-    except CDSExecutionError as e:
-        logger.error(f"CDS execution error getting rules statistics: {e.message}")
-        raise HTTPException(status_code=500, detail="Failed to get rules statistics")
-    except (ValueError, TypeError, KeyError, AttributeError) as e:
-        logger.error(f"Data error getting rules statistics: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get rules statistics")
-
-
-@router.post("/rules-engine/evaluate")
-async def evaluate_rules(
-    context: Dict[str, Any],
-    categories: Optional[List[str]] = None,
-    priorities: Optional[List[str]] = None
-):
-    """Directly evaluate rules against provided context"""
-    try:
-        # Execute rules engine
-        response = await cds_integration.rules_engine.evaluate(
-            context=context,
-            categories=categories,
-            priorities=priorities
-        )
-        
-        return {
-            "status": "success",
-            "response": response,
-            "timestamp": datetime.now().isoformat()
-        }
-    except CDSRuleEvaluationError as e:
-        logger.error(f"Rule evaluation error: {e.message}")
-        raise HTTPException(status_code=500, detail="Failed to evaluate rules")
-    except CDSExecutionError as e:
-        logger.error(f"CDS execution error evaluating rules: {e.message}")
-        raise HTTPException(status_code=500, detail="Failed to evaluate rules")
-    except (ValueError, TypeError, KeyError, AttributeError) as e:
-        logger.error(f"Data error evaluating rules: {e}")
-        raise HTTPException(status_code=500, detail="Failed to evaluate rules")
-
-
-@router.patch("/rules-engine/rules/{rule_set_name}/{rule_id}/toggle")
-async def toggle_rule(rule_set_name: str, rule_id: str, enabled: bool):
-    """Enable or disable a specific rule"""
-    try:
-        cds_integration.toggle_rule(rule_set_name, rule_id, enabled)
-        return {
-            "status": "success",
-            "message": f"Rule {rule_id} {'enabled' if enabled else 'disabled'}",
-            "rule_set": rule_set_name,
-            "rule_id": rule_id,
-            "enabled": enabled
-        }
-    except CDSExecutionError as e:
-        logger.error(f"CDS execution error toggling rule: {e.message}")
-        raise HTTPException(status_code=500, detail="Failed to toggle rule")
-    except (ValueError, TypeError, KeyError, AttributeError) as e:
-        logger.error(f"Data error toggling rule: {e}")
-        raise HTTPException(status_code=500, detail="Failed to toggle rule")
-
-
-# Safety and Feature Flag Endpoints
-@router.get("/rules-engine/safety/metrics")
-async def get_safety_metrics():
-    """Get safety metrics and circuit breaker status"""
-    try:
-        metrics = safety_manager.get_metrics()
-        return {
-            "status": "success",
-            "metrics": metrics,
-            "timestamp": datetime.now().isoformat()
-        }
-    except CDSExecutionError as e:
-        logger.error(f"CDS execution error getting safety metrics: {e.message}")
-        raise HTTPException(status_code=500, detail="Failed to get safety metrics")
-    except (ValueError, TypeError, KeyError, AttributeError) as e:
-        logger.error(f"Data error getting safety metrics: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get safety metrics")
-
-
-@router.patch("/rules-engine/safety/feature-flags/{flag}")
-async def set_feature_flag(flag: str, enabled: bool):
-    """Enable or disable a feature flag"""
-    try:
-        feature_flag = FeatureFlag(flag)
-        safety_manager.set_feature_flag(feature_flag, enabled)
-        return {
-            "status": "success",
-            "message": f"Feature flag {flag} set to {enabled}",
-            "flag": flag,
-            "enabled": enabled
-        }
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid feature flag: {flag}")
-    except CDSExecutionError as e:
-        logger.error(f"CDS execution error setting feature flag: {e.message}")
-        raise HTTPException(status_code=500, detail="Failed to set feature flag")
-    except (TypeError, KeyError, AttributeError) as e:
-        logger.error(f"Data error setting feature flag: {e}")
-        raise HTTPException(status_code=500, detail="Failed to set feature flag")
-
-
-@router.get("/rules-engine/safety/health")
-async def rules_engine_health():
-    """Get rules engine health status including circuit breakers"""
-    try:
-        health = safety_manager.health_check()
-        return health
-    except CDSExecutionError as e:
-        logger.error(f"CDS execution error checking rules engine health: {e.message}")
-        return {"status": "error", "error": e.message, "timestamp": datetime.now().isoformat()}
-    except (ValueError, TypeError, KeyError, AttributeError) as e:
-        logger.error(f"Data error checking rules engine health: {e}")
-        return {"status": "error", "error": str(e), "timestamp": datetime.now().isoformat()}
-
-
-@router.post("/rules-engine/safety/circuit-breaker/{service}/reset")
-async def reset_circuit_breaker(service: str):
-    """Reset a circuit breaker for a specific service"""
-    try:
-        if service in safety_manager.circuit_breakers:
-            breaker = safety_manager.circuit_breakers[service]
-            breaker.state = "closed"
-            breaker.failure_count = 0
-            breaker.success_count = 0
-            breaker.opened_at = None
-            
-            return {
-                "status": "success",
-                "message": f"Circuit breaker for {service} reset",
-                "service": service,
-                "new_state": "closed"
-            }
-        else:
-            raise HTTPException(status_code=404, detail=f"Circuit breaker for {service} not found")
-    except HTTPException:
-        raise
-    except CDSExecutionError as e:
-        logger.error(f"CDS execution error resetting circuit breaker: {e.message}")
-        raise HTTPException(status_code=500, detail="Failed to reset circuit breaker")
-    except (ValueError, TypeError, KeyError, AttributeError) as e:
-        logger.error(f"Data error resetting circuit breaker: {e}")
-        raise HTTPException(status_code=500, detail="Failed to reset circuit breaker")
-
-
-@router.get("/rules-engine/safety/ab-test/results")
-async def get_ab_test_results():
-    """Get A/B test results comparing rules engine to legacy"""
-    try:
-        if not safety_manager.is_enabled(FeatureFlag.A_B_TESTING_ENABLED):
-            return {
-                "status": "disabled",
-                "message": "A/B testing is not enabled",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        results = dict(safety_manager.ab_test_results)
-        
-        # Calculate success rates
-        for group in results:
-            if results[group]["total"] > 0:
-                results[group]["success_rate"] = (
-                    results[group]["success"] / results[group]["total"] * 100
-                )
-            else:
-                results[group]["success_rate"] = 0
-        
-        return {
-            "status": "success",
-            "results": results,
-            "allocation": safety_manager.ab_test_allocation,
-            "timestamp": datetime.now().isoformat()
-        }
-    except CDSExecutionError as e:
-        logger.error(f"CDS execution error getting A/B test results: {e.message}")
-        raise HTTPException(status_code=500, detail="Failed to get A/B test results")
-    except (ValueError, TypeError, KeyError, AttributeError) as e:
-        logger.error(f"Data error getting A/B test results: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get A/B test results")
-
+# Service Registry Management Endpoints (below)
 
 # Service Registry Management Endpoints
 @router.get("/registry/services")
@@ -1324,21 +1084,10 @@ async def health_check(db: AsyncSession = Depends(get_db_session)):
         db_status = f"data error: {str(e)}"
         db_hooks_count = 0
 
-    # Get rules engine statistics
-    try:
-        rules_stats = await cds_integration.get_rule_statistics()
-        rules_engine_status = "healthy"
-    except CDSExecutionError as e:
-        rules_stats = {}
-        rules_engine_status = f"execution error: {e.message}"
-    except (ValueError, TypeError, KeyError, AttributeError) as e:
-        rules_stats = {}
-        rules_engine_status = f"data error: {str(e)}"
-    
     # Get service registry information
     registry_services = service_registry.list_services()
     registry_count = len(registry_services)
-    
+
     return {
         "status": "healthy",
         "service": "CDS Hooks",
@@ -1348,8 +1097,6 @@ async def health_check(db: AsyncSession = Depends(get_db_session)):
         "database_hooks_count": db_hooks_count,
         "registry_services_count": registry_count,
         "total_services": db_hooks_count + len(SAMPLE_HOOKS) + registry_count,
-        "rules_engine_status": rules_engine_status,
-        "rules_engine_statistics": rules_stats,
         "service_registry": {
             "status": "active",
             "services": [s.service_id for s in registry_services]

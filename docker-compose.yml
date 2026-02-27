@@ -82,7 +82,7 @@ services:
 
       # HAPI FHIR Configuration
       hapi.fhir.fhir_version: R4
-      hapi.fhir.server_address: ${HAPI_FHIR_SERVER_ADDRESS:-http://localhost:8080/fhir}
+      hapi.fhir.server_address: ${HAPI_FHIR_SERVER_ADDRESS:-https://${DOMAIN:-localhost}/fhir/R4}
       hapi.fhir.allow_external_references: true
       hapi.fhir.allow_multiple_delete: true
       hapi.fhir.allow_cascading_deletes: true
@@ -173,6 +173,8 @@ services:
       - USE_REDIS_CACHE=true
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
       - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DOMAIN=${DOMAIN:-localhost}
+      - FRONTEND_URL=${FRONTEND_URL:-}
     networks:
       emr-network:
         aliases:

@@ -823,20 +823,81 @@ async def get_service_analytics(
                 detail=f"Visual service '{service_id}' not found"
             )
 
-        # Note: Analytics should be fetched from service_analytics table
-        # For now, return empty analytics until we implement the analytics tracking
-        # See postgres-init/06_cds_visual_builder.sql for service_analytics schema
+        # Fetch from service_analytics table
+        analytics_query = text("""
+            SELECT total_executions, total_cards_shown, cards_accepted,
+                   cards_dismissed, avg_execution_time_ms
+            FROM cds_visual_builder.service_analytics
+            WHERE service_id = :service_id
+        """)
+        analytics_result = await db.execute(analytics_query, {"service_id": service_id})
+        analytics_row = analytics_result.first()
+
+        total_executions = 0
+        cards_shown = 0
+        cards_accepted = 0
+        cards_dismissed = 0
+        avg_exec_time = 0.0
+
+        if analytics_row:
+            total_executions = analytics_row.total_executions or 0
+            cards_shown = analytics_row.total_cards_shown or 0
+            cards_accepted = analytics_row.cards_accepted or 0
+            cards_dismissed = analytics_row.cards_dismissed or 0
+            avg_exec_time = float(analytics_row.avg_execution_time_ms or 0)
+
+        acceptance_rate = 0.0
+        if cards_shown > 0:
+            acceptance_rate = round((cards_accepted / cards_shown) * 100, 2)
+
+        # Get execution counts by date from execution_logs
+        exec_by_date_query = text("""
+            SELECT DATE(created_at) as exec_date, COUNT(*) as count
+            FROM cds_visual_builder.execution_logs
+            WHERE service_id = :service_id
+            GROUP BY DATE(created_at)
+            ORDER BY exec_date DESC
+            LIMIT 30
+        """)
+        exec_by_date_result = await db.execute(exec_by_date_query, {"service_id": service_id})
+        execution_by_date = {
+            row.exec_date.isoformat(): row.count
+            for row in exec_by_date_result.fetchall()
+        }
+
+        # Get top override reasons from feedback table
+        top_override_reasons = []
+        try:
+            override_query = text("""
+                SELECT override_reason, COUNT(*) as count
+                FROM cds_hooks.feedback
+                WHERE service_id = :service_id
+                AND outcome = 'overridden'
+                AND override_reason IS NOT NULL
+                GROUP BY override_reason
+                ORDER BY count DESC
+                LIMIT 5
+            """)
+            override_result = await db.execute(override_query, {"service_id": service_id})
+            for row in override_result.fetchall():
+                try:
+                    reason = json.loads(row.override_reason) if row.override_reason else {}
+                except (json.JSONDecodeError, TypeError):
+                    reason = {"text": row.override_reason}
+                top_override_reasons.append({"reason": reason, "count": row.count})
+        except Exception:
+            pass  # Feedback table may not exist yet
 
         return ServiceAnalytics(
             service_id=service_id,
-            total_executions=0,
-            cards_shown=0,
-            cards_accepted=0,
-            cards_dismissed=0,
-            acceptance_rate=0.0,
-            average_execution_time_ms=0.0,
-            execution_by_date={},
-            top_override_reasons=[]
+            total_executions=total_executions,
+            cards_shown=cards_shown,
+            cards_accepted=cards_accepted,
+            cards_dismissed=cards_dismissed,
+            acceptance_rate=acceptance_rate,
+            average_execution_time_ms=avg_exec_time,
+            execution_by_date=execution_by_date,
+            top_override_reasons=top_override_reasons
         )
 
     except HTTPException:
