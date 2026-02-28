@@ -48,6 +48,7 @@ import DisplayConfigPanel from '../builders/DisplayConfigPanel';
 import CardPreviewPanel from '../preview/CardPreviewPanel';
 import ServiceTester from '../testing/ServiceTester';
 import { SERVICE_TYPES } from '../../types/serviceTypes';
+import { useAuth } from '@/contexts/AuthContext';
 import axios from 'axios';
 
 const steps = [
@@ -63,6 +64,7 @@ const steps = [
  * Visual Builder Wizard Component
  */
 const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
+  const { user } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -99,7 +101,7 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
       persistent: false
     },
     prefetch: {},
-    created_by: 'current-user' // TODO: Get from auth context
+    created_by: user?.username || 'unknown'
   });
 
   const [savedServiceId, setSavedServiceId] = useState(null);
@@ -274,7 +276,7 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
         persistent: false
       },
       prefetch: {},
-      created_by: 'current-user'
+      created_by: user?.username || 'unknown'
     });
     setSavedServiceId(null);
     setTestResults(null);

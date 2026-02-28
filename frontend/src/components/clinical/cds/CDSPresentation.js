@@ -2,7 +2,7 @@
  * CDS Presentation Component
  * Handles different presentation modes for CDS cards according to CDS Hooks spec
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -161,6 +161,40 @@ const CDSPresentation = ({
   
   // State for sidebar minimized
   const [sidebarMinimized, setSidebarMinimized] = useState(false);
+
+  // Track icon load errors per alert
+  const [iconErrors, setIconErrors] = useState(new Set());
+
+  // Auto-hide timer for toast mode
+  const autoHideTimersRef = useRef(new Map());
+  useEffect(() => {
+    if (!autoHide || mode !== PRESENTATION_MODES.TOAST) return;
+
+    const timers = autoHideTimersRef.current;
+    alerts.forEach(alert => {
+      const alertKey = `${alert.serviceId}-${alert.summary}`;
+      if (!dismissedAlerts.has(alertKey) && !timers.has(alertKey)) {
+        const timer = setTimeout(() => {
+          setDismissedAlerts(prev => {
+            const newSet = new Set([...prev, alertKey]);
+            if (patientId) {
+              try {
+                sessionStorage.setItem(`cds-dismissed-alerts-${patientId}`, JSON.stringify([...newSet]));
+              } catch (e) { /* ignore */ }
+            }
+            return newSet;
+          });
+          timers.delete(alertKey);
+        }, hideDelay);
+        timers.set(alertKey, timer);
+      }
+    });
+
+    return () => {
+      timers.forEach(timer => clearTimeout(timer));
+      timers.clear();
+    };
+  }, [autoHide, hideDelay, mode, alerts, dismissedAlerts, patientId]);
 
   // Handle alert dismissal
   const handleDismissAlert = (alert, reason = '', permanent = false) => {
@@ -373,15 +407,22 @@ const CDSPresentation = ({
   };
 
   const renderSuggestionButton = (suggestion, alert) => (
-    <Button
+    <Tooltip
       key={suggestion.uuid}
-      size="small"
-      variant="outlined"
-      startIcon={<SuggestionIcon />}
-      onClick={() => setSelectedAlert({ alert, suggestion })}
+      title={suggestion.description || ''}
+      placement="top"
+      arrow
+      disableHoverListener={!suggestion.description}
     >
-      {suggestion.label}
-    </Button>
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={<SuggestionIcon />}
+        onClick={() => setSelectedAlert({ alert, suggestion })}
+      >
+        {suggestion.label}
+      </Button>
+    </Tooltip>
   );
 
   const renderLinks = (links) => 
@@ -889,10 +930,15 @@ const CDSPresentation = ({
                           label={alert.source.label}
                           size="small"
                           variant="outlined"
-                          icon={alert.source.icon ? 
-                            <img src={alert.source.icon} alt="" width={16} height={16} /> : 
-                            null
-                          }
+                          icon={alert.source.icon && !iconErrors.has(alert.source.icon) ? (
+                            <img
+                              src={alert.source.icon}
+                              alt={alert.source.label}
+                              width={16}
+                              height={16}
+                              onError={() => setIconErrors(prev => new Set([...prev, alert.source.icon]))}
+                            />
+                          ) : null}
                         />
                         <Chip
                           label={new Date(alert.timestamp).toLocaleTimeString()}

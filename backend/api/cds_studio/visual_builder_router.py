@@ -413,9 +413,11 @@ async def get_generated_code(
     Get the generated Python code for a visual service
 
     Educational aspects:
-    - Returns actual Python service class
-    - Includes registration code
-    - Shows code hash for versioning
+    - Returns Python CDSService class code for display/export reference only
+    - This code is NEVER compiled or executed by the system
+    - Visual services are executed by VisualServiceProvider which interprets
+      the JSON config directly (conditions, card_config, display_config)
+    - Code generation shows what a hand-coded equivalent would look like
     """
     try:
         query = select(VisualServiceConfig).where(
@@ -583,21 +585,22 @@ async def test_visual_service(
         cards = []
 
         try:
-            # TODO: Actually execute the generated code
-            # For now, simulate execution
-            warnings.append("Test execution simulated - actual execution not yet implemented")
+            # Execute via VisualServiceProvider (evaluates conditions against real FHIR data)
+            from .visual_service_provider import VisualServiceProvider
 
-            # Get card config (handle both dict and potential None)
-            card_data = service.card_config if isinstance(service.card_config, dict) else {}
+            provider = VisualServiceProvider(db)
+            response = await provider.execute(
+                visual_config=service,
+                request=cds_request,
+                plan_definition={}  # Not needed for direct test execution
+            )
 
-            # Create sample card based on configuration
-            cards.append({
-                "uuid": str(uuid.uuid4()),
-                "summary": card_data.get("summary", "Test card"),
-                "detail": card_data.get("detail", "This is a test execution"),
-                "indicator": card_data.get("indicator", "info"),
-                "source": card_data.get("source", {"label": service.name})
-            })
+            # Convert Card pydantic models to dicts for ServiceTestResponse
+            for card in response.cards:
+                cards.append(card.dict() if hasattr(card, 'dict') else card)
+
+            if not response.cards:
+                warnings.append("No cards generated - conditions may not be met for this patient")
 
         except Exception as e:
             errors.append(f"Execution error: {str(e)}")
@@ -639,10 +642,11 @@ async def deploy_visual_service(
     Deploy a visual service to production
 
     Educational aspects:
-    - Activates service in service registry
-    - Marks as active in database
-    - Tracks deployment metadata
-    - Validates before deployment
+    - Creates a PlanDefinition in HAPI FHIR as registry entry
+    - VisualServiceProvider interprets the JSON config directly at runtime
+      (generated Python code is for display/export only, never executed)
+    - Marks service as active in local database
+    - Tracks deployment metadata and version
     """
     try:
         # Try to find service by ID (integer) or service_id (string)
