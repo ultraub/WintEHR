@@ -456,9 +456,12 @@ export const SMARTProvider = ({ children }) => {
   // Context Value
   // -------------------------------------------------------------------------
 
+  const isSmartEnabled = !!smartConfig;
+
   const value = useMemo(() => ({
     // Configuration
     smartConfig,
+    isSmartEnabled,
 
     // Apps
     apps: contextualApps,
@@ -497,6 +500,7 @@ export const SMARTProvider = ({ children }) => {
     runningAppCount
   }), [
     smartConfig,
+    isSmartEnabled,
     contextualApps,
     appsLoading,
     appsError,

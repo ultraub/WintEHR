@@ -245,6 +245,8 @@ async def get_system_metrics(
     try:
         metrics = await studio_service.get_system_metrics(time_range)
         return metrics
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get system metrics: {e}")
         raise HTTPException(500, f"Failed to get system metrics: {str(e)}")

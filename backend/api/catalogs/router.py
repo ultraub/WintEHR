@@ -211,7 +211,8 @@ async def get_catalog_stats(
 
         medications = await service.dynamic_service.extract_medication_catalog(limit=1000)
         lab_tests = await service.dynamic_service.extract_lab_test_catalog(limit=1000)
-        # Note: Imaging catalog uses static data only (no dynamic extraction method)
+        imaging = await service.dynamic_service.extract_imaging_catalog(limit=1000)
+        order_sets = await service.dynamic_service.extract_order_set_catalog(limit=1000)
 
         stats = {
             "medications": {
@@ -225,9 +226,14 @@ async def get_catalog_stats(
                 "static": len(service._static_catalogs.get('lab_tests', []))
             },
             "imaging_studies": {
-                "dynamic": 0,  # No dynamic extraction available for imaging
+                "dynamic": len(imaging),
                 "database": 0,
                 "static": len(service._static_catalogs.get('imaging_studies', []))
+            },
+            "order_sets": {
+                "dynamic": len(order_sets),
+                "database": 0,
+                "static": len(service._static_catalogs.get('order_sets', []))
             }
         }
 
@@ -240,5 +246,6 @@ async def get_catalog_stats(
         return {
             "medications": {"dynamic": 0, "database": 0, "static": 0},
             "lab_tests": {"dynamic": 0, "database": 0, "static": 0},
-            "imaging_studies": {"dynamic": 0, "database": 0, "static": 0}
+            "imaging_studies": {"dynamic": 0, "database": 0, "static": 0},
+            "order_sets": {"dynamic": 0, "database": 0, "static": 0}
         }

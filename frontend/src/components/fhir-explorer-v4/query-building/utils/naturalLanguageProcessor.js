@@ -33,12 +33,24 @@ const MEDICAL_TERMS = {
   
   // Vital signs
   'temperature': { codes: ['8310-5'], system: 'http://loinc.org', display: 'Body temperature' },
+  'temp': { codes: ['8310-5'], system: 'http://loinc.org', display: 'Body temperature' },
   'heart rate': { codes: ['8867-4'], system: 'http://loinc.org', display: 'Heart rate' },
+  'hr': { codes: ['8867-4'], system: 'http://loinc.org', display: 'Heart rate' },
   'respiratory rate': { codes: ['9279-1'], system: 'http://loinc.org', display: 'Respiratory rate' },
+  'rr': { codes: ['9279-1'], system: 'http://loinc.org', display: 'Respiratory rate' },
   'oxygen saturation': { codes: ['2708-6'], system: 'http://loinc.org', display: 'Oxygen saturation' },
+  'o2 sat': { codes: ['2708-6'], system: 'http://loinc.org', display: 'Oxygen saturation' },
+  'spo2': { codes: ['2708-6'], system: 'http://loinc.org', display: 'Oxygen saturation' },
+  'blood pressure': { codes: ['85354-9'], system: 'http://loinc.org', display: 'Blood pressure panel' },
+  'bp': { codes: ['85354-9'], system: 'http://loinc.org', display: 'Blood pressure panel' },
   'weight': { codes: ['29463-7'], system: 'http://loinc.org', display: 'Body weight' },
   'height': { codes: ['8302-2'], system: 'http://loinc.org', display: 'Body height' },
-  'bmi': { codes: ['39156-5'], system: 'http://loinc.org', display: 'Body mass index' }
+  'bmi': { codes: ['39156-5'], system: 'http://loinc.org', display: 'Body mass index' },
+
+  // Common lab panels
+  'cbc': { codes: ['58410-2'], system: 'http://loinc.org', display: 'Complete blood count' },
+  'bmp': { codes: ['51990-0'], system: 'http://loinc.org', display: 'Basic metabolic panel' },
+  'cmp': { codes: ['24323-8'], system: 'http://loinc.org', display: 'Comprehensive metabolic panel' }
 };
 
 // Query intent classification
@@ -88,24 +100,58 @@ const parseTimeExpression = (text) => {
     { pattern: /last (week|month|year)/, type: 'last' }
   ];
   
-  for (const { pattern, type } of relativePatterns) {
+  for (const { pattern, type, days: defaultDays } of relativePatterns) {
     const match = text.match(pattern);
     if (match) {
       if (type === 'relative') {
         const amount = parseInt(match[1]);
         const unit = match[2].replace(/s$/, '');
-        const days = unit === 'day' ? amount : 
+        const days = unit === 'day' ? amount :
                     unit === 'week' ? amount * 7 :
                     unit === 'month' ? amount * 30 :
                     unit === 'year' ? amount * 365 : amount;
-        
+
         const startDate = new Date(now - days * 24 * 60 * 60 * 1000);
         return {
           operator: 'ge',
           value: startDate.toISOString().split('T')[0]
         };
       }
-      // Handle other time patterns...
+      if (type === 'recent') {
+        const startDate = new Date(now - defaultDays * 24 * 60 * 60 * 1000);
+        return { operator: 'ge', value: startDate.toISOString().split('T')[0] };
+      }
+      if (type === 'today') {
+        return { operator: 'ge', value: now.toISOString().split('T')[0] };
+      }
+      if (type === 'yesterday') {
+        const yesterday = new Date(now - 24 * 60 * 60 * 1000);
+        return { operator: 'eq', value: yesterday.toISOString().split('T')[0] };
+      }
+      if (type === 'this') {
+        const unit = match[1];
+        const startDate = new Date(now);
+        if (unit === 'week') { startDate.setDate(startDate.getDate() - startDate.getDay()); }
+        else if (unit === 'month') { startDate.setDate(1); }
+        else if (unit === 'year') { startDate.setMonth(0, 1); }
+        return { operator: 'ge', value: startDate.toISOString().split('T')[0] };
+      }
+      if (type === 'last') {
+        const unit = match[1];
+        const startDate = new Date(now);
+        const endDate = new Date(now);
+        if (unit === 'week') {
+          startDate.setDate(startDate.getDate() - startDate.getDay() - 7);
+          endDate.setDate(endDate.getDate() - endDate.getDay() - 1);
+        } else if (unit === 'month') {
+          startDate.setMonth(startDate.getMonth() - 1, 1);
+          endDate.setDate(0); // last day of previous month
+        } else if (unit === 'year') {
+          startDate.setFullYear(startDate.getFullYear() - 1, 0, 1);
+          endDate.setFullYear(endDate.getFullYear() - 1, 11, 31);
+        }
+        return { operator: 'ge', value: startDate.toISOString().split('T')[0] };
+      }
     }
   }
   
@@ -207,14 +253,14 @@ export const processNaturalLanguage = (input) => {
       } else if (query.resourceType === 'Patient' && info.system.includes('snomed')) {
         // Patient + condition term: use _has to find patients with this condition
         query.parameters.push({
-          name: '_has:Condition:patient:code:text',
-          value: term,
+          name: '_has:Condition:subject:code',
+          value: `${system}|${code}`,
           display: `Patients with ${info.display}`
         });
       } else if (query.resourceType === 'Patient' && info.system.includes('loinc')) {
         // Patient + lab term: use _has to find patients with this observation
         query.parameters.push({
-          name: '_has:Observation:patient:code',
+          name: '_has:Observation:subject:code',
           value: `${system}|${code}`,
           display: `Patients with ${info.display} results`
         });

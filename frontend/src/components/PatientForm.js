@@ -32,6 +32,8 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
     emergency_contact_name: '',
     emergency_contact_phone: ''
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
 
   useEffect(() => {
     if (patient) {
@@ -60,22 +62,44 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
         emergency_contact_phone: ''
       });
     }
-  }, [patient]);
+    setValidationErrors({});
+  }, [patient?.id]);
 
   const handleChange = (field) => (event) => {
     setFormData({ ...formData, [field]: event.target.value });
+    if (validationErrors[field]) {
+      setValidationErrors(prev => { const next = { ...prev }; delete next[field]; return next; });
+    }
   };
 
   const handleDateChange = (date) => {
     setFormData({ ...formData, date_of_birth: date });
+    if (validationErrors.date_of_birth) {
+      setValidationErrors(prev => { const next = { ...prev }; delete next.date_of_birth; return next; });
+    }
   };
 
-  const handleSubmit = () => {
-    const submissionData = {
-      ...formData,
-      date_of_birth: formData.date_of_birth ? format(formData.date_of_birth, 'yyyy-MM-dd') : null
-    };
-    onSubmit(submissionData);
+  const validate = () => {
+    const errors = {};
+    if (!formData.first_name.trim()) errors.first_name = 'First name is required';
+    if (!formData.last_name.trim()) errors.last_name = 'Last name is required';
+    if (!formData.gender) errors.gender = 'Gender is required';
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setSubmitting(true);
+    try {
+      const submissionData = {
+        ...formData,
+        date_of_birth: formData.date_of_birth ? format(formData.date_of_birth, 'yyyy-MM-dd') : null
+      };
+      await onSubmit(submissionData);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -91,6 +115,8 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
                 label="First Name"
                 value={formData.first_name}
                 onChange={handleChange('first_name')}
+                error={!!validationErrors.first_name}
+                helperText={validationErrors.first_name}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -100,6 +126,8 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
                 label="Last Name"
                 value={formData.last_name}
                 onChange={handleChange('last_name')}
+                error={!!validationErrors.last_name}
+                helperText={validationErrors.last_name}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -121,6 +149,8 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
                 label="Gender"
                 value={formData.gender}
                 onChange={handleChange('gender')}
+                error={!!validationErrors.gender}
+                helperText={validationErrors.gender}
               >
                 <MenuItem value="male">Male</MenuItem>
                 <MenuItem value="female">Female</MenuItem>
@@ -229,8 +259,8 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained" color="primary">
-          {patient ? 'Update' : 'Create'}
+        <Button onClick={handleSubmit} variant="contained" color="primary" disabled={submitting}>
+          {submitting ? 'Saving...' : (patient ? 'Update' : 'Create')}
         </Button>
       </DialogActions>
     </Dialog>

@@ -862,32 +862,63 @@ class CDSStudioService:
     async def get_system_metrics(self, time_range: str = "24h") -> Dict[str, Any]:
         """Get aggregated metrics across all active CDS services for dashboard display."""
         if not self.db:
-            return {"services": {}}
+            return {"services": {}, "summary": {"total_services": 0, "total_executions": 0}}
 
         try:
             from sqlalchemy import text as sa_text
 
-            # Get all distinct service_ids from execution logs
+            # Parse time range to interval
+            interval_map = {"1h": "1 hour", "24h": "24 hours", "7d": "7 days", "30d": "30 days"}
+            interval = interval_map.get(time_range, "24 hours")
+
+            # Single aggregated query instead of N+1 per-service calls
             result = await self.db.execute(sa_text(
-                """SELECT DISTINCT service_id FROM cds_visual_builder.execution_logs"""
-            ))
-            service_ids = [row[0] for row in result.fetchall()]
+                """SELECT
+                    service_id,
+                    COUNT(*) as total_executions,
+                    COUNT(*) FILTER (WHERE success = true) as successful,
+                    COUNT(*) FILTER (WHERE success = false) as failed,
+                    AVG(execution_time_ms) as avg_response_time,
+                    MAX(executed_at) as last_execution
+                FROM cds_visual_builder.execution_logs
+                WHERE executed_at >= NOW() - :interval::interval
+                GROUP BY service_id
+                ORDER BY total_executions DESC"""
+            ), {"interval": interval})
+            rows = result.fetchall()
 
             all_metrics = {}
-            for sid in service_ids:
-                try:
-                    metrics = await self.get_service_metrics(sid)
-                    if metrics:
-                        all_metrics[sid] = metrics.dict() if hasattr(metrics, 'dict') else metrics
-                except Exception as e:
-                    logger.warning(f"Failed to get metrics for {sid}: {e}")
-                    continue
+            total_executions = 0
+            for row in rows:
+                sid = row[0]
+                executions = row[1]
+                total_executions += executions
+                all_metrics[sid] = {
+                    "total_executions": executions,
+                    "successful_executions": row[2],
+                    "failed_executions": row[3],
+                    "success_rate": round(row[2] / executions * 100, 1) if executions > 0 else 0,
+                    "avg_response_time_ms": round(row[4], 1) if row[4] else 0,
+                    "last_execution": row[5].isoformat() if row[5] else None
+                }
 
-            return {"services": all_metrics}
+            return {
+                "services": all_metrics,
+                "summary": {
+                    "total_services": len(all_metrics),
+                    "total_executions": total_executions,
+                    "time_range": time_range
+                }
+            }
 
         except Exception as e:
-            logger.error(f"Error getting system metrics: {e}")
-            return {"services": {}}
+            # Handle table not existing (fresh DB) or other DB errors gracefully
+            error_msg = str(e).lower()
+            if "does not exist" in error_msg or "relation" in error_msg:
+                logger.debug("CDS execution_logs table not yet created — returning empty metrics")
+            else:
+                logger.error(f"Error getting system metrics: {e}")
+            return {"services": {}, "summary": {"total_services": 0, "total_executions": 0}}
 
     async def update_service_status(self, service_id: str, status: ServiceStatus):
         """

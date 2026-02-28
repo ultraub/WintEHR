@@ -1841,6 +1841,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                   <Button
                     color="inherit"
                     size="small"
+                    disabled={!currentResource?.resourceType || !currentResource?.resourceId}
                     onClick={() => {
                       setError(null);
                       if (currentResource?.resourceType && currentResource?.resourceId) {
@@ -1848,7 +1849,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                       }
                     }}
                   >
-                    Retry
+                    {(!currentResource?.resourceType || !currentResource?.resourceId) ? 'Select a resource first' : 'Retry'}
                   </Button>
                 }
               >

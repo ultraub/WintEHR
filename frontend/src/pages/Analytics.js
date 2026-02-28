@@ -215,10 +215,10 @@ function Analytics() {
                         <Card>
                           <CardContent>
                             <Typography variant="h4" color="primary">
-                              {data.count}
+                              {data?.count ?? 0}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              {group.replace('_', ' ')} ({data.percentage}%)
+                              {group.replace('_', ' ')} ({data?.percentage ?? 0}%)
                             </Typography>
                           </CardContent>
                         </Card>
@@ -339,13 +339,13 @@ function Analytics() {
                 <Card sx={{ mt: 2 }}>
                   <CardContent>
                     <Typography variant="h4" color="warning.main">
-                      {medicationPatterns.polypharmacy.polypharmacy_rate}%
+                      {medicationPatterns.polypharmacy?.polypharmacy_rate ?? 'N/A'}%
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Patients on 5+ medications
                     </Typography>
                     <Typography variant="body2" sx={{ mt: 1 }}>
-                      {medicationPatterns.polypharmacy.patients_with_5plus_meds} of {medicationPatterns.polypharmacy.total_patients_with_meds} patients
+                      {medicationPatterns.polypharmacy?.patients_with_5plus_meds ?? 0} of {medicationPatterns.polypharmacy?.total_patients_with_meds ?? 0} patients
                     </Typography>
                   </CardContent>
                 </Card>

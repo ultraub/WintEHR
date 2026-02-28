@@ -1364,12 +1364,16 @@ const EnhancedOrdersTab = ({
               ? CLINICAL_EVENTS.MEDICATION_PRESCRIBED
               : CLINICAL_EVENTS.ORDER_PLACED;
 
-            await publish(eventType, {
-              orderId: order.id,
-              order: order,
-              patientId: patientId,
-              orderType: order.resourceType
-            });
+            try {
+              await publish(eventType, {
+                orderId: order.id,
+                order: order,
+                patientId: patientId,
+                orderType: order.resourceType
+              });
+            } catch (publishError) {
+              console.warn('Failed to publish order event:', publishError);
+            }
           }
 
           refreshSearch();

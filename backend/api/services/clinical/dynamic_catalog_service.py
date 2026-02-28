@@ -712,6 +712,8 @@ class DynamicCatalogService:
         procedures = await self.extract_procedure_catalog(limit)
         vaccines = await self.extract_vaccine_catalog(limit)
         allergies = await self.extract_allergy_catalog(limit)
+        imaging = await self.extract_imaging_catalog(limit)
+        order_sets = await self.extract_order_set_catalog(limit)
         statistics = await self.get_catalog_statistics()
 
         self.last_refresh = datetime.now()
@@ -724,7 +726,9 @@ class DynamicCatalogService:
                 "lab_tests": len(lab_tests),
                 "procedures": len(procedures),
                 "vaccines": len(vaccines),
-                "allergies": len(allergies)
+                "allergies": len(allergies),
+                "imaging": len(imaging),
+                "order_sets": len(order_sets)
             },
             "statistics": statistics
         }

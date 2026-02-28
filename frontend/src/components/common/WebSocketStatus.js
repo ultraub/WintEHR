@@ -72,9 +72,12 @@ const WebSocketStatus = ({ size = 'small', showLabel = true }) => {
         variant="outlined"
         sx={{
           borderWidth: 2,
-          backgroundColor: alpha(theme.palette[status.color].main, 0.1),
+          backgroundColor: alpha(
+            (theme.palette[status.color]?.main || theme.palette.grey[500]),
+            0.1
+          ),
           '& .MuiChip-icon': {
-            color: theme.palette[status.color].main
+            color: theme.palette[status.color]?.main || theme.palette.grey[500]
           }
         }}
       />

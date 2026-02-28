@@ -290,7 +290,7 @@ class UnifiedCatalogService:
                     prep_instructions=study.get('preparation_instructions'),
                     duration_minutes=study.get('typical_duration'),
                     radiation_dose=study.get('radiation_dose'),
-                    usage_count=study.get('usage_count', 0)
+                    usage_count=study.get('frequency_count', study.get('usage_count', 0))
                 ))
         except Exception as e:
             logger.warning(f"Dynamic imaging catalog failed: {e}")
@@ -389,27 +389,27 @@ class UnifiedCatalogService:
             # Extract order sets from actual patient data
             order_sets = await self.dynamic_service.extract_order_set_catalog(limit)
             
-            # Filter by search term
+            # Filter by search term (dynamic extraction uses 'title', static uses 'name')
             if search_term:
                 order_sets = [
                     os for os in order_sets
-                    if search_term.lower() in os.get('name', '').lower() or
+                    if search_term.lower() in os.get('title', os.get('name', '')).lower() or
                     search_term.lower() in os.get('description', '').lower() or
-                    any(search_term.lower() in item.get('display', '').lower() 
+                    any(search_term.lower() in item.get('display', '').lower()
                         for item in os.get('items', []))
                 ]
-            
+
             # Filter by category
             if category:
                 order_sets = [
                     os for os in order_sets
                     if category.lower() == os.get('category', '').lower()
                 ]
-            
+
             for order_set in order_sets[:limit]:
                 results.append(OrderSetItem(
                     id=order_set.get('id', ''),
-                    name=order_set.get('name', ''),
+                    name=order_set.get('title', order_set.get('name', '')),
                     description=order_set.get('description'),
                     category=order_set.get('category', 'Clinical'),
                     specialty=order_set.get('specialty'),
