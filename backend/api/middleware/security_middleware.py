@@ -179,7 +179,16 @@ class CORSSecurityMiddleware(BaseHTTPMiddleware):
         self.max_age = max_age
     
     def _get_default_origins(self) -> list:
-        """Get default allowed origins based on environment."""
+        """Get default allowed origins based on environment.
+
+        Uses CORS_ORIGINS env var if set, otherwise derives from FRONTEND_URL/DOMAIN
+        in production or allows localhost in development.
+        """
+        # CORS_ORIGINS env var takes priority in ALL environments
+        cors_env = os.getenv("CORS_ORIGINS")
+        if cors_env:
+            return [o.strip() for o in cors_env.split(",") if o.strip()]
+
         env = os.getenv("ENVIRONMENT", "development").lower()
 
         if env in ("production", "prod"):
@@ -194,9 +203,12 @@ class CORSSecurityMiddleware(BaseHTTPMiddleware):
                 domain_origin = f"https://{domain}"
                 if domain_origin not in origins:
                     origins.append(domain_origin)
-            # Fallback if neither is set
+            # Warn if no origins configured in production
             if not origins:
-                origins.append("https://app.wintehr.com")
+                logger.warning(
+                    "No CORS origins configured in production. "
+                    "Set CORS_ORIGINS, FRONTEND_URL, or DOMAIN env var."
+                )
             return origins
         else:
             # Development allows localhost

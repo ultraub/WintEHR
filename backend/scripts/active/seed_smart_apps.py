@@ -35,6 +35,15 @@ logger = logging.getLogger(__name__)
 # SMART App Definitions
 # =============================================================================
 
+# Base URL for SMART app redirect/launch URIs
+# Override with SMART_BASE_URL env var for non-localhost deployments
+SMART_BASE_URL = os.getenv("SMART_BASE_URL", "http://localhost")
+
+def _smart_url(port, path=""):
+    """Build a SMART app URL from base URL and port."""
+    return f"{SMART_BASE_URL}:{port}{path}"
+
+
 SMART_APPS = [
     # Clinical Tools
     {
@@ -42,13 +51,13 @@ SMART_APPS = [
         "name": "Growth Chart",
         "description": "Pediatric growth chart visualization for tracking patient development over time. Displays height, weight, and BMI percentiles.",
         "client_type": "public",
-        "redirect_uris": ["http://localhost:9000/", "http://localhost:9000/callback"],
+        "redirect_uris": [_smart_url(9000, "/"), _smart_url(9000, "/callback")],
         "scopes": [
             "launch", "launch/patient",
             "patient/Patient.read", "patient/Observation.read",
             "openid", "fhirUser"
         ],
-        "launch_uri": "http://localhost:9000/launch.html",
+        "launch_uri": _smart_url(9000, "/launch.html"),
         "logo_uri": "/assets/smart-apps/growth-chart.svg",
         "category": "clinical",
         "is_active": True
@@ -58,7 +67,7 @@ SMART_APPS = [
         "name": "Patient Summary Viewer",
         "description": "Comprehensive patient clinical summary including conditions, medications, allergies, and recent observations.",
         "client_type": "public",
-        "redirect_uris": ["http://localhost:3001/callback", "http://localhost:3000/smart-callback"],
+        "redirect_uris": [_smart_url(3001, "/callback"), _smart_url(3000, "/smart-callback")],
         "scopes": [
             "launch", "launch/patient",
             "patient/Patient.read", "patient/Observation.read",
@@ -66,7 +75,7 @@ SMART_APPS = [
             "patient/AllergyIntolerance.read", "patient/Procedure.read",
             "openid", "fhirUser"
         ],
-        "launch_uri": "http://localhost:3001/launch",
+        "launch_uri": _smart_url(3001, "/launch"),
         "logo_uri": "/assets/smart-apps/patient-viewer.svg",
         "category": "clinical",
         "is_active": True
@@ -76,14 +85,14 @@ SMART_APPS = [
         "name": "ASCVD Risk Calculator",
         "description": "Atherosclerotic Cardiovascular Disease 10-year risk calculator based on ACC/AHA guidelines.",
         "client_type": "public",
-        "redirect_uris": ["http://localhost:9001/", "http://localhost:9001/callback"],
+        "redirect_uris": [_smart_url(9001, "/"), _smart_url(9001, "/callback")],
         "scopes": [
             "launch", "launch/patient",
             "patient/Patient.read", "patient/Observation.read",
             "patient/Condition.read", "patient/MedicationRequest.read",
             "openid", "fhirUser"
         ],
-        "launch_uri": "http://localhost:9001/launch.html",
+        "launch_uri": _smart_url(9001, "/launch.html"),
         "logo_uri": "/assets/smart-apps/ascvd-calculator.svg",
         "category": "clinical",
         "is_active": True
@@ -93,14 +102,14 @@ SMART_APPS = [
         "name": "Medication List Manager",
         "description": "View and manage patient medication lists with drug interaction checking and adherence tracking.",
         "client_type": "public",
-        "redirect_uris": ["http://localhost:9002/callback"],
+        "redirect_uris": [_smart_url(9002, "/callback")],
         "scopes": [
             "launch", "launch/patient",
             "patient/Patient.read", "patient/MedicationRequest.read",
             "patient/MedicationStatement.read", "patient/AllergyIntolerance.read",
             "openid", "fhirUser"
         ],
-        "launch_uri": "http://localhost:9002/launch",
+        "launch_uri": _smart_url(9002, "/launch"),
         "logo_uri": "/assets/smart-apps/medication-list.svg",
         "category": "clinical",
         "is_active": True
@@ -111,14 +120,14 @@ SMART_APPS = [
         "name": "Lab Trend Analyzer",
         "description": "Visualize laboratory result trends over time with customizable charts and comparison tools.",
         "client_type": "public",
-        "redirect_uris": ["http://localhost:9003/callback"],
+        "redirect_uris": [_smart_url(9003, "/callback")],
         "scopes": [
             "launch", "launch/patient",
             "patient/Patient.read", "patient/Observation.read",
             "patient/DiagnosticReport.read",
             "openid", "fhirUser"
         ],
-        "launch_uri": "http://localhost:9003/launch",
+        "launch_uri": _smart_url(9003, "/launch"),
         "logo_uri": "/assets/smart-apps/lab-trends.svg",
         "category": "analytics",
         "is_active": True
@@ -128,14 +137,14 @@ SMART_APPS = [
         "name": "Population Health Dashboard",
         "description": "Population-level analytics for care gap identification and quality measure tracking.",
         "client_type": "confidential",
-        "redirect_uris": ["http://localhost:9004/callback"],
+        "redirect_uris": [_smart_url(9004, "/callback")],
         "scopes": [
             "launch",
             "user/Patient.read", "user/Observation.read",
             "user/Condition.read", "user/MedicationRequest.read",
             "openid", "fhirUser"
         ],
-        "launch_uri": "http://localhost:9004/launch",
+        "launch_uri": _smart_url(9004, "/launch"),
         "logo_uri": "/assets/smart-apps/population-health.svg",
         "category": "analytics",
         "is_active": True
@@ -146,13 +155,13 @@ SMART_APPS = [
         "name": "FHIR Resource Viewer",
         "description": "Educational tool for exploring raw FHIR resources with syntax highlighting and validation.",
         "client_type": "public",
-        "redirect_uris": ["http://localhost:9005/callback"],
+        "redirect_uris": [_smart_url(9005, "/callback")],
         "scopes": [
             "launch", "launch/patient",
             "patient/*.read",
             "openid", "fhirUser"
         ],
-        "launch_uri": "http://localhost:9005/launch",
+        "launch_uri": _smart_url(9005, "/launch"),
         "logo_uri": "/assets/smart-apps/fhir-viewer.svg",
         "category": "educational",
         "is_active": True
@@ -162,13 +171,13 @@ SMART_APPS = [
         "name": "OAuth Flow Visualizer",
         "description": "Step-by-step visualization of the SMART on FHIR OAuth2 authorization flow for learning purposes.",
         "client_type": "public",
-        "redirect_uris": ["http://localhost:3000/smart-callback"],
+        "redirect_uris": [_smart_url(3000, "/smart-callback")],
         "scopes": [
             "launch", "launch/patient",
             "patient/Patient.read",
             "openid", "fhirUser"
         ],
-        "launch_uri": "http://localhost:3000/smart-education",
+        "launch_uri": _smart_url(3000, "/smart-education"),
         "logo_uri": "/assets/smart-apps/oauth-visualizer.svg",
         "category": "educational",
         "is_active": True
@@ -179,7 +188,7 @@ SMART_APPS = [
         "name": "Diabetes Management",
         "description": "Diabetes care management with glucose trend analysis, HbA1c tracking, and medication optimization.",
         "client_type": "public",
-        "redirect_uris": ["http://localhost:9006/callback"],
+        "redirect_uris": [_smart_url(9006, "/callback")],
         "scopes": [
             "launch", "launch/patient",
             "patient/Patient.read", "patient/Observation.read",
@@ -187,7 +196,7 @@ SMART_APPS = [
             "patient/CarePlan.read",
             "openid", "fhirUser"
         ],
-        "launch_uri": "http://localhost:9006/launch",
+        "launch_uri": _smart_url(9006, "/launch"),
         "logo_uri": "/assets/smart-apps/diabetes-mgmt.svg",
         "category": "clinical",
         "is_active": True
@@ -197,14 +206,14 @@ SMART_APPS = [
         "name": "Care Plan Viewer",
         "description": "View and track patient care plans with goals, activities, and progress monitoring.",
         "client_type": "public",
-        "redirect_uris": ["http://localhost:9007/callback"],
+        "redirect_uris": [_smart_url(9007, "/callback")],
         "scopes": [
             "launch", "launch/patient",
             "patient/Patient.read", "patient/CarePlan.read",
             "patient/Goal.read", "patient/Condition.read",
             "openid", "fhirUser"
         ],
-        "launch_uri": "http://localhost:9007/launch",
+        "launch_uri": _smart_url(9007, "/launch"),
         "logo_uri": "/assets/smart-apps/care-plan.svg",
         "category": "clinical",
         "is_active": True

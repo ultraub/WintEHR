@@ -33,8 +33,10 @@ class MedicationPrescribeHooks:
     def __init__(self):
         self.drug_interactions = self._load_drug_interactions()
         self.allergy_mappings = self._load_allergy_mappings()
-        # URL for enhanced drug safety service
-        self.drug_safety_api_url = "http://localhost:8000/api/emr/clinical/drug-interactions"
+        # URL for enhanced drug safety service — use env var or relative URL for internal calls
+        import os
+        backend_base = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
+        self.drug_safety_api_url = f"{backend_base}/api/emr/clinical/drug-interactions"
 
     def _load_drug_interactions(self) -> Dict[str, List[Dict]]:
         """Load drug interaction database"""

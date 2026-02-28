@@ -205,8 +205,8 @@ services:
       - REACT_APP_EMR_API=${REACT_APP_EMR_API:-/api/emr}
       - REACT_APP_CLINICAL_CANVAS_API=${REACT_APP_CLINICAL_CANVAS_API:-/api/clinical-canvas}
       - REACT_APP_API_URL=${REACT_APP_API_URL:-}
-      # WebSocket connects directly to backend (http-proxy-middleware v3 doesn't support ws proxy)
-      - REACT_APP_WEBSOCKET_URL=${REACT_APP_WEBSOCKET_URL:-ws://localhost:8000/api/ws}
+      # WebSocket URL — leave empty for auto-detection from window.location
+      - REACT_APP_WEBSOCKET_URL=${REACT_APP_WEBSOCKET_URL:-}
     networks:
       - emr-network
     depends_on:
