@@ -99,7 +99,7 @@ export const SMARTProvider = ({ children }) => {
       setSmartConfig(config);
       return config;
     } catch (error) {
-      console.error('Failed to load SMART configuration:', error);
+      console.debug('SMART configuration not available (expected in dev mode):', error.message);
       // Don't throw - SMART is optional functionality
       return null;
     }

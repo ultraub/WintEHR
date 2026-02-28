@@ -539,6 +539,123 @@ class DynamicCatalogService:
         logger.info(f"Extracted {len(allergies)} unique allergies from HAPI FHIR")
         return allergies
 
+    async def extract_imaging_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Extract imaging catalog from ImagingStudy resources.
+
+        Uses FHIR-standard _elements parameter for efficient minimal-payload retrieval.
+        Works with ANY FHIR R4 compliant server (HAPI, Azure FHIR, AWS HealthLake, etc.)
+        """
+        cache_key = f"imaging_{limit}"
+        if self._is_cached(cache_key):
+            return self.cache[cache_key]
+
+        logger.info("Extracting imaging catalog using FHIR-standard _elements parameter")
+
+        hapi_client = HAPIFHIRClient()
+
+        try:
+            bundle = await hapi_client.search("ImagingStudy", {
+                "_elements": "modality,description",
+                "_count": "500"
+            })
+
+            total_found = len(bundle.get('entry', []))
+            logger.info(f"Found {total_found} imaging studies (minimal payload)")
+
+            code_map = defaultdict(lambda: {
+                'modality': None,
+                'display': None,
+                'body_site': None,
+                'frequency_count': 0
+            })
+
+            for entry in bundle.get('entry', []):
+                resource = entry['resource']
+                description = resource.get('description', '')
+                modality_list = resource.get('modality', [])
+                modality_code = modality_list[0].get('code', 'Unknown') if modality_list else 'Unknown'
+
+                key = description or modality_code
+                if key:
+                    code_data = code_map[key]
+                    code_data['modality'] = modality_code
+                    code_data['display'] = description or f"{modality_code} Study"
+                    code_data['frequency_count'] += 1
+
+            logger.info(f"Aggregated {len(code_map)} distinct imaging study types from {total_found} resources")
+
+        except Exception as e:
+            logger.error(f"Error extracting imaging catalog: {e}")
+            code_map = {}
+
+        imaging_studies = []
+        for key, data in code_map.items():
+            imaging_studies.append({
+                "id": f"img_{len(imaging_studies)}",
+                "code": key,
+                "display": data['display'],
+                "modality": data['modality'],
+                "body_site": data.get('body_site'),
+                "frequency_count": data['frequency_count'],
+                "source": "patient_data"
+            })
+
+        imaging_studies.sort(key=lambda x: x['frequency_count'], reverse=True)
+
+        if limit:
+            imaging_studies = imaging_studies[:limit]
+
+        self._cache_result(cache_key, imaging_studies)
+        logger.info(f"Extracted {len(imaging_studies)} unique imaging studies using FHIR-standard approach")
+        return imaging_studies
+
+    async def extract_order_set_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Extract order set catalog from PlanDefinition resources.
+
+        Looks for PlanDefinition resources that represent order sets.
+        """
+        cache_key = f"order_sets_{limit}"
+        if self._is_cached(cache_key):
+            return self.cache[cache_key]
+
+        logger.info("Extracting order set catalog from PlanDefinition resources")
+
+        hapi_client = HAPIFHIRClient()
+
+        try:
+            bundle = await hapi_client.search("PlanDefinition", {
+                "type": "order-set",
+                "_elements": "title,description,status",
+                "_count": "200"
+            })
+
+            total_found = len(bundle.get('entry', []))
+            logger.info(f"Found {total_found} order set PlanDefinitions")
+
+        except Exception as e:
+            logger.error(f"Error extracting order set catalog: {e}")
+            bundle = {"entry": []}
+
+        order_sets = []
+        for entry in bundle.get('entry', []):
+            resource = entry['resource']
+            order_sets.append({
+                "id": resource.get('id', f"os_{len(order_sets)}"),
+                "title": resource.get('title', 'Unnamed Order Set'),
+                "description": resource.get('description', ''),
+                "status": resource.get('status', 'unknown'),
+                "source": "patient_data"
+            })
+
+        if limit:
+            order_sets = order_sets[:limit]
+
+        self._cache_result(cache_key, order_sets)
+        logger.info(f"Extracted {len(order_sets)} order sets")
+        return order_sets
+
     async def get_catalog_statistics(self) -> Dict[str, Any]:
         """Get statistics about the extracted catalogs using HAPIFHIRClient."""
         logger.info("Generating catalog statistics from HAPI FHIR")

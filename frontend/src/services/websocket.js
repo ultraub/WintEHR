@@ -515,7 +515,8 @@ class WebSocketService {
     return {
       isConnected: this.isConnected,
       reconnectAttempts: this.reconnectAttempts,
-      queuedMessages: this.messageQueue.length
+      queuedMessages: this.messageQueue.length,
+      isConfigured: !!this.baseUrl
     };
   }
 }

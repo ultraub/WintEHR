@@ -232,6 +232,24 @@ async def get_service_metrics(
         raise HTTPException(500, f"Failed to get metrics: {str(e)}")
 
 
+@router.get("/metrics")
+async def get_system_metrics(
+    time_range: str = Query("24h", description="Time range for metrics (1h, 24h, 7d, 30d)"),
+    studio_service: CDSStudioService = Depends(get_studio_service)
+):
+    """
+    Get system-wide metrics aggregated across all CDS services.
+
+    Returns per-service metrics keyed by service_id for dashboard display.
+    """
+    try:
+        metrics = await studio_service.get_system_metrics(time_range)
+        return metrics
+    except Exception as e:
+        logger.error(f"Failed to get system metrics: {e}")
+        raise HTTPException(500, f"Failed to get system metrics: {str(e)}")
+
+
 # ============================================================================
 # Service Management Endpoints
 # ============================================================================

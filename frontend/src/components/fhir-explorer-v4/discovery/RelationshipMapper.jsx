@@ -575,7 +575,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
         } else if (err.response?.status === 403) {
           setError('Access denied. Please check your permissions.');
         } else if (err.response?.status >= 500) {
-          setError('Server error. Please try again later.');
+          setError(`Relationship discovery unavailable for ${resourceType}/${resourceId}. The backend service may not support this resource type.`);
         }
       }
     } finally {
@@ -1834,7 +1834,24 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
             )}
 
             {error && (
-              <Alert severity="error" sx={{ m: 2 }}>
+              <Alert
+                severity="warning"
+                sx={{ m: 2 }}
+                action={
+                  <Button
+                    color="inherit"
+                    size="small"
+                    onClick={() => {
+                      setError(null);
+                      if (currentResource?.resourceType && currentResource?.resourceId) {
+                        loadRelationships(currentResource.resourceType, currentResource.resourceId);
+                      }
+                    }}
+                  >
+                    Retry
+                  </Button>
+                }
+              >
                 {error}
               </Alert>
             )}

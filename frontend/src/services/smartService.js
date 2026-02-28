@@ -58,8 +58,8 @@ class SMARTService {
       this._discoveryCache = response.data;
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch SMART configuration:', error);
-      throw error;
+      console.debug('SMART configuration not available (expected in dev mode):', error.message);
+      return null;
     }
   }
 

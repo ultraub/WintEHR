@@ -1354,12 +1354,16 @@ const EnhancedOrdersTab = ({
         onClose={() => setCpoeDialogOpen(false)}
         patientId={patientId}
         onSave={async (orders) => {
+          // Normalize to array — CPOEDialog may pass a single resource
+          const orderList = Array.isArray(orders) ? orders : [orders];
+
           // Publish events for each created order
-          for (const order of orders) {
-            const eventType = order.resourceType === 'MedicationRequest' 
-              ? CLINICAL_EVENTS.MEDICATION_PRESCRIBED 
+          for (const order of orderList) {
+            if (!order) continue;
+            const eventType = order.resourceType === 'MedicationRequest'
+              ? CLINICAL_EVENTS.MEDICATION_PRESCRIBED
               : CLINICAL_EVENTS.ORDER_PLACED;
-            
+
             await publish(eventType, {
               orderId: order.id,
               order: order,
@@ -1367,11 +1371,11 @@ const EnhancedOrdersTab = ({
               orderType: order.resourceType
             });
           }
-          
+
           refreshSearch();
           setSnackbar({
             open: true,
-            message: `${orders.length} order(s) created successfully`,
+            message: `${orderList.length} order(s) created successfully`,
             severity: 'success'
           });
         }}

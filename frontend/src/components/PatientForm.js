@@ -81,7 +81,7 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>{patient ? 'Edit Patient' : 'Add New Patient'}</DialogTitle>
-      <DialogContent>
+      <DialogContent dividers sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
         <Box sx={{ mt: 2 }}>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>

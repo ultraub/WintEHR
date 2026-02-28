@@ -178,24 +178,28 @@ function Analytics() {
                 <Typography variant="h6" gutterBottom>
                   Gender Distribution
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={demographics.gender_distribution}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="count"
-                      label={(entry) => `${entry.gender}: ${entry.percentage}%`}
-                    >
-                      {demographics.gender_distribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                {demographics.gender_distribution && demographics.gender_distribution.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={demographics.gender_distribution}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="count"
+                        label={(entry) => `${entry.gender}: ${entry.percentage}%`}
+                      >
+                        {demographics.gender_distribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>No gender distribution data available</Typography>
+                )}
               </Paper>
             </Grid>
 
@@ -204,22 +208,26 @@ function Analytics() {
                 <Typography variant="h6" gutterBottom>
                   Age Distribution
                 </Typography>
-                <Grid container spacing={2}>
-                  {Object.entries(demographics.age_distribution).map(([group, data]) => (
-                    <Grid item xs={6} key={group}>
-                      <Card>
-                        <CardContent>
-                          <Typography variant="h4" color="primary">
-                            {data.count}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {group.replace('_', ' ')} ({data.percentage}%)
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
+                {demographics.age_distribution ? (
+                  <Grid container spacing={2}>
+                    {Object.entries(demographics.age_distribution).map(([group, data]) => (
+                      <Grid item xs={6} key={group}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h4" color="primary">
+                              {data.count}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {group.replace('_', ' ')} ({data.percentage}%)
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                ) : (
+                  <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>No age distribution data available</Typography>
+                )}
               </Paper>
             </Grid>
 

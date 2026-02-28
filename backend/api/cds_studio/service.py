@@ -859,6 +859,36 @@ class CDSStudioService:
             logger.error(f"Error getting detailed metrics for {service_id}: {e}")
         return None
 
+    async def get_system_metrics(self, time_range: str = "24h") -> Dict[str, Any]:
+        """Get aggregated metrics across all active CDS services for dashboard display."""
+        if not self.db:
+            return {"services": {}}
+
+        try:
+            from sqlalchemy import text as sa_text
+
+            # Get all distinct service_ids from execution logs
+            result = await self.db.execute(sa_text(
+                """SELECT DISTINCT service_id FROM cds_visual_builder.execution_logs"""
+            ))
+            service_ids = [row[0] for row in result.fetchall()]
+
+            all_metrics = {}
+            for sid in service_ids:
+                try:
+                    metrics = await self.get_service_metrics(sid)
+                    if metrics:
+                        all_metrics[sid] = metrics.dict() if hasattr(metrics, 'dict') else metrics
+                except Exception as e:
+                    logger.warning(f"Failed to get metrics for {sid}: {e}")
+                    continue
+
+            return {"services": all_metrics}
+
+        except Exception as e:
+            logger.error(f"Error getting system metrics: {e}")
+            return {"services": {}}
+
     async def update_service_status(self, service_id: str, status: ServiceStatus):
         """
         Update service status in both HAPI FHIR PlanDefinition and local config.

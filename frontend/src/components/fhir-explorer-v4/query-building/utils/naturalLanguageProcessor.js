@@ -178,11 +178,13 @@ export const processNaturalLanguage = (input) => {
   }
   
   // Extract medical terms and convert to codes
+  let medicalTermsFound = [];
   for (const [term, info] of Object.entries(MEDICAL_TERMS)) {
     if (text.includes(term)) {
+      medicalTermsFound.push({ term, info });
       const code = info.codes[0];
       const system = info.system;
-      
+
       // Determine parameter based on resource type and term type
       if (query.resourceType === 'Condition' && info.system.includes('snomed')) {
         query.parameters.push({
@@ -201,6 +203,20 @@ export const processNaturalLanguage = (input) => {
           name: 'code',
           value: info.rxnorm,
           display: info.display
+        });
+      } else if (query.resourceType === 'Patient' && info.system.includes('snomed')) {
+        // Patient + condition term: use _has to find patients with this condition
+        query.parameters.push({
+          name: '_has:Condition:patient:code:text',
+          value: term,
+          display: `Patients with ${info.display}`
+        });
+      } else if (query.resourceType === 'Patient' && info.system.includes('loinc')) {
+        // Patient + lab term: use _has to find patients with this observation
+        query.parameters.push({
+          name: '_has:Observation:patient:code',
+          value: `${system}|${code}`,
+          display: `Patients with ${info.display} results`
         });
       }
     }
@@ -275,17 +291,20 @@ export const processNaturalLanguage = (input) => {
 // Calculate confidence score
 const calculateConfidence = (query, originalText) => {
   let score = 0;
-  
+
   if (query.resourceType) score += 0.3;
   if (query.parameters.length > 0) score += 0.3;
-  if (query.parameters.some(p => p.value.includes('|'))) score += 0.2; // Coded values
+  if (query.parameters.some(p => p.value && p.value.includes('|'))) score += 0.1; // Coded values
   if (query.includes.length > 0) score += 0.1;
-  
-  // Penalize if too much of the input wasn't understood
-  const words = originalText.split(' ').length;
+
+  // Bonus for medical term recognition (even without coded values)
+  if (query.parameters.some(p => p.display)) score += 0.1;
+
+  // Softer penalty: only penalize if very few elements matched relative to query length
+  const words = originalText.split(/\s+/).filter(w => w.length > 2).length;
   const matchedElements = query.parameters.length + (query.resourceType ? 1 : 0);
-  if (matchedElements < words / 3) score -= 0.2;
-  
+  if (words > 4 && matchedElements < 2) score -= 0.1;
+
   return Math.max(0.1, Math.min(1.0, score));
 };
 

@@ -16,11 +16,13 @@ import {
   Refresh as ReconnectingIcon
 } from '@mui/icons-material';
 import { useClinicalWorkflow } from '../../contexts/ClinicalWorkflowContext';
+import websocketService from '../../services/websocket';
 
 const WebSocketStatus = ({ size = 'small', showLabel = true }) => {
   const theme = useTheme();
   const { wsConnected, wsReconnecting } = useClinicalWorkflow();
-  
+  const { isConfigured } = websocketService.getConnectionState();
+
   // Determine status
   const getStatus = () => {
     if (wsConnected) {
@@ -31,7 +33,7 @@ const WebSocketStatus = ({ size = 'small', showLabel = true }) => {
         tooltip: 'Real-time updates active'
       };
     }
-    
+
     if (wsReconnecting) {
       return {
         icon: <CircularProgress size={size === 'small' ? 16 : 20} thickness={4} />,
@@ -40,7 +42,16 @@ const WebSocketStatus = ({ size = 'small', showLabel = true }) => {
         tooltip: 'Attempting to reconnect...'
       };
     }
-    
+
+    if (!isConfigured) {
+      return {
+        icon: <DisconnectedIcon fontSize={size} />,
+        label: 'Not Configured',
+        color: 'default',
+        tooltip: 'WebSocket URL not configured'
+      };
+    }
+
     return {
       icon: <DisconnectedIcon fontSize={size} />,
       label: 'Disconnected',
