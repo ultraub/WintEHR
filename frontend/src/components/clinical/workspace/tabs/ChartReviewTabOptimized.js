@@ -1980,23 +1980,61 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
   
   const cardStyles = getClinicalCardStyles(severityLevel, 1, true);
   
+  const allergenName = allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown allergen';
+
+  const criticalityLabel = criticality === 'high' ? 'High Risk' :
+                           criticality === 'low' ? 'Low Risk' :
+                           criticality === 'unable-to-assess' ? 'Unknown Risk' : criticality;
+
+  const typeDisplay = typeof allergy.type === 'string' ? allergy.type : null;
+  const categoryDisplay = (() => {
+    const categoryArray = Array.isArray(allergy.category) ? allergy.category :
+                         (allergy.category ? [allergy.category] : []);
+    const firstCategory = categoryArray[0];
+    if (!firstCategory) return null;
+    if (typeof firstCategory === 'string') return firstCategory;
+    if (typeof firstCategory === 'object') {
+      return firstCategory.coding?.[0]?.display || firstCategory.text || null;
+    }
+    return null;
+  })();
+  const clinicalStatusLabel = clinicalStatus === 'active' ? 'Active' :
+                              clinicalStatus === 'resolved' ? 'Resolved' :
+                              clinicalStatus === 'inactive' ? 'Inactive' : clinicalStatus;
+  const onsetDisplay = onsetDate ? (typeof onsetDate === 'string' ? formatClinicalDate(onsetDate) : `Age ${onsetDate}`) : null;
+
+  // Line 2: type · category · clinical status · onset
+  const subtitleParts = [
+    typeDisplay,
+    categoryDisplay,
+    clinicalStatusLabel,
+    onsetDisplay && `Onset: ${onsetDisplay}`,
+  ].filter(Boolean);
+
+  // Line 3: manifestations · severity
+  const tertiaryParts = [
+    allManifestations.length > 0 && allManifestations.join(', '),
+    severity,
+  ].filter(Boolean);
+
+  // Line 4: recorder · asserter · notes
+  const contextParts = [
+    recorder && `Recorded by ${recorder}`,
+    asserter && asserter !== recorder && `Asserted by ${asserter}`,
+    allergy.note?.[0]?.text,
+  ].filter(Boolean);
+
   return (
     <Paper
       elevation={0}
       sx={{
-        p: 2,
+        p: 2.5,
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: '4px solid',
-        borderLeftColor: criticality === 'high' ? theme.palette.error.main :
-                        criticality === 'low' ? theme.palette.success.main :
-                        theme.palette.warning.main,
-        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : 
-                         (criticality === 'high' ? clinicalTokens.severity.critical.bg : theme.palette.background.paper),
-        transition: 'all 0.2s ease',
+        backgroundColor: 'background.paper',
+        transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
-          backgroundColor: alpha(theme.palette.action.hover, 0.08),
-          transform: 'translateX(2px)'
+          backgroundColor: (t) => alpha(t.palette.action.hover, 0.06),
         },
         ...(criticality === 'high' && {
           animation: 'pulse 3s ease-in-out infinite'
@@ -2004,167 +2042,55 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
       }}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-        <Box flex={1}>
-          <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-            {criticality === 'high' && <WarningIcon color="error" />}
-            <Typography variant="body1" fontWeight={600}>
-              {allergy.code?.text || allergy.code?.coding?.[0]?.display || 'Unknown allergen'}
-            </Typography>
-            {/* Criticality */}
-            <Chip 
-              label={criticality === 'high' ? 'High Risk' : 
-                     criticality === 'low' ? 'Low Risk' : 
-                     criticality === 'unable-to-assess' ? 'Unknown Risk' : criticality} 
-              size="small" 
-              color={criticalityColor}
-              sx={{ 
-                fontWeight: 600,
-                ...(criticality === 'high' && {
-                  backgroundColor: alpha(theme.palette.error.main, 0.9),
-                  color: 'white'
-                }),
-                ...(criticality === 'low' && {
-                  backgroundColor: alpha(theme.palette.success.main, 0.9),
-                  color: 'white'
-                })
+        <Box flex={1} sx={{ minWidth: 0 }}>
+          {/* Title line: allergen name + criticality chip */}
+          <Stack direction="row" alignItems="center" spacing={1}>
+            {criticality === 'high' && <WarningIcon color="error" sx={{ flexShrink: 0 }} />}
+            <Typography
+              variant="body1"
+              fontWeight={600}
+              sx={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1,
+                minWidth: 0,
               }}
-            />
-            {severity && (
-              <Chip 
-                label={severity} 
-                size="small" 
-                variant="outlined"
-                color={severity === 'severe' ? 'error' : 'default'}
-                sx={{}}
-              />
-            )}
-            {clinicalStatus && (
-              <Chip 
-                label={clinicalStatus === 'active' ? 'Active' : 
-                       clinicalStatus === 'resolved' ? 'Resolved' : 
-                       clinicalStatus === 'inactive' ? 'Inactive' : clinicalStatus} 
-                size="small" 
-                color={clinicalStatus === 'active' ? 'error' : 
-                       clinicalStatus === 'resolved' ? 'success' : 'default'}
-                sx={{ 
-                  fontWeight: 600,
-                  ...(clinicalStatus === 'active' && {
-                    backgroundColor: alpha(theme.palette.error.main, 0.1),
-                    color: theme.palette.error.main
-                  }),
-                  ...(clinicalStatus === 'resolved' && {
-                    backgroundColor: alpha(theme.palette.success.main, 0.1),
-                    color: theme.palette.success.main
-                  })
-                }}
-              />
-            )}
-            {verificationStatus === 'confirmed' && (
-              <Chip 
-                label="Confirmed" 
-                size="small" 
-                color="success"
-                variant="outlined"
-                sx={{}}
-              />
-            )}
-          </Stack>
-          
-          {/* Allergy codes and identifiers */}
-          {(allergenCode || identifiers) && (
-            <Stack direction="row" spacing={2} alignItems="center" mb={0.5} flexWrap="wrap">
-              {allergenCode && (
-                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                  <strong>Code:</strong> {allergenCode}
-                  {codeSystem?.includes('snomed') && ' (SNOMED)'}
-                  {codeSystem?.includes('rxnorm') && ' (RxNorm)'}
-                </Typography>
-              )}
-              {identifiers && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>ID:</strong> {identifiers}
-                </Typography>
-              )}
-            </Stack>
-          )}
-          
-          <Stack spacing={0.5}>
-            <Typography variant="caption" color="text.secondary">
-              <strong>Type:</strong> {typeof allergy.type === 'string' ? allergy.type : 'Unknown'} | 
-              <strong> Category:</strong> {(() => {
-                // Handle both array and single object formats
-                const categoryArray = Array.isArray(allergy.category) ? allergy.category : 
-                                     (allergy.category ? [allergy.category] : []);
-                const firstCategory = categoryArray[0];
-                
-                if (!firstCategory) return 'Unknown';
-                
-                // If it's a string, return it
-                if (typeof firstCategory === 'string') return firstCategory;
-                
-                // If it's a CodeableConcept, extract the display
-                if (typeof firstCategory === 'object') {
-                  return firstCategory.coding?.[0]?.display || 
-                         firstCategory.text || 
-                         'Unknown';
-                }
-                
-                return 'Unknown';
-              })()}
+            >
+              {allergenName}
             </Typography>
-            
-            {/* Enhanced manifestation display */}
-            {allManifestations.length > 0 && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Manifestations:</strong> {allManifestations.join(', ')}
-              </Typography>
-            )}
-            
-            {/* Onset and occurrence information */}
-            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-              {onsetDate && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>Onset:</strong> {typeof onsetDate === 'string' ?
-                    formatClinicalDate(onsetDate) :
-                    `Age ${onsetDate}`}
-                </Typography>
-              )}
-              {lastOccurrence && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>Last reaction:</strong> {formatClinicalDate(lastOccurrence)}
-                </Typography>
-              )}
-            </Stack>
-
-            {/* Clinical team and recording information */}
-            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-              {allergy.recordedDate && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>Recorded:</strong> {formatClinicalDate(allergy.recordedDate)}
-                </Typography>
-              )}
-              {recorder && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>Recorded by:</strong> {recorder}
-                </Typography>
-              )}
-              {asserter && asserter !== recorder && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>Asserted by:</strong> {asserter}
-                </Typography>
-              )}
-            </Stack>
-            
-            {/* Notes */}
-            {allergy.note?.[0]?.text && (
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                <strong>Notes:</strong> {allergy.note[0].text}
-              </Typography>
-            )}
+            <Chip
+              label={criticalityLabel}
+              size="small"
+              variant="outlined"
+              color={criticalityColor}
+              sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
+            />
           </Stack>
+
+          {/* Line 2: type · category · clinical status · onset */}
+          {subtitleParts.length > 0 && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              {subtitleParts.join(' \u00B7 ')}
+            </Typography>
+          )}
+
+          {/* Line 3: manifestations · severity */}
+          {tertiaryParts.length > 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.25, display: 'block' }}>
+              {tertiaryParts.join(' \u00B7 ')}
+            </Typography>
+          )}
+
+          {/* Line 4: recorder · asserter · notes */}
+          {contextParts.length > 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.25, display: 'block' }}>
+              {contextParts.join(' \u00B7 ')}
+            </Typography>
+          )}
         </Box>
-        
-        <IconButton size="small" onClick={onEdit}>
+
+        <IconButton size="small" onClick={onEdit} sx={{ ml: 1, flexShrink: 0 }}>
           <EditIcon fontSize="small" />
         </IconButton>
       </Stack>
@@ -2180,85 +2106,86 @@ const EnhancedImmunizationCard = ({ immunization, onEdit, isAlternate = false })
   const status = immunization.status;
   const isCompleted = status === 'completed';
   
+  const statusLabel = status === 'completed' ? 'Completed' :
+                     status === 'not-done' ? 'Not Done' :
+                     status === 'entered-in-error' ? 'Error' : status;
+  const statusColor = status === 'completed' ? 'success' :
+                      status === 'not-done' ? 'warning' : 'default';
+
+  const dateDisplay = formatClinicalDate(immunization.occurrenceDateTime, 'standard', null);
+  const protocol = immunization.protocolApplied?.[0];
+  const doseInfo = protocol ? (() => {
+    const doseNum = protocol.doseNumberString || protocol.doseNumberPositiveInt;
+    const series = protocol.seriesDosesString;
+    return doseNum ? `Dose ${doseNum}${series ? ` of ${series}` : ''}` : null;
+  })() : null;
+  const siteDisplay = immunization.site?.text || immunization.site?.coding?.[0]?.display || null;
+  const manufacturerDisplay = immunization.manufacturer?.display || null;
+  const lotNumber = immunization.lotNumber || null;
+
+  // Line 2: date · dose info · site
+  const subtitleParts = [dateDisplay, doseInfo, siteDisplay].filter(Boolean);
+
+  // Line 3: manufacturer · lot number
+  const tertiaryParts = [manufacturerDisplay, lotNumber && `Lot: ${lotNumber}`].filter(Boolean);
+
   return (
     <Paper
       elevation={0}
       sx={{
-        p: 2,
+        p: 2.5,
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: '4px solid',
-        borderLeftColor: status === 'completed' ? theme.palette.success.main :
-                        status === 'not-done' ? theme.palette.warning.main :
-                        theme.palette.grey[300],
-        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
-        transition: 'all 0.2s ease',
+        backgroundColor: 'background.paper',
+        transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
-          backgroundColor: alpha(theme.palette.action.hover, 0.08),
-          transform: 'translateX(2px)'
+          backgroundColor: (t) => alpha(t.palette.action.hover, 0.06),
         }
       }}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-        <Box flex={1}>
-          <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-            <VaccinesIcon fontSize="small" color={isCompleted ? "success" : "warning"} />
-            <Typography variant="body1" fontWeight={600}>
+        <Box flex={1} sx={{ minWidth: 0 }}>
+          {/* Title line: vaccine name + status chip */}
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <VaccinesIcon fontSize="small" color={isCompleted ? "success" : "warning"} sx={{ flexShrink: 0 }} />
+            <Typography
+              variant="body1"
+              fontWeight={600}
+              sx={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
               {vaccineDisplay}
             </Typography>
-            {/* Immunization Status */}
-            <Chip 
-              label={status === 'completed' ? 'Completed' : 
-                     status === 'not-done' ? 'Not Done' : 
-                     status === 'entered-in-error' ? 'Error' : status} 
-              size="small" 
-              color={status === 'completed' ? 'success' : 
-                     status === 'not-done' ? 'warning' : 'default'}
-              sx={{ 
-                fontWeight: 600,
-                ...(status === 'completed' && {
-                  backgroundColor: alpha(theme.palette.success.main, 0.9),
-                  color: 'white'
-                }),
-                ...(status === 'not-done' && {
-                  backgroundColor: alpha(theme.palette.warning.main, 0.9),
-                  color: 'white'
-                })
-              }}
+            <Chip
+              label={statusLabel}
+              size="small"
+              variant="outlined"
+              color={statusColor}
+              sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
             />
           </Stack>
-          
-          <Stack spacing={0.5}>
-            <Typography variant="caption" color="text.secondary">
-              <strong>Date:</strong> {formatClinicalDate(immunization.occurrenceDateTime, 'standard', 'Unknown')}
+
+          {/* Line 2: date · dose info · site */}
+          {subtitleParts.length > 0 && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              {subtitleParts.join(' \u00B7 ')}
             </Typography>
-            {immunization.protocolApplied?.[0] && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Dose:</strong> {immunization.protocolApplied[0].doseNumberString || 
-                  immunization.protocolApplied[0].doseNumberPositiveInt || 'Unknown'} 
-                {immunization.protocolApplied[0].seriesDosesString && 
-                  ` of ${immunization.protocolApplied[0].seriesDosesString}`}
-              </Typography>
-            )}
-            {immunization.site && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Site:</strong> {immunization.site.text || immunization.site.coding?.[0]?.display || 'Unknown'}
-              </Typography>
-            )}
-            {immunization.manufacturer && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Manufacturer:</strong> {immunization.manufacturer.display}
-              </Typography>
-            )}
-            {immunization.lotNumber && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Lot:</strong> {immunization.lotNumber}
-              </Typography>
-            )}
-          </Stack>
+          )}
+
+          {/* Line 3: manufacturer · lot number */}
+          {tertiaryParts.length > 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.25, display: 'block' }}>
+              {tertiaryParts.join(' \u00B7 ')}
+            </Typography>
+          )}
         </Box>
-        
-        <IconButton size="small" onClick={onEdit}>
+
+        <IconButton size="small" onClick={onEdit} sx={{ ml: 1, flexShrink: 0 }}>
           <EditIcon fontSize="small" />
         </IconButton>
       </Stack>
@@ -2274,103 +2201,96 @@ const EnhancedProcedureCard = ({ procedure, onEdit, isAlternate = false }) => {
   const status = procedure.status;
   const isCompleted = status === 'completed';
   
+  const statusLabel = status === 'completed' ? 'Completed' :
+                     status === 'in-progress' ? 'In Progress' :
+                     status === 'preparation' ? 'Preparation' :
+                     status === 'not-done' ? 'Not Done' :
+                     status === 'stopped' ? 'Stopped' :
+                     status === 'on-hold' ? 'On Hold' :
+                     status === 'entered-in-error' ? 'Error' : status;
+  const statusColor = status === 'completed' ? 'success' :
+                      status === 'in-progress' ? 'info' :
+                      status === 'preparation' ? 'info' :
+                      status === 'not-done' ? 'warning' :
+                      status === 'stopped' ? 'error' : 'default';
+
+  const dateDisplay = formatClinicalDate(
+    procedure.performedDateTime || procedure.performedPeriod?.start,
+    'standard',
+    null
+  );
+  const performerDisplay = procedure.performer?.[0]?.actor?.display ||
+                           procedure.performer?.[0]?.actor?.reference || null;
+  const bodySiteDisplay = procedure.bodySite?.[0]?.text ||
+                          procedure.bodySite?.[0]?.coding?.[0]?.display || null;
+  const outcomeDisplay = procedure.outcome?.text ||
+                         procedure.outcome?.coding?.[0]?.display || null;
+  const reasonDisplay = procedure.reasonCode?.[0]?.text ||
+                        procedure.reasonCode?.[0]?.coding?.[0]?.display || null;
+
+  // Line 2: date · performer · body site
+  const subtitleParts = [dateDisplay, performerDisplay, bodySiteDisplay].filter(Boolean);
+
+  // Line 3: outcome · reason
+  const tertiaryParts = [outcomeDisplay, reasonDisplay].filter(Boolean);
+
   return (
     <Paper
       elevation={0}
       sx={{
-        p: 2,
+        p: 2.5,
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: '4px solid',
-        borderLeftColor: status === 'completed' ? theme.palette.success.main :
-                        status === 'in-progress' ? theme.palette.info.main :
-                        status === 'stopped' ? theme.palette.error.main :
-                        status === 'not-done' ? theme.palette.warning.main :
-                        theme.palette.grey[300],
-        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
-        transition: 'all 0.2s ease',
+        backgroundColor: 'background.paper',
+        transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
-          backgroundColor: alpha(theme.palette.action.hover, 0.08),
-          transform: 'translateX(2px)'
+          backgroundColor: (t) => alpha(t.palette.action.hover, 0.06),
         }
       }}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-        <Box flex={1}>
-          <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-            <HealingIcon fontSize="small" color="secondary" />
-            <Typography variant="body1" fontWeight={600}>
+        <Box flex={1} sx={{ minWidth: 0 }}>
+          {/* Title line: procedure name + status chip */}
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <HealingIcon fontSize="small" color="secondary" sx={{ flexShrink: 0 }} />
+            <Typography
+              variant="body1"
+              fontWeight={600}
+              sx={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
               {procedureDisplay}
             </Typography>
-            {/* Procedure Status */}
-            <Chip 
-              label={status === 'completed' ? 'Completed' : 
-                     status === 'in-progress' ? 'In Progress' : 
-                     status === 'preparation' ? 'Preparation' : 
-                     status === 'not-done' ? 'Not Done' : 
-                     status === 'stopped' ? 'Stopped' : 
-                     status === 'on-hold' ? 'On Hold' : 
-                     status === 'entered-in-error' ? 'Error' : status} 
-              size="small" 
-              color={status === 'completed' ? 'success' : 
-                     status === 'in-progress' ? 'info' : 
-                     status === 'preparation' ? 'info' : 
-                     status === 'not-done' ? 'warning' : 
-                     status === 'stopped' ? 'error' : 'default'}
-              sx={{ 
-                fontWeight: 600,
-                ...(status === 'completed' && {
-                  backgroundColor: alpha(theme.palette.success.main, 0.9),
-                  color: 'white'
-                }),
-                ...(status === 'in-progress' && {
-                  backgroundColor: alpha(theme.palette.info.main, 0.9),
-                  color: 'white'
-                }),
-                ...(status === 'stopped' && {
-                  backgroundColor: alpha(theme.palette.error.main, 0.9),
-                  color: 'white'
-                })
-              }}
+            <Chip
+              label={statusLabel}
+              size="small"
+              variant="outlined"
+              color={statusColor}
+              sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
             />
           </Stack>
-          
-          <Stack spacing={0.5}>
-            <Typography variant="caption" color="text.secondary">
-              <strong>Date:</strong> {formatClinicalDate(
-                procedure.performedDateTime || procedure.performedPeriod?.start,
-                'standard',
-                'Unknown'
-              )}
+
+          {/* Line 2: date · performer · body site */}
+          {subtitleParts.length > 0 && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              {subtitleParts.join(' \u00B7 ')}
             </Typography>
-            {procedure.performer?.[0] && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Performer:</strong> {procedure.performer[0].actor?.display || 
-                  procedure.performer[0].actor?.reference || 'Unknown'}
-              </Typography>
-            )}
-            {procedure.bodySite?.[0] && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Body Site:</strong> {procedure.bodySite[0].text || 
-                  procedure.bodySite[0].coding?.[0]?.display || null}
-              </Typography>
-            )}
-            {procedure.outcome && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Outcome:</strong> {procedure.outcome.text || 
-                  procedure.outcome.coding?.[0]?.display || null}
-              </Typography>
-            )}
-            {procedure.reasonCode?.[0] && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Reason:</strong> {procedure.reasonCode[0].text || 
-                  procedure.reasonCode[0].coding?.[0]?.display || null}
-              </Typography>
-            )}
-          </Stack>
+          )}
+
+          {/* Line 3: outcome · reason */}
+          {tertiaryParts.length > 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.25, display: 'block' }}>
+              {tertiaryParts.join(' \u00B7 ')}
+            </Typography>
+          )}
         </Box>
-        
-        <IconButton size="small" onClick={onEdit}>
+
+        <IconButton size="small" onClick={onEdit} sx={{ ml: 1, flexShrink: 0 }}>
           <EditIcon fontSize="small" />
         </IconButton>
       </Stack>
@@ -2385,105 +2305,91 @@ const EnhancedCarePlanCard = ({ carePlan, onEdit, isAlternate = false }) => {
   const status = carePlan.status;
   const isActive = status === 'active';
   
+  const statusLabel = status === 'active' ? 'Active' :
+                     status === 'completed' ? 'Completed' :
+                     status === 'draft' ? 'Draft' :
+                     status === 'revoked' ? 'Revoked' :
+                     status === 'on-hold' ? 'On Hold' :
+                     status === 'unknown' ? 'Unknown' :
+                     status === 'entered-in-error' ? 'Error' : status;
+  const statusColor = status === 'active' ? 'primary' :
+                      status === 'completed' ? 'success' :
+                      status === 'draft' ? 'info' :
+                      status === 'revoked' ? 'error' : 'default';
+
+  const periodDisplay = carePlan.period ? (
+    `${formatClinicalDate(carePlan.period.start)}${carePlan.period.end ? ` - ${formatClinicalDate(carePlan.period.end)}` : ''}`
+  ) : null;
+  const descriptionTruncated = carePlan.description
+    ? (carePlan.description.length > 80 ? carePlan.description.slice(0, 80) + '...' : carePlan.description)
+    : null;
+  const goalsCount = carePlan.goal?.length > 0 ? `${carePlan.goal.length} goals` : null;
+  const activitiesCount = carePlan.activity?.length > 0 ? `${carePlan.activity.length} activities` : null;
+  const careTeamDisplay = carePlan.careTeam?.[0]?.display || (carePlan.careTeam?.[0] ? 'Care team assigned' : null);
+
+  // Line 2: period · description (truncated)
+  const subtitleParts = [periodDisplay, descriptionTruncated].filter(Boolean);
+
+  // Line 3: goals count · activities count · care team
+  const tertiaryParts = [goalsCount, activitiesCount, careTeamDisplay].filter(Boolean);
+
   return (
     <Paper
       elevation={0}
       sx={{
-        p: 2,
+        p: 2.5,
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: '4px solid',
-        borderLeftColor: status === 'active' ? theme.palette.primary.main :
-                        status === 'completed' ? theme.palette.success.main :
-                        status === 'draft' ? theme.palette.info.main :
-                        status === 'revoked' ? theme.palette.error.main :
-                        theme.palette.grey[400],
-        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
-        transition: 'all 0.2s ease',
+        backgroundColor: 'background.paper',
+        transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
-          backgroundColor: alpha(theme.palette.action.hover, 0.08),
-          transform: 'translateX(2px)'
+          backgroundColor: (t) => alpha(t.palette.action.hover, 0.06),
         }
       }}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-        <Box flex={1}>
-          <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-            <AssignmentIcon fontSize="small" color="primary" />
-            <Typography variant="body1" fontWeight={600}>
+        <Box flex={1} sx={{ minWidth: 0 }}>
+          {/* Title line: care plan title + status chip */}
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <AssignmentIcon fontSize="small" color="primary" sx={{ flexShrink: 0 }} />
+            <Typography
+              variant="body1"
+              fontWeight={600}
+              sx={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
               {title}
             </Typography>
-            {/* Care Plan Status */}
-            <Chip 
-              label={status === 'active' ? 'Active' : 
-                     status === 'completed' ? 'Completed' : 
-                     status === 'draft' ? 'Draft' : 
-                     status === 'revoked' ? 'Revoked' : 
-                     status === 'on-hold' ? 'On Hold' : 
-                     status === 'unknown' ? 'Unknown' : 
-                     status === 'entered-in-error' ? 'Error' : status} 
-              size="small" 
-              color={status === 'active' ? 'primary' : 
-                     status === 'completed' ? 'success' : 
-                     status === 'draft' ? 'info' : 
-                     status === 'revoked' ? 'error' : 'default'}
-              sx={{ 
-                fontWeight: 600,
-                ...(status === 'active' && {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.9),
-                  color: 'white'
-                }),
-                ...(status === 'completed' && {
-                  backgroundColor: alpha(theme.palette.success.main, 0.9),
-                  color: 'white'
-                }),
-                ...(status === 'revoked' && {
-                  backgroundColor: alpha(theme.palette.error.main, 0.9),
-                  color: 'white'
-                })
-              }}
+            <Chip
+              label={statusLabel}
+              size="small"
+              variant="outlined"
+              color={statusColor}
+              sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
             />
-            {carePlan.intent && (
-              <Chip 
-                label={carePlan.intent} 
-                size="small" 
-                variant="outlined"
-                sx={{}}
-              />
-            )}
           </Stack>
-          
-          <Stack spacing={0.5}>
-            {carePlan.description && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                {carePlan.description}
-              </Typography>
-            )}
-            {carePlan.period && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Period:</strong> {formatClinicalDate(carePlan.period.start)}
-                {carePlan.period.end && ` - ${formatClinicalDate(carePlan.period.end)}`}
-              </Typography>
-            )}
-            {carePlan.goal && carePlan.goal.length > 0 && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Goals:</strong> {carePlan.goal.length} defined
-              </Typography>
-            )}
-            {carePlan.activity && carePlan.activity.length > 0 && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Activities:</strong> {carePlan.activity.length} scheduled
-              </Typography>
-            )}
-            {carePlan.careTeam?.[0] && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Care Team:</strong> {carePlan.careTeam[0].display || 'Assigned'}
-              </Typography>
-            )}
-          </Stack>
+
+          {/* Line 2: period · description (truncated) */}
+          {subtitleParts.length > 0 && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              {subtitleParts.join(' \u00B7 ')}
+            </Typography>
+          )}
+
+          {/* Line 3: goals · activities · care team */}
+          {tertiaryParts.length > 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.25, display: 'block' }}>
+              {tertiaryParts.join(' \u00B7 ')}
+            </Typography>
+          )}
         </Box>
-        
-        <IconButton size="small" onClick={onEdit}>
+
+        <IconButton size="small" onClick={onEdit} sx={{ ml: 1, flexShrink: 0 }}>
           <EditIcon fontSize="small" />
         </IconButton>
       </Stack>
@@ -2505,90 +2411,85 @@ const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
     return <DescriptionIcon fontSize="small" />;
   };
   
+  const statusLabel = status === 'current' ? 'Current' :
+                     status === 'superseded' ? 'Superseded' :
+                     status === 'entered-in-error' ? 'Error' : status;
+  const statusColor = status === 'current' ? 'primary' :
+                      status === 'superseded' ? 'warning' :
+                      status === 'entered-in-error' ? 'error' : 'default';
+
+  const dateDisplay = formatClinicalDate(document.date, 'withTime', null);
+  const authorDisplay = document.author?.[0]?.display || null;
+  const attachment = document.content?.[0]?.attachment;
+  const contentInfo = attachment ? (
+    `${attachment.contentType || 'Unknown'}${attachment.size ? ` ${Math.round(attachment.size / 1024)} KB` : ''}`
+  ) : null;
+  const encounterDisplay = document.context?.encounter?.[0]?.display ||
+                           (document.context?.encounter?.[0] ? 'Related encounter' : null);
+
+  // Line 2: date · author · content type + size
+  const subtitleParts = [dateDisplay, authorDisplay, contentInfo].filter(Boolean);
+
+  // Line 3: encounter reference
+  const tertiaryParts = [encounterDisplay].filter(Boolean);
+
   return (
     <Paper
       elevation={0}
       sx={{
-        p: 2,
+        p: 2.5,
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: '4px solid',
-        borderLeftColor: status === 'current' ? theme.palette.primary.main :
-                        status === 'superseded' ? theme.palette.warning.main :
-                        status === 'entered-in-error' ? theme.palette.error.main :
-                        theme.palette.grey[600],
-        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
-        transition: 'all 0.2s ease',
+        backgroundColor: 'background.paper',
+        transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
-          backgroundColor: alpha(theme.palette.action.hover, 0.08),
-          transform: 'translateX(2px)'
+          backgroundColor: (t) => alpha(t.palette.action.hover, 0.06),
         }
       }}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-        <Box flex={1}>
-          <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+        <Box flex={1} sx={{ minWidth: 0 }}>
+          {/* Title line: document title + status chip */}
+          <Stack direction="row" alignItems="center" spacing={1}>
             {getDocumentIcon()}
-            <Typography variant="body1" fontWeight={600}>
+            <Typography
+              variant="body1"
+              fontWeight={600}
+              sx={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
               {title}
             </Typography>
-            {/* Document Status */}
-            <Chip 
-              label={status === 'current' ? 'Current' : 
-                     status === 'superseded' ? 'Superseded' : 
-                     status === 'entered-in-error' ? 'Error' : status} 
-              size="small" 
-              color={status === 'current' ? 'primary' : 
-                     status === 'superseded' ? 'warning' : 
-                     status === 'entered-in-error' ? 'error' : 'default'}
-              sx={{ 
-                fontWeight: 600,
-                ...(status === 'current' && {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.9),
-                  color: 'white'
-                }),
-                ...(status === 'superseded' && {
-                  backgroundColor: alpha(theme.palette.warning.main, 0.9),
-                  color: 'white'
-                })
-              }}
+            <Chip
+              label={statusLabel}
+              size="small"
+              variant="outlined"
+              color={statusColor}
+              sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
             />
-            {document.docStatus && (
-              <Chip 
-                label={document.docStatus} 
-                size="small" 
-                variant="outlined"
-                sx={{}}
-              />
-            )}
           </Stack>
-          
-          <Stack spacing={0.5}>
-            <Typography variant="caption" color="text.secondary">
-              <strong>Date:</strong> {formatClinicalDate(document.date, 'withTime', 'Unknown')}
+
+          {/* Line 2: date · author · content type + size */}
+          {subtitleParts.length > 0 && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              {subtitleParts.join(' \u00B7 ')}
             </Typography>
-            {document.author?.[0] && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Author:</strong> {document.author[0].display || 'Unknown'}
-              </Typography>
-            )}
-            {document.content?.[0]?.attachment && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Type:</strong> {document.content[0].attachment.contentType || 'Unknown'} 
-                {document.content[0].attachment.size && 
-                  ` • ${Math.round(document.content[0].attachment.size / 1024)} KB`}
-              </Typography>
-            )}
-            {document.context?.encounter?.[0] && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Encounter:</strong> {document.context.encounter[0].display || 
-                  'Related encounter'}
-              </Typography>
-            )}
-          </Stack>
+          )}
+
+          {/* Line 3: encounter reference */}
+          {tertiaryParts.length > 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.25, display: 'block' }}>
+              {tertiaryParts.join(' \u00B7 ')}
+            </Typography>
+          )}
         </Box>
-        
-        <IconButton size="small" onClick={onEdit}>
+
+        <IconButton size="small" onClick={onEdit} sx={{ ml: 1, flexShrink: 0 }}>
           <EditIcon fontSize="small" />
         </IconButton>
       </Stack>
