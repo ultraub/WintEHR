@@ -59,6 +59,7 @@ import {
 import { useAdvancedOrderSearch } from '../../../../hooks/useAdvancedOrderSearch';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import VirtualizedList from '../../../common/VirtualizedList';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
@@ -476,6 +477,7 @@ const EnhancedOrdersTab = ({
   const { currentPatient } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
   const { getAlerts } = useCDS();
+  const { user } = useAuth();
 
   // Enhanced search hook
   const {
@@ -501,6 +503,8 @@ const EnhancedOrdersTab = ({
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
   const [quickOrderDialog, setQuickOrderDialog] = useState({ open: false, type: null });
   const [cpoeDialogOpen, setCpoeDialogOpen] = useState(false);
+  const [cpoeEditOrder, setCpoeEditOrder] = useState(null); // Order being edited or reordered
+  const [cpoeMode, setCpoeMode] = useState('add'); // 'add' or 'edit'
   const [signOrdersDialog, setSignOrdersDialog] = useState({ open: false, orders: [] });
   const [showStatistics, setShowStatistics] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // Added for ClinicalFilterPanel
@@ -519,7 +523,7 @@ const EnhancedOrdersTab = ({
   // Trigger order-select CDS hooks when orders are selected
   useOrderSelectHook(
     patientId || currentPatient?.id,
-    'current-user', // TODO: Get from auth context
+    user?.id || user?.username || 'unknown',
     selectedOrdersArray
   );
 
@@ -668,8 +672,6 @@ const EnhancedOrdersTab = ({
   useEffect(() => {
     if (!patientId) return;
 
-    console.log('[EnhancedOrdersTab] Setting up real-time subscriptions for patient:', patientId);
-
     const subscriptions = [];
 
     // Subscribe to order-related events
@@ -684,16 +686,8 @@ const EnhancedOrdersTab = ({
 
     orderEvents.forEach(eventType => {
       const unsubscribe = subscribe(eventType, (event) => {
-        console.log('[EnhancedOrdersTab] Order event received:', {
-          eventType,
-          eventPatientId: event.patientId,
-          currentPatientId: patientId,
-          event
-        });
-        
         // Handle update if the event is for the current patient
         if (event.patientId === patientId) {
-          console.log('[EnhancedOrdersTab] Updating orders for event:', eventType);
           handleOrderUpdate(eventType, event);
         }
       });
@@ -701,7 +695,6 @@ const EnhancedOrdersTab = ({
     });
 
     return () => {
-      console.log('[EnhancedOrdersTab] Cleaning up subscriptions');
       subscriptions.forEach(unsub => unsub());
     };
   }, [patientId, subscribe]);
@@ -709,8 +702,6 @@ const EnhancedOrdersTab = ({
   // WebSocket patient room subscription for multi-user sync
   useEffect(() => {
     if (!patientId || !websocketService.isConnected) return;
-
-    console.log('[EnhancedOrdersTab] Setting up WebSocket patient room subscription for:', patientId);
 
     let subscriptionId = null;
 
@@ -724,7 +715,6 @@ const EnhancedOrdersTab = ({
         ];
 
         subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
-        console.log('[EnhancedOrdersTab] Successfully subscribed to patient room:', subscriptionId);
       } catch (error) {
         console.error('[EnhancedOrdersTab] Failed to subscribe to patient room:', error);
       }
@@ -734,7 +724,6 @@ const EnhancedOrdersTab = ({
 
     return () => {
       if (subscriptionId) {
-        console.log('[EnhancedOrdersTab] Unsubscribing from patient room:', subscriptionId);
         websocketService.unsubscribeFromPatient(subscriptionId);
       }
     };
@@ -742,8 +731,6 @@ const EnhancedOrdersTab = ({
 
   // Handle incremental order updates
   const handleOrderUpdate = useCallback((eventType, eventData) => {
-    console.log('[EnhancedOrdersTab] Handling order update:', eventType, eventData);
-    
     // Extract the order from the event data
     const order = eventData.order || eventData.medication || eventData.resource;
     
@@ -840,12 +827,10 @@ const EnhancedOrdersTab = ({
           setDetailsDialogOpen(true);
           break;
         case 'edit':
-          // Handle edit order - would open CPOE dialog in edit mode
-          setSnackbar({
-            open: true,
-            message: 'Edit order functionality coming soon',
-            severity: 'info'
-          });
+          // Open CPOE dialog pre-populated with existing order data
+          setCpoeEditOrder(order);
+          setCpoeMode('edit');
+          setCpoeDialogOpen(true);
           break;
         case 'cancel':
           // Handle cancel order
@@ -880,12 +865,10 @@ const EnhancedOrdersTab = ({
           await handleSendToPharmacy(order);
           break;
         case 'reorder':
-          // Handle reorder - create a new order based on existing one
-          setSnackbar({
-            open: true,
-            message: 'Reorder functionality coming soon',
-            severity: 'info'
-          });
+          // Clone existing order into a new one (add mode with pre-populated data)
+          setCpoeEditOrder(order);
+          setCpoeMode('add');
+          setCpoeDialogOpen(true);
           break;
         default:
           console.warn(`Unknown order action: ${action}`);
@@ -1076,7 +1059,7 @@ const EnhancedOrdersTab = ({
               variant="contained"
               size="small"
               startIcon={<AddIcon />}
-              onClick={() => setCpoeDialogOpen(true)}
+              onClick={() => { setCpoeEditOrder(null); setCpoeMode('add'); setCpoeDialogOpen(true); }}
               sx={{ borderRadius: 0, height: 28, fontSize: '0.8125rem' }}
             >
               New Order
@@ -1274,7 +1257,7 @@ const EnhancedOrdersTab = ({
             }] : []),
             {
               label: 'Create New Order',
-              onClick: () => setCpoeDialogOpen(true),
+              onClick: () => { setCpoeEditOrder(null); setCpoeMode('add'); setCpoeDialogOpen(true); },
               variant: 'contained'
             }
           ]}
@@ -1351,18 +1334,23 @@ const EnhancedOrdersTab = ({
 
       <CPOEDialog
         open={cpoeDialogOpen}
-        onClose={() => setCpoeDialogOpen(false)}
+        onClose={() => { setCpoeDialogOpen(false); setCpoeEditOrder(null); setCpoeMode('add'); }}
         patientId={patientId}
-        onSave={async (orders) => {
+        serviceRequest={cpoeEditOrder}
+        mode={cpoeMode}
+        onSave={async (orders, saveMode) => {
           // Normalize to array — CPOEDialog may pass a single resource
           const orderList = Array.isArray(orders) ? orders : [orders];
+          const isEdit = saveMode === 'edit' || cpoeMode === 'edit';
 
-          // Publish events for each created order
+          // Publish events for each created/updated order
           for (const order of orderList) {
             if (!order) continue;
-            const eventType = order.resourceType === 'MedicationRequest'
-              ? CLINICAL_EVENTS.MEDICATION_PRESCRIBED
-              : CLINICAL_EVENTS.ORDER_PLACED;
+            const eventType = isEdit
+              ? CLINICAL_EVENTS.ORDER_UPDATED || 'order.updated'
+              : order.resourceType === 'MedicationRequest'
+                ? CLINICAL_EVENTS.MEDICATION_PRESCRIBED
+                : CLINICAL_EVENTS.ORDER_PLACED;
 
             try {
               await publish(eventType, {
@@ -1377,9 +1365,13 @@ const EnhancedOrdersTab = ({
           }
 
           refreshSearch();
+          setCpoeEditOrder(null);
+          setCpoeMode('add');
           setSnackbar({
             open: true,
-            message: `${orderList.length} order(s) created successfully`,
+            message: isEdit
+              ? 'Order updated successfully'
+              : `${orderList.length} order(s) created successfully`,
             severity: 'success'
           });
         }}

@@ -516,8 +516,6 @@ const DocumentationTabEnhanced = ({
 
   // Handle document updates
   const handleDocumentUpdate = useCallback(async (eventType, eventData) => {
-    console.log('[DocumentationTab] Handling document update:', eventType, eventData);
-
     // Extract the document from the event data
     const document = eventData.document || eventData.note || eventData.resource;
 
@@ -594,8 +592,6 @@ const DocumentationTabEnhanced = ({
   useEffect(() => {
     if (!patientId) return;
 
-    console.log('[DocumentationTab] Setting up real-time subscriptions for patient:', patientId);
-
     const subscriptions = [];
 
     // Subscribe to documentation events
@@ -610,16 +606,8 @@ const DocumentationTabEnhanced = ({
 
     documentEvents.forEach(eventType => {
       const unsubscribe = subscribe(eventType, (event) => {
-        console.log('[DocumentationTab] Document event received:', {
-          eventType,
-          eventPatientId: event.patientId,
-          currentPatientId: patientId,
-          event
-        });
-        
         // Handle update if the event is for the current patient
         if (event.patientId === patientId) {
-          console.log('[DocumentationTab] Updating documentation for event:', eventType);
           handleDocumentUpdate(eventType, event);
         }
       });
@@ -627,7 +615,6 @@ const DocumentationTabEnhanced = ({
     });
 
     return () => {
-      console.log('[DocumentationTab] Cleaning up subscriptions');
       subscriptions.forEach(unsub => unsub());
     };
   }, [patientId, subscribe, handleDocumentUpdate]);
@@ -635,8 +622,6 @@ const DocumentationTabEnhanced = ({
   // WebSocket patient room subscription for multi-user sync
   useEffect(() => {
     if (!patientId || !websocketService.isConnected) return;
-
-    console.log('[DocumentationTab] Setting up WebSocket patient room subscription for:', patientId);
 
     let subscriptionId = null;
 
@@ -650,7 +635,6 @@ const DocumentationTabEnhanced = ({
         ];
 
         subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
-        console.log('[DocumentationTab] Successfully subscribed to patient room:', subscriptionId);
       } catch (error) {
         console.error('[DocumentationTab] Failed to subscribe to patient room:', error);
       }
@@ -660,7 +644,6 @@ const DocumentationTabEnhanced = ({
 
     return () => {
       if (subscriptionId) {
-        console.log('[DocumentationTab] Unsubscribing from patient room:', subscriptionId);
         websocketService.unsubscribeFromPatient(subscriptionId);
       }
     };

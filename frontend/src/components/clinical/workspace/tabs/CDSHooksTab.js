@@ -555,7 +555,6 @@ const CDSHooksTab = ({ patientId }) => {
 
             if (result.success) {
               successCount++;
-              console.log(`Successfully executed ${action.type} action:`, result);
             } else {
               errorCount++;
               errors.push(result.message || `Failed to execute ${action.type} action`);

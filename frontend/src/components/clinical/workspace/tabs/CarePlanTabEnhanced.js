@@ -454,21 +454,10 @@ const CarePlanTabEnhanced = ({
   const goals = getPatientResources(patientId, 'Goal') || [];
   const careTeams = getPatientResources(patientId, 'CareTeam') || [];
 
-  // Debug logging
-  console.log('CarePlanTab RENDER:', {
-    patientId,
-    carePlans: carePlans.length,
-    careTeams: careTeams.length,
-    goals: goals.length,
-    loadAttemptedFor: loadAttemptedRef.current
-  });
-
   // Get active care plan
   const activeCarePlan = carePlans.find(cp => cp.status === 'active') || carePlans[0];
   const activities = activeCarePlan?.activity || [];
   const careTeam = careTeams[0];
-
-  console.log('CarePlanTab: activeCarePlan=', activeCarePlan?.id, 'activities=', activities.length, 'careTeam=', careTeam?.id);
 
   // Load resources when tab mounts - store in context (persists across remounts)
   useEffect(() => {
@@ -487,18 +476,15 @@ const CarePlanTabEnhanced = ({
 
       // Skip if all data is already loaded
       if (!needsCarePlans && !needsCareTeams && !needsGoals) {
-        console.log('CarePlanTab: All data already in context, skipping fetch');
         return;
       }
 
       // Check if we've already tried fetching for this patient
       if (loadAttemptedRef.current === patientId) {
-        console.log('CarePlanTab: Already attempted load for this patient');
         return;
       }
 
       loadAttemptedRef.current = patientId;
-      console.log('CarePlanTab: Loading resources for patient', patientId, '- needs:', { needsCarePlans, needsCareTeams, needsGoals });
 
       try {
         // Fetch only what's missing in parallel using searchResources (creates patient relationships)
@@ -524,12 +510,6 @@ const CarePlanTabEnhanced = ({
 
         const results = await Promise.all(fetchPromises);
 
-        // searchResources automatically stores resources AND creates patient relationships
-        results.forEach(({ type, count }) => {
-          console.log('CarePlanTab: Fetched', count, type);
-        });
-
-        console.log('CarePlanTab: Resources stored in context with relationships');
       } catch (err) {
         console.error('CarePlanTab: Fetch failed:', err);
       }

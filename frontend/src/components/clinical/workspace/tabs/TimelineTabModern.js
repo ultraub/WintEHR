@@ -956,7 +956,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
       try {
         const resourceTypes = Array.from(selectedTypes);
         subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
-        console.log('[TimelineTabModern] Successfully subscribed to patient room:', subscriptionId);
         setReloadTrigger(prev => prev + 1);
       } catch (error) {
         console.error('[TimelineTabModern] Failed to subscribe to patient room:', error);
@@ -1195,15 +1194,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
       currentDate.setDate(currentDate.getDate() + 1);
     }
     
-    console.log('[TimelineTabModern] Calendar data:', {
-      count: calendarGridData.length,
-      sample: calendarGridData.slice(0, 5),
-      dateRange: {
-        from: format(fromDate, 'yyyy-MM-dd'),
-        to: format(toDate, 'yyyy-MM-dd')
-      }
-    });
-    
     return calendarGridData;
   }, [processedEvents, heatmapView, dateRange]);
   
@@ -1385,7 +1375,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   // Handle resource updates from WebSocket
   const handleResourceUpdate = useCallback((event) => {
     if (event.patientId === patientId && selectedTypes.has(event.resourceType)) {
-      console.log('[TimelineTabModern] Resource updated:', event);
       // Trigger a reload after a short delay to batch updates
       setReloadTrigger(prev => prev + 1);
     }
@@ -1400,7 +1389,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   // Process timeline data
   const processTimelineData = useCallback(() => {
     // Data processing is handled in the memoized values
-    console.log('[TimelineTabModern] Processing timeline data');
   }, []);
 
   // Handlers
@@ -1436,21 +1424,52 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   };
   
   const handleExport = () => {
-    // TODO: Implement export functionality
-    setSnackbar({
-      open: true,
-      message: 'Export functionality coming soon!',
-      severity: 'info'
-    });
+    if (!processedEvents || processedEvents.length === 0) {
+      setSnackbar({ open: true, message: 'No timeline events to export', severity: 'info' });
+      return;
+    }
+    try {
+      const data = processedEvents.map(event => ({
+        Date: event._date ? new Date(event._date).toLocaleDateString() : '',
+        Type: event.resourceType || '',
+        Category: event._type?.category || '',
+        Title: event._title || '',
+        Description: (event._description || '').replace(/"/g, '""'),
+        Status: event.status || '',
+        Severity: event._severity || ''
+      }));
+      const csv = [
+        Object.keys(data[0]).join(','),
+        ...data.map(row => Object.values(row).map(v => `"${v || ''}"`).join(','))
+      ].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `patient-timeline-${patientId}-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setSnackbar({ open: true, message: `Exported ${data.length} timeline events`, severity: 'success' });
+    } catch (err) {
+      setSnackbar({ open: true, message: 'Failed to export timeline', severity: 'error' });
+    }
   };
-  
+
   const handleShare = () => {
-    // TODO: Implement share functionality
-    setSnackbar({
-      open: true,
-      message: 'Share functionality coming soon!',
-      severity: 'info'
-    });
+    if (!processedEvents || processedEvents.length === 0) {
+      setSnackbar({ open: true, message: 'No timeline events to copy', severity: 'info' });
+      return;
+    }
+    try {
+      const text = processedEvents.map(event => {
+        const date = event._date ? new Date(event._date).toLocaleDateString() : 'Unknown date';
+        return `${date} - [${event.resourceType}] ${event._title || 'Untitled'}`;
+      }).join('\n');
+      navigator.clipboard.writeText(text);
+      setSnackbar({ open: true, message: 'Timeline copied to clipboard', severity: 'success' });
+    } catch (err) {
+      setSnackbar({ open: true, message: 'Failed to copy timeline', severity: 'error' });
+    }
   };
   
   const handlePrint = () => {
