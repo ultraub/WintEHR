@@ -172,7 +172,7 @@ const CDSPresentation = ({
 
     const timers = autoHideTimersRef.current;
     alerts.forEach(alert => {
-      const alertKey = `${alert.serviceId}-${alert.summary}`;
+      const alertKey = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
       if (!dismissedAlerts.has(alertKey) && !timers.has(alertKey)) {
         const timer = setTimeout(() => {
           setDismissedAlerts(prev => {
@@ -498,7 +498,7 @@ const CDSPresentation = ({
   };
 
   const visibleAlerts = alerts.filter(alert => {
-    const alertKey = `${alert.serviceId}-${alert.summary}`;
+    const alertKey = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
     return !dismissedAlerts.has(alertKey) && !isAlertSnoozed(alert);
   }).slice(0, maxAlerts);
 
@@ -550,7 +550,7 @@ const CDSPresentation = ({
         maxWidth: 400
       }}>
         {visibleAlerts.map((alert, index) => {
-          const alertKey = `${alert.serviceId}-${alert.summary}`;
+          const alertKey = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
           const isVisible = !dismissedAlerts.has(alertKey) && !isAlertSnoozed(alert);
           
           if (!isVisible) return null;
