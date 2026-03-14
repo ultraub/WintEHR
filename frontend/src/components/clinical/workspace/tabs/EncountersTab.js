@@ -62,6 +62,7 @@ import { printDocument, formatEncountersForPrint } from '../../../../core/export
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import fhirClient from '../../../../core/fhir/services/fhirClient';
 import { getEncounterClass, getCodeableConceptDisplay, getEncounterStatus } from '../../../../core/fhir/utils/fhirFieldUtils';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
 import { ClinicalResourceCard } from '../../shared/cards';
@@ -350,16 +351,9 @@ const EncountersTab = ({
         }] : []
       };
 
-      const response = await fetch('/fhir/R4/Encounter', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(encounter)
-      });
+      const savedEncounter = await fhirClient.create('Encounter', encounter);
 
-      if (response.ok) {
-        const savedEncounter = await response.json();
+      if (savedEncounter) {
         
         // Publish encounter created event
         await publish(CLINICAL_EVENTS.ENCOUNTER_CREATED, {
@@ -389,13 +383,6 @@ const EncountersTab = ({
           open: true,
           message: 'New encounter created successfully',
           severity: 'success'
-        });
-      } else {
-        throw new Error(`Failed to create encounter: ${response.statusText}`);
-        setSnackbar({
-          open: true,
-          message: 'Failed to create encounter',
-          severity: 'error'
         });
       }
     } catch (error) {
@@ -1010,40 +997,7 @@ const EncountersTab = ({
 
       </Box>
 
-      {/* Dialogs */}
-      <EncounterSummaryDialogEnhanced
-        open={summaryDialogOpen}
-        onClose={handleCloseSummaryDialog}
-        encounter={selectedEncounter}
-        patientId={patientId}
-      />
-
-      {/* Encounter Signing Dialog */}
-      <EncounterSigningDialog
-        open={signingDialogOpen}
-        onClose={handleCloseSigningDialog}
-        encounter={selectedEncounter}
-        patientId={patientId}
-        onEncounterSigned={handleEncounterSigned}
-      />
-
-      {/* Enhanced Encounter Creation Dialog */}
-      <EncounterCreationDialog
-        open={encounterCreationDialogOpen}
-        onClose={() => setEncounterCreationDialogOpen(false)}
-        patientId={patientId}
-        onEncounterCreated={handleEncounterCreated}
-      />
-
-      {/* Enhanced Note Editor for Encounter Notes */}
-      <EnhancedNoteEditor
-        open={noteEditorOpen}
-        onClose={handleCloseNoteEditor}
-        note={null}
-        patientId={patientId}
-        encounter={selectedEncounterForNote}
-        defaultTemplate={null}
-      />
+      {/* Dialogs are rendered above (lines 934-965), not duplicated here */}
 
       {/* New Encounter Dialog */}
       <Dialog open={newEncounterDialogOpen} onClose={() => setNewEncounterDialogOpen(false)} maxWidth="sm" fullWidth>

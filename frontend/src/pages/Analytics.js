@@ -54,8 +54,25 @@ function Analytics() {
           api.get('/api/analytics/medication-patterns'),
         ]);
         
-        setDemographics(demoResponse.data);
-        setDiseasePrevalence(diseaseResponse.data);
+        // Normalize backend response to match rendering field names
+        const demoData = demoResponse.data;
+        if (demoData.age_groups && !demoData.age_distribution) {
+          demoData.age_distribution = {};
+          demoData.age_groups.forEach(g => {
+            demoData.age_distribution[g.age_group] = { count: g.count, percentage: g.percentage };
+          });
+        }
+        setDemographics(demoData);
+
+        const diseaseData = diseaseResponse.data;
+        if (diseaseData.top_conditions && !diseaseData.conditions) {
+          diseaseData.conditions = diseaseData.top_conditions.map(c => ({
+            condition: c.condition_name,
+            count: c.patient_count,
+            prevalence_rate: c.percentage
+          }));
+        }
+        setDiseasePrevalence(diseaseData);
         setMedicationPatterns(medResponse.data);
       } catch (apiError) {
         
@@ -322,7 +339,7 @@ function Analytics() {
                     <XAxis dataKey="medication" angle={-45} textAnchor="end" height={100} />
                     <YAxis />
                     <Tooltip />
-                    <Bar dataKey="prescription_count" fill="#FF8042" />
+                    <Bar dataKey={medicationPatterns.top_medications?.[0]?.prescription_count !== undefined ? 'prescription_count' : 'count'} fill="#FF8042" />
                   </BarChart>
                 </ResponsiveContainer>
               </Paper>
