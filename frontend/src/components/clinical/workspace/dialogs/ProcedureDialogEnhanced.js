@@ -602,13 +602,13 @@ const ProcedureDialogEnhanced = ({
     
     // Add category
     if (formData.category) {
-      resource.category = {
+      resource.category = [{
         coding: [{
           system: 'http://snomed.info/sct',
           code: formData.category,
           display: PROCEDURE_CATEGORIES.find(c => c.id === formData.category)?.name,
         }],
-      };
+      }];
     }
     
     // Add performed date/time or period
@@ -740,7 +740,7 @@ const ProcedureDialogEnhanced = ({
       
       if (success) {
         // Publish clinical event
-        await publish(CLINICAL_EVENTS.PROCEDURE_PERFORMED, {
+        await publish(CLINICAL_EVENTS.PROCEDURE_COMPLETED, {
           patientId,
           procedureId: fhirResource.id,
           procedure: selectedProcedure.display,

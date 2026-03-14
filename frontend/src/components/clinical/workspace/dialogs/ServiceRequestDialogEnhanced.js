@@ -77,7 +77,6 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format, addDays, differenceInHours } from 'date-fns';
 import { debounce } from 'lodash';
 
-import { useFHIRClient } from '../../../../contexts/FHIRContext';
 import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
@@ -252,7 +251,6 @@ const ServiceRequestDialogEnhanced = ({
   const theme = useTheme();
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
-  const fhirClient = useFHIRClient();
 
   // Create theme-aware service categories
   const SERVICE_CATEGORIES = useMemo(() => [
