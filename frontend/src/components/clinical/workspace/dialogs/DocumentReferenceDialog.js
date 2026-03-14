@@ -29,7 +29,7 @@ import {
   Article as ArticleIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import fhirClient from '../../../../core/fhir/services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 
 const DOCUMENT_TYPES = [
   { value: 'clinical-note', display: 'Clinical Note', system: 'http://loinc.org', code: '11506-3' },

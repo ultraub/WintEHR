@@ -126,9 +126,9 @@ const VERIFICATION_STATUS_OPTIONS = [
 ];
 
 const SEVERITY_OPTIONS = [
-  { value: 'mild', label: 'Mild', color: 'info' },
-  { value: 'moderate', label: 'Moderate', color: 'warning' },
-  { value: 'severe', label: 'Severe', color: 'error' }
+  { value: '255604002', label: 'Mild', display: 'Mild', color: 'info' },
+  { value: '6736007', label: 'Moderate', display: 'Moderate', color: 'warning' },
+  { value: '24484000', label: 'Severe', display: 'Severe', color: 'error' }
 ];
 
 const CATEGORY_OPTIONS = [
@@ -398,7 +398,8 @@ const ConditionDialogEnhanced = ({
           severity: {
             coding: [{
               system: 'http://snomed.info/sct',
-              code: formData.severity
+              code: formData.severity,
+              display: SEVERITY_OPTIONS.find(s => s.value === formData.severity)?.display
             }]
           }
         }),

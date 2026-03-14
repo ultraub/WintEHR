@@ -62,7 +62,7 @@ import { printDocument, formatEncountersForPrint } from '../../../../core/export
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
-import fhirClient from '../../../../core/fhir/services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { getEncounterClass, getCodeableConceptDisplay, getEncounterStatus } from '../../../../core/fhir/utils/fhirFieldUtils';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
 import { ClinicalResourceCard } from '../../shared/cards';
@@ -277,12 +277,12 @@ const EncountersTab = ({
     });
   };
 
-  const handleExportEncounters = (format) => {
+  const handleExportEncounters = (exportFormat) => {
     exportClinicalData({
       patient: currentPatient,
       data: filteredEncounters,
       columns: EXPORT_COLUMNS.encounters,
-      format,
+      format: exportFormat,
       title: 'Encounter_History',
       formatForPrint: (data) => {
         let html = '<h2>Encounter History</h2>';

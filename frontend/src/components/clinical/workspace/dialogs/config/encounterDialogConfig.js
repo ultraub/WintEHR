@@ -187,16 +187,13 @@ export const updateResource = (encounter = {}, formData, patientId) => {
   const resource = {
     resourceType: 'Encounter',
     meta: {
-      lastUpdated: now,
-      versionId: encounter.meta?.versionId ? String(parseInt(encounter.meta.versionId) + 1) : '1'
+      lastUpdated: now
     },
     status: formData.status || 'planned',
     class: {
-      coding: [{
-        system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
-        code: formData.type,
-        display: ENCOUNTER_TYPES.find(t => t.value === formData.type)?.display || 'Ambulatory'
-      }]
+      system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
+      code: formData.type,
+      display: ENCOUNTER_TYPES.find(t => t.value === formData.type)?.display || 'Ambulatory'
     },
     type: [{
       coding: [{
@@ -236,8 +233,7 @@ export const updateResource = (encounter = {}, formData, patientId) => {
         }],
         text: 'primary performer'
       }],
-      actor: {
-        reference: 'Practitioner/current-provider',
+      individual: {
         display: formData.provider
       }
     }];

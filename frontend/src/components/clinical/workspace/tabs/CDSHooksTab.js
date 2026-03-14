@@ -69,7 +69,7 @@ import CDSHooksVerifier from '../cds/CDSHooksVerifier';
 import CDSCardDisplay from '../cds/CDSCardDisplay';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { cdsHooksService } from '../../../../services/cdsHooksService';
-import fhirClient from '../../../../core/fhir/services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useNavigate } from 'react-router-dom';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { useCDSActions } from '../../../../hooks/useCDSActions';

@@ -26,7 +26,7 @@ import {
   Delete as DeleteIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import fhirClient from '../../../../core/fhir/services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 
 const INITIAL_FORM = {
   title: '',
