@@ -113,19 +113,19 @@ const Login = () => {
       flexDirection: 'column',
       alignItems: 'center',
     }}>
-      <Paper 
-        elevation={0} 
-        sx={{ 
+      <Paper
+        elevation={0}
+        sx={{
           p: 5,
           backgroundColor: 'white',
-          borderRadius: 2,
-          boxShadow: theme => `0 8px 32px ${theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.08)'}`,
+          borderRadius: '24px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)',
         }}>
         <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <Box sx={{ 
-            width: 72, 
-            height: 72, 
-            borderRadius: 2,
+          <Box sx={{
+            width: 72,
+            height: 72,
+            borderRadius: '50%',
             backgroundColor: theme => theme.palette.mode === 'dark' ? theme.palette.primary.dark : theme.palette.primary.light,
             opacity: 0.15,
             display: 'flex',
@@ -189,9 +189,14 @@ const Login = () => {
             onClick={handleLogin}
             disabled={!selectedProvider || loading}
             startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}
-            sx={{ 
+            sx={{
               py: 1.5,
               fontSize: '1rem',
+              borderRadius: '12px',
+              boxShadow: 'none',
+              '&:hover': {
+                boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
+              },
             }}
           >
             {loading ? 'Logging in...' : 'Sign In to WintEHR'}

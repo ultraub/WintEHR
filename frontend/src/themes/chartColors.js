@@ -149,3 +149,17 @@ export const getReferenceColors = (theme) => ({
   grid: theme.palette.divider,
   axis: theme.palette.text.secondary
 });
+
+// Apple Health-inspired clinical category colors
+export const clinicalCategoryColors = {
+  cardiology: '#FF375F',
+  respiratory: '#32ADE6',
+  endocrine: '#FF9500',
+  neurology: '#AF52DE',
+  pharmacy: '#BF5AF2',
+  gastro: '#30D158',
+  emergency: '#FF453A',
+  orthopedics: '#64D2FF',
+  infectious: '#FFD60A',
+  mental: '#FF2D55',
+};

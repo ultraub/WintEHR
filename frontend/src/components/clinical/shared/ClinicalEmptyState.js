@@ -76,7 +76,7 @@ const ClinicalEmptyState = ({
         ...(showBorder && {
           border: '1px solid',
           borderColor: 'divider',
-          borderRadius: 0,
+          // borderRadius inherited from MuiPaper theme override (12px)
           borderLeft: '4px solid',
           borderLeftColor: borderColor
         }),

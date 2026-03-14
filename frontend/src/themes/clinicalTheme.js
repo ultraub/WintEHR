@@ -7,46 +7,41 @@ import { createMedicalTheme } from './medicalTheme';
 
 // Clinical-specific design tokens - Enhanced with modern aesthetics
 export const clinicalTokens = {
-  // Modern gradients for visual depth
+  // Gradients - flat tints preferred over decorative gradients (Apple Health style)
   gradients: {
-    primary: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    success: 'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)',
-    warning: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-    error: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-    info: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-    neutral: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-    // Subtle background gradients
-    backgroundSubtle: 'linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(249,250,251,0.9) 100%)',
-    backgroundCard: 'linear-gradient(145deg, #ffffff, #f8f9fa)',
-    // Severity gradients
-    severityCritical: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)',
-    severityHigh: 'linear-gradient(135deg, #ff9a00 0%, #ff7643 100%)',
-    severityModerate: 'linear-gradient(135deg, #ffd93d 0%, #f9ca24 100%)',
-    severityLow: 'linear-gradient(135deg, #6bcf7f 0%, #47b784 100%)',
-    severityNormal: 'linear-gradient(135deg, #e0e7ff 0%, #cfd9f3 100%)'
+    primary: 'none',
+    success: 'none',
+    warning: 'none',
+    error: 'none',
+    info: 'none',
+    neutral: 'none',
+    backgroundSubtle: 'none',
+    backgroundCard: 'none',
+    severityCritical: 'none',
+    severityHigh: 'none',
+    severityModerate: 'none',
+    severityLow: 'none',
+    severityNormal: 'none'
   },
   
-  // Clean shadows for professional medical UI - matching older design
+  // Apple-style soft shadows
   modernShadows: {
     xs: 'none',
     sm: '0 1px 2px rgba(0,0,0,0.04)',
-    md: '0 1px 3px rgba(0,0,0,0.08)',
-    lg: '0 2px 4px rgba(0,0,0,0.10)',
-    xl: '0 4px 8px rgba(0,0,0,0.12)',
-    // Minimal colored shadows
-    primary: '0 1px 3px rgba(41, 121, 255, 0.1)',
-    success: '0 1px 3px rgba(76, 175, 80, 0.1)',
-    warning: '0 1px 3px rgba(255, 152, 0, 0.1)',
-    error: '0 1px 3px rgba(244, 67, 54, 0.1)',
-    // Elevation shadows - Very subtle
+    md: '0 2px 4px rgba(0,0,0,0.06)',
+    lg: '0 4px 8px rgba(0,0,0,0.08)',
+    xl: '0 8px 16px rgba(0,0,0,0.10)',
+    primary: '0 2px 8px rgba(21, 101, 192, 0.12)',
+    success: '0 2px 8px rgba(76, 175, 80, 0.12)',
+    warning: '0 2px 8px rgba(255, 152, 0, 0.12)',
+    error: '0 2px 8px rgba(244, 67, 54, 0.12)',
     elevation0: 'none',
     elevation1: '0 1px 2px rgba(0,0,0,0.04)',
-    elevation2: '0 1px 3px rgba(0,0,0,0.08)',
-    elevation3: '0 2px 4px rgba(0,0,0,0.10)',
-    elevation4: '0 4px 8px rgba(0,0,0,0.12)',
-    // Inner shadows for inputs
+    elevation2: '0 2px 4px rgba(0,0,0,0.06)',
+    elevation3: '0 4px 8px rgba(0,0,0,0.08)',
+    elevation4: '0 8px 16px rgba(0,0,0,0.10)',
     inner: 'inset 0 1px 2px rgba(0,0,0,0.02)',
-    innerDeep: 'inset 0 1px 3px rgba(0,0,0,0.04)'
+    innerDeep: 'inset 0 2px 4px rgba(0,0,0,0.04)'
   },
   
   // Animation presets
@@ -65,7 +60,7 @@ export const clinicalTokens = {
       easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
       easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
       sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
-      spring: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+      spring: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
     },
     // Presets
     presets: {
@@ -197,15 +192,15 @@ export const clinicalTokens = {
     xxl: 48  // 48px - Page sections
   },
 
-  // Border radius for clinical components - Professional medical UI design
+  // Border radius for clinical components - Apple Health-inspired
   borderRadius: {
-    xs: 0,    // 0px - Clinical cards, data tables (sharp corners)
-    sm: 2,    // 2px - Buttons, input fields (subtle softness)
-    md: 4,    // 4px - Chips, tags, modals (slight rounding)
-    lg: 4,    // 4px - Larger components (consistent with md)
-    xl: 4,    // 4px - Maximum rounding for any component
+    xs: 4,    // 4px - Subtle softness for small elements
+    sm: 8,    // 8px - Buttons, input fields
+    md: 12,   // 12px - Cards, containers
+    lg: 16,   // 16px - Larger components, dialogs
+    xl: 20,   // 20px - Prominent surfaces
     pill: 9999,
-    sharp: 0  // 0px - Explicit sharp corners for clinical cards
+    sharp: 0  // 0px - Available for explicit sharp corners (severity borders)
   },
 
   // Shadow depths for elevation - Subtle professional shadows
@@ -298,9 +293,9 @@ export const createClinicalTheme = (baseTheme = 'professional', mode = 'light') 
           ...medicalTheme.components?.MuiCard?.styleOverrides,
           root: {
             ...medicalTheme.components?.MuiCard?.styleOverrides?.root,
-            borderRadius: 0,  // Sharp corners for professional look
-            boxShadow: clinicalTokens.shadows.sm,  // Subtle shadow
-            border: '1px solid #E5E7EB',  // Light gray border
+            // borderRadius inherits 12 from medicalTheme MuiCard override
+            boxShadow: clinicalTokens.modernShadows.sm,
+            border: '1px solid #E5E5EA',
             '&.ClinicalCard-severity-critical': {
               borderLeft: `4px solid ${clinicalTokens.severity.critical.color}`,
               backgroundColor: clinicalTokens.severity.critical.bg,

@@ -26,6 +26,7 @@ import {
   People as PeopleIcon,
   PersonSearch as PersonSearchIcon,
   Download as DownloadIcon,
+  Clear as ClearIcon,
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { format } from 'date-fns';
@@ -586,12 +587,12 @@ function PatientList() {
               ),
               endAdornment: searchTerm && (
                 <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => { 
-                    setSearchTerm(''); 
+                  <IconButton size="small" onClick={() => {
+                    setSearchTerm('');
                     setPage(0);
-                    fetchAllPatients(0, pageSize, ''); 
+                    fetchAllPatients(0, pageSize, '');
                   }}>
-                    ×
+                    <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
               ),
@@ -629,10 +630,20 @@ function PatientList() {
               navigate(getPatientDetailUrl(params.row.id));
             }}
             sx={{
+              border: 'none',
               '& .MuiDataGrid-row:hover': {
                 cursor: 'pointer',
                 backgroundColor: (theme) => theme.palette.action.hover,
               },
+              '& .MuiDataGrid-columnHeaders': {
+                backgroundColor: '#F5F5F7',
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+              },
+              '& .MuiDataGrid-cell': {
+                borderBottom: '0.5px solid',
+                borderColor: 'divider',
+              }
             }}
           />
         </Box>

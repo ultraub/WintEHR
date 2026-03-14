@@ -30,7 +30,7 @@ const ResourceCardSkeleton = ({ count = 1, showIcon = true }) => {
           key={index}
           sx={{
             p: 2,
-            borderRadius: 0,
+            // borderRadius inherited from theme (12px)
             border: '1px solid',
             borderColor: 'divider',
             borderLeft: '4px solid',
@@ -79,7 +79,7 @@ const SummaryCardSkeleton = ({ count = 1 }) => {
           key={index}
           sx={{
             height: '100%',
-            borderRadius: 0,
+            // borderRadius inherited from MuiCard theme override (12px)
             border: '1px solid',
             borderColor: 'divider',
             borderLeft: '4px solid',
@@ -173,19 +173,18 @@ const FilterPanelSkeleton = () => {
     <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
       <Stack spacing={2}>
         <Stack direction="row" spacing={2}>
-          <Skeleton variant="rectangular" height={40} sx={{ flex: 1, borderRadius: 0 }} />
-          <Skeleton variant="rectangular" width={120} height={40} sx={{ borderRadius: 0 }} />
+          <Skeleton variant="rounded" height={40} sx={{ flex: 1 }} />
+          <Skeleton variant="rounded" width={120} height={40} />
           <Skeleton variant="circular" width={40} height={40} />
           <Skeleton variant="circular" width={40} height={40} />
         </Stack>
         <Stack direction="row" spacing={1}>
           {Array.from({ length: 3 }).map((_, index) => (
-            <Skeleton 
+            <Skeleton
               key={index}
-              variant="rectangular" 
-              width={100} 
-              height={32} 
-              sx={{ borderRadius: 0 }} 
+              variant="rounded"
+              width={100}
+              height={32}
             />
           ))}
         </Stack>
@@ -212,7 +211,7 @@ const TimelineSkeleton = ({ events = 5 }) => {
           </Stack>
           <Box flex={1}>
             <Skeleton variant="text" width={120} height={16} sx={{ mb: 1 }} />
-            <Skeleton variant="rectangular" width="100%" height={60} sx={{ borderRadius: 0 }} />
+            <Skeleton variant="rounded" width="100%" height={60} />
           </Box>
         </Stack>
       ))}

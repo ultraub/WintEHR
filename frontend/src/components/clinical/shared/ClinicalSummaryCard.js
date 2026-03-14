@@ -82,7 +82,7 @@ const ClinicalSummaryCard = ({
       sx={{ 
         height: '100%',
         backgroundColor,
-        borderRadius: 0, // Sharp corners
+        // borderRadius inherited from MuiCard theme override (12px)
         border: '1px solid',
         borderColor: theme.palette.mode === 'dark' 
           ? alpha(theme.palette.divider, 0.3)
@@ -92,8 +92,7 @@ const ClinicalSummaryCard = ({
         cursor: onClick ? 'pointer' : 'default',
         transition: 'all 0.2s ease',
         '&:hover': onClick ? {
-          boxShadow: theme.shadows[1],
-          transform: 'translateY(-2px)'
+          boxShadow: theme.shadows[1]
         } : {},
         ...props.sx
       }}

@@ -153,16 +153,16 @@ const professionalMedicalPalette = {
     contrastText: '#FFFFFF'
   },
   background: {
-    default: '#FAFBFC',
+    default: '#F5F5F7',
     paper: '#FFFFFF',
-    surface: '#F5F7FA'
+    surface: '#F2F2F7'
   },
   text: {
     primary: '#1A202C',
     secondary: '#4A5568',
     disabled: '#A0AEC0'
   },
-  divider: '#E2E8F0',
+  divider: '#E5E5EA',
   action: {
     active: '#1565C0',
     hover: 'rgba(21, 101, 192, 0.04)',
@@ -417,7 +417,7 @@ const darkMedicalPalette = {
       easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
       easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
       sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
-      elastic: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+      spring: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
     }
   }
 };
@@ -528,7 +528,7 @@ const accessiblePalette = {
       easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
       easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
       sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
-      elastic: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+      spring: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
     }
   }
 };
@@ -645,7 +645,7 @@ const warmClinicalPalette = {
       easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
       easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
       sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
-      elastic: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+      spring: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
     }
   }
 };
@@ -1134,11 +1134,11 @@ const getComponentOverrides = (palette) => ({
     styleOverrides: {
       root: {
         borderRadius: 12,
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)',
+        boxShadow: '0 0.5px 1px rgba(0, 0, 0, 0.05)',
         border: `1px solid ${palette.divider}`,
-        transition: `all ${palette.animations?.duration?.shorter || 200}ms ${palette.animations?.easing?.easeInOut || 'ease-in-out'}`,
+        transition: 'box-shadow 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08)'
+          boxShadow: '0 4px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)'
         }
       }
     }
@@ -1146,17 +1146,8 @@ const getComponentOverrides = (palette) => ({
   MuiPaper: {
     styleOverrides: {
       root: {
-        borderRadius: 8,
+        borderRadius: 12,
         backgroundImage: 'none'
-      },
-      elevation1: {
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)'
-      },
-      elevation2: {
-        boxShadow: '0 3px 6px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.12)'
-      },
-      elevation3: {
-        boxShadow: '0 10px 20px rgba(0, 0, 0, 0.15), 0 3px 6px rgba(0, 0, 0, 0.10)'
       }
     }
   },
@@ -1168,16 +1159,15 @@ const getComponentOverrides = (palette) => ({
         fontWeight: 500,
         fontSize: '0.875rem',
         padding: '8px 16px',
-        transition: `all ${palette.animations?.duration?.shorter || 200}ms ${palette.animations?.easing?.easeInOut || 'ease-in-out'}`,
+        transition: 'all 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
-          transform: 'translateY(-1px)',
-          boxShadow: '0 4px 8px rgba(0, 0, 0, 0.12)'
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)'
         }
       },
       contained: {
-        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+        boxShadow: 'none',
         '&:hover': {
-          boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)'
+          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.10)'
         }
       }
     }
@@ -1185,7 +1175,7 @@ const getComponentOverrides = (palette) => ({
   MuiChip: {
     styleOverrides: {
       root: {
-        borderRadius: 16,
+        borderRadius: 22,
         fontSize: '0.75rem',
         fontWeight: 500,
         height: 24
@@ -1197,14 +1187,9 @@ const getComponentOverrides = (palette) => ({
       root: {
         '& .MuiOutlinedInput-root': {
           borderRadius: 8,
-          transition: `all ${palette.animations?.duration?.shorter || 200}ms ${palette.animations?.easing?.easeInOut || 'ease-in-out'}`,
-          '&:hover': {
-            transform: 'translateY(-1px)',
-            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
-          },
+          transition: 'border-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
           '&.Mui-focused': {
-            transform: 'translateY(-1px)',
-            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.12)'
+            boxShadow: `0 0 0 3px ${palette.action?.selected || 'rgba(21, 101, 192, 0.08)'}`
           }
         }
       }
@@ -1262,21 +1247,29 @@ const getComponentOverrides = (palette) => ({
   MuiDialog: {
     styleOverrides: {
       paper: {
-        borderRadius: 12
+        borderRadius: 16
+      }
+    }
+  },
+  MuiTab: {
+    styleOverrides: {
+      root: {
+        textTransform: 'none',
+        fontWeight: 500
       }
     }
   },
   MuiDataGrid: {
     styleOverrides: {
       root: {
-        borderRadius: 8,
+        borderRadius: 12,
         border: `1px solid ${palette.divider}`,
         '& .MuiDataGrid-cell': {
-          borderBottom: `1px solid ${palette.divider}`
+          borderBottom: `0.5px solid ${palette.divider}`
         },
         '& .MuiDataGrid-columnHeaders': {
-          borderBottom: `2px solid ${palette.divider}`,
-          backgroundColor: palette.background.surface
+          borderBottom: `1px solid ${palette.divider}`,
+          backgroundColor: palette.background?.default || '#F5F5F7'
         }
       }
     }
@@ -1389,7 +1382,7 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
     palette,
     typography: baseTypography,
     shape: {
-      borderRadius: 8
+      borderRadius: 12
     },
     spacing: 8,
     breakpoints: {
@@ -1430,8 +1423,8 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
         leavingScreen: 195
       },
       easing: {
-        easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
-        easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
+        easeInOut: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+        easeOut: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
         easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
         sharp: 'cubic-bezier(0.4, 0, 0.6, 1)'
       },
@@ -1439,24 +1432,24 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
       clinical: {
         dataUpdate: {
           duration: 300,
-          easing: 'cubic-bezier(0.0, 0, 0.2, 1)',
-          transform: 'translateY(-2px)'
+          easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+          transform: 'none'
         },
         criticalAlert: {
           duration: 600,
-          easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+          easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
           animation: 'pulse',
           iterations: 3
         },
         success: {
           duration: 400,
-          easing: 'cubic-bezier(0.0, 0, 0.2, 1)',
-          transform: 'scale(1.02)'
+          easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+          transform: 'scale(1.01)'
         },
         hover: {
           duration: 150,
-          easing: 'cubic-bezier(0.0, 0, 0.2, 1)',
-          transform: 'translateY(-1px)'
+          easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+          transform: 'none'
         }
       }
     },
@@ -1498,31 +1491,31 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
       }
     },
     shadows: [
-      'none',
-      '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)',
-      '0 3px 6px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.12)',
-      '0 10px 20px rgba(0, 0, 0, 0.15), 0 3px 6px rgba(0, 0, 0, 0.10)',
-      '0 15px 25px rgba(0, 0, 0, 0.15), 0 5px 10px rgba(0, 0, 0, 0.05)',
-      '0 20px 40px rgba(0, 0, 0, 0.2)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)',
-      '0 25px 50px rgba(0, 0, 0, 0.25)'
+      'none',                                                              // 0
+      '0 0.5px 1px rgba(0, 0, 0, 0.05)',                                  // 1 - subtle
+      '0 1px 2px rgba(0, 0, 0, 0.06), 0 0.5px 1px rgba(0, 0, 0, 0.04)', // 2
+      '0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',   // 3
+      '0 4px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',   // 4 - cards
+      '0 6px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)',  // 5
+      '0 8px 16px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)', // 6 - elevated
+      '0 12px 24px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.04)',  // 7
+      '0 16px 32px rgba(0, 0, 0, 0.10), 0 4px 8px rgba(0, 0, 0, 0.04)', // 8 - modals
+      '0 20px 40px rgba(0, 0, 0, 0.10), 0 6px 12px rgba(0, 0, 0, 0.04)', // 9
+      '0 24px 48px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.04)', // 10
+      '0 28px 56px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.04)', // 11
+      '0 32px 64px rgba(0, 0, 0, 0.14), 0 10px 20px rgba(0, 0, 0, 0.04)', // 12
+      '0 32px 64px rgba(0, 0, 0, 0.14), 0 10px 20px rgba(0, 0, 0, 0.04)', // 13
+      '0 36px 72px rgba(0, 0, 0, 0.14), 0 12px 24px rgba(0, 0, 0, 0.04)', // 14
+      '0 36px 72px rgba(0, 0, 0, 0.14), 0 12px 24px rgba(0, 0, 0, 0.04)', // 15
+      '0 40px 80px rgba(0, 0, 0, 0.16), 0 14px 28px rgba(0, 0, 0, 0.04)', // 16
+      '0 40px 80px rgba(0, 0, 0, 0.16), 0 14px 28px rgba(0, 0, 0, 0.04)', // 17
+      '0 44px 88px rgba(0, 0, 0, 0.16), 0 16px 32px rgba(0, 0, 0, 0.04)', // 18
+      '0 44px 88px rgba(0, 0, 0, 0.16), 0 16px 32px rgba(0, 0, 0, 0.04)', // 19
+      '0 48px 96px rgba(0, 0, 0, 0.18), 0 18px 36px rgba(0, 0, 0, 0.04)', // 20
+      '0 48px 96px rgba(0, 0, 0, 0.18), 0 18px 36px rgba(0, 0, 0, 0.04)', // 21
+      '0 52px 104px rgba(0, 0, 0, 0.18), 0 20px 40px rgba(0, 0, 0, 0.04)', // 22
+      '0 52px 104px rgba(0, 0, 0, 0.18), 0 20px 40px rgba(0, 0, 0, 0.04)', // 23
+      '0 56px 112px rgba(0, 0, 0, 0.20), 0 22px 44px rgba(0, 0, 0, 0.04)'  // 24
     ]
   });
 

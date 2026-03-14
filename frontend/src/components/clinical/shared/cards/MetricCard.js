@@ -130,7 +130,7 @@ const MetricCard = ({
     cursor: onClick ? 'pointer' : 'default',
     backgroundColor: theme.palette.background.paper,
     border: `1px solid ${theme.palette.divider}`,
-    borderRadius: '4px',  // Sharp corners
+    // borderRadius inherited from MuiCard theme override (12px)
     boxShadow: '0 1px 2px rgba(0,0,0,0.04)',  // Minimal shadow
     transition: 'all 200ms ease-in-out',
     '&:hover': onClick ? {

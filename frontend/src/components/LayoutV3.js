@@ -3,7 +3,7 @@
  * Modern application layout with improved navigation, search, and workflow support
  */
 import React, { useState, useContext } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import {
   AppBar,
   Box,
@@ -31,10 +31,8 @@ import {
   ListSubheader,
   Breadcrumbs,
   Link,
-  SpeedDial,
-  SpeedDialAction,
-  SpeedDialIcon
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
@@ -52,13 +50,9 @@ import {
   ExpandLess,
   ExpandMore,
   Home as HomeIcon,
-  Add as AddIcon,
   Timeline as TimelineIcon,
   MedicalServices as MedicalIcon,
-  Analytics as AnalyticsIcon,
-  CloudUpload as UploadIcon,
-  Download as DownloadIcon,
-  Refresh as RefreshIcon
+  Analytics as AnalyticsIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { MedicalThemeContext } from '../App';
@@ -107,14 +101,6 @@ const navigationConfig = {
   }
 };
 
-const quickActions = [
-  { name: 'New Patient', icon: <AddIcon />, action: 'newPatient' },
-  { name: 'Upload Data', icon: <UploadIcon />, action: 'uploadData' },
-  { name: 'Export Report', icon: <DownloadIcon />, action: 'exportReport' },
-  { name: 'Refresh Data', icon: <RefreshIcon />, action: 'refreshData' }
-];
-
-
 const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath, onNavigate }) => {
   return (
     <Box>
@@ -150,13 +136,12 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
                   borderRadius: 1,
                   mb: 0.5,
                   '&.Mui-selected': {
-                    bgcolor: 'primary.main',
-                    color: 'primary.contrastText',
-                    '& .MuiListItemIcon-root': {
-                      color: 'primary.contrastText'
-                    },
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                    color: 'primary.main',
+                    fontWeight: 600,
+                    '& .MuiListItemIcon-root': { color: 'primary.main' },
                     '&:hover': {
-                      bgcolor: 'primary.dark'
+                      bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12)
                     }
                   }
                 }}
@@ -222,7 +207,8 @@ const BreadcrumbNavigation = ({ location }) => {
       <Link
         underline="hover"
         color="inherit"
-        href="/dashboard"
+        component={RouterLink}
+        to="/dashboard"
         sx={{ display: 'flex', alignItems: 'center' }}
       >
         <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
@@ -241,7 +227,8 @@ const BreadcrumbNavigation = ({ location }) => {
           <Link
             underline="hover"
             color="inherit"
-            href={href}
+            component={RouterLink}
+            to={href}
             key={segment}
           >
             {title}
@@ -300,18 +287,14 @@ function LayoutV3({ children }) {
     handleProfileMenuClose();
   };
 
-  const handleQuickAction = (action) => {
-    // Implement quick actions
-  };
-
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Logo/Brand */}
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+      <Box sx={{ p: 2, borderBottom: '0.5px solid', borderColor: 'divider' }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main', letterSpacing: '-0.02em' }}>
           WintEHR
         </Typography>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: '0.02em' }}>
           FHIR-Native Clinical Platform
         </Typography>
       </Box>
@@ -350,10 +333,12 @@ function LayoutV3({ children }) {
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
           ml: { md: `${drawerWidth}px` },
-          bgcolor: 'background.paper',
+          bgcolor: 'rgba(255,255,255,0.72)',
           color: 'text.primary',
-          boxShadow: theme.shadows[1],
-          borderBottom: 1,
+          boxShadow: 'none',
+          backdropFilter: 'saturate(180%) blur(20px)',
+          WebkitBackdropFilter: 'saturate(180%) blur(20px)',
+          borderBottom: '0.5px solid',
           borderColor: 'divider'
         }}
       >
@@ -470,7 +455,7 @@ function LayoutV3({ children }) {
         }}
       >
         <Toolbar />
-        <Box sx={{ flexGrow: 1, overflow: 'auto', p: 3 }}>
+        <Box sx={{ flexGrow: 1, overflow: 'auto', p: { xs: 2, sm: 2.5, md: 3 } }}>
           <BreadcrumbNavigation location={location} />
           <TransitionWrapper transition="fade" duration={300}>
             {children}
@@ -478,21 +463,6 @@ function LayoutV3({ children }) {
         </Box>
       </Box>
 
-      {/* Quick Actions Speed Dial */}
-      <SpeedDial
-        ariaLabel="Quick Actions"
-        sx={{ position: 'fixed', bottom: 16, right: 16 }}
-        icon={<SpeedDialIcon />}
-      >
-        {quickActions.map((action) => (
-          <SpeedDialAction
-            key={action.name}
-            icon={action.icon}
-            tooltipTitle={action.name}
-            onClick={() => handleQuickAction(action.action)}
-          />
-        ))}
-      </SpeedDial>
     </Box>
   );
 }
