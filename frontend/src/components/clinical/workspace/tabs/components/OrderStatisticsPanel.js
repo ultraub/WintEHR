@@ -45,9 +45,8 @@ import {
   Bar, 
   XAxis, 
   YAxis, 
-  CartesianGrid, 
-  Tooltip as RechartsTooltip, 
-  Legend, 
+  Tooltip as RechartsTooltip,
+  Legend,
   ResponsiveContainer,
   LineChart,
   Line
@@ -543,7 +542,6 @@ const OrderStatisticsPanel = ({
               </Typography>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={byCategory}>
-                  <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
                   <YAxis />
                   <RechartsTooltip />
@@ -566,7 +564,6 @@ const OrderStatisticsPanel = ({
               </Typography>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={trends}>
-                  <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis />
                   <RechartsTooltip />

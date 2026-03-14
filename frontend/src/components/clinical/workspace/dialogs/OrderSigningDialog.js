@@ -189,11 +189,9 @@ const OrderSigningDialog = ({
                       hookInstance={card.hookInstance}
                       onAcceptSuggestion={(suggestion) => {
                         // Handle accepting suggestion (e.g., modify order)
-                        console.log('Accepting suggestion:', suggestion);
                       }}
                       onDismiss={(card, reasonKey, comment) => {
                         // Card dismissed
-                        console.log('Card dismissed:', card.uuid, reasonKey, comment);
                       }}
                       compact={true}
                     />

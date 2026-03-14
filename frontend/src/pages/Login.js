@@ -18,7 +18,6 @@ import {
   Divider
 } from '@mui/material';
 import {
-  LocalHospital as HospitalIcon,
   Login as LoginIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
@@ -122,19 +121,19 @@ const Login = () => {
           boxShadow: '0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)',
         }}>
         <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <Box sx={{
-            width: 72,
-            height: 72,
-            borderRadius: '50%',
-            backgroundColor: theme => theme.palette.mode === 'dark' ? theme.palette.primary.dark : theme.palette.primary.light,
-            opacity: 0.15,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            mb: 3,
-          }}>
-            <HospitalIcon sx={{ fontSize: 36, color: 'primary.main' }} />
-          </Box>
+          <Box
+            component="img"
+            src="/wintehr-logo.png"
+            alt="WintEHR"
+            sx={{
+              width: 120,
+              height: 120,
+              objectFit: 'contain',
+              mb: 3,
+              mx: 'auto',
+              display: 'block',
+            }}
+          />
           <Typography variant="h4" component="h1" gutterBottom sx={{ 
             fontWeight: 700,
             color: 'text.primary',

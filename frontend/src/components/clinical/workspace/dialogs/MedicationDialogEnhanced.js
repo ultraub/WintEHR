@@ -928,7 +928,6 @@ const MedicationDialogEnhanced = ({
                               transition: 'all 0.2s',
                               '&:hover': {
                                 borderColor: theme.palette.primary.main,
-                                transform: 'translateY(-2px)',
                                 boxShadow: theme.shadows[2],
                               },
                             }}

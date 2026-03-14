@@ -719,8 +719,8 @@ const ResultsTabOptimized = ({
 
     // Default table view
     return (
-      <TableContainer sx={{ borderRadius: 0 }}>
-        <Table sx={{ '& .MuiTableCell-root': { borderRadius: 0 } }}>
+      <TableContainer>
+        <Table>
           <TableHead>
             <TableRow>
               <TableCell>Test Name</TableCell>
@@ -791,9 +791,8 @@ const ResultsTabOptimized = ({
                         label={status.label} 
                         size="small" 
                         color={status.color}
-                        sx={{ 
+                        sx={{
                           fontWeight: 'bold',
-                          borderRadius: 0,
                           height: 22
                         }}
                       />
@@ -864,7 +863,7 @@ const ResultsTabOptimized = ({
                 size="small"
                 color="warning"
                 icon={<AbnormalIcon fontSize="small" />}
-                sx={{ borderRadius: 0, height: 24 }}
+                sx={{ height: 24 }}
               />
             )}
             {filterPeriod !== 'all' && (
@@ -873,7 +872,7 @@ const ResultsTabOptimized = ({
                 size="small"
                 variant="outlined"
                 onDelete={() => setFilterPeriod('all')}
-                sx={{ borderRadius: 0, height: 24 }}
+                sx={{ height: 24 }}
               />
             )}
           </Stack>
@@ -982,7 +981,7 @@ const ResultsTabOptimized = ({
         onClose={() => setDetailsDialogOpen(false)}
         maxWidth="md"
         fullWidth
-        PaperProps={{ sx: { borderRadius: 0 } }}
+        PaperProps={{ sx: {} }}
       >
         <DialogTitle>
           Result Details

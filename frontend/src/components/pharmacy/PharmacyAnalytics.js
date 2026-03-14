@@ -35,7 +35,6 @@ import {
   Area,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   PieChart,
@@ -201,7 +200,6 @@ const PharmacyAnalytics = ({ queueStats, medicationRequests }) => {
             </Typography>
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
@@ -290,7 +288,6 @@ const PharmacyAnalytics = ({ queueStats, medicationRequests }) => {
             </Typography>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={medicationVolume} layout="horizontal">
-                <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" />
                 <YAxis dataKey="name" type="category" width={100} />
                 <Tooltip />

@@ -611,15 +611,13 @@ const ChartReviewTabOptimized = ({
                   <Card sx={{ 
                     height: '100%',
                     backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.error.main, 0.08) : clinicalTokens.severity.high.bg,
-                    borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
                     borderLeft: '4px solid',
                     borderLeftColor: theme.palette.error.main,
                     transition: 'all 0.2s ease',
                     '&:hover': {
-                      boxShadow: theme.shadows[2],
-                      transform: 'translateY(-2px)'
+                      boxShadow: theme.shadows[2]
                     }
                   }}>
                     <CardContent>
@@ -641,7 +639,6 @@ const ChartReviewTabOptimized = ({
                                   size="small" 
                                   sx={{ 
                                     fontSize: '0.6875rem',
-                                    borderRadius: 0,
                                     backgroundColor: alpha(theme.palette.error.main, 0.1),
                                     color: theme.palette.error.main,
                                     fontWeight: 600
@@ -654,7 +651,6 @@ const ChartReviewTabOptimized = ({
                                   size="small" 
                                   sx={{ 
                                     fontSize: '0.6875rem',
-                                    borderRadius: 0,
                                     backgroundColor: alpha(theme.palette.success.main, 0.1),
                                     color: theme.palette.success.main,
                                     fontWeight: 600
@@ -682,15 +678,13 @@ const ChartReviewTabOptimized = ({
                   <Card sx={{ 
                     height: '100%',
                     backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.08) : alpha(theme.palette.primary.main, 0.04),
-                    borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
                     borderLeft: '4px solid',
                     borderLeftColor: theme.palette.primary.main,
                     transition: 'all 0.2s ease',
                     '&:hover': {
-                      boxShadow: theme.shadows[2],
-                      transform: 'translateY(-2px)'
+                      boxShadow: theme.shadows[2]
                     }
                   }}>
                     <CardContent>
@@ -734,7 +728,6 @@ const ChartReviewTabOptimized = ({
                   <Card sx={{ 
                     height: '100%',
                     backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.warning.main, 0.08) : clinicalTokens.severity.moderate.bg,
-                    borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
                     borderLeft: '4px solid',
@@ -773,7 +766,6 @@ const ChartReviewTabOptimized = ({
                   <Card sx={{ 
                     height: '100%',
                     backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.success.main, 0.08) : clinicalTokens.severity.low.bg,
-                    borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
                     borderLeft: '4px solid',
@@ -811,7 +803,6 @@ const ChartReviewTabOptimized = ({
                 {/* Conditions Panel */}
                 <Grid item xs={12} lg={6}>
                   <Card sx={{
-                    borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
                     borderLeft: '4px solid',
@@ -830,7 +821,6 @@ const ChartReviewTabOptimized = ({
                               size="small" 
                               color="error"
                               sx={{
-                                borderRadius: 0,
                                 fontWeight: 600
                               }}
                             />
@@ -841,7 +831,6 @@ const ChartReviewTabOptimized = ({
                               size="small" 
                               color="success"
                               sx={{
-                                borderRadius: 0,
                                 fontWeight: 600
                               }}
                             />
@@ -919,7 +908,6 @@ const ChartReviewTabOptimized = ({
                 {/* Medications Panel */}
                 <Grid item xs={12} lg={6}>
                   <Card sx={{
-                    borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
                     borderLeft: '4px solid',
@@ -937,8 +925,7 @@ const ChartReviewTabOptimized = ({
                             size="small" 
                             color="primary"
                             sx={{
-                              borderRadius: 0,  // Sharp corners
-                              fontWeight: 600
+                                        fontWeight: 600
                             }}
                           />
                         </Stack>
@@ -1016,7 +1003,6 @@ const ChartReviewTabOptimized = ({
                 {/* Allergies Panel */}
                 <Grid item xs={12} md={6}>
                   <Card sx={{
-                    borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
                     borderLeft: '4px solid',
@@ -1036,8 +1022,7 @@ const ChartReviewTabOptimized = ({
                               size="small" 
                               color="error"
                               sx={{
-                                borderRadius: 0,  // Sharp corners
-                                fontWeight: 600,
+                                            fontWeight: 600,
                                 animation: 'pulse 2s infinite'
                               }}
                             />
@@ -1107,7 +1092,6 @@ const ChartReviewTabOptimized = ({
                 {/* Immunizations Panel */}
                 <Grid item xs={12} md={6}>
                   <Card sx={{
-                    borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
                     borderLeft: '4px solid',
@@ -1124,8 +1108,7 @@ const ChartReviewTabOptimized = ({
                             label={`${processedData.immunizations.length}`} 
                             size="small"
                             sx={{
-                              borderRadius: 0,  // Sharp corners
-                              fontWeight: 600,
+                                        fontWeight: 600,
                               backgroundColor: alpha(theme.palette.success.main, 0.1),
                               color: theme.palette.success.main
                             }}
@@ -1197,7 +1180,6 @@ const ChartReviewTabOptimized = ({
                 {/* Procedures Panel */}
                 <Grid item xs={12} md={6}>
                   <Card sx={{
-                    borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
                     borderLeft: '4px solid',
@@ -1214,8 +1196,7 @@ const ChartReviewTabOptimized = ({
                             label={`${processedData.procedures.length}`} 
                             size="small"
                             sx={{
-                              borderRadius: 0,  // Sharp corners
-                              fontWeight: 600,
+                                        fontWeight: 600,
                               backgroundColor: alpha(theme.palette.secondary.main, 0.1),
                               color: theme.palette.secondary.main
                             }}
@@ -1287,7 +1268,6 @@ const ChartReviewTabOptimized = ({
                 {/* Care Plans Panel */}
                 <Grid item xs={12} md={6}>
                   <Card sx={{
-                    borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
                     borderLeft: '4px solid',
@@ -1304,8 +1284,7 @@ const ChartReviewTabOptimized = ({
                             label={`${processedData.carePlans.length}`} 
                             size="small"
                             sx={{
-                              borderRadius: 0,  // Sharp corners
-                              fontWeight: 600,
+                                        fontWeight: 600,
                               backgroundColor: alpha(theme.palette.primary.main, 0.1),
                               color: theme.palette.primary.main
                             }}
@@ -1377,7 +1356,6 @@ const ChartReviewTabOptimized = ({
                 {/* Clinical Documents Panel */}
                 <Grid item xs={12} md={6}>
                   <Card sx={{
-                    borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
                     borderLeft: '4px solid',
@@ -1394,8 +1372,7 @@ const ChartReviewTabOptimized = ({
                             label={`${processedData.documentReferences.length}`} 
                             size="small"
                             sx={{
-                              borderRadius: 0,  // Sharp corners
-                              fontWeight: 600,
+                                        fontWeight: 600,
                               backgroundColor: alpha(theme.palette.grey[600], 0.1),
                               color: theme.palette.grey[600]
                             }}
@@ -1467,7 +1444,6 @@ const ChartReviewTabOptimized = ({
                 {/* Recent Encounters Panel */}
                 <Grid item xs={12} md={6}>
                   <Card sx={{
-                    borderRadius: 0,  // Sharp corners
                     border: '1px solid',
                     borderColor: 'divider',
                     borderLeft: '4px solid',
@@ -1483,8 +1459,7 @@ const ChartReviewTabOptimized = ({
                           label={`${processedData.recentEncounters.length}`} 
                           size="small"
                           sx={{
-                            borderRadius: 0,  // Sharp corners
-                            fontWeight: 600,
+                                    fontWeight: 600,
                             backgroundColor: alpha(theme.palette.info.main, 0.1),
                             color: theme.palette.info.main
                           }}
@@ -1520,8 +1495,7 @@ const ChartReviewTabOptimized = ({
                                 elevation={0}
                                 sx={{ 
                                   p: 2, 
-                                  borderRadius: 0,  // Sharp corners
-                                  border: '1px solid',
+                                                border: '1px solid',
                                   borderColor: 'divider',
                                   borderLeft: '4px solid',
                                   borderLeftColor: theme.palette.info.main,
@@ -1679,7 +1653,6 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
       elevation={0}
       sx={{
         p: 2,
-        borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
         borderLeft: '4px solid',
@@ -1748,7 +1721,6 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
                        clinicalStatus === 'recurrence' ? 'warning' : 'default'}
                 sx={{ 
                   fontWeight: 600,
-                  borderRadius: 0,
                   ...(clinicalStatus === 'active' && {
                     backgroundColor: alpha(theme.palette.error.main, 0.9),
                     color: 'white'
@@ -1761,10 +1733,10 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
               />
             )}
             {verification === 'confirmed' && (
-              <Chip label="Confirmed" size="small" variant="outlined" color="success" sx={{ borderRadius: 0 }} />
+              <Chip label="Confirmed" size="small" variant="outlined" color="success" sx={{}} />
             )}
             {category && (
-              <Chip label={category} size="small" variant="outlined" sx={{ borderRadius: 0 }} />
+              <Chip label={category} size="small" variant="outlined" sx={{}} />
             )}
           </Stack>
           
@@ -1899,7 +1871,6 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNav
       elevation={0}
       sx={{
         p: 2,
-        borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
         borderLeft: '4px solid',
@@ -1938,7 +1909,6 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNav
                      medication.status === 'cancelled' ? 'default' : 'default'}
               sx={{ 
                 fontWeight: 600,
-                borderRadius: 0,
                 ...(medication.status === 'active' && {
                   backgroundColor: alpha(theme.palette.primary.main, 0.9),
                   color: 'white'
@@ -1958,7 +1928,7 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNav
                 label={medication.intent} 
                 size="small" 
                 variant="outlined"
-                sx={{ borderRadius: 0 }}
+                sx={{}}
               />
             )}
             {courseOfTherapy && (
@@ -1966,7 +1936,7 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNav
                 label={courseOfTherapy} 
                 size="small" 
                 variant="outlined"
-                sx={{ fontSize: '0.7rem', borderRadius: 0 }}
+                sx={{ fontSize: '0.7rem' }}
               />
             )}
           </Stack>
@@ -2146,7 +2116,6 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
       elevation={0}
       sx={{
         p: 2,
-        borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
         borderLeft: '4px solid',
@@ -2181,7 +2150,6 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
               color={criticalityColor}
               sx={{ 
                 fontWeight: 600,
-                borderRadius: 0,
                 ...(criticality === 'high' && {
                   backgroundColor: alpha(theme.palette.error.main, 0.9),
                   color: 'white'
@@ -2198,7 +2166,7 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
                 size="small" 
                 variant="outlined"
                 color={severity === 'severe' ? 'error' : 'default'}
-                sx={{ borderRadius: 0 }}
+                sx={{}}
               />
             )}
             {clinicalStatus && (
@@ -2211,7 +2179,6 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
                        clinicalStatus === 'resolved' ? 'success' : 'default'}
                 sx={{ 
                   fontWeight: 600,
-                  borderRadius: 0,
                   ...(clinicalStatus === 'active' && {
                     backgroundColor: alpha(theme.palette.error.main, 0.1),
                     color: theme.palette.error.main
@@ -2229,7 +2196,7 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
                 size="small" 
                 color="success"
                 variant="outlined"
-                sx={{ borderRadius: 0 }}
+                sx={{}}
               />
             )}
           </Stack>
@@ -2349,7 +2316,6 @@ const EnhancedImmunizationCard = ({ immunization, onEdit, isAlternate = false })
       elevation={0}
       sx={{
         p: 2,
-        borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
         borderLeft: '4px solid',
@@ -2381,7 +2347,6 @@ const EnhancedImmunizationCard = ({ immunization, onEdit, isAlternate = false })
                      status === 'not-done' ? 'warning' : 'default'}
               sx={{ 
                 fontWeight: 600,
-                borderRadius: 0,
                 ...(status === 'completed' && {
                   backgroundColor: alpha(theme.palette.success.main, 0.9),
                   color: 'white'
@@ -2445,7 +2410,6 @@ const EnhancedProcedureCard = ({ procedure, onEdit, isAlternate = false }) => {
       elevation={0}
       sx={{
         p: 2,
-        borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
         borderLeft: '4px solid',
@@ -2486,7 +2450,6 @@ const EnhancedProcedureCard = ({ procedure, onEdit, isAlternate = false }) => {
                      status === 'stopped' ? 'error' : 'default'}
               sx={{ 
                 fontWeight: 600,
-                borderRadius: 0,
                 ...(status === 'completed' && {
                   backgroundColor: alpha(theme.palette.success.main, 0.9),
                   color: 'white'
@@ -2558,7 +2521,6 @@ const EnhancedCarePlanCard = ({ carePlan, onEdit, isAlternate = false }) => {
       elevation={0}
       sx={{
         p: 2,
-        borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
         borderLeft: '4px solid',
@@ -2598,7 +2560,6 @@ const EnhancedCarePlanCard = ({ carePlan, onEdit, isAlternate = false }) => {
                      status === 'revoked' ? 'error' : 'default'}
               sx={{ 
                 fontWeight: 600,
-                borderRadius: 0,
                 ...(status === 'active' && {
                   backgroundColor: alpha(theme.palette.primary.main, 0.9),
                   color: 'white'
@@ -2618,7 +2579,7 @@ const EnhancedCarePlanCard = ({ carePlan, onEdit, isAlternate = false }) => {
                 label={carePlan.intent} 
                 size="small" 
                 variant="outlined"
-                sx={{ borderRadius: 0 }}
+                sx={{}}
               />
             )}
           </Stack>
@@ -2680,7 +2641,6 @@ const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
       elevation={0}
       sx={{
         p: 2,
-        borderRadius: 0,  // Sharp corners
         border: '1px solid',
         borderColor: 'divider',
         borderLeft: '4px solid',
@@ -2714,7 +2674,6 @@ const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
                      status === 'entered-in-error' ? 'error' : 'default'}
               sx={{ 
                 fontWeight: 600,
-                borderRadius: 0,
                 ...(status === 'current' && {
                   backgroundColor: alpha(theme.palette.primary.main, 0.9),
                   color: 'white'
@@ -2730,7 +2689,7 @@ const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
                 label={document.docStatus} 
                 size="small" 
                 variant="outlined"
-                sx={{ borderRadius: 0 }}
+                sx={{}}
               />
             )}
           </Stack>

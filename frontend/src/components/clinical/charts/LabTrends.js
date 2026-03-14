@@ -24,7 +24,6 @@ import {
   Line,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   ReferenceLine
@@ -221,8 +220,7 @@ const LabTrends = ({ patientId, height = 300 }) => {
 
         <ResponsiveContainer width="100%" height={height}>
           <LineChart data={labData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
+            <XAxis
               dataKey="displayDate" 
               tickFormatter={formatXAxisDate}
               angle={-45}

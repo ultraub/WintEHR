@@ -253,14 +253,12 @@ const MedicationRequestCard = ({ medicationRequest, onStatusChange, onDispense, 
             label={pharmacyStatusInfo.label}
             size="small"
             color={pharmacyStatusInfo.color}
-            sx={{ borderRadius: '4px' }}
           />
           {refillInfo.remaining === 0 && (
             <Chip
               label="No refills"
               size="small"
               color="error"
-              sx={{ borderRadius: '4px' }}
             />
           )}
         </Stack>
@@ -977,7 +975,7 @@ const PharmacyTab = ({
               exclusive
               onChange={(e, newMode) => newMode && setViewMode(newMode)}
               size="small"
-              sx={{ '& .MuiToggleButton-root': { borderRadius: 0 } }}
+              sx={{}}
             >
               <ToggleButton value="timeline">
                 <TimelineIcon sx={{ fontSize: 20 }} />
@@ -1054,7 +1052,7 @@ const PharmacyTab = ({
             exclusive
             onChange={(e, value) => value && setFilterPharmacyStatus(value)}
             size="small"
-            sx={{ '& .MuiToggleButton-root': { borderRadius: 0 } }}
+            sx={{}}
           >
             <ToggleButton value="all">
               All Status
@@ -1074,7 +1072,7 @@ const PharmacyTab = ({
             exclusive
             onChange={(e, value) => value && setFilterPeriod(value)}
             size="small"
-            sx={{ '& .MuiToggleButton-root': { borderRadius: 0 } }}
+            sx={{}}
           >
             <ToggleButton value="1m">1M</ToggleButton>
             <ToggleButton value="3m">3M</ToggleButton>
@@ -1088,7 +1086,6 @@ const PharmacyTab = ({
               value={patientFilter}
               onChange={(e) => setPatientFilter(e.target.value)}
               displayEmpty
-              sx={{ borderRadius: 0 }}
             >
               <MenuItem value="current">
                 <PatientIcon fontSize="small" sx={{ mr: 0.5 }} />
@@ -1106,7 +1103,6 @@ const PharmacyTab = ({
             size="small"
             startIcon={<PrintIcon />}
             onClick={handlePrintQueue}
-            sx={{ borderRadius: 0 }}
           >
             Print
           </Button>
@@ -1232,7 +1228,6 @@ const PharmacyTab = ({
                           mb: 1,
                           border: 1,
                           borderColor: 'divider',
-                          borderRadius: 0,
                           borderLeft: 4,
                           borderLeftColor: config.color,
                           backgroundColor: index % 2 === 0 ? 'grey.50' : 'background.paper',
@@ -1517,7 +1512,7 @@ const PharmacyTab = ({
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDetailsDialogOpen(false)} sx={{ borderRadius: 0 }}>Close</Button>
+          <Button onClick={() => setDetailsDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 

@@ -11,7 +11,7 @@ import {
   Tab,
   Tabs,
 } from '@mui/material';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../services/api';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
@@ -239,8 +239,7 @@ function Analytics() {
                 {demographics.race_distribution && demographics.race_distribution.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={demographics.race_distribution}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="race" />
+                        <XAxis dataKey="race" />
                       <YAxis />
                       <Tooltip />
                       <Bar dataKey="count" fill="#8884d8" />
@@ -267,7 +266,6 @@ function Analytics() {
                 </Typography>
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={diseasePrevalence.conditions.filter(c => c.count > 0).sort((a, b) => b.prevalence_rate - a.prevalence_rate)}>
-                    <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="condition" angle={-45} textAnchor="end" height={100} />
                     <YAxis label={{ value: 'Prevalence Rate (%)', angle: -90, position: 'insideLeft' }} />
                     <Tooltip />
@@ -321,7 +319,6 @@ function Analytics() {
                 </Typography>
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={medicationPatterns.top_medications}>
-                    <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="medication" angle={-45} textAnchor="end" height={100} />
                     <YAxis />
                     <Tooltip />

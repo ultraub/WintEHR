@@ -20,7 +20,6 @@ import {
   Line,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
@@ -210,8 +209,7 @@ const VitalSignsChart = ({ patientId, vitalSigns, selectedVitalType = 'bloodPres
       ) : (
         <ResponsiveContainer width="100%" height={height}>
           <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
-            <XAxis 
+            <XAxis
               dataKey="date" 
               tick={{ fontSize: 12 }}
               stroke={theme.palette.text.secondary}

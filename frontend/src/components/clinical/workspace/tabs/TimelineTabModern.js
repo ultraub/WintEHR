@@ -1578,8 +1578,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         {/* Enhanced Header with View Tabs */}
         <Paper 
           elevation={0} 
-          sx={{ 
-            borderRadius: 0,
+          sx={{
             borderBottom: 1,
             borderColor: 'divider',
             bgcolor: isDarkMode ? 'grey.800' : 'background.paper'
@@ -1705,7 +1704,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                 variant="outlined"
                 startIcon={showFilters ? <ExpandLessIcon /> : <FilterIcon />}
                 onClick={() => setShowFilters(!showFilters)}
-                sx={{ borderRadius: 0 }}
               >
                 Filters
               </Button>
@@ -1715,7 +1713,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                     <Select
                       value={groupBy}
                       onChange={(e) => setGroupBy(e.target.value)}
-                      sx={{ borderRadius: 0 }}
                     >
                       <MenuItem value="type">By Type</MenuItem>
                       <MenuItem value="category">By Category</MenuItem>
@@ -1737,7 +1734,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                   <Select
                     value={heatmapView}
                     onChange={(e) => setHeatmapView(e.target.value)}
-                    sx={{ borderRadius: 0 }}
                   >
                     <MenuItem value="activity">Activity</MenuItem>
                     <MenuItem value="severity">Severity</MenuItem>
@@ -1751,7 +1747,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         
         {/* Advanced Filters */}
         <Collapse in={showFilters}>
-          <Paper elevation={0} sx={{ p: 2, borderRadius: 0, borderBottom: 1, borderColor: 'divider' }}>
+          <Paper elevation={0} sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
             <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
                 <Typography variant="subtitle2" gutterBottom>Event Types</Typography>
@@ -2166,7 +2162,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                   
                   {/* Event Type Distribution */}
                   <Grid item xs={12} md={6}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 0, height: 400 }}>
+                    <Paper elevation={0} sx={{ p: 2, height: 400 }}>
                       <Typography variant="h6" gutterBottom>Event Types</Typography>
                       <Box sx={{ height: 'calc(100% - 40px)', position: 'relative' }}>
                         {analyticsData.byType.map((item, index) => {
@@ -2206,7 +2202,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                   
                   {/* Severity Distribution */}
                   <Grid item xs={12} md={6}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 0, height: 400 }}>
+                    <Paper elevation={0} sx={{ p: 2, height: 400 }}>
                       <Typography variant="h6" gutterBottom>Severity Distribution</Typography>
                       <Box sx={{ height: 'calc(100% - 40px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Stack spacing={2} sx={{ width: '100%', maxWidth: 300 }}>
@@ -2253,7 +2249,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                   
                   {/* Timeline Trends */}
                   <Grid item xs={12}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 0 }}>
+                    <Paper elevation={0} sx={{ p: 2 }}>
                       <Typography variant="h6" gutterBottom>Activity Over Time</Typography>
                       <Box sx={{ height: 300, position: 'relative' }}>
                         {analyticsData.trends.length === 0 ? (
@@ -2308,7 +2304,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
           onClose={() => setDetailsDialogOpen(false)}
           maxWidth="md"
           fullWidth
-          PaperProps={{ sx: { borderRadius: 0 } }}
+          PaperProps={{ sx: {} }}
         >
           <DialogTitle>
             Event Details
@@ -2427,12 +2423,11 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                   setDetailsDialogOpen(false);
                 }}
                 variant="contained"
-                sx={{ borderRadius: 0 }}
               >
                 View in Tab
               </Button>
             )}
-            <Button onClick={() => setDetailsDialogOpen(false)} sx={{ borderRadius: 0 }}>
+            <Button onClick={() => setDetailsDialogOpen(false)}>
               Close
             </Button>
           </DialogActions>

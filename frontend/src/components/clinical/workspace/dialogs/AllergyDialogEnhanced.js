@@ -662,7 +662,6 @@ const AllergyDialogEnhanced = ({
                             : 'background.paper',
                           transition: 'all 0.2s',
                           '&:hover': {
-                            transform: 'translateY(-2px)',
                             boxShadow: theme.shadows[3],
                           },
                         }}

@@ -224,7 +224,6 @@ const BodyMap = React.memo(({ studies, selectedRegion, onRegionSelect }) => {
         background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.03)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 100%)`,
         border: 1,
         borderColor: 'divider',
-        borderRadius: 0,
         overflow: 'hidden'
       }}
     >
@@ -380,7 +379,6 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
           height: '100%',
           cursor: 'pointer',
           transition: 'all 0.2s ease',
-          borderRadius: 0,
           '&:hover': {
             boxShadow: theme.shadows[4],
             transform: 'scale(1.02)'
@@ -1143,7 +1141,6 @@ const ImagingTab = ({
               size="small" 
               startIcon={<ViewIcon />}
               onClick={loadImagingStudies}
-              sx={{ borderRadius: 0 }}
             >
               Refresh
             </Button>
@@ -1152,7 +1149,6 @@ const ImagingTab = ({
               size="small" 
               startIcon={<PrintIcon />}
               onClick={handlePrintAll}
-              sx={{ borderRadius: 0 }}
             >
               Print All
             </Button>
@@ -1223,7 +1219,6 @@ const ImagingTab = ({
                 value={filterModality}
                 onChange={(e) => setFilterModality(e.target.value)}
                 label="Modality"
-                sx={{ borderRadius: 0 }}
               >
                 <MenuItem value="all">All Modalities</MenuItem>
                 {modalities.map(modality => (
@@ -1248,7 +1243,6 @@ const ImagingTab = ({
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 label="Status"
-                sx={{ borderRadius: 0 }}
               >
                 <MenuItem value="all">All Status</MenuItem>
                 <MenuItem value="available">Available</MenuItem>
@@ -1265,10 +1259,10 @@ const ImagingTab = ({
               onChange={(e, newDensity) => newDensity && setDensity(newDensity)}
               size="small"
             >
-              <ToggleButton value="compact" sx={{ borderRadius: 0 }}>
+              <ToggleButton value="compact">
                 Compact
               </ToggleButton>
-              <ToggleButton value="comfortable" sx={{ borderRadius: 0 }}>
+              <ToggleButton value="comfortable">
                 Comfortable
               </ToggleButton>
             </ToggleButtonGroup>
@@ -1371,7 +1365,6 @@ const ImagingTab = ({
                     height: 400,
                     border: 1,
                     borderColor: 'divider',
-                    borderRadius: 0,
                     overflow: 'auto'
                   }}
                 >
@@ -1392,7 +1385,6 @@ const ImagingTab = ({
                           }}
                           sx={{
                             p: 1.5,
-                            borderRadius: 0,
                             border: 1,
                             borderColor: filterBodyRegion === region ? 'primary.main' : 'divider',
                             backgroundColor: filterBodyRegion === region ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
@@ -1511,7 +1503,7 @@ const ImagingTab = ({
         <Alert 
           onClose={() => setSnackbar({ ...snackbar, open: false })} 
           severity={snackbar.severity}
-          sx={{ width: '100%', borderRadius: 0 }}
+          sx={{ width: '100%' }}
         >
           {snackbar.message}
         </Alert>

@@ -221,7 +221,6 @@ const EnhancedBaseResourceDialog = ({
   // Enhanced dialog styles
   const dialogSx = {
     '& .MuiDialog-paper': {
-      borderRadius: 0,
       border: '1px solid',
       borderColor: theme.palette.divider,
       ...(severityColor && {

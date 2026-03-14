@@ -44,7 +44,7 @@ import {
   FilterList as FilterIcon
 } from '@mui/icons-material';
 import { format, parseISO, subDays, isAfter, startOfDay, endOfDay } from 'date-fns';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
 
 // Vital signs configuration with normal ranges
@@ -148,7 +148,6 @@ const VitalsChart = ({ vitalType, data, config }) => {
         </Typography>
         <ResponsiveContainer width="100%" height={250}>
           <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" />
             <YAxis />
             <ChartTooltip />

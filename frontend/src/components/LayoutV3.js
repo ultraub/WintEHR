@@ -290,13 +290,21 @@ function LayoutV3({ children }) {
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Logo/Brand */}
-      <Box sx={{ p: 2, borderBottom: '0.5px solid', borderColor: 'divider' }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main', letterSpacing: '-0.02em' }}>
-          WintEHR
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: '0.02em' }}>
-          FHIR-Native Clinical Platform
-        </Typography>
+      <Box sx={{ p: 2, borderBottom: '0.5px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box
+          component="img"
+          src="/wintehr-logo.png"
+          alt="WintEHR"
+          sx={{ width: 44, height: 44, objectFit: 'contain' }}
+        />
+        <Box>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+            WintEHR
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: '0.02em' }}>
+            FHIR-Native Clinical Platform
+          </Typography>
+        </Box>
       </Box>
 
       {/* Navigation */}

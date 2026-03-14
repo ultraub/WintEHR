@@ -977,7 +977,7 @@ const EncountersTab = ({
             Note: Encounter editing is currently limited. You can create a new encounter or update the status of existing encounters through the signing process.
           </Typography>
           {selectedEncounterForEdit && (
-            <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 0 }}>
+            <Box sx={{ p: 2, bgcolor: 'background.paper' }}>
               <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
                 Current Encounter: {getEncounterTypeLabel(selectedEncounterForEdit)}
               </Typography>

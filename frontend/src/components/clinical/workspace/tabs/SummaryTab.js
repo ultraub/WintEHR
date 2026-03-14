@@ -83,13 +83,11 @@ const RecentItem = ({ primary, secondary, icon, status, onClick }) => {
     <ListItem 
       component="button"
       onClick={onClick}
-      sx={{ 
-        borderRadius: 0,
+      sx={{
         mb: theme.spacing(1),
         transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-        '&:hover': { 
-          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover',
-          transform: 'translateY(-1px)'
+        '&:hover': {
+          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
         },
         cursor: 'pointer',
         border: 'none',

@@ -523,8 +523,7 @@ const CDSPresentation = ({
               key={`critical-${alert.summary}-${index}`}
               severity="error"
               action={actions}
-              sx={{ 
-                borderRadius: 0,
+              sx={{
                 boxShadow: 2
               }}
             >
