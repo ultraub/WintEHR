@@ -510,6 +510,56 @@ const accessiblePalette = {
       moderate: '#FF6600',
       severe: '#FF3300',
       critical: '#CC0000'
+    },
+    departments: {
+      emergency: {
+        primary: '#CC0000',
+        surface: 'rgba(204, 0, 0, 0.05)',
+        accent: '#FF3333'
+      },
+      cardiology: {
+        primary: '#CC0066',
+        surface: 'rgba(204, 0, 102, 0.05)',
+        accent: '#FF3399'
+      },
+      pediatrics: {
+        primary: '#FF6600',
+        surface: 'rgba(255, 102, 0, 0.05)',
+        accent: '#FF9933'
+      },
+      oncology: {
+        primary: '#9900CC',
+        surface: 'rgba(153, 0, 204, 0.05)',
+        accent: '#CC33FF'
+      },
+      neurology: {
+        primary: '#3333CC',
+        surface: 'rgba(51, 51, 204, 0.05)',
+        accent: '#6666FF'
+      }
+    },
+    shifts: {
+      day: {
+        background: '#FFFFFF',
+        surface: '#F8F9FA',
+        text: '#000000'
+      },
+      night: {
+        background: '#1A202C',
+        surface: '#2D3748',
+        text: '#FFFFFF'
+      },
+      emergency: {
+        background: '#FFF3E0',
+        surface: '#FFCC80',
+        text: '#CC3300'
+      }
+    },
+    comfort: {
+      reassuring: '#009900',
+      concerning: '#FF6600',
+      alarming: '#CC0000',
+      neutral: '#666666'
     }
   },
   // Animation tokens
@@ -537,15 +587,15 @@ const accessiblePalette = {
 const warmClinicalPalette = {
   mode: 'light',
   primary: {
-    main: '#7C4DFF',
-    light: '#B085F5',
-    dark: '#512DA8',
+    main: '#7C3AED',
+    light: '#A78BFA',
+    dark: '#6D28D9',
     contrastText: '#FFFFFF'
   },
   secondary: {
-    main: '#FF7043',
-    light: '#FFAB91',
-    dark: '#D84315',
+    main: '#F97316',
+    light: '#FB923C',
+    dark: '#EA580C',
     contrastText: '#FFFFFF'
   },
   error: {
@@ -573,20 +623,20 @@ const warmClinicalPalette = {
     contrastText: '#FFFFFF'
   },
   background: {
-    default: '#FFFEF7',
+    default: '#FAFAF9',
     paper: '#FFFFFF',
-    surface: '#F7FAFC'
+    surface: '#F5F5F4'
   },
   text: {
     primary: '#2D3748',
     secondary: '#4A5568',
     disabled: '#A0AEC0'
   },
-  divider: '#E2E8F0',
+  divider: '#E7E5E4',
   action: {
-    active: '#7C4DFF',
-    hover: 'rgba(124, 77, 255, 0.04)',
-    selected: 'rgba(124, 77, 255, 0.08)',
+    active: '#7C3AED',
+    hover: 'rgba(124, 58, 237, 0.04)',
+    selected: 'rgba(124, 58, 237, 0.08)',
     disabled: 'rgba(0, 0, 0, 0.26)',
     disabledBackground: 'rgba(0, 0, 0, 0.12)'
   },
@@ -599,18 +649,18 @@ const warmClinicalPalette = {
   // Clinical-specific semantic tokens (warm)
   clinical: {
     surfaces: {
-      primary: 'rgba(124, 77, 255, 0.05)',
-      secondary: 'rgba(255, 112, 67, 0.05)',
+      primary: 'rgba(124, 58, 237, 0.05)',
+      secondary: 'rgba(249, 115, 22, 0.05)',
       warning: 'rgba(221, 107, 32, 0.05)',
       error: 'rgba(229, 62, 62, 0.05)',
       info: 'rgba(49, 130, 206, 0.05)',
       success: 'rgba(56, 161, 105, 0.05)'
     },
     interactions: {
-      hover: 'rgba(124, 77, 255, 0.08)',
-      pressed: 'rgba(124, 77, 255, 0.12)',
-      focus: 'rgba(124, 77, 255, 0.16)',
-      selected: 'rgba(124, 77, 255, 0.08)'
+      hover: 'rgba(124, 58, 237, 0.08)',
+      pressed: 'rgba(124, 58, 237, 0.12)',
+      focus: 'rgba(124, 58, 237, 0.16)',
+      selected: 'rgba(124, 58, 237, 0.08)'
     },
     status: {
       active: '#38A169',
@@ -619,7 +669,7 @@ const warmClinicalPalette = {
       completed: '#3182CE',
       cancelled: '#E53E3E',
       draft: '#718096',
-      inProgress: '#7C4DFF'
+      inProgress: '#7C3AED'
     },
     severity: {
       normal: '#38A169',
@@ -627,6 +677,56 @@ const warmClinicalPalette = {
       moderate: '#DD6B20',
       severe: '#F56500',
       critical: '#E53E3E'
+    },
+    departments: {
+      emergency: {
+        primary: '#D32F2F',
+        surface: 'rgba(211, 47, 47, 0.05)',
+        accent: '#F44336'
+      },
+      cardiology: {
+        primary: '#E91E63',
+        surface: 'rgba(233, 30, 99, 0.05)',
+        accent: '#F06292'
+      },
+      pediatrics: {
+        primary: '#FF9800',
+        surface: 'rgba(255, 152, 0, 0.05)',
+        accent: '#FFB74D'
+      },
+      oncology: {
+        primary: '#9C27B0',
+        surface: 'rgba(156, 39, 176, 0.05)',
+        accent: '#BA68C8'
+      },
+      neurology: {
+        primary: '#3F51B5',
+        surface: 'rgba(63, 81, 181, 0.05)',
+        accent: '#7986CB'
+      }
+    },
+    shifts: {
+      day: {
+        background: '#FAFAF9',
+        surface: '#F5F5F4',
+        text: '#2D3748'
+      },
+      night: {
+        background: '#1A202C',
+        surface: '#2D3748',
+        text: '#F7FAFC'
+      },
+      emergency: {
+        background: '#FFF3E0',
+        surface: '#FFCC80',
+        text: '#E65100'
+      }
+    },
+    comfort: {
+      reassuring: '#4CAF50',
+      concerning: '#FF9800',
+      alarming: '#F44336',
+      neutral: '#9E9E9E'
     }
   },
   // Animation tokens
@@ -654,15 +754,15 @@ const warmClinicalPalette = {
 const oceanHealthPalette = {
   mode: 'light',
   primary: {
-    main: '#0097A7',
-    light: '#4DD0E1',
-    dark: '#006064',
+    main: '#0891B2',
+    light: '#22D3EE',
+    dark: '#0E7490',
     contrastText: '#FFFFFF'
   },
   secondary: {
-    main: '#00ACC1',
-    light: '#5DDEF4',
-    dark: '#007C91',
+    main: '#06B6D4',
+    light: '#67E8F9',
+    dark: '#0891B2',
     contrastText: '#FFFFFF'
   },
   error: {
@@ -690,31 +790,46 @@ const oceanHealthPalette = {
     contrastText: '#FFFFFF'
   },
   background: {
-    default: '#F0F7F8',
+    default: '#F0F9FF',
     paper: '#FFFFFF',
-    surface: '#E0F2F1'
+    surface: '#E0F2FE'
   },
   text: {
-    primary: '#263238',
-    secondary: '#607D8B',
+    primary: '#164E63',
+    secondary: '#0E7490',
     disabled: '#B0BEC5'
   },
-  divider: '#CFD8DC',
+  divider: '#BAE6FD',
   action: {
-    active: '#0097A7',
-    hover: 'rgba(0, 151, 167, 0.04)',
-    selected: 'rgba(0, 151, 167, 0.08)',
+    active: '#0891B2',
+    hover: 'rgba(8, 145, 178, 0.04)',
+    selected: 'rgba(8, 145, 178, 0.08)',
     disabled: 'rgba(0, 0, 0, 0.26)',
     disabledBackground: 'rgba(0, 0, 0, 0.12)'
   },
   clinical: {
     surfaces: {
-      primary: 'rgba(0, 151, 167, 0.05)',
-      secondary: 'rgba(0, 172, 193, 0.05)',
+      primary: 'rgba(8, 145, 178, 0.05)',
+      secondary: 'rgba(6, 182, 212, 0.05)',
       warning: 'rgba(255, 179, 0, 0.05)',
       error: 'rgba(229, 57, 53, 0.05)',
       info: 'rgba(3, 155, 229, 0.05)',
       success: 'rgba(0, 137, 123, 0.05)'
+    },
+    interactions: {
+      hover: 'rgba(8, 145, 178, 0.08)',
+      pressed: 'rgba(8, 145, 178, 0.12)',
+      focus: 'rgba(8, 145, 178, 0.16)',
+      selected: 'rgba(8, 145, 178, 0.08)'
+    },
+    status: {
+      active: '#00897B',
+      inactive: '#9E9E9E',
+      pending: '#FFB300',
+      completed: '#039BE5',
+      cancelled: '#E53935',
+      draft: '#757575',
+      inProgress: '#0891B2'
     },
     severity: {
       normal: '#00897B',
@@ -722,6 +837,56 @@ const oceanHealthPalette = {
       moderate: '#FFB300',
       severe: '#FF6F00',
       critical: '#E53935'
+    },
+    departments: {
+      emergency: {
+        primary: '#D32F2F',
+        surface: 'rgba(211, 47, 47, 0.05)',
+        accent: '#F44336'
+      },
+      cardiology: {
+        primary: '#E91E63',
+        surface: 'rgba(233, 30, 99, 0.05)',
+        accent: '#F06292'
+      },
+      pediatrics: {
+        primary: '#FF9800',
+        surface: 'rgba(255, 152, 0, 0.05)',
+        accent: '#FFB74D'
+      },
+      oncology: {
+        primary: '#9C27B0',
+        surface: 'rgba(156, 39, 176, 0.05)',
+        accent: '#BA68C8'
+      },
+      neurology: {
+        primary: '#3F51B5',
+        surface: 'rgba(63, 81, 181, 0.05)',
+        accent: '#7986CB'
+      }
+    },
+    shifts: {
+      day: {
+        background: '#F0F9FF',
+        surface: '#E0F2FE',
+        text: '#164E63'
+      },
+      night: {
+        background: '#1A202C',
+        surface: '#2D3748',
+        text: '#F7FAFC'
+      },
+      emergency: {
+        background: '#FFF3E0',
+        surface: '#FFCC80',
+        text: '#E65100'
+      }
+    },
+    comfort: {
+      reassuring: '#4CAF50',
+      concerning: '#FF9800',
+      alarming: '#F44336',
+      neutral: '#9E9E9E'
     }
   }
 };
@@ -730,15 +895,15 @@ const oceanHealthPalette = {
 const forestWellnessPalette = {
   mode: 'light',
   primary: {
-    main: '#2E7D32',
-    light: '#60AD5E',
-    dark: '#005005',
+    main: '#15803D',
+    light: '#4ADE80',
+    dark: '#166534',
     contrastText: '#FFFFFF'
   },
   secondary: {
-    main: '#558B2F',
-    light: '#85BB5C',
-    dark: '#255D00',
+    main: '#16A34A',
+    light: '#86EFAC',
+    dark: '#15803D',
     contrastText: '#FFFFFF'
   },
   error: {
@@ -766,31 +931,46 @@ const forestWellnessPalette = {
     contrastText: '#FFFFFF'
   },
   background: {
-    default: '#F1F8E9',
+    default: '#F0FDF4',
     paper: '#FFFFFF',
-    surface: '#E8F5E9'
+    surface: '#DCFCE7'
   },
   text: {
-    primary: '#1B5E20',
-    secondary: '#388E3C',
+    primary: '#14532D',
+    secondary: '#166534',
     disabled: '#81C784'
   },
-  divider: '#C8E6C9',
+  divider: '#BBF7D0',
   action: {
-    active: '#2E7D32',
-    hover: 'rgba(46, 125, 50, 0.04)',
-    selected: 'rgba(46, 125, 50, 0.08)',
+    active: '#15803D',
+    hover: 'rgba(21, 128, 61, 0.04)',
+    selected: 'rgba(21, 128, 61, 0.08)',
     disabled: 'rgba(0, 0, 0, 0.26)',
     disabledBackground: 'rgba(0, 0, 0, 0.12)'
   },
   clinical: {
     surfaces: {
-      primary: 'rgba(46, 125, 50, 0.05)',
-      secondary: 'rgba(85, 139, 47, 0.05)',
+      primary: 'rgba(21, 128, 61, 0.05)',
+      secondary: 'rgba(22, 163, 74, 0.05)',
       warning: 'rgba(249, 168, 37, 0.05)',
       error: 'rgba(198, 40, 40, 0.05)',
       info: 'rgba(25, 118, 210, 0.05)',
       success: 'rgba(67, 160, 71, 0.05)'
+    },
+    interactions: {
+      hover: 'rgba(21, 128, 61, 0.08)',
+      pressed: 'rgba(21, 128, 61, 0.12)',
+      focus: 'rgba(21, 128, 61, 0.16)',
+      selected: 'rgba(21, 128, 61, 0.08)'
+    },
+    status: {
+      active: '#43A047',
+      inactive: '#9E9E9E',
+      pending: '#F9A825',
+      completed: '#1976D2',
+      cancelled: '#C62828',
+      draft: '#757575',
+      inProgress: '#15803D'
     },
     severity: {
       normal: '#43A047',
@@ -798,6 +978,56 @@ const forestWellnessPalette = {
       moderate: '#F9A825',
       severe: '#FF6F00',
       critical: '#C62828'
+    },
+    departments: {
+      emergency: {
+        primary: '#D32F2F',
+        surface: 'rgba(211, 47, 47, 0.05)',
+        accent: '#F44336'
+      },
+      cardiology: {
+        primary: '#E91E63',
+        surface: 'rgba(233, 30, 99, 0.05)',
+        accent: '#F06292'
+      },
+      pediatrics: {
+        primary: '#FF9800',
+        surface: 'rgba(255, 152, 0, 0.05)',
+        accent: '#FFB74D'
+      },
+      oncology: {
+        primary: '#9C27B0',
+        surface: 'rgba(156, 39, 176, 0.05)',
+        accent: '#BA68C8'
+      },
+      neurology: {
+        primary: '#3F51B5',
+        surface: 'rgba(63, 81, 181, 0.05)',
+        accent: '#7986CB'
+      }
+    },
+    shifts: {
+      day: {
+        background: '#F0FDF4',
+        surface: '#DCFCE7',
+        text: '#14532D'
+      },
+      night: {
+        background: '#1A202C',
+        surface: '#2D3748',
+        text: '#F7FAFC'
+      },
+      emergency: {
+        background: '#FFF3E0',
+        surface: '#FFCC80',
+        text: '#E65100'
+      }
+    },
+    comfort: {
+      reassuring: '#4CAF50',
+      concerning: '#FF9800',
+      alarming: '#F44336',
+      neutral: '#9E9E9E'
     }
   }
 };
@@ -806,15 +1036,15 @@ const forestWellnessPalette = {
 const sunriseCarePalette = {
   mode: 'light',
   primary: {
-    main: '#F57C00',
-    light: '#FFB74D',
-    dark: '#BB4D00',
+    main: '#EA580C',
+    light: '#FB923C',
+    dark: '#C2410C',
     contrastText: '#FFFFFF'
   },
   secondary: {
-    main: '#FFD54F',
-    light: '#FFFF81',
-    dark: '#C8A415',
+    main: '#F59E0B',
+    light: '#FBBF24',
+    dark: '#D97706',
     contrastText: '#000000'
   },
   error: {
@@ -842,31 +1072,46 @@ const sunriseCarePalette = {
     contrastText: '#FFFFFF'
   },
   background: {
-    default: '#FFF8E1',
+    default: '#FFFBEB',
     paper: '#FFFFFF',
-    surface: '#FFECB3'
+    surface: '#FEF3C7'
   },
   text: {
-    primary: '#3E2723',
-    secondary: '#6D4C41',
+    primary: '#78350F',
+    secondary: '#92400E',
     disabled: '#A1887F'
   },
-  divider: '#FFE0B2',
+  divider: '#FDE68A',
   action: {
-    active: '#F57C00',
-    hover: 'rgba(245, 124, 0, 0.04)',
-    selected: 'rgba(245, 124, 0, 0.08)',
+    active: '#EA580C',
+    hover: 'rgba(234, 88, 12, 0.04)',
+    selected: 'rgba(234, 88, 12, 0.08)',
     disabled: 'rgba(0, 0, 0, 0.26)',
     disabledBackground: 'rgba(0, 0, 0, 0.12)'
   },
   clinical: {
     surfaces: {
-      primary: 'rgba(245, 124, 0, 0.05)',
-      secondary: 'rgba(255, 213, 79, 0.05)',
+      primary: 'rgba(234, 88, 12, 0.05)',
+      secondary: 'rgba(245, 158, 11, 0.05)',
       warning: 'rgba(255, 160, 0, 0.05)',
       error: 'rgba(211, 47, 47, 0.05)',
       info: 'rgba(30, 136, 229, 0.05)',
       success: 'rgba(104, 159, 56, 0.05)'
+    },
+    interactions: {
+      hover: 'rgba(234, 88, 12, 0.08)',
+      pressed: 'rgba(234, 88, 12, 0.12)',
+      focus: 'rgba(234, 88, 12, 0.16)',
+      selected: 'rgba(234, 88, 12, 0.08)'
+    },
+    status: {
+      active: '#689F38',
+      inactive: '#9E9E9E',
+      pending: '#FFA000',
+      completed: '#1E88E5',
+      cancelled: '#D32F2F',
+      draft: '#757575',
+      inProgress: '#EA580C'
     },
     severity: {
       normal: '#689F38',
@@ -874,6 +1119,56 @@ const sunriseCarePalette = {
       moderate: '#FFA000',
       severe: '#FF6F00',
       critical: '#D32F2F'
+    },
+    departments: {
+      emergency: {
+        primary: '#D32F2F',
+        surface: 'rgba(211, 47, 47, 0.05)',
+        accent: '#F44336'
+      },
+      cardiology: {
+        primary: '#E91E63',
+        surface: 'rgba(233, 30, 99, 0.05)',
+        accent: '#F06292'
+      },
+      pediatrics: {
+        primary: '#FF9800',
+        surface: 'rgba(255, 152, 0, 0.05)',
+        accent: '#FFB74D'
+      },
+      oncology: {
+        primary: '#9C27B0',
+        surface: 'rgba(156, 39, 176, 0.05)',
+        accent: '#BA68C8'
+      },
+      neurology: {
+        primary: '#3F51B5',
+        surface: 'rgba(63, 81, 181, 0.05)',
+        accent: '#7986CB'
+      }
+    },
+    shifts: {
+      day: {
+        background: '#FFFBEB',
+        surface: '#FEF3C7',
+        text: '#78350F'
+      },
+      night: {
+        background: '#1A202C',
+        surface: '#2D3748',
+        text: '#F7FAFC'
+      },
+      emergency: {
+        background: '#FFF3E0',
+        surface: '#FFCC80',
+        text: '#E65100'
+      }
+    },
+    comfort: {
+      reassuring: '#4CAF50',
+      concerning: '#FF9800',
+      alarming: '#F44336',
+      neutral: '#9E9E9E'
     }
   }
 };
@@ -944,12 +1239,77 @@ const midnightShiftPalette = {
       info: 'rgba(66, 165, 245, 0.08)',
       success: 'rgba(102, 187, 106, 0.08)'
     },
+    interactions: {
+      hover: 'rgba(92, 107, 192, 0.16)',
+      pressed: 'rgba(92, 107, 192, 0.20)',
+      focus: 'rgba(92, 107, 192, 0.24)',
+      selected: 'rgba(92, 107, 192, 0.16)'
+    },
+    status: {
+      active: '#66BB6A',
+      inactive: '#718096',
+      pending: '#FFA726',
+      completed: '#42A5F5',
+      cancelled: '#EF5350',
+      draft: '#94A3B8',
+      inProgress: '#5C6BC0'
+    },
     severity: {
       normal: '#66BB6A',
       mild: '#81C784',
       moderate: '#FFA726',
       severe: '#FF7043',
       critical: '#EF5350'
+    },
+    departments: {
+      emergency: {
+        primary: '#F87171',
+        surface: 'rgba(248, 113, 113, 0.08)',
+        accent: '#FCA5A5'
+      },
+      cardiology: {
+        primary: '#F472B6',
+        surface: 'rgba(244, 114, 182, 0.08)',
+        accent: '#FBCFE8'
+      },
+      pediatrics: {
+        primary: '#FCD34D',
+        surface: 'rgba(252, 211, 77, 0.08)',
+        accent: '#FDE68A'
+      },
+      oncology: {
+        primary: '#C084FC',
+        surface: 'rgba(192, 132, 252, 0.08)',
+        accent: '#E9D5FF'
+      },
+      neurology: {
+        primary: '#A78BFA',
+        surface: 'rgba(167, 139, 250, 0.08)',
+        accent: '#C4B5FD'
+      }
+    },
+    shifts: {
+      day: {
+        background: '#1A1F2E',
+        surface: '#252B3D',
+        text: '#F7FAFC'
+      },
+      night: {
+        background: '#0A0E13',
+        surface: '#151922',
+        text: '#CBD5E0'
+      },
+      emergency: {
+        background: '#27171A',
+        surface: '#3F1F24',
+        text: '#FFA726'
+      }
+    },
+    comfort: {
+      reassuring: '#66BB6A',
+      concerning: '#FFA726',
+      alarming: '#EF5350',
+      neutral: '#718096'
     }
   }
 };
@@ -958,15 +1318,15 @@ const midnightShiftPalette = {
 const monochromeClinicalPalette = {
   mode: 'light',
   primary: {
-    main: '#616161',
-    light: '#8E8E8E',
-    dark: '#373737',
+    main: '#475569',
+    light: '#94A3B8',
+    dark: '#334155',
     contrastText: '#FFFFFF'
   },
   secondary: {
-    main: '#424242',
-    light: '#6D6D6D',
-    dark: '#1B1B1B',
+    main: '#334155',
+    light: '#64748B',
+    dark: '#1E293B',
     contrastText: '#FFFFFF'
   },
   error: {
@@ -982,9 +1342,9 @@ const monochromeClinicalPalette = {
     contrastText: '#FFFFFF'
   },
   info: {
-    main: '#757575',
-    light: '#A4A4A4',
-    dark: '#494949',
+    main: '#64748B',
+    light: '#94A3B8',
+    dark: '#475569',
     contrastText: '#FFFFFF'
   },
   success: {
@@ -994,31 +1354,46 @@ const monochromeClinicalPalette = {
     contrastText: '#FFFFFF'
   },
   background: {
-    default: '#FAFAFA',
+    default: '#F8FAFC',
     paper: '#FFFFFF',
-    surface: '#F5F5F5'
+    surface: '#F1F5F9'
   },
   text: {
-    primary: '#212121',
-    secondary: '#757575',
-    disabled: '#BDBDBD'
+    primary: '#0F172A',
+    secondary: '#64748B',
+    disabled: '#CBD5E1'
   },
-  divider: '#E0E0E0',
+  divider: '#E2E8F0',
   action: {
-    active: '#616161',
-    hover: 'rgba(97, 97, 97, 0.04)',
-    selected: 'rgba(97, 97, 97, 0.08)',
+    active: '#475569',
+    hover: 'rgba(71, 85, 105, 0.04)',
+    selected: 'rgba(71, 85, 105, 0.08)',
     disabled: 'rgba(0, 0, 0, 0.26)',
     disabledBackground: 'rgba(0, 0, 0, 0.12)'
   },
   clinical: {
     surfaces: {
-      primary: 'rgba(97, 97, 97, 0.05)',
-      secondary: 'rgba(66, 66, 66, 0.05)',
+      primary: 'rgba(71, 85, 105, 0.05)',
+      secondary: 'rgba(51, 65, 85, 0.05)',
       warning: 'rgba(245, 124, 0, 0.05)',
       error: 'rgba(211, 47, 47, 0.05)',
-      info: 'rgba(117, 117, 117, 0.05)',
+      info: 'rgba(100, 116, 139, 0.05)',
       success: 'rgba(76, 175, 80, 0.05)'
+    },
+    interactions: {
+      hover: 'rgba(71, 85, 105, 0.08)',
+      pressed: 'rgba(71, 85, 105, 0.12)',
+      focus: 'rgba(71, 85, 105, 0.16)',
+      selected: 'rgba(71, 85, 105, 0.08)'
+    },
+    status: {
+      active: '#4CAF50',
+      inactive: '#94A3B8',
+      pending: '#F57C00',
+      completed: '#64748B',
+      cancelled: '#D32F2F',
+      draft: '#94A3B8',
+      inProgress: '#475569'
     },
     severity: {
       normal: '#4CAF50',
@@ -1026,6 +1401,56 @@ const monochromeClinicalPalette = {
       moderate: '#F57C00',
       severe: '#FF5722',
       critical: '#D32F2F'
+    },
+    departments: {
+      emergency: {
+        primary: '#D32F2F',
+        surface: 'rgba(211, 47, 47, 0.05)',
+        accent: '#F44336'
+      },
+      cardiology: {
+        primary: '#E91E63',
+        surface: 'rgba(233, 30, 99, 0.05)',
+        accent: '#F06292'
+      },
+      pediatrics: {
+        primary: '#FF9800',
+        surface: 'rgba(255, 152, 0, 0.05)',
+        accent: '#FFB74D'
+      },
+      oncology: {
+        primary: '#9C27B0',
+        surface: 'rgba(156, 39, 176, 0.05)',
+        accent: '#BA68C8'
+      },
+      neurology: {
+        primary: '#3F51B5',
+        surface: 'rgba(63, 81, 181, 0.05)',
+        accent: '#7986CB'
+      }
+    },
+    shifts: {
+      day: {
+        background: '#F8FAFC',
+        surface: '#F1F5F9',
+        text: '#0F172A'
+      },
+      night: {
+        background: '#1A202C',
+        surface: '#2D3748',
+        text: '#F7FAFC'
+      },
+      emergency: {
+        background: '#FFF3E0',
+        surface: '#FFCC80',
+        text: '#E65100'
+      }
+    },
+    comfort: {
+      reassuring: '#4CAF50',
+      concerning: '#FF9800',
+      alarming: '#F44336',
+      neutral: '#94A3B8'
     }
   }
 };
@@ -1034,15 +1459,15 @@ const monochromeClinicalPalette = {
 const pediatricFriendlyPalette = {
   mode: 'light',
   primary: {
-    main: '#E91E63',
-    light: '#F8BBD0',
-    dark: '#AD1457',
+    main: '#DB2777',
+    light: '#F472B6',
+    dark: '#BE185D',
     contrastText: '#FFFFFF'
   },
   secondary: {
-    main: '#00BCD4',
-    light: '#B2EBF2',
-    dark: '#0097A7',
+    main: '#0EA5E9',
+    light: '#38BDF8',
+    dark: '#0284C7',
     contrastText: '#FFFFFF'
   },
   error: {
@@ -1070,31 +1495,46 @@ const pediatricFriendlyPalette = {
     contrastText: '#FFFFFF'
   },
   background: {
-    default: '#FFF3E0',
+    default: '#FFF1F2',
     paper: '#FFFFFF',
-    surface: '#FCE4EC'
+    surface: '#FFE4E6'
   },
   text: {
-    primary: '#311B92',
-    secondary: '#5E35B1',
-    disabled: '#9575CD'
+    primary: '#1E293B',
+    secondary: '#64748B',
+    disabled: '#94A3B8'
   },
-  divider: '#E1BEE7',
+  divider: '#FECDD3',
   action: {
-    active: '#E91E63',
-    hover: 'rgba(233, 30, 99, 0.04)',
-    selected: 'rgba(233, 30, 99, 0.08)',
+    active: '#DB2777',
+    hover: 'rgba(219, 39, 119, 0.04)',
+    selected: 'rgba(219, 39, 119, 0.08)',
     disabled: 'rgba(0, 0, 0, 0.26)',
     disabledBackground: 'rgba(0, 0, 0, 0.12)'
   },
   clinical: {
     surfaces: {
-      primary: 'rgba(233, 30, 99, 0.05)',
-      secondary: 'rgba(0, 188, 212, 0.05)',
+      primary: 'rgba(219, 39, 119, 0.05)',
+      secondary: 'rgba(14, 165, 233, 0.05)',
       warning: 'rgba(255, 152, 0, 0.05)',
       error: 'rgba(244, 67, 54, 0.05)',
       info: 'rgba(33, 150, 243, 0.05)',
       success: 'rgba(76, 175, 80, 0.05)'
+    },
+    interactions: {
+      hover: 'rgba(219, 39, 119, 0.08)',
+      pressed: 'rgba(219, 39, 119, 0.12)',
+      focus: 'rgba(219, 39, 119, 0.16)',
+      selected: 'rgba(219, 39, 119, 0.08)'
+    },
+    status: {
+      active: '#4CAF50',
+      inactive: '#94A3B8',
+      pending: '#FF9800',
+      completed: '#0EA5E9',
+      cancelled: '#F44336',
+      draft: '#94A3B8',
+      inProgress: '#DB2777'
     },
     severity: {
       normal: '#4CAF50',
@@ -1102,6 +1542,56 @@ const pediatricFriendlyPalette = {
       moderate: '#FF9800',
       severe: '#FF5722',
       critical: '#F44336'
+    },
+    departments: {
+      emergency: {
+        primary: '#D32F2F',
+        surface: 'rgba(211, 47, 47, 0.05)',
+        accent: '#F44336'
+      },
+      cardiology: {
+        primary: '#E91E63',
+        surface: 'rgba(233, 30, 99, 0.05)',
+        accent: '#F06292'
+      },
+      pediatrics: {
+        primary: '#FF9800',
+        surface: 'rgba(255, 152, 0, 0.05)',
+        accent: '#FFB74D'
+      },
+      oncology: {
+        primary: '#9C27B0',
+        surface: 'rgba(156, 39, 176, 0.05)',
+        accent: '#BA68C8'
+      },
+      neurology: {
+        primary: '#3F51B5',
+        surface: 'rgba(63, 81, 181, 0.05)',
+        accent: '#7986CB'
+      }
+    },
+    shifts: {
+      day: {
+        background: '#FFF1F2',
+        surface: '#FFE4E6',
+        text: '#1E293B'
+      },
+      night: {
+        background: '#1A202C',
+        surface: '#2D3748',
+        text: '#F7FAFC'
+      },
+      emergency: {
+        background: '#FFF3E0',
+        surface: '#FFCC80',
+        text: '#E65100'
+      }
+    },
+    comfort: {
+      reassuring: '#4CAF50',
+      concerning: '#FF9800',
+      alarming: '#F44336',
+      neutral: '#94A3B8'
     }
   }
 };
@@ -1305,20 +1795,20 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
           break;
         case 'ocean':
           // Ocean adjustments for dark mode
-          palette.primary.main = '#4DD0E1';
-          palette.secondary.main = '#5DDEF4';
+          palette.primary.main = '#22D3EE';
+          palette.secondary.main = '#67E8F9';
           palette.clinical.severity.normal = '#4EBAAA';
           break;
         case 'forest':
           // Forest adjustments for dark mode
-          palette.primary.main = '#81C784';
-          palette.secondary.main = '#A5D6A7';
+          palette.primary.main = '#4ADE80';
+          palette.secondary.main = '#86EFAC';
           palette.clinical.severity.normal = '#66BB6A';
           break;
         case 'sunrise':
           // Sunrise adjustments for dark mode
-          palette.primary.main = '#FFB74D';
-          palette.secondary.main = '#FFFF81';
+          palette.primary.main = '#FB923C';
+          palette.secondary.main = '#FBBF24';
           palette.clinical.severity.normal = '#9CCC65';
           break;
         case 'monochrome':
@@ -1335,8 +1825,8 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
           break;
         case 'pediatric':
           // Pediatric adjustments for dark mode
-          palette.primary.main = '#F8BBD0';
-          palette.secondary.main = '#B2EBF2';
+          palette.primary.main = '#F472B6';
+          palette.secondary.main = '#38BDF8';
           palette.clinical.severity.normal = '#81C784';
           break;
       }
@@ -1545,22 +2035,22 @@ export const themePresets = {
   warm: {
     name: 'Warm Clinical',
     description: 'Warm, approachable clinical interface',
-    preview: '#7C4DFF'
+    preview: '#7C3AED'
   },
   ocean: {
     name: 'Ocean Health',
     description: 'Calming blues and teals for therapeutic environments',
-    preview: '#0097A7'
+    preview: '#0891B2'
   },
   forest: {
     name: 'Forest Wellness',
     description: 'Natural greens promoting healing and wellness',
-    preview: '#2E7D32'
+    preview: '#15803D'
   },
   sunrise: {
     name: 'Sunrise Care',
     description: 'Warm oranges and yellows for optimistic healthcare',
-    preview: '#F57C00'
+    preview: '#EA580C'
   },
   midnight: {
     name: 'Midnight Shift',
@@ -1570,12 +2060,12 @@ export const themePresets = {
   monochrome: {
     name: 'Monochrome Clinical',
     description: 'Grayscale theme for minimal color distraction',
-    preview: '#616161'
+    preview: '#475569'
   },
   pediatric: {
     name: 'Pediatric Friendly',
     description: 'Bright, cheerful colors for pediatric departments',
-    preview: '#E91E63'
+    preview: '#DB2777'
   }
 };
 

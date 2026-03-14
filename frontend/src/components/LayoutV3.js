@@ -71,7 +71,7 @@ const navigationConfig = {
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions' },
       { text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management' },
-      { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing', badge: 'New' }
+      { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing' }
     ]
   },
   analytics: {
@@ -87,8 +87,8 @@ const navigationConfig = {
     title: 'Developer Tools',
     icon: <ApiIcon />,
     items: [
-      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'Next-gen FHIR exploration with AI', badge: 'Enhanced' },
-      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', badge: 'Enhanced' }
+      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'FHIR resource exploration & queries' },
+      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio' }
     ]
   },
   admin: {
@@ -293,7 +293,7 @@ function LayoutV3({ children }) {
       <Box sx={{ p: 2, borderBottom: '0.5px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Box
           component="img"
-          src="/wintehr-logo.png"
+          src="/wintehr-logo-icon.png"
           alt="WintEHR"
           sx={{ width: 44, height: 44, objectFit: 'contain' }}
         />
@@ -341,7 +341,9 @@ function LayoutV3({ children }) {
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
           ml: { md: `${drawerWidth}px` },
-          bgcolor: 'rgba(255,255,255,0.72)',
+          bgcolor: theme.palette.mode === 'dark'
+            ? 'rgba(30, 41, 59, 0.78)'
+            : 'rgba(255, 255, 255, 0.72)',
           color: 'text.primary',
           boxShadow: 'none',
           backdropFilter: 'saturate(180%) blur(20px)',

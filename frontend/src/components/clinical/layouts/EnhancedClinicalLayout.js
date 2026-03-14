@@ -165,7 +165,9 @@ const EnhancedClinicalLayout = ({
                 position: 'sticky',
                 top: 0,
                 zIndex: 1100,
-                backgroundColor: 'rgba(255, 255, 255, 0.72)',
+                backgroundColor: theme.palette.mode === 'dark'
+                  ? 'rgba(30, 41, 59, 0.78)'
+                  : 'rgba(255, 255, 255, 0.72)',
                 backdropFilter: 'saturate(180%) blur(20px)',
                 WebkitBackdropFilter: 'saturate(180%) blur(20px)',
                 borderBottom: '0.5px solid',

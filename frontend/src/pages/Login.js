@@ -116,7 +116,7 @@ const Login = () => {
         elevation={0}
         sx={{
           p: 5,
-          backgroundColor: 'white',
+          backgroundColor: 'background.paper',
           borderRadius: '24px',
           boxShadow: '0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)',
         }}>

@@ -295,7 +295,7 @@ export const createClinicalTheme = (baseTheme = 'professional', mode = 'light') 
             ...medicalTheme.components?.MuiCard?.styleOverrides?.root,
             // borderRadius inherits 12 from medicalTheme MuiCard override
             boxShadow: clinicalTokens.modernShadows.sm,
-            border: '1px solid #E5E5EA',
+            border: `1px solid ${medicalTheme.palette.divider}`,
             '&.ClinicalCard-severity-critical': {
               borderLeft: `4px solid ${clinicalTokens.severity.critical.color}`,
               backgroundColor: clinicalTokens.severity.critical.bg,

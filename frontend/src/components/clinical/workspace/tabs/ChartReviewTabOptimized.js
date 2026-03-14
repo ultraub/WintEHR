@@ -48,13 +48,10 @@ import {
   StaggeredFadeIn,
   LoadingOverlay 
 } from './components/EnhancedLoadingStates';
-import { 
-  InteractiveIconButton, 
-  InteractiveButton, 
+import {
+  InteractiveButton,
   InteractiveChip,
-  RichTooltip,
-  CopyButton,
-  AnimatedCounter 
+  AnimatedCounter
 } from './components/EnhancedInteractions';
 import {
   EmptyConditions,
@@ -1648,195 +1645,127 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
   
   const cardStyles = getClinicalCardStyles(severityLevel, 1, true);
   
+  const conditionName = condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition';
+
+  const statusLabel = clinicalStatus === 'active' ? 'Active' :
+                      clinicalStatus === 'resolved' ? 'Resolved' :
+                      clinicalStatus === 'inactive' ? 'Inactive' :
+                      clinicalStatus === 'remission' ? 'Remission' :
+                      clinicalStatus === 'recurrence' ? 'Recurrence' : clinicalStatus;
+
+  const statusColor = clinicalStatus === 'active' ? 'error' :
+                      clinicalStatus === 'resolved' ? 'success' :
+                      clinicalStatus === 'remission' ? 'info' :
+                      clinicalStatus === 'recurrence' ? 'warning' : 'default';
+
+  const onsetDisplay = condition.onsetDateTime ?
+    formatClinicalDate(condition.onsetDateTime) :
+    condition.onsetAge?.value ? `Age ${condition.onsetAge.value}` : null;
+
+  const codeLabel = clinicalCode && (
+    codeSystem?.includes('snomed') ? `SNOMED ${clinicalCode}` :
+    codeSystem?.includes('icd') ? `ICD ${clinicalCode}` :
+    clinicalCode
+  );
+
+  // Build subtitle line: code · onset · recorded
+  const subtitleParts = [
+    codeLabel,
+    onsetDisplay && `Onset: ${onsetDisplay}`,
+    abatementDate && `Resolved: ${typeof abatementDate === 'string' ? formatClinicalDate(abatementDate) : `Age ${abatementDate}`}`,
+    recordedDate && `Recorded: ${formatClinicalDate(recordedDate)}`,
+  ].filter(Boolean);
+
+  // Build tertiary line: verification · category · severity · stage · body site
+  const tertiaryParts = [
+    verification === 'confirmed' && 'Confirmed',
+    category,
+    severity,
+    stage,
+    bodySite,
+  ].filter(Boolean);
+
+  // Build context line: asserter · recorder · evidence · notes
+  const contextParts = [
+    asserter && `Asserted by ${asserter}`,
+    recorder && recorder !== asserter && `Recorded by ${recorder}`,
+    evidence,
+  ].filter(Boolean);
+
   return (
     <Paper
       elevation={0}
       sx={{
-        p: 2,
+        p: 2.5,
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: '4px solid',
-        borderLeftColor: clinicalStatus === 'active' ? theme.palette.error.main :
-                        clinicalStatus === 'resolved' ? theme.palette.success.main :
-                        clinicalStatus === 'remission' ? theme.palette.info.main :
-                        clinicalStatus === 'recurrence' ? theme.palette.warning.main :
-                        clinicalTokens.severity[severityLevel]?.color || theme.palette.grey[300],
-        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
-        transition: 'all 0.2s ease',
+        backgroundColor: 'background.paper',
+        transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
-          backgroundColor: alpha(theme.palette.action.hover, 0.08),
-          transform: 'translateX(2px)'
+          backgroundColor: (t) => alpha(t.palette.action.hover, 0.06),
         }
       }}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-        <Box flex={1}>
-          <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-            <RichTooltip
-              title="Condition Details"
-              content={
-                <Box>
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    <strong>Full Name:</strong> {condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition'}
-                  </Typography>
-                  {clinicalCode && (
-                    <Typography variant="body2" sx={{ mb: 1 }}>
-                      <strong>Code:</strong> {clinicalCode}
-                    </Typography>
-                  )}
-                  {category && (
-                    <Typography variant="body2">
-                      <strong>Category:</strong> {category}
-                    </Typography>
-                  )}
-                </Box>
-              }
+        <Box flex={1} sx={{ minWidth: 0 }}>
+          {/* Title line: condition name + status chip */}
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Typography
+              variant="body1"
+              fontWeight={600}
+              sx={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1,
+                minWidth: 0,
+              }}
             >
-              <Typography 
-                variant="body1" 
-                fontWeight={600}
-                sx={{ 
-                  cursor: 'help',
-                  maxWidth: '300px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition'}
-              </Typography>
-            </RichTooltip>
-            {/* Clinical Status */}
+              {conditionName}
+            </Typography>
             {clinicalStatus && (
-              <Chip 
-                label={clinicalStatus === 'active' ? 'Active' : 
-                       clinicalStatus === 'resolved' ? 'Resolved' : 
-                       clinicalStatus === 'inactive' ? 'Inactive' : 
-                       clinicalStatus === 'remission' ? 'Remission' : 
-                       clinicalStatus === 'recurrence' ? 'Recurrence' : clinicalStatus}
-                size="small" 
-                color={clinicalStatus === 'active' ? 'error' : 
-                       clinicalStatus === 'resolved' ? 'success' : 
-                       clinicalStatus === 'remission' ? 'info' : 
-                       clinicalStatus === 'recurrence' ? 'warning' : 'default'}
-                sx={{ 
-                  fontWeight: 600,
-                  ...(clinicalStatus === 'active' && {
-                    backgroundColor: alpha(theme.palette.error.main, 0.9),
-                    color: 'white'
-                  }),
-                  ...(clinicalStatus === 'resolved' && {
-                    backgroundColor: alpha(theme.palette.success.main, 0.9),
-                    color: 'white'
-                  })
-                }}
+              <Chip
+                label={statusLabel}
+                size="small"
+                variant="outlined"
+                color={statusColor}
+                sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
               />
             )}
-            {verification === 'confirmed' && (
-              <Chip label="Confirmed" size="small" variant="outlined" color="success" sx={{}} />
-            )}
-            {category && (
-              <Chip label={category} size="small" variant="outlined" sx={{}} />
-            )}
           </Stack>
-          
-          {/* Clinical codes and identifiers */}
-          {(clinicalCode || identifiers) && (
-            <Stack direction="row" spacing={2} alignItems="center" mb={0.5}>
-              {clinicalCode && (
-                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                  <strong>Code:</strong> {clinicalCode}
-                  {codeSystem?.includes('snomed') && ' (SNOMED)'}
-                  {codeSystem?.includes('icd') && ' (ICD)'}
-                </Typography>
-              )}
-              {identifiers && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>ID:</strong> {identifiers}
-                </Typography>
-              )}
-            </Stack>
-          )}
-          
-          {/* Clinical details */}
-          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-            <Typography variant="caption" color="text.secondary">
-              <strong>Onset:</strong> {condition.onsetDateTime ?
-                formatClinicalDate(condition.onsetDateTime) :
-                condition.onsetAge?.value ? `Age ${condition.onsetAge.value}` :
-                'Unknown'}
-            </Typography>
 
-            {abatementDate && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Resolved:</strong> {typeof abatementDate === 'string' ?
-                  formatClinicalDate(abatementDate) :
-                  `Age ${abatementDate}`}
-              </Typography>
-            )}
-            
-            {severity && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Severity:</strong> {severity}
-              </Typography>
-            )}
-            
-            {stage && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Stage:</strong> {stage}
-              </Typography>
-            )}
-            
-            {bodySite && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Site:</strong> {bodySite}
-              </Typography>
-            )}
-          </Stack>
-          
-          {/* Clinical team and dates */}
-          {(asserter || recorder || recordedDate) && (
-            <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 0.5 }} flexWrap="wrap">
-              {asserter && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>Asserted by:</strong> {asserter}
-                </Typography>
-              )}
-              {recorder && recorder !== asserter && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>Recorded by:</strong> {recorder}
-                </Typography>
-              )}
-              {recordedDate && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>Recorded:</strong> {formatClinicalDate(recordedDate)}
-                </Typography>
-              )}
-            </Stack>
-          )}
-          
-          {/* Evidence and notes */}
-          {evidence && (
+          {/* Subtitle line: code · onset · recorded */}
+          {subtitleParts.length > 0 && (
             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-              <strong>Evidence:</strong> {evidence}
+              {subtitleParts.join(' \u00B7 ')}
             </Typography>
           )}
-          
+
+          {/* Tertiary line: verification · category · severity · stage · body site */}
+          {tertiaryParts.length > 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.25, display: 'block' }}>
+              {tertiaryParts.join(' \u00B7 ')}
+            </Typography>
+          )}
+
+          {/* Context line: asserter · recorder · evidence */}
+          {contextParts.length > 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.25, display: 'block' }}>
+              {contextParts.join(' \u00B7 ')}
+            </Typography>
+          )}
+
+          {/* Notes (if present) */}
           {condition.note?.[0]?.text && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-              <strong>Notes:</strong> {condition.note[0].text}
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.25, display: 'block', fontStyle: 'italic' }}>
+              {condition.note[0].text}
             </Typography>
           )}
         </Box>
-        
-        <InteractiveIconButton 
-          size="small" 
-          onClick={onEdit}
-          tooltip="Edit condition"
-          hoverEffect="scale"
-        >
+
+        <IconButton size="small" onClick={onEdit} sx={{ ml: 1, flexShrink: 0 }}>
           <EditIcon fontSize="small" />
-        </InteractiveIconButton>
+        </IconButton>
       </Stack>
     </Paper>
   );
@@ -1865,188 +1794,128 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNav
   const detectedIssue = medication.detectedIssue?.[0]?.display;
   
   const cardStyles = getClinicalCardStyles(isActive ? 'normal' : 'low', 1, true);
-  
+
+  const statusLabel = medication.status === 'active' ? 'Active' :
+                      medication.status === 'completed' ? 'Completed' :
+                      medication.status === 'stopped' ? 'Stopped' :
+                      medication.status === 'on-hold' ? 'On Hold' :
+                      medication.status === 'cancelled' ? 'Cancelled' :
+                      medication.status === 'entered-in-error' ? 'Error' : medication.status;
+
+  const statusColor = medication.status === 'active' ? 'primary' :
+                      medication.status === 'completed' ? 'success' :
+                      medication.status === 'stopped' ? 'error' :
+                      medication.status === 'on-hold' ? 'warning' : 'default';
+
+  const medCodeLabel = medicationCode && (
+    medicationSystem?.includes('rxnorm') ? `RxNorm ${medicationCode}` :
+    medicationSystem?.includes('ndc') ? `NDC ${medicationCode}` :
+    medicationCode
+  );
+
+  // Build dosage text
+  const dosageText = dosage && (dosage.text ||
+    `${dosage.doseAndRate?.[0]?.doseQuantity?.value || ''} ${dosage.doseAndRate?.[0]?.doseQuantity?.unit || ''} ${dosage.timing?.repeat?.frequency ? `${dosage.timing.repeat.frequency}x daily` : ''}`.trim());
+
+  const routeText = dosage?.route && (dosage.route.text || dosage.route.coding?.[0]?.display);
+
+  // Build subtitle line: code · dosage · route
+  const subtitleParts = [
+    medCodeLabel,
+    dosageText,
+    routeText,
+  ].filter(Boolean);
+
+  // Build prescriber/reason line
+  const reasonText = medication.reasonCode?.[0]?.text || medication.reasonCode?.[0]?.coding?.[0]?.display || reasonReference;
+  const contextParts = [
+    requester,
+    reasonText,
+    medication.authoredOn && `Prescribed: ${formatClinicalDate(medication.authoredOn)}`,
+  ].filter(Boolean);
+
+  // Build dispense line (only clinically relevant parts)
+  const dispenseParts = [
+    dispenseRequest?.quantity && `Qty: ${dispenseRequest.quantity.value} ${dispenseRequest.quantity.unit || ''}`.trim(),
+    dispenseRequest?.numberOfRepeatsAllowed !== undefined && `Refills: ${dispenseRequest.numberOfRepeatsAllowed}`,
+    dispenseRequest?.expectedSupplyDuration && `Supply: ${dispenseRequest.expectedSupplyDuration.value} days`,
+  ].filter(Boolean);
+
   return (
     <Paper
       elevation={0}
       sx={{
-        p: 2,
+        p: 2.5,
         border: '1px solid',
         borderColor: 'divider',
-        borderLeft: '4px solid',
-        borderLeftColor: medication.status === 'active' ? theme.palette.primary.main :
-                        medication.status === 'stopped' ? theme.palette.error.main :
-                        medication.status === 'completed' ? theme.palette.success.main :
-                        medication.status === 'on-hold' ? theme.palette.warning.main :
-                        theme.palette.grey[300],
-        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
-        transition: 'all 0.2s ease',
+        backgroundColor: 'background.paper',
+        transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
-          backgroundColor: alpha(theme.palette.action.hover, 0.08),
-          transform: 'translateX(2px)'
+          backgroundColor: (t) => alpha(t.palette.action.hover, 0.06),
         }
       }}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-        <Box flex={1}>
-          <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-            <Typography variant="body1" fontWeight={600}>
+        <Box flex={1} sx={{ minWidth: 0 }}>
+          {/* Title line: medication name + status chip */}
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Typography
+              variant="body1"
+              fontWeight={600}
+              sx={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
               {medicationDisplay}
             </Typography>
-            {/* Medication Status */}
-            <Chip 
-              label={medication.status === 'active' ? 'Active' : 
-                     medication.status === 'completed' ? 'Completed' : 
-                     medication.status === 'stopped' ? 'Stopped' : 
-                     medication.status === 'on-hold' ? 'On Hold' : 
-                     medication.status === 'cancelled' ? 'Cancelled' : 
-                     medication.status === 'entered-in-error' ? 'Error' : medication.status}
-              size="small" 
-              color={medication.status === 'active' ? 'primary' : 
-                     medication.status === 'completed' ? 'success' : 
-                     medication.status === 'stopped' ? 'error' : 
-                     medication.status === 'on-hold' ? 'warning' : 
-                     medication.status === 'cancelled' ? 'default' : 'default'}
-              sx={{ 
-                fontWeight: 600,
-                ...(medication.status === 'active' && {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.9),
-                  color: 'white'
-                }),
-                ...(medication.status === 'stopped' && {
-                  backgroundColor: alpha(theme.palette.error.main, 0.9),
-                  color: 'white'
-                }),
-                ...(medication.status === 'completed' && {
-                  backgroundColor: alpha(theme.palette.success.main, 0.9),
-                  color: 'white'
-                })
-              }}
-            />
-            {medication.intent && (
-              <Chip 
-                label={medication.intent} 
-                size="small" 
+            {medication.status && (
+              <Chip
+                label={statusLabel}
+                size="small"
                 variant="outlined"
-                sx={{}}
-              />
-            )}
-            {courseOfTherapy && (
-              <Chip 
-                label={courseOfTherapy} 
-                size="small" 
-                variant="outlined"
-                sx={{ fontSize: '0.7rem' }}
+                color={statusColor}
+                sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
               />
             )}
           </Stack>
-          
-          {/* Medication codes and identifiers */}
-          {(medicationCode || identifiers || groupIdentifier) && (
-            <Stack direction="row" spacing={2} alignItems="center" mb={0.5} flexWrap="wrap">
-              {medicationCode && (
-                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                  <strong>Code:</strong> {medicationCode}
-                  {medicationSystem?.includes('rxnorm') && ' (RxNorm)'}
-                  {medicationSystem?.includes('ndc') && ' (NDC)'}
-                </Typography>
-              )}
-              {identifiers && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>ID:</strong> {identifiers}
-                </Typography>
-              )}
-              {groupIdentifier && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>Group:</strong> {groupIdentifier}
-                </Typography>
-              )}
-            </Stack>
+
+          {/* Subtitle line: code · dosage · route */}
+          {subtitleParts.length > 0 && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              {subtitleParts.join(' \u00B7 ')}
+            </Typography>
           )}
-          
-          <Stack spacing={0.5}>
-            {dosage && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Dosage:</strong> {dosage.text || 
-                  `${dosage.doseAndRate?.[0]?.doseQuantity?.value} ${dosage.doseAndRate?.[0]?.doseQuantity?.unit} ${dosage.timing?.repeat?.frequency ? `${dosage.timing.repeat.frequency}x daily` : ''}`}
-              </Typography>
-            )}
-            {dosage?.route && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Route:</strong> {dosage.route.text || dosage.route.coding?.[0]?.display || 'Unknown'}
-              </Typography>
-            )}
-            
-            {/* Prescriber and timing */}
-            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-              {medication.authoredOn && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>Prescribed:</strong> {formatClinicalDate(medication.authoredOn)}
-                </Typography>
-              )}
-              {requester && (
-                <Typography variant="caption" color="text.secondary">
-                  <strong>Prescriber:</strong> {requester}
-                </Typography>
-              )}
-            </Stack>
-            
-            {/* Clinical context */}
-            {(medication.reasonCode?.[0] || reasonReference) && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Reason:</strong> {medication.reasonCode?.[0]?.text || medication.reasonCode?.[0]?.coding?.[0]?.display || reasonReference}
-              </Typography>
-            )}
-            
-            {/* Dispense information */}
-            {dispenseRequest && (
-              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-                {dispenseRequest.quantity && (
-                  <Typography variant="caption" color="text.secondary">
-                    <strong>Quantity:</strong> {dispenseRequest.quantity.value} {dispenseRequest.quantity.unit}
-                  </Typography>
-                )}
-                {dispenseRequest.numberOfRepeatsAllowed !== undefined && (
-                  <Typography variant="caption" color="text.secondary">
-                    <strong>Refills:</strong> {dispenseRequest.numberOfRepeatsAllowed}
-                  </Typography>
-                )}
-                {dispenseRequest.expectedSupplyDuration && (
-                  <Typography variant="caption" color="text.secondary">
-                    <strong>Supply:</strong> {dispenseRequest.expectedSupplyDuration.value} days
-                  </Typography>
-                )}
-              </Stack>
-            )}
-            
-            {/* Substitution and alerts */}
-            {substitution && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Substitution:</strong> {typeof substitution.allowedBoolean === 'boolean' ? 
-                  (substitution.allowedBoolean ? 'Allowed' : 'Not allowed') : 
-                  (substitution.allowedCodeableConcept?.text || substitution.allowedCodeableConcept?.coding?.[0]?.display || 'Unknown')}
-              </Typography>
-            )}
-            
-            {detectedIssue && (
-              <Typography variant="caption" color="warning.main">
-                <strong>⚠ Issue:</strong> {detectedIssue}
-              </Typography>
-            )}
-            
-            {priorPrescription && (
-              <Typography variant="caption" color="text.secondary">
-                <strong>Replaces:</strong> {priorPrescription}
-              </Typography>
-            )}
-          </Stack>
+
+          {/* Context line: prescriber · reason · prescribed date */}
+          {contextParts.length > 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.25, display: 'block' }}>
+              {contextParts.join(' \u00B7 ')}
+            </Typography>
+          )}
+
+          {/* Dispense line (if clinically relevant) */}
+          {dispenseParts.length > 0 && (
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.25, display: 'block' }}>
+              {dispenseParts.join(' \u00B7 ')}
+            </Typography>
+          )}
+
+          {/* Detected issue warning */}
+          {detectedIssue && (
+            <Typography variant="caption" color="warning.main" sx={{ mt: 0.25, display: 'block' }}>
+              {detectedIssue}
+            </Typography>
+          )}
         </Box>
 
-        <Stack direction="row" spacing={0.5}>
+        <Stack direction="row" spacing={0.5} sx={{ ml: 1, flexShrink: 0 }}>
           <IconButton size="small" onClick={onEdit}>
             <EditIcon fontSize="small" />
           </IconButton>
-          {/* Navigate to pharmacy for medication details */}
           {onNavigateToTab && (
             <Tooltip title="View in Pharmacy">
               <IconButton
