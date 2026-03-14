@@ -37,7 +37,8 @@ export const CDSProvider = ({ children }) => {
 
   // Track current patient to clear alerts on patient change
   const [currentPatientId, setCurrentPatientId] = useState(null);
-  
+  const currentPatientIdRef = useRef(null);
+
   // Refs for managing state without causing re-renders
   const executingHooks = useRef(new Set());
   const lastExecutionTime = useRef({});
@@ -310,17 +311,13 @@ export const CDSProvider = ({ children }) => {
   
   // Execute patient-view hooks when patient changes - using stable callback
   const executePatientViewHooks = useStableCallback(async (patientId) => {
-    // [CDS Debug] executePatientViewHooks called with patientId:', patientId);
-    // [CDS Debug] Current patientId:', currentPatientId);
-    
-    if (!patientId || patientId === currentPatientId) {
-      cdsLogger.debug('CDSContext: executePatientViewHooks skipped', { patientId, currentPatientId });
-      // [CDS Debug] Skipping execution - same patient or no patient');
+    if (!patientId || patientId === currentPatientIdRef.current) {
+      cdsLogger.debug('CDSContext: executePatientViewHooks skipped', { patientId, current: currentPatientIdRef.current });
       return;
     }
-    
+
     cdsLogger.info(`CDSContext: Patient changed to ${patientId}`);
-    // [CDS Debug] Patient changed from ${currentPatientId} to ${patientId}`);
+    currentPatientIdRef.current = patientId;
     setCurrentPatientId(patientId);
     
     // Clear existing alerts when patient changes
