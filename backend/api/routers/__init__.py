@@ -125,12 +125,20 @@ def register_all_routers(app: FastAPI) -> None:
     try:
         from api.quality.router import router as quality_measures_router
         from api.analytics.router import router as analytics_router
-        
+
         app.include_router(quality_measures_router, tags=["Quality Measures"])
         app.include_router(analytics_router, tags=["Analytics"])
         logger.info("✓ Quality & Analytics routers registered")
     except Exception as e:
         logger.error(f"Failed to register quality/analytics routers: {e}")
+
+    # 6b. Scheduling & Appointments
+    try:
+        from api.scheduling.router import router as scheduling_router
+        app.include_router(scheduling_router, tags=["Scheduling"])
+        logger.info("✓ Scheduling router registered")
+    except Exception as e:
+        logger.error(f"Failed to register scheduling router: {e}")
     
     # 7. Imaging & DICOM Services
     try:
