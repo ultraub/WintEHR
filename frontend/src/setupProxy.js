@@ -121,6 +121,12 @@ module.exports = function(app) {
     })
   );
   
+  // SMART/OAuth well-known discovery - proxy to backend
+  app.use(
+    '/.well-known',
+    createProxy('SMART Discovery')
+  );
+
   // CDS Services routes - need to add the path back
   app.use(
     '/cds-services',

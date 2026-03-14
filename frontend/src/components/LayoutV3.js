@@ -295,13 +295,13 @@ function LayoutV3({ children }) {
           component="img"
           src="/wintehr-logo-icon.png"
           alt="WintEHR"
-          sx={{ width: 44, height: 44, objectFit: 'contain' }}
+          sx={{ width: 56, height: 56, objectFit: 'contain' }}
         />
         <Box>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
             WintEHR
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: '0.02em' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: '0.02em', fontSize: '0.7rem' }}>
             FHIR-Native Clinical Platform
           </Typography>
         </Box>

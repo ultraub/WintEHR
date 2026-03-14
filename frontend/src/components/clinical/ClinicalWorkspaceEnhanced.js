@@ -337,7 +337,6 @@ const ClinicalWorkspaceEnhanced = ({
                   maxAlerts={mode === PRESENTATION_MODES.INLINE ? 3 : undefined}
                   allowInteraction={true}
                   onAlertAction={(alertId, action, data) => {
-                    console.log('CDS Alert Action:', { alertId, action, data });
                     // Alert has been dismissed/snoozed, persistence is handled by CDSPresentation
                     if (action === 'dismiss' || action === 'snooze') {
                       // Optionally refresh alerts or update local state

@@ -37,7 +37,7 @@ export const validateConfiguration = () => {
     return { valid: false, errors };
   }
 
-  console.log('[Config Validation] All required environment variables are set.');
+  // Config validation passed — no need to log in production
   return { valid: true };
 };
 
