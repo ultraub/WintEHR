@@ -300,18 +300,6 @@ class CDSStudioAPI {
 
     return response.json();
   }
-
-  async getServiceMetrics(serviceId) {
-    const response = await fetch(`${API_BASE}/services/${serviceId}/metrics`, {
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get service metrics: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
 }
 
 export default new CDSStudioAPI();

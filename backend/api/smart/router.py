@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["SMART on FHIR"])
 
 # Configuration from environment (with educational defaults)
-BASE_URL = os.getenv("SMART_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("SMART_BASE_URL", os.getenv("BACKEND_BASE_URL", "http://localhost:8000"))
 FHIR_URL = os.getenv("HAPI_FHIR_URL", "http://localhost:8888/fhir")
 JWT_SECRET = os.getenv("JWT_SECRET", "smart-dev-secret-key-change-in-production")
 

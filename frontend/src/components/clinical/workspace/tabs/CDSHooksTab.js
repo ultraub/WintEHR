@@ -128,10 +128,10 @@ const CDSHooksTab = ({ patientId }) => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (patientId && tabValue === 0) {
+    if (patientId && tabValue === 0 && services.length > 0) {
       executePatientViewHooks();
     }
-  }, [patientId, tabValue]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [patientId, tabValue, services.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Subscribe to CDS-relevant events
   useEffect(() => {

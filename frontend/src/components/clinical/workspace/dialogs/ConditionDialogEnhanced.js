@@ -370,7 +370,7 @@ const ConditionDialogEnhanced = ({
         }),
         code: {
           coding: [{
-            system: 'http://hl7.org/fhir/sid/icd-10',
+            system: 'http://hl7.org/fhir/sid/icd-10-cm',
             code: formData.code,
             display: formData.display
           }],

@@ -207,11 +207,15 @@ class SMARTAuthorizationServer:
 
     def _register_demo_apps(self):
         """Register demo SMART apps for testing"""
+        import os
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        smart_app_url = os.getenv("SMART_APP_URL", "http://localhost:9000")
+
         # Growth Chart App
         self.register_app(RegisteredApp(
             client_id="growth-chart-app",
             name="Growth Chart",
-            redirect_uris=["http://localhost:9000/", "http://localhost:9000/callback"],
+            redirect_uris=[f"{smart_app_url}/", f"{smart_app_url}/callback"],
             scopes=[
                 "launch", "launch/patient",
                 "patient/Patient.read",
@@ -226,7 +230,7 @@ class SMARTAuthorizationServer:
         self.register_app(RegisteredApp(
             client_id="demo-patient-viewer",
             name="Patient Summary Viewer",
-            redirect_uris=["http://localhost:3001/callback", "http://localhost:3000/smart-callback"],
+            redirect_uris=["http://localhost:3001/callback", f"{frontend_url}/smart-callback"],
             scopes=[
                 "launch", "launch/patient",
                 "patient/Patient.read",

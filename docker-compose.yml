@@ -137,6 +137,8 @@ services:
       - USE_REDIS_CACHE=true
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SMART_BASE_URL=${SMART_BASE_URL:-http://localhost:8000}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
     networks:
       emr-network:
         aliases:
@@ -175,6 +177,7 @@ services:
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DOMAIN=${DOMAIN:-localhost}
       - FRONTEND_URL=${FRONTEND_URL:-}
+      - SMART_BASE_URL=${SMART_BASE_URL:-}
     networks:
       emr-network:
         aliases:

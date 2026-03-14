@@ -900,7 +900,7 @@ const ResultsTabOptimized = ({
             <Divider orientation="vertical" flexItem />
             <IconButton
               size="small"
-              onClick={() => {/* Add print handler */}}
+              onClick={() => window.print()}
               title="Print"
             >
               <PrintIcon />
@@ -999,8 +999,52 @@ const ResultsTabOptimized = ({
               <Typography variant="h6" gutterBottom>
                 {getResourceDisplayText(selectedResult)}
               </Typography>
-              {/* Add detailed result view here */}
-              <pre>{JSON.stringify(selectedResult, null, 2)}</pre>
+              <Grid container spacing={2} sx={{ mt: 1 }}>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">Resource Type</Typography>
+                  <Typography variant="body2">{selectedResult.resourceType}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">Status</Typography>
+                  <Typography variant="body2">{selectedResult.status}</Typography>
+                </Grid>
+                {selectedResult.effectiveDateTime && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Date</Typography>
+                    <Typography variant="body2">{new Date(selectedResult.effectiveDateTime).toLocaleString()}</Typography>
+                  </Grid>
+                )}
+                {selectedResult.valueQuantity && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Value</Typography>
+                    <Typography variant="body2">
+                      {selectedResult.valueQuantity.value} {selectedResult.valueQuantity.unit}
+                    </Typography>
+                  </Grid>
+                )}
+                {selectedResult.interpretation?.[0] && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Interpretation</Typography>
+                    <Typography variant="body2">
+                      {selectedResult.interpretation[0].coding?.[0]?.display || selectedResult.interpretation[0].text || selectedResult.interpretation[0].coding?.[0]?.code}
+                    </Typography>
+                  </Grid>
+                )}
+                {selectedResult.referenceRange?.[0] && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Reference Range</Typography>
+                    <Typography variant="body2">
+                      {selectedResult.referenceRange[0].low?.value ?? ''} - {selectedResult.referenceRange[0].high?.value ?? ''} {selectedResult.referenceRange[0].low?.unit || ''}
+                    </Typography>
+                  </Grid>
+                )}
+                {selectedResult.note?.[0]?.text && (
+                  <Grid item xs={12}>
+                    <Typography variant="caption" color="text.secondary">Notes</Typography>
+                    <Typography variant="body2">{selectedResult.note[0].text}</Typography>
+                  </Grid>
+                )}
+              </Grid>
             </Box>
           )}
         </DialogContent>

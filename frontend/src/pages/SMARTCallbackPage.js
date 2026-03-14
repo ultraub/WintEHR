@@ -68,9 +68,38 @@ const SMARTCallbackPage = () => {
 
       // Check for authorization code
       if (code) {
-        // We have an auth code - the token exchange happens server-side
-        // The app will complete the flow with its redirect_uri
-        setAuthCompleted(true);
+        // Exchange authorization code for tokens via the SMART token endpoint
+        try {
+          const tokenResponse = await fetch('/api/smart/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              grant_type: 'authorization_code',
+              code: code,
+              redirect_uri: window.location.origin + '/smart-callback',
+              client_id: 'demo-patient-viewer',
+            })
+          });
+
+          if (!tokenResponse.ok) {
+            const errorData = await tokenResponse.json();
+            setError({
+              type: errorData.error || 'token_exchange_failed',
+              message: errorData.error_description || 'Failed to exchange authorization code for tokens'
+            });
+            setLoading(false);
+            return;
+          }
+
+          // Token exchange successful
+          setAuthCompleted(true);
+        } catch (err) {
+          console.error('Token exchange failed:', err);
+          setError({
+            type: 'token_exchange_error',
+            message: 'Failed to complete token exchange: ' + err.message
+          });
+        }
         setLoading(false);
         return;
       }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -15,123 +15,360 @@ import {
   TableRow,
   Chip,
   TextField,
-  MenuItem
+  MenuItem,
+  CircularProgress,
+  Grid,
+  Paper,
+  Tooltip,
+  IconButton
 } from '@mui/material';
-import { Security as AuditIcon, GetApp as ExportIcon, FilterList as FilterIcon } from '@mui/icons-material';
+import {
+  Security as AuditIcon,
+  GetApp as ExportIcon,
+  Refresh as RefreshIcon,
+  CheckCircle as SuccessIcon,
+  Error as ErrorIcon,
+  Schedule as TimeIcon
+} from '@mui/icons-material';
+import api from '../services/api';
 
+/**
+ * AuditTrailPage - Displays CDS audit events fetched from the backend.
+ *
+ * Data source: /api/audit/history (CDS Hooks audit trail)
+ * and /api/audit/analytics for summary statistics.
+ *
+ * Note: This page shows CDS-related audit events (clinical decision support
+ * actions such as order creation, prescriptions, updates, and deletions).
+ */
 const AuditTrailPage = () => {
-  const mockAuditEvents = [
-    {
-      timestamp: '2024-01-05 14:23:45',
-      user: 'Dr. Smith',
-      action: 'Patient Record Access',
-      resource: 'Patient/12345',
-      ipAddress: '192.168.1.100',
-      outcome: 'Success'
-    },
-    {
-      timestamp: '2024-01-05 14:20:12',
-      user: 'Nurse Johnson',
-      action: 'Medication Update',
-      resource: 'MedicationRequest/67890',
-      ipAddress: '192.168.1.105',
-      outcome: 'Success'
-    },
-    {
-      timestamp: '2024-01-05 14:15:33',
-      user: 'Admin User',
-      action: 'Failed Login Attempt',
-      resource: 'Authentication',
-      ipAddress: '10.0.0.50',
-      outcome: 'Failed'
-    },
-    {
-      timestamp: '2024-01-05 14:10:22',
-      user: 'Dr. Wilson',
-      action: 'Lab Result View',
-      resource: 'Observation/54321',
-      ipAddress: '192.168.1.102',
-      outcome: 'Success'
-    },
-  ];
+  // Data state
+  const [auditEvents, setAuditEvents] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Filter state
+  const [filters, setFilters] = useState({
+    actionType: 'all',
+    outcome: 'all',
+    dateFrom: '',
+    dateTo: ''
+  });
+
+  const fetchAuditData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Build query params for audit history
+      const params = {
+        limit: 200,
+        include_system_info: true
+      };
+
+      if (filters.actionType !== 'all') {
+        params.action_type = filters.actionType;
+      }
+      if (filters.outcome !== 'all') {
+        params.outcome = filters.outcome;
+      }
+      if (filters.dateFrom) {
+        params.date_from = filters.dateFrom;
+      }
+      if (filters.dateTo) {
+        params.date_to = filters.dateTo;
+      }
+
+      // Fetch audit history and analytics in parallel
+      const [historyRes, analyticsRes] = await Promise.allSettled([
+        api.get('/api/audit/history', { params }),
+        api.get('/api/audit/analytics', { params: { days: 30 } })
+      ]);
+
+      if (historyRes.status === 'fulfilled') {
+        const historyData = historyRes.value.data;
+        setAuditEvents(historyData.events || []);
+      } else {
+        // If history endpoint fails, set empty and show warning
+        setAuditEvents([]);
+        setError('Unable to fetch audit history. The CDS audit trail may not have any recorded events yet.');
+      }
+
+      if (analyticsRes.status === 'fulfilled') {
+        setAnalytics(analyticsRes.value.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch audit data:', err);
+      setError(
+        err.response?.data?.detail ||
+        'Failed to load audit data. Ensure the backend is running.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  useEffect(() => {
+    fetchAuditData();
+  }, [fetchAuditData]);
+
+  // Apply client-side filtering for fields the backend doesn't filter on its own
+  const filteredEvents = useMemo(() => {
+    return auditEvents;
+  }, [auditEvents]);
+
+  const handleFilterChange = (field) => (event) => {
+    setFilters((prev) => ({
+      ...prev,
+      [field]: event.target.value
+    }));
+  };
 
   const getOutcomeColor = (outcome) => {
     switch (outcome) {
-      case 'Success': return 'success';
-      case 'Failed': return 'error';
-      case 'Warning': return 'warning';
+      case '0': return 'success';
+      case '4': return 'warning';
+      case '8': return 'error';
+      case '12': return 'error';
       default: return 'default';
     }
   };
 
+  const getOutcomeLabel = (outcome) => {
+    switch (outcome) {
+      case '0': return 'Success';
+      case '4': return 'Minor Failure';
+      case '8': return 'Serious Failure';
+      case '12': return 'Major Failure';
+      default: return outcome || 'Unknown';
+    }
+  };
+
+  const getActionTypeLabel = (actionType) => {
+    const labels = {
+      create: 'Create',
+      update: 'Update',
+      delete: 'Delete',
+      order: 'Order',
+      prescribe: 'Prescribe',
+      schedule: 'Schedule'
+    };
+    return labels[actionType] || actionType || 'Unknown';
+  };
+
+  const formatTimestamp = (isoString) => {
+    if (!isoString) return 'N/A';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleString();
+    } catch {
+      return isoString;
+    }
+  };
+
+  const handleExport = () => {
+    if (filteredEvents.length === 0) return;
+
+    const csvRows = [
+      ['Timestamp', 'Action', 'User', 'Patient', 'Service', 'Outcome', 'Message', 'Execution Time (ms)']
+    ];
+
+    filteredEvents.forEach((event) => {
+      csvRows.push([
+        event.recorded || '',
+        event.action_type || '',
+        event.user_id || '',
+        event.patient_id || '',
+        event.service_id || '',
+        getOutcomeLabel(event.outcome),
+        (event.message || '').replace(/,/g, ';'),
+        event.execution_time_ms || ''
+      ]);
+    });
+
+    const csvContent = csvRows.map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `audit_trail_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Summary stats computed from real data
+  const summaryStats = useMemo(() => {
+    if (analytics) {
+      return {
+        totalEvents: analytics.total_executions || 0,
+        successRate: analytics.success_rate != null ? analytics.success_rate.toFixed(1) : '0.0',
+        avgExecutionTime: analytics.avg_execution_time_ms != null
+          ? analytics.avg_execution_time_ms.toFixed(0)
+          : '0',
+        failedEvents: analytics.failed_executions || 0
+      };
+    }
+
+    // Fallback: compute from loaded events
+    const total = filteredEvents.length;
+    const successful = filteredEvents.filter((e) => e.outcome === '0').length;
+    const failed = filteredEvents.filter((e) => e.outcome !== '0').length;
+    const executionTimes = filteredEvents
+      .map((e) => e.execution_time_ms)
+      .filter((t) => t > 0);
+    const avgTime = executionTimes.length > 0
+      ? (executionTimes.reduce((a, b) => a + b, 0) / executionTimes.length).toFixed(0)
+      : '0';
+
+    return {
+      totalEvents: total,
+      successRate: total > 0 ? ((successful / total) * 100).toFixed(1) : '0.0',
+      avgExecutionTime: avgTime,
+      failedEvents: failed
+    };
+  }, [analytics, filteredEvents]);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+        <Stack alignItems="center" spacing={2}>
+          <CircularProgress />
+          <Typography variant="body2" color="text.secondary">
+            Loading audit trail...
+          </Typography>
+        </Stack>
+      </Box>
+    );
+  }
+
   return (
     <Box>
+      {/* Header */}
       <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
         <AuditIcon color="primary" />
         <Typography variant="h4" component="h1">
           Audit Trail
         </Typography>
-        <Button variant="contained" startIcon={<ExportIcon />}>
-          Export Logs
-        </Button>
-        <Button variant="outlined" startIcon={<FilterIcon />}>
-          Advanced Filters
+        <Box sx={{ flexGrow: 1 }} />
+        <Tooltip title="Refresh audit data">
+          <IconButton onClick={fetchAuditData} color="primary">
+            <RefreshIcon />
+          </IconButton>
+        </Tooltip>
+        <Button
+          variant="contained"
+          startIcon={<ExportIcon />}
+          onClick={handleExport}
+          disabled={filteredEvents.length === 0}
+        >
+          Export CSV
         </Button>
       </Stack>
 
-      <Alert 
-        severity="warning" 
-        sx={{ 
-          mb: 3, 
-          backgroundColor: '#fff3cd', 
-          border: '2px solid #ffcc02',
-          '& .MuiAlert-message': { fontWeight: 'bold' }
-        }}
-      >
-        ⚠️ MOCK DATA DISPLAYED - This is sample data for demonstration purposes, not real Synthea patient data
+      {/* Info banner */}
+      <Alert severity="info" sx={{ mb: 3 }}>
+        Showing CDS (Clinical Decision Support) audit events -- actions triggered by CDS Hooks
+        such as order creation, medication prescriptions, resource updates, and deletions.
       </Alert>
 
+      {/* Error state */}
+      {error && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Summary Stats */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2, textAlign: 'center' }} variant="outlined">
+            <Stack alignItems="center" spacing={0.5}>
+              <AuditIcon color="primary" />
+              <Typography variant="h5">{summaryStats.totalEvents}</Typography>
+              <Typography variant="body2" color="text.secondary">Total Events</Typography>
+            </Stack>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2, textAlign: 'center' }} variant="outlined">
+            <Stack alignItems="center" spacing={0.5}>
+              <SuccessIcon color="success" />
+              <Typography variant="h5">{summaryStats.successRate}%</Typography>
+              <Typography variant="body2" color="text.secondary">Success Rate</Typography>
+            </Stack>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2, textAlign: 'center' }} variant="outlined">
+            <Stack alignItems="center" spacing={0.5}>
+              <TimeIcon color="action" />
+              <Typography variant="h5">{summaryStats.avgExecutionTime}ms</Typography>
+              <Typography variant="body2" color="text.secondary">Avg Execution Time</Typography>
+            </Stack>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2, textAlign: 'center' }} variant="outlined">
+            <Stack alignItems="center" spacing={0.5}>
+              <ErrorIcon color="error" />
+              <Typography variant="h5">{summaryStats.failedEvents}</Typography>
+              <Typography variant="body2" color="text.secondary">Failed Events</Typography>
+            </Stack>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Filters */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center">
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
             <TextField
               select
               label="Action Type"
-              defaultValue="all"
+              value={filters.actionType}
+              onChange={handleFilterChange('actionType')}
               size="small"
               sx={{ minWidth: 150 }}
             >
               <MenuItem value="all">All Actions</MenuItem>
-              <MenuItem value="access">Data Access</MenuItem>
-              <MenuItem value="modification">Data Modification</MenuItem>
-              <MenuItem value="authentication">Authentication</MenuItem>
-              <MenuItem value="export">Data Export</MenuItem>
+              <MenuItem value="create">Create</MenuItem>
+              <MenuItem value="update">Update</MenuItem>
+              <MenuItem value="delete">Delete</MenuItem>
+              <MenuItem value="order">Order</MenuItem>
+              <MenuItem value="prescribe">Prescribe</MenuItem>
+              <MenuItem value="schedule">Schedule</MenuItem>
             </TextField>
-            
+
             <TextField
               select
-              label="User Role"
-              defaultValue="all"
+              label="Outcome"
+              value={filters.outcome}
+              onChange={handleFilterChange('outcome')}
               size="small"
               sx={{ minWidth: 150 }}
             >
-              <MenuItem value="all">All Roles</MenuItem>
-              <MenuItem value="physician">Physician</MenuItem>
-              <MenuItem value="nurse">Nurse</MenuItem>
-              <MenuItem value="admin">Administrator</MenuItem>
-              <MenuItem value="staff">Support Staff</MenuItem>
+              <MenuItem value="all">All Outcomes</MenuItem>
+              <MenuItem value="0">Success</MenuItem>
+              <MenuItem value="4">Minor Failure</MenuItem>
+              <MenuItem value="8">Serious Failure</MenuItem>
+              <MenuItem value="12">Major Failure</MenuItem>
             </TextField>
-            
+
             <TextField
               type="date"
               label="From Date"
+              value={filters.dateFrom}
+              onChange={handleFilterChange('dateFrom')}
               size="small"
               InputLabelProps={{ shrink: true }}
             />
-            
+
             <TextField
               type="date"
               label="To Date"
+              value={filters.dateTo}
+              onChange={handleFilterChange('dateTo')}
               size="small"
               InputLabelProps={{ shrink: true }}
             />
@@ -139,65 +376,176 @@ const AuditTrailPage = () => {
         </CardContent>
       </Card>
 
+      {/* Audit Events Table */}
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Recent Audit Events
+            Audit Events ({filteredEvents.length})
           </Typography>
-          
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Timestamp</TableCell>
-                  <TableCell>User</TableCell>
-                  <TableCell>Action</TableCell>
-                  <TableCell>Resource</TableCell>
-                  <TableCell>IP Address</TableCell>
-                  <TableCell>Outcome</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {mockAuditEvents.map((event, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{event.timestamp}</TableCell>
-                    <TableCell>{event.user}</TableCell>
-                    <TableCell>{event.action}</TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                      {event.resource}
-                    </TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace' }}>
-                      {event.ipAddress}
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={event.outcome} 
-                        color={getOutcomeColor(event.outcome)}
-                        size="small"
-                      />
-                    </TableCell>
+
+          {filteredEvents.length === 0 ? (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              No audit events found matching the current filters. CDS audit events are
+              recorded when clinical decision support actions are executed (e.g., applying
+              CDS suggestions, creating orders from CDS cards).
+            </Alert>
+          ) : (
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Timestamp</TableCell>
+                    <TableCell>Action</TableCell>
+                    <TableCell>User</TableCell>
+                    <TableCell>Patient</TableCell>
+                    <TableCell>Service</TableCell>
+                    <TableCell>Outcome</TableCell>
+                    <TableCell>Message</TableCell>
+                    <TableCell align="right">Time (ms)</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {filteredEvents.map((event, index) => (
+                    <TableRow
+                      key={event.execution_id || index}
+                      hover
+                      sx={{
+                        '&:last-child td, &:last-child th': { border: 0 }
+                      }}
+                    >
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        {formatTimestamp(event.recorded)}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={getActionTypeLabel(event.action_type)}
+                          size="small"
+                          variant="outlined"
+                          color="primary"
+                        />
+                      </TableCell>
+                      <TableCell>{event.user_id || 'System'}</TableCell>
+                      <TableCell
+                        sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                      >
+                        {event.patient_id || 'N/A'}
+                      </TableCell>
+                      <TableCell
+                        sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                      >
+                        {event.service_id || 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={getOutcomeLabel(event.outcome)}
+                          color={getOutcomeColor(event.outcome)}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          maxWidth: 300,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <Tooltip title={event.message || ''} placement="top-start">
+                          <span>{event.message || ''}</span>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell align="right">
+                        {event.execution_time_ms != null ? event.execution_time_ms : 'N/A'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
         </CardContent>
       </Card>
 
+      {/* Analytics Breakdown */}
+      {analytics && (analytics.action_type_breakdown || analytics.service_breakdown) && (
+        <Grid container spacing={2} sx={{ mt: 1 }}>
+          {analytics.action_type_breakdown && Object.keys(analytics.action_type_breakdown).length > 0 && (
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Actions by Type
+                  </Typography>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Action Type</TableCell>
+                        <TableCell align="right">Count</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {Object.entries(analytics.action_type_breakdown).map(([type, count]) => (
+                        <TableRow key={type}>
+                          <TableCell>{getActionTypeLabel(type)}</TableCell>
+                          <TableCell align="right">{count}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {analytics.service_breakdown && Object.keys(analytics.service_breakdown).length > 0 && (
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Actions by CDS Service
+                  </Typography>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Service ID</TableCell>
+                        <TableCell align="right">Count</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {Object.entries(analytics.service_breakdown).map(([service, count]) => (
+                        <TableRow key={service}>
+                          <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                            {service}
+                          </TableCell>
+                          <TableCell align="right">{count}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+        </Grid>
+      )}
+
+      {/* Compliance & Security Features */}
       <Card sx={{ mt: 3 }}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
             Compliance & Security Features
           </Typography>
           <Typography variant="body2" component="div">
-            • HIPAA compliance monitoring<br/>
-            • Real-time security alerts<br/>
-            • User activity tracking<br/>
-            • Data access logging<br/>
-            • Failed login monitoring<br/>
-            • Automated compliance reporting<br/>
-            • Role-based access control<br/>
-            • Data breach detection
+            This audit trail tracks CDS Hooks action execution including:
+          </Typography>
+          <Typography variant="body2" component="div" sx={{ mt: 1 }}>
+            &bull; CDS action execution tracking with timestamps and outcomes<br />
+            &bull; User and patient association for every action<br />
+            &bull; Resource creation, update, and deletion logging<br />
+            &bull; Execution performance metrics (latency monitoring)<br />
+            &bull; Error and warning capture per action<br />
+            &bull; Service-level analytics and breakdown<br />
+            &bull; CSV export for offline analysis and compliance reporting
           </Typography>
         </CardContent>
       </Card>

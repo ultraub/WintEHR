@@ -632,9 +632,7 @@ const ProcedureDialogEnhanced = ({
       }];
       if (formData.performer.role) {
         resource.performer[0].function = {
-          coding: [{
-            display: formData.performer.role,
-          }],
+          text: formData.performer.role
         };
       }
     }
@@ -659,9 +657,7 @@ const ProcedureDialogEnhanced = ({
     // Add body site
     if (formData.bodySite) {
       resource.bodySite = [{
-        coding: [{
-          display: formData.bodySite,
-        }],
+        text: formData.bodySite
       }];
     }
     

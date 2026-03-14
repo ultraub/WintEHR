@@ -320,6 +320,7 @@ const ObservationDialogEnhanced = ({
   const loadTrendingObservations = async () => {
     try {
       const recentObservations = await fhirClient.search('Observation', {
+        ...(patientId ? { patient: `Patient/${patientId}` } : {}),
         _count: 100,
         _sort: '-date',
         status: 'final',
@@ -720,18 +721,14 @@ const ObservationDialogEnhanced = ({
     // Add method
     if (formData.method) {
       resource.method = {
-        coding: [{
-          display: formData.method,
-        }],
+        text: formData.method
       };
     }
-    
+
     // Add body site
     if (formData.bodySite) {
       resource.bodySite = {
-        coding: [{
-          display: formData.bodySite,
-        }],
+        text: formData.bodySite
       };
     }
     

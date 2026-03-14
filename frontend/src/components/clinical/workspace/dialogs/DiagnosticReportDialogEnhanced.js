@@ -339,6 +339,7 @@ const DiagnosticReportDialogEnhanced = ({
   const loadTrendingReports = async () => {
     try {
       const recentReportsResult = await fhirClient.search('DiagnosticReport', {
+        ...(patientId ? { patient: `Patient/${patientId}` } : {}),
         _count: 100,
         _sort: '-date',
         status: 'final',

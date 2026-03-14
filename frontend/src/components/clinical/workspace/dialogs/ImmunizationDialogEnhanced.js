@@ -624,7 +624,7 @@ const ImmunizationDialogEnhanced = ({
     }
     
     // Add protocol applied
-    if (formData.protocolApplied.series || formData.protocolApplied.doseNumber > 1) {
+    if (formData.protocolApplied.series || formData.protocolApplied.doseNumber >= 1) {
       resource.protocolApplied = [{
         series: formData.protocolApplied.series,
         doseNumberPositiveInt: formData.protocolApplied.doseNumber,

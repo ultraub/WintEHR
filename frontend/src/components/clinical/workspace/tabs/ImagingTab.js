@@ -72,7 +72,7 @@ import {
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import axios from 'axios';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import DICOMViewer from '../../imaging/DICOMViewer';
 import ImagingReportDialog from '../../imaging/ImagingReportDialog';
 import DownloadDialog from '../../imaging/DownloadDialog';
@@ -82,7 +82,7 @@ import { EXTENSION_URLS } from '../../../../constants/fhirExtensions';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import websocketService from '../../../../services/websocket';
-import { getFhirUrl } from '../../../../config/apiConfig';
+// apiConfig import removed — using fhirClient for FHIR queries
 import {
   ClinicalResourceCard,
   ClinicalSummaryCard,
@@ -521,17 +521,15 @@ const ImagingTab = ({
     try {
       // Single FHIR query with _include to get both ImagingStudy and Endpoint resources
       // This eliminates the N+1 query problem
-      const response = await axios.get(`${getFhirUrl()}/ImagingStudy`, {
-        params: {
-          patient: patientId,
-          _include: 'ImagingStudy:endpoint',
-          _sort: '-_lastUpdated',
-          _count: 100
-        }
+      const response = await fhirClient.search('ImagingStudy', {
+        patient: patientId,
+        _include: 'ImagingStudy:endpoint',
+        _sort: '-_lastUpdated',
+        _count: 100
       });
 
       // Separate ImagingStudy and Endpoint resources from the bundle
-      const entries = response.data?.entry || [];
+      const entries = response?.entry || [];
       const imagingStudies = entries
         .filter(e => e.resource?.resourceType === 'ImagingStudy')
         .map(e => e.resource);
@@ -981,12 +979,11 @@ const ImagingTab = ({
       }
 
       // Download study as ZIP
-      const response = await axios.get(`/api/dicom/studies/${studyDir}/download`, {
-        responseType: 'blob'
-      });
+      const response = await fetch(`/api/dicom/studies/${studyDir}/download`);
+      const blob = await response.blob();
 
       // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `${study.description || 'study'}.zip`);
