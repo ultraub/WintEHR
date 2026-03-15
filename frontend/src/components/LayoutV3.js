@@ -52,7 +52,9 @@ import {
   Home as HomeIcon,
   Timeline as TimelineIcon,
   MedicalServices as MedicalIcon,
-  Analytics as AnalyticsIcon
+  Analytics as AnalyticsIcon,
+  CalendarMonth as ScheduleIcon,
+  Assignment as EncountersIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { MedicalThemeContext } from '../App';
@@ -70,7 +72,9 @@ const navigationConfig = {
     icon: <MedicalIcon />,
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions' },
+      { text: 'Schedule', icon: <ScheduleIcon />, path: '/schedule', description: 'Appointments & scheduling' },
       { text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management' },
+      { text: 'Encounters', icon: <EncountersIcon />, path: '/encounters', description: 'Visit management' },
       { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing' }
     ]
   },
