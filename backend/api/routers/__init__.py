@@ -47,7 +47,15 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Authentication router registered")
     except Exception as e:
         logger.error(f"Failed to register auth router: {e}")
-    
+
+    # 2b. SMART on FHIR Authorization
+    try:
+        from api.smart.router import router as smart_router
+        app.include_router(smart_router, tags=["SMART on FHIR"])
+        logger.info("✓ SMART on FHIR router registered")
+    except Exception as e:
+        logger.error(f"Failed to register SMART router: {e}")
+
     # 3. Clinical Workflows
     try:
         from api.catalogs import router as catalogs_router
@@ -58,13 +66,11 @@ def register_all_routers(app: FastAPI) -> None:
         from api.clinical.alerts.router import router as clinical_alerts_router
         from api.clinical.inbox.router import router as clinical_inbox_router
         from api.clinical.cds_clinical_data import router as cds_clinical_data_router
-        from api.clinical.dynamic_catalog_router import router as dynamic_catalog_router
         from api.clinical.medication_lists_router import router as medication_lists_router
         from api.clinical.drug_safety_router import router as drug_safety_router
         from api.clinical.documentation.notes_router import router as clinical_notes_router
 
         app.include_router(catalogs_router, tags=["Clinical Catalogs"])
-        app.include_router(dynamic_catalog_router, tags=["Dynamic Catalog (Legacy)"])
         app.include_router(clinical_orders_router, prefix="/api", tags=["Clinical Orders (CPOE)"])
         app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
         app.include_router(clinical_results_router, tags=["Clinical Results"])
@@ -119,12 +125,20 @@ def register_all_routers(app: FastAPI) -> None:
     try:
         from api.quality.router import router as quality_measures_router
         from api.analytics.router import router as analytics_router
-        
+
         app.include_router(quality_measures_router, tags=["Quality Measures"])
         app.include_router(analytics_router, tags=["Analytics"])
         logger.info("✓ Quality & Analytics routers registered")
     except Exception as e:
         logger.error(f"Failed to register quality/analytics routers: {e}")
+
+    # 6b. Scheduling & Appointments
+    try:
+        from api.scheduling.router import router as scheduling_router
+        app.include_router(scheduling_router, tags=["Scheduling"])
+        logger.info("✓ Scheduling router registered")
+    except Exception as e:
+        logger.error(f"Failed to register scheduling router: {e}")
     
     # 7. Imaging & DICOM Services
     try:

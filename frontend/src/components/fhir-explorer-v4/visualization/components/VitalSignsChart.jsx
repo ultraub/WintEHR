@@ -25,7 +25,6 @@ import {
   Area,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
   Legend,
@@ -177,7 +176,6 @@ const VitalSignsChart = ({ observations, patientId, timeRange = '7d' }) => {
             <ResponsiveContainer width="100%" height="100%">
               {chartType === 'area' ? (
                 <AreaChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis />
                   <RechartsTooltip />
@@ -241,7 +239,6 @@ const VitalSignsChart = ({ observations, patientId, timeRange = '7d' }) => {
                 </AreaChart>
               ) : (
                 <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis />
                   <RechartsTooltip />

@@ -88,7 +88,8 @@ const EnhancedClinicalLayout = ({
   const handleModuleChange = (moduleId) => {
     if (onModuleChange) {
       onModuleChange(moduleId);
-      
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+
       // Publish navigation event
       publish('navigation.module.changed', {
         module: moduleId,
@@ -160,11 +161,17 @@ const EnhancedClinicalLayout = ({
           >
             {/* Collapsible Patient Header - INSIDE scrolling container with sticky positioning */}
             {(patient || loading) && (
-              <Box sx={{ 
-                position: 'sticky', 
-                top: 0, 
+              <Box sx={{
+                position: 'sticky',
+                top: 0,
                 zIndex: 1100,
-                backgroundColor: 'background.paper'
+                backgroundColor: theme.palette.mode === 'dark'
+                  ? 'rgba(30, 41, 59, 0.78)'
+                  : 'rgba(255, 255, 255, 0.72)',
+                backdropFilter: 'saturate(180%) blur(20px)',
+                WebkitBackdropFilter: 'saturate(180%) blur(20px)',
+                borderBottom: '0.5px solid',
+                borderColor: 'divider'
               }}>
                 <CollapsiblePatientHeaderOptimized
                   patientId={patient?.id || patientId}
@@ -195,13 +202,21 @@ const EnhancedClinicalLayout = ({
             </Box>
 
             {/* Content with padding */}
-            <Box sx={{
-              p: {
-                xs: 1,      // 8px on mobile
-                sm: 2,      // 16px on tablet
-                md: 3,      // 24px on desktop
-              },
-            }}>
+            <Box
+              key={activeModule}
+              sx={{
+                p: {
+                  xs: 1,      // 8px on mobile
+                  sm: 2,      // 16px on tablet
+                  md: 3,      // 24px on desktop
+                },
+                animation: 'fadeIn 150ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+                '@keyframes fadeIn': {
+                  '0%': { opacity: 0, transform: 'translateY(4px)' },
+                  '100%': { opacity: 1, transform: 'translateY(0)' }
+                }
+              }}
+            >
               {/* Pass enhanced props to children */}
               {React.cloneElement(children, {
               patient,

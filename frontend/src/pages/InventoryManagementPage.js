@@ -34,6 +34,7 @@ import {
   Stack,
   Tooltip,
   LinearProgress,
+  CircularProgress,
   useTheme,
   alpha
 } from '@mui/material';
@@ -221,7 +222,7 @@ const InventoryManagementPage = () => {
         <Stack direction="row" spacing={2}>
           <Button
             variant="outlined"
-            startIcon={refreshing ? <LinearProgress size={20} /> : <RefreshIcon />}
+            startIcon={refreshing ? <CircularProgress size={20} /> : <RefreshIcon />}
             onClick={handleRefresh}
             disabled={refreshing}
           >

@@ -612,19 +612,19 @@ const ImmunizationDialogEnhanced = ({
     if (formData.reaction.hasReaction) {
       resource.reaction = [{
         date: formData.reaction.date.toISOString().split('T')[0],
-        detail: {
+        manifestation: [{
           coding: [{
             system: 'http://snomed.info/sct',
             code: formData.reaction.type,
           }],
           text: formData.reaction.notes,
-        },
+        }],
         severity: formData.reaction.severity,
       }];
     }
     
     // Add protocol applied
-    if (formData.protocolApplied.series || formData.protocolApplied.doseNumber > 1) {
+    if (formData.protocolApplied.series || formData.protocolApplied.doseNumber >= 1) {
       resource.protocolApplied = [{
         series: formData.protocolApplied.series,
         doseNumberPositiveInt: formData.protocolApplied.doseNumber,

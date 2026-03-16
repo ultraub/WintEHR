@@ -25,7 +25,8 @@ import {
   Stack,
   Link,
   Alert,
-  CircularProgress
+  CircularProgress,
+  Tooltip
 } from '@mui/material';
 import {
   Info as InfoIcon,
@@ -73,6 +74,8 @@ const CDSCard = ({
   const [overrideComment, setOverrideComment] = useState('');
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [acceptedSuggestionId, setAcceptedSuggestionId] = useState(null);
+  const [iconError, setIconError] = useState(false);
 
   const indicatorConfig = INDICATOR_CONFIG[card.indicator] || INDICATOR_CONFIG.info;
   const IndicatorIcon = indicatorConfig.icon;
@@ -80,7 +83,13 @@ const CDSCard = ({
   // Handle accepting a suggestion
   const handleAcceptSuggestion = useCallback(async (suggestion) => {
     try {
+      // Enforce selectionBehavior: at-most-one
+      if (card.selectionBehavior === 'at-most-one' && acceptedSuggestionId) {
+        return;
+      }
+
       setSubmittingFeedback(true);
+      setAcceptedSuggestionId(suggestion.uuid || suggestion.label);
 
       // Call parent handler to apply the suggestion
       if (onAcceptSuggestion) {
@@ -103,7 +112,7 @@ const CDSCard = ({
     } finally {
       setSubmittingFeedback(false);
     }
-  }, [card.uuid, serviceId, onAcceptSuggestion]);
+  }, [card.uuid, card.selectionBehavior, serviceId, onAcceptSuggestion, acceptedSuggestionId]);
 
   // Handle dismissing the card
   const handleDismiss = useCallback(async () => {
@@ -196,7 +205,14 @@ const CDSCard = ({
                   label={card.source.label}
                   size="small"
                   variant="outlined"
-                  icon={card.source.icon ? <img src={card.source.icon} alt="" width={16} /> : null}
+                  icon={card.source.icon && !iconError ? (
+                    <img
+                      src={card.source.icon}
+                      alt={card.source.label}
+                      width={16}
+                      onError={() => setIconError(true)}
+                    />
+                  ) : null}
                 />
               )}
               <IconButton
@@ -230,23 +246,50 @@ const CDSCard = ({
               <Box mb={2}>
                 <Typography variant="subtitle2" gutterBottom>
                   Suggested Actions:
+                  {card.selectionBehavior === 'at-most-one' && (
+                    <Typography variant="caption" color="text.secondary" component="span" sx={{ ml: 1 }}>
+                      (select one)
+                    </Typography>
+                  )}
                 </Typography>
                 <Stack spacing={1}>
-                  {card.suggestions.map((suggestion, index) => (
-                    <Box key={suggestion.uuid || index}>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        onClick={() => handleAcceptSuggestion(suggestion)}
-                        disabled={submittingFeedback}
-                        startIcon={submittingFeedback ? <CircularProgress size={16} /> : <CheckIcon />}
-                        fullWidth
-                        sx={{ justifyContent: 'flex-start' }}
-                      >
-                        {suggestion.label}
-                      </Button>
-                    </Box>
-                  ))}
+                  {card.suggestions.map((suggestion, index) => {
+                    const suggestionId = suggestion.uuid || suggestion.label;
+                    const isAccepted = acceptedSuggestionId === suggestionId;
+                    const isDisabledBySelection = card.selectionBehavior === 'at-most-one'
+                      && acceptedSuggestionId
+                      && !isAccepted;
+
+                    return (
+                      <Box key={suggestion.uuid || index}>
+                        <Tooltip
+                          title={suggestion.description || ''}
+                          placement="top"
+                          arrow
+                          disableHoverListener={!suggestion.description}
+                        >
+                          <span>
+                            <Button
+                              variant={isAccepted ? "outlined" : "contained"}
+                              size="small"
+                              onClick={() => handleAcceptSuggestion(suggestion)}
+                              disabled={submittingFeedback || isDisabledBySelection}
+                              startIcon={
+                                isAccepted ? <CheckIcon color="success" /> :
+                                submittingFeedback ? <CircularProgress size={16} /> :
+                                <CheckIcon />
+                              }
+                              fullWidth
+                              sx={{ justifyContent: 'flex-start' }}
+                            >
+                              {suggestion.label}
+                              {isAccepted && ' (accepted)'}
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      </Box>
+                    );
+                  })}
                 </Stack>
               </Box>
             )}

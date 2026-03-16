@@ -72,7 +72,7 @@ import {
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import axios from 'axios';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import DICOMViewer from '../../imaging/DICOMViewer';
 import ImagingReportDialog from '../../imaging/ImagingReportDialog';
 import DownloadDialog from '../../imaging/DownloadDialog';
@@ -82,7 +82,7 @@ import { EXTENSION_URLS } from '../../../../constants/fhirExtensions';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import websocketService from '../../../../services/websocket';
-import { getFhirUrl } from '../../../../config/apiConfig';
+// apiConfig import removed — using fhirClient for FHIR queries
 import {
   ClinicalResourceCard,
   ClinicalSummaryCard,
@@ -224,7 +224,6 @@ const BodyMap = React.memo(({ studies, selectedRegion, onRegionSelect }) => {
         background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.03)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 100%)`,
         border: 1,
         borderColor: 'divider',
-        borderRadius: 0,
         overflow: 'hidden'
       }}
     >
@@ -380,7 +379,6 @@ const ImagingStudyCard = React.memo(({ study, onView, onAction, density = 'comfo
           height: '100%',
           cursor: 'pointer',
           transition: 'all 0.2s ease',
-          borderRadius: 0,
           '&:hover': {
             boxShadow: theme.shadows[4],
             transform: 'scale(1.02)'
@@ -523,17 +521,15 @@ const ImagingTab = ({
     try {
       // Single FHIR query with _include to get both ImagingStudy and Endpoint resources
       // This eliminates the N+1 query problem
-      const response = await axios.get(`${getFhirUrl()}/ImagingStudy`, {
-        params: {
-          patient: patientId,
-          _include: 'ImagingStudy:endpoint',
-          _sort: '-_lastUpdated',
-          _count: 100
-        }
+      const response = await fhirClient.search('ImagingStudy', {
+        patient: patientId,
+        _include: 'ImagingStudy:endpoint',
+        _sort: '-_lastUpdated',
+        _count: 100
       });
 
       // Separate ImagingStudy and Endpoint resources from the bundle
-      const entries = response.data?.entry || [];
+      const entries = response?.entry || [];
       const imagingStudies = entries
         .filter(e => e.resource?.resourceType === 'ImagingStudy')
         .map(e => e.resource);
@@ -607,12 +603,9 @@ const ImagingTab = ({
 
   // Handle imaging study updates
   const handleImagingUpdate = useCallback((eventType, eventData) => {
-    console.log('[ImagingTab] Handling imaging update:', eventType, eventData);
-    
     const study = eventData.study || eventData.imagingStudy || eventData.resource;
-    
+
     if (!study) {
-      console.warn('[ImagingTab] No study in event data');
       return;
     }
 
@@ -671,8 +664,6 @@ const ImagingTab = ({
   useEffect(() => {
     if (!patientId) return;
 
-    console.log('[ImagingTab] Setting up real-time subscriptions for patient:', patientId);
-
     const subscriptions = [];
 
     // Subscribe to imaging-specific events
@@ -686,16 +677,8 @@ const ImagingTab = ({
 
     imagingEvents.forEach(eventType => {
       const unsubscribe = subscribe(eventType, (event) => {
-        console.log('[ImagingTab] Event received:', {
-          eventType,
-          eventPatientId: event.patientId,
-          currentPatientId: patientId,
-          event
-        });
-        
         // Handle update if the event is for the current patient
         if (event.patientId === patientId) {
-          console.log('[ImagingTab] Updating imaging tab for event:', eventType);
           handleImagingUpdate(eventType, event);
         }
       });
@@ -703,7 +686,6 @@ const ImagingTab = ({
     });
 
     return () => {
-      console.log('[ImagingTab] Cleaning up subscriptions');
       subscriptions.forEach(unsub => unsub());
     };
   }, [patientId, subscribe, handleImagingUpdate]);
@@ -711,8 +693,6 @@ const ImagingTab = ({
   // WebSocket patient room subscription for multi-user sync
   useEffect(() => {
     if (!patientId || !websocketService.isConnected) return;
-
-    console.log('[ImagingTab] Setting up WebSocket patient room subscription for:', patientId);
 
     let subscriptionId = null;
 
@@ -726,7 +706,6 @@ const ImagingTab = ({
         ];
 
         subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
-        console.log('[ImagingTab] Successfully subscribed to patient room:', subscriptionId);
       } catch (error) {
         console.error('[ImagingTab] Failed to subscribe to patient room:', error);
       }
@@ -736,7 +715,6 @@ const ImagingTab = ({
 
     return () => {
       if (subscriptionId) {
-        console.log('[ImagingTab] Unsubscribing from patient room:', subscriptionId);
         websocketService.unsubscribeFromPatient(subscriptionId);
       }
     };
@@ -1001,12 +979,11 @@ const ImagingTab = ({
       }
 
       // Download study as ZIP
-      const response = await axios.get(`/api/dicom/studies/${studyDir}/download`, {
-        responseType: 'blob'
-      });
+      const response = await fetch(`/api/dicom/studies/${studyDir}/download`);
+      const blob = await response.blob();
 
       // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `${study.description || 'study'}.zip`);
@@ -1025,46 +1002,22 @@ const ImagingTab = ({
     }
   };
 
+  /**
+   * Extract study directory from study object.
+   * Uses studyDirectory property if available, otherwise falls back to standard format.
+   * Backend expects format: study_{id}
+   */
   const extractStudyDirectory = (studyObj) => {
-    // Same logic as in DICOMViewer
-    if (studyObj.studyDirectory) {
+    // Primary: Use studyDirectory property (set during loading)
+    if (studyObj?.studyDirectory) {
       return studyObj.studyDirectory;
     }
-    
-    // Check for DICOM directory in extensions
-    if (studyObj.extension) {
-      const dicomDirExt = studyObj.extension.find(
-        ext => ext.url === EXTENSION_URLS.DICOM_DIRECTORY
-      );
-      if (dicomDirExt && dicomDirExt.valueString) {
-        return dicomDirExt.valueString;
-      }
-    }
-    
-    // Try to derive from study ID
-    if (studyObj.id) {
-      // Determine study type from modality or description
-      let studyType = 'CT_CHEST'; // Default
 
-      const modalityCode = getStudyModalityCode(studyObj);
-      if (modalityCode) {
-        if (modalityCode === 'CT') {
-          studyType = studyObj.description?.toLowerCase().includes('head') ? 'CT_HEAD' : 'CT_CHEST';
-        } else if (modalityCode === 'MR') {
-          studyType = 'MR_BRAIN';
-        } else if (modalityCode === 'US') {
-          studyType = 'US_ABDOMEN';
-        } else if (modalityCode === 'CR' || modalityCode === 'DX') {
-          studyType = 'XR_CHEST';
-        }
-      }
-
-      // Generate directory name based on our convention
-      return `${studyType}_${studyObj.id.replace(/-/g, '')}`;
+    // Fallback: Use standard format matching backend convention
+    if (studyObj?.id) {
+      return `study_${studyObj.id}`;
     }
-    
-    // Should not reach here
-    // Unable to determine study directory - return null
+
     return null;
   };
   
@@ -1185,7 +1138,6 @@ const ImagingTab = ({
               size="small" 
               startIcon={<ViewIcon />}
               onClick={loadImagingStudies}
-              sx={{ borderRadius: 0 }}
             >
               Refresh
             </Button>
@@ -1194,7 +1146,6 @@ const ImagingTab = ({
               size="small" 
               startIcon={<PrintIcon />}
               onClick={handlePrintAll}
-              sx={{ borderRadius: 0 }}
             >
               Print All
             </Button>
@@ -1265,7 +1216,6 @@ const ImagingTab = ({
                 value={filterModality}
                 onChange={(e) => setFilterModality(e.target.value)}
                 label="Modality"
-                sx={{ borderRadius: 0 }}
               >
                 <MenuItem value="all">All Modalities</MenuItem>
                 {modalities.map(modality => (
@@ -1290,7 +1240,6 @@ const ImagingTab = ({
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 label="Status"
-                sx={{ borderRadius: 0 }}
               >
                 <MenuItem value="all">All Status</MenuItem>
                 <MenuItem value="available">Available</MenuItem>
@@ -1307,10 +1256,10 @@ const ImagingTab = ({
               onChange={(e, newDensity) => newDensity && setDensity(newDensity)}
               size="small"
             >
-              <ToggleButton value="compact" sx={{ borderRadius: 0 }}>
+              <ToggleButton value="compact">
                 Compact
               </ToggleButton>
-              <ToggleButton value="comfortable" sx={{ borderRadius: 0 }}>
+              <ToggleButton value="comfortable">
                 Comfortable
               </ToggleButton>
             </ToggleButtonGroup>
@@ -1413,7 +1362,6 @@ const ImagingTab = ({
                     height: 400,
                     border: 1,
                     borderColor: 'divider',
-                    borderRadius: 0,
                     overflow: 'auto'
                   }}
                 >
@@ -1434,7 +1382,6 @@ const ImagingTab = ({
                           }}
                           sx={{
                             p: 1.5,
-                            borderRadius: 0,
                             border: 1,
                             borderColor: filterBodyRegion === region ? 'primary.main' : 'divider',
                             backgroundColor: filterBodyRegion === region ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
@@ -1553,7 +1500,7 @@ const ImagingTab = ({
         <Alert 
           onClose={() => setSnackbar({ ...snackbar, open: false })} 
           severity={snackbar.severity}
-          sx={{ width: '100%', borderRadius: 0 }}
+          sx={{ width: '100%' }}
         >
           {snackbar.message}
         </Alert>

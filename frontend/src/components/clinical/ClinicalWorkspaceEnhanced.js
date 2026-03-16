@@ -16,13 +16,13 @@ import {
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
-  Assignment as ChartIcon,
+  FolderOpen as ChartIcon,
   EventNote as EncountersIcon,
   Science as ResultsIcon,
   LocalPharmacy as PharmacyIcon,
   Description as DocumentationIcon,
-  Assignment as CarePlanIcon,
-  Assignment as OrdersIcon,
+  AccountTree as CarePlanIcon,
+  ListAlt as OrdersIcon,
   Timeline as TimelineIcon,
   Image as ImagingIcon,
   ChevronLeft as ChevronLeftIcon
@@ -138,8 +138,6 @@ const ClinicalWorkspaceEnhanced = ({
   
   // CDS Alerts
   const { alerts: cdsAlerts } = usePatientCDSAlerts(patientId);
-  console.log('[CDS Debug] ClinicalWorkspaceEnhanced - patientId:', patientId);
-  console.log('[CDS Debug] ClinicalWorkspaceEnhanced - cdsAlerts:', cdsAlerts);
 
   // Use parent-provided data
   const activePatient = patient;
@@ -244,7 +242,7 @@ const ClinicalWorkspaceEnhanced = ({
           flexDirection: 'column',
           justifyContent: 'center', 
           alignItems: 'center', 
-          height: '100vh',
+          height: '100%',
           gap: 2
         }}>
           <CircularProgress size={48} />
@@ -339,7 +337,6 @@ const ClinicalWorkspaceEnhanced = ({
                   maxAlerts={mode === PRESENTATION_MODES.INLINE ? 3 : undefined}
                   allowInteraction={true}
                   onAlertAction={(alertId, action, data) => {
-                    console.log('CDS Alert Action:', { alertId, action, data });
                     // Alert has been dismissed/snoozed, persistence is handled by CDSPresentation
                     if (action === 'dismiss' || action === 'snooze') {
                       // Optionally refresh alerts or update local state

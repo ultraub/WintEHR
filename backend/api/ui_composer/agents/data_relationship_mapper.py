@@ -281,7 +281,7 @@ class DataRelationshipMapper:
         if isinstance(date_value, str):
             try:
                 return datetime.fromisoformat(date_value.replace('Z', '+00:00'))
-            except:
+            except (ValueError, TypeError):
                 pass
         elif isinstance(date_value, dict) and "start" in date_value:
             return self._parse_date(date_value["start"])

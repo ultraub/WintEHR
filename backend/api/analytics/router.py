@@ -516,9 +516,9 @@ async def get_clinical_outcomes():
                         "length_hours": round(length_hours, 2),
                         "status": enc.get("status", "unknown")
                     })
-                except:
+                except (ValueError, TypeError, KeyError):
                     pass
-        
+
         # Calculate average length of stay by type
         encounter_types = {}
         for enc in encounter_lengths:

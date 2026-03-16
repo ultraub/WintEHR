@@ -574,10 +574,7 @@ const AllergyDialogEnhanced = ({
           severity: formData.severity,
           ...(formData.exposureRoute && {
             exposureRoute: {
-              coding: [{
-                system: 'http://snomed.info/sct',
-                display: formData.exposureRoute
-              }]
+              text: formData.exposureRoute
             }
           })
         }] : []
@@ -662,7 +659,6 @@ const AllergyDialogEnhanced = ({
                             : 'background.paper',
                           transition: 'all 0.2s',
                           '&:hover': {
-                            transform: 'translateY(-2px)',
                             boxShadow: theme.shadows[3],
                           },
                         }}

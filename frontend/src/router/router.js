@@ -31,6 +31,8 @@ import PatientTimelinePage from '../pages/PatientTimelinePage';
 import UIComposerMain from '../modules/ui-composer/UIComposerMain';
 import PerformanceTestPage from '../pages/PerformanceTestPage';
 import PageTransitionProvider, { transitionPresets } from '../components/transitions/PageTransitionProvider';
+import SMARTCallbackPage from '../pages/SMARTCallbackPage';
+import SMARTDemoApp from '../pages/SMARTDemoApp';
 
 // Create router with future flags enabled
 export const router = createBrowserRouter([
@@ -306,6 +308,20 @@ export const router = createBrowserRouter([
         </LayoutV3>
       </ProtectedRoute>
     )
+  },
+  // SMART on FHIR authorization callback
+  {
+    path: '/smart-callback',
+    element: (
+      <ProtectedRoute>
+        <SMARTCallbackPage />
+      </ProtectedRoute>
+    )
+  },
+  // Built-in SMART demo app (educational)
+  {
+    path: '/smart-demo',
+    element: <SMARTDemoApp />
   },
   {
     path: '*',

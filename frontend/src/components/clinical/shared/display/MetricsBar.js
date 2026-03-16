@@ -109,12 +109,11 @@ const MetricItem = memo(({ metric, index, density = 'comfortable', animate = tru
           overflow: 'hidden',
           '&:hover': metric.onClick ? {
             borderColor: alpha(color, 0.4),
-            backgroundColor: metric.severity 
+            backgroundColor: metric.severity
               ? theme.palette.mode === 'dark'
                 ? alpha(color, 0.15)  // Dark mode hover: slightly more opacity
                 : severityTokens[metric.severity]?.hoverBg
               : theme.palette.action.hover,
-            transform: 'translateY(-1px)',
             boxShadow: theme.shadows[2]
           } : {}
         }}

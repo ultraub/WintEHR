@@ -48,7 +48,7 @@ class ClaudeIntegrationService:
         try:
             result = await self._run_command(['npm', 'list', '@anthropic-ai/sdk'], timeout=5)
             status['sdk'] = '@anthropic-ai/sdk' in result.get('stdout', '')
-        except:
+        except Exception:
             status['sdk'] = False
             
         # Check CLI availability
@@ -272,7 +272,7 @@ class ClaudeIntegrationService:
                     data = json.load(f)
                     if 'authToken' in data:
                         return data['authToken']
-            except:
+            except (json.JSONDecodeError, OSError):
                 continue
                 
         return None

@@ -279,7 +279,7 @@ class AuditService:
                         parts = execution_result.split(", Message: ")
                         if len(parts) > 1:
                             message = parts[1]
-                except:
+                except (ValueError, IndexError):
                     pass
 
             # Extract error information
@@ -419,7 +419,7 @@ class AuditService:
                 "birthDate": patient.get("birthDate"),
                 "gender": patient.get("gender")
             }
-        except:
+        except Exception:
             return None
 
     async def _get_user_info(self, user_id: str) -> Optional[Dict[str, Any]]:
@@ -437,7 +437,7 @@ class AuditService:
                 "name": name.get("text", "Unknown"),
                 "qualification": practitioner.get("qualification", [])
             }
-        except:
+        except Exception:
             return {"id": user_id, "name": "Unknown User"}
 
     async def _get_service_info(self, service_id: str) -> Optional[Dict[str, Any]]:
@@ -471,7 +471,7 @@ class AuditService:
                         "id": resource["id"],
                         "summary": self._get_resource_summary(resource_data)
                     })
-            except:
+            except Exception:
                 details.append({
                     "action": "created",
                     "type": resource["resourceType"],

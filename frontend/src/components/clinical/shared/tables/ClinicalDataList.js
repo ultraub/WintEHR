@@ -184,13 +184,12 @@ const ClinicalDataList = ({
                 duration: theme.transitions.duration.short
               }),
               cursor: onItemClick || selectable ? 'pointer' : 'default',
-              '&:hover': { 
+              '&:hover': {
                 backgroundColor: itemSelected
                   ? alpha(theme.palette.primary.main, 0.12)
-                  : itemExpanded 
-                    ? alpha(theme.palette.primary.main, 0.08) 
-                    : 'action.hover',
-                transform: 'translateY(-1px)'
+                  : itemExpanded
+                    ? alpha(theme.palette.primary.main, 0.08)
+                    : 'action.hover'
               }
             }}
           >

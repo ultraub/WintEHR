@@ -247,7 +247,6 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
             label={author}
             size="small"
             variant="outlined"
-            sx={{ borderRadius: 0 }}
           />
           {note.relatesTo?.length > 0 && (
             <Chip
@@ -255,7 +254,6 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
               size="small"
               color="info"
               variant="outlined"
-              sx={{ borderRadius: 0 }}
             />
           )}
         </Stack>
@@ -350,8 +348,7 @@ const CollapsibleCategory = memo(({ category, categoryKey, documents, selectedCa
       <ListItemButton 
         onClick={handleSelect}
         selected={isSelected}
-        sx={{ 
-          borderRadius: 0,
+        sx={{
           py: 0.5,
           bgcolor: isSelected ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.15 : 0.08) : 'transparent',
           '&:hover': {
@@ -403,9 +400,8 @@ const CollapsibleCategory = memo(({ category, categoryKey, documents, selectedCa
                 key={typeKey}
                 onClick={() => onSelectCategory(`type-${typeKey}`)}
                 selected={isTypeSelected}
-                sx={{ 
+                sx={{
                   py: 0.25,
-                  borderRadius: 0,
                   bgcolor: isTypeSelected ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.04) : 'transparent'
                 }}
               >
@@ -516,8 +512,6 @@ const DocumentationTabEnhanced = ({
 
   // Handle document updates
   const handleDocumentUpdate = useCallback(async (eventType, eventData) => {
-    console.log('[DocumentationTab] Handling document update:', eventType, eventData);
-
     // Extract the document from the event data
     const document = eventData.document || eventData.note || eventData.resource;
 
@@ -594,8 +588,6 @@ const DocumentationTabEnhanced = ({
   useEffect(() => {
     if (!patientId) return;
 
-    console.log('[DocumentationTab] Setting up real-time subscriptions for patient:', patientId);
-
     const subscriptions = [];
 
     // Subscribe to documentation events
@@ -610,16 +602,8 @@ const DocumentationTabEnhanced = ({
 
     documentEvents.forEach(eventType => {
       const unsubscribe = subscribe(eventType, (event) => {
-        console.log('[DocumentationTab] Document event received:', {
-          eventType,
-          eventPatientId: event.patientId,
-          currentPatientId: patientId,
-          event
-        });
-        
         // Handle update if the event is for the current patient
         if (event.patientId === patientId) {
-          console.log('[DocumentationTab] Updating documentation for event:', eventType);
           handleDocumentUpdate(eventType, event);
         }
       });
@@ -627,7 +611,6 @@ const DocumentationTabEnhanced = ({
     });
 
     return () => {
-      console.log('[DocumentationTab] Cleaning up subscriptions');
       subscriptions.forEach(unsub => unsub());
     };
   }, [patientId, subscribe, handleDocumentUpdate]);
@@ -635,8 +618,6 @@ const DocumentationTabEnhanced = ({
   // WebSocket patient room subscription for multi-user sync
   useEffect(() => {
     if (!patientId || !websocketService.isConnected) return;
-
-    console.log('[DocumentationTab] Setting up WebSocket patient room subscription for:', patientId);
 
     let subscriptionId = null;
 
@@ -650,7 +631,6 @@ const DocumentationTabEnhanced = ({
         ];
 
         subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
-        console.log('[DocumentationTab] Successfully subscribed to patient room:', subscriptionId);
       } catch (error) {
         console.error('[DocumentationTab] Failed to subscribe to patient room:', error);
       }
@@ -660,7 +640,6 @@ const DocumentationTabEnhanced = ({
 
     return () => {
       if (subscriptionId) {
-        console.log('[DocumentationTab] Unsubscribing from patient room:', subscriptionId);
         websocketService.unsubscribeFromPatient(subscriptionId);
       }
     };
@@ -981,7 +960,6 @@ const DocumentationTabEnhanced = ({
             label={isSigned ? 'Signed' : row.docStatus === 'preliminary' ? 'Ready for Review' : 'Draft'}
             size="small"
             color={isSigned ? 'success' : row.docStatus === 'preliminary' ? 'info' : 'warning'}
-            sx={{ borderRadius: 0 }}
           />
         );
       }
@@ -1238,7 +1216,7 @@ const DocumentationTabEnhanced = ({
                     <SearchIcon fontSize="small" />
                   </InputAdornment>
                 ),
-                sx: { borderRadius: 0 }
+                sx: {}
               }}
               sx={{ width: 180 }}
             />
@@ -1247,7 +1225,7 @@ const DocumentationTabEnhanced = ({
               size="small"
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              sx={{ minWidth: 90, '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
+              sx={{ minWidth: 90 }}
               displayEmpty
             >
               <MenuItem value="all">All Types</MenuItem>
@@ -1260,7 +1238,7 @@ const DocumentationTabEnhanced = ({
               size="small"
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              sx={{ minWidth: 70, '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
+              sx={{ minWidth: 70 }}
               displayEmpty
             >
               <MenuItem value="all">All</MenuItem>
@@ -1273,7 +1251,7 @@ const DocumentationTabEnhanced = ({
               size="small"
               value={filterPeriod}
               onChange={(e) => setFilterPeriod(e.target.value)}
-              sx={{ minWidth: 75, '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
+              sx={{ minWidth: 75 }}
               displayEmpty
             >
               <MenuItem value="all">All Time</MenuItem>
@@ -1308,8 +1286,7 @@ const DocumentationTabEnhanced = ({
               size="small"
               sx={{ 
                 height: 28,
-                '& .MuiToggleButton-root': { 
-                  borderRadius: 0,
+                '& .MuiToggleButton-root': {
                   px: 1,
                   py: 0.25,
                   minWidth: 32
@@ -1335,8 +1312,7 @@ const DocumentationTabEnhanced = ({
               startIcon={<AddIcon />}
               onClick={handleNewNote}
               size="small"
-              sx={{ 
-                borderRadius: 0,
+              sx={{
                 height: 28,
                 px: 1.5,
                 fontSize: '0.8125rem'
@@ -1459,7 +1435,6 @@ const DocumentationTabEnhanced = ({
                               note.docStatus === 'preliminary' ? theme.palette.warning.main :
                               note.docStatus === 'final' ? theme.palette.success.main : 
                               theme.palette.grey[400],
-                            borderRadius: 0,
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
                             backgroundColor: index % 2 === 1 ? alpha(theme.palette.action.hover, 0.02) : 'transparent',
@@ -1500,7 +1475,6 @@ const DocumentationTabEnhanced = ({
                                 label={statusConfig.label}
                                 color={statusConfig.color}
                                 sx={{
-                                  borderRadius: 0,
                                   fontWeight: 600,
                                   height: 22,
                                   fontSize: '0.75rem'
@@ -1634,9 +1608,8 @@ const DocumentationTabEnhanced = ({
                           key={document.id}
                           button
                           onClick={() => handleViewNote(document)}
-                          sx={{ 
+                          sx={{
                             backgroundColor: index % 2 === 1 ? 'action.hover' : 'transparent',
-                            borderRadius: 0,
                             mb: 0.5
                           }}
                         >
@@ -1830,7 +1803,7 @@ const DocumentationTabEnhanced = ({
                 </Grid>
                 <Grid item xs={12}>
                   <Typography variant="subtitle2" color="text.secondary">Content</Typography>
-                  <Box sx={{ mt: 1, p: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.6) : 'grey.50', borderRadius: 0, maxHeight: 400, overflow: 'auto' }}>
+                  <Box sx={{ mt: 1, p: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.6) : 'grey.50', maxHeight: 400, overflow: 'auto' }}>
                     <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
                       {selectedNoteForView.displayContent || 'No content available'}
                     </Typography>
@@ -1931,8 +1904,7 @@ const DocumentationTabEnhanced = ({
           sx={{
             position: 'fixed',
             bottom: 16,
-            right: 16,
-            borderRadius: 0
+            right: 16
           }}
           onClick={handleNewNote}
         >

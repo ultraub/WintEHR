@@ -312,6 +312,9 @@ const SmartTable = memo(({
   onFilter,
   onExport,
   onPrint,
+  onViewDetails,
+  onEdit,
+  onDelete,
   
   // Styling
   maxHeight = 600,
@@ -635,24 +638,33 @@ const SmartTable = memo(({
           setContextRow(null);
         }}
       >
-        <MenuItem onClick={() => {
-          // TODO: Implement view details handler
-          setMenuAnchor(null);
-        }}>
-          View Details
-        </MenuItem>
-        <MenuItem onClick={() => {
-          // TODO: Implement edit handler
-          setMenuAnchor(null);
-        }}>
-          Edit
-        </MenuItem>
-        <MenuItem onClick={() => {
-          // TODO: Implement delete handler
-          setMenuAnchor(null);
-        }}>
-          Delete
-        </MenuItem>
+        {onViewDetails && (
+          <MenuItem onClick={() => {
+            onViewDetails(contextRow);
+            setMenuAnchor(null);
+            setContextRow(null);
+          }}>
+            View Details
+          </MenuItem>
+        )}
+        {onEdit && (
+          <MenuItem onClick={() => {
+            onEdit(contextRow);
+            setMenuAnchor(null);
+            setContextRow(null);
+          }}>
+            Edit
+          </MenuItem>
+        )}
+        {onDelete && (
+          <MenuItem onClick={() => {
+            onDelete(contextRow);
+            setMenuAnchor(null);
+            setContextRow(null);
+          }}>
+            Delete
+          </MenuItem>
+        )}
       </Menu>
     </Paper>
   );

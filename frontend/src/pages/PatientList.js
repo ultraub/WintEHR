@@ -10,9 +10,6 @@ import {
   Chip,
   Alert,
   Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
   Tabs,
   Tab,
   Tooltip,
@@ -29,6 +26,7 @@ import {
   People as PeopleIcon,
   PersonSearch as PersonSearchIcon,
   Download as DownloadIcon,
+  Clear as ClearIcon,
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import { format } from 'date-fns';
@@ -369,6 +367,9 @@ function PatientList() {
 
   const handleCreatePatient = async (patientData) => {
     try {
+      // Auto-generate MRN (timestamp-based for educational purposes)
+      const mrn = `MRN-${Date.now().toString(36).toUpperCase()}`;
+
       // Transform to FHIR Patient resource
       const fhirPatient = {
         resourceType: 'Patient',
@@ -380,7 +381,8 @@ function PatientList() {
                 code: 'MR'
               }]
             },
-            value: patientData.mrn
+            system: 'http://wintehr.example.com/mrn',
+            value: mrn
           }
         ],
         name: [{
@@ -417,7 +419,49 @@ function PatientList() {
           postalCode: patientData.zip_code
         }];
       }
-      
+
+      // Emergency contact (FHIR Patient.contact)
+      if (patientData.emergency_contact_name) {
+        fhirPatient.contact = [{
+          relationship: [{
+            coding: [{
+              system: 'http://terminology.hl7.org/CodeSystem/v2-0131',
+              code: 'C',
+              display: 'Emergency Contact'
+            }]
+          }],
+          name: { text: patientData.emergency_contact_name },
+          telecom: patientData.emergency_contact_phone ? [{
+            system: 'phone',
+            value: patientData.emergency_contact_phone
+          }] : []
+        }];
+      }
+
+      // US Core Race extension
+      if (patientData.race) {
+        fhirPatient.extension = fhirPatient.extension || [];
+        fhirPatient.extension.push({
+          url: 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-race',
+          extension: [{
+            url: 'text',
+            valueString: patientData.race
+          }]
+        });
+      }
+
+      // US Core Ethnicity extension
+      if (patientData.ethnicity) {
+        fhirPatient.extension = fhirPatient.extension || [];
+        fhirPatient.extension.push({
+          url: 'http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity',
+          extension: [{
+            url: 'text',
+            valueString: patientData.ethnicity
+          }]
+        });
+      }
+
       const result = await fhirClient.create('Patient', fhirPatient);
       setOpenNewPatient(false);
       if (activeTab === 0) {
@@ -543,12 +587,12 @@ function PatientList() {
               ),
               endAdornment: searchTerm && (
                 <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => { 
-                    setSearchTerm(''); 
+                  <IconButton size="small" onClick={() => {
+                    setSearchTerm('');
                     setPage(0);
-                    fetchAllPatients(0, pageSize, ''); 
+                    fetchAllPatients(0, pageSize, '');
                   }}>
-                    ×
+                    <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
               ),
@@ -586,10 +630,20 @@ function PatientList() {
               navigate(getPatientDetailUrl(params.row.id));
             }}
             sx={{
+              border: 'none',
               '& .MuiDataGrid-row:hover': {
                 cursor: 'pointer',
                 backgroundColor: (theme) => theme.palette.action.hover,
               },
+              '& .MuiDataGrid-columnHeaders': {
+                backgroundColor: '#F5F5F7',
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+              },
+              '& .MuiDataGrid-cell': {
+                borderBottom: '0.5px solid',
+                borderColor: 'divider',
+              }
             }}
           />
         </Box>
@@ -609,20 +663,11 @@ function PatientList() {
         )}
       </Paper>
 
-      <Dialog
+      <PatientForm
         open={openNewPatient}
         onClose={() => setOpenNewPatient(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>New Patient Registration</DialogTitle>
-        <DialogContent>
-          <PatientForm
-            onSubmit={handleCreatePatient}
-            onCancel={() => setOpenNewPatient(false)}
-          />
-        </DialogContent>
-      </Dialog>
+        onSubmit={handleCreatePatient}
+      />
     </Box>
   );
 }

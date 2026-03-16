@@ -11,7 +11,7 @@ import {
   Tab,
   Tabs,
 } from '@mui/material';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../services/api';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
@@ -54,8 +54,25 @@ function Analytics() {
           api.get('/api/analytics/medication-patterns'),
         ]);
         
-        setDemographics(demoResponse.data);
-        setDiseasePrevalence(diseaseResponse.data);
+        // Normalize backend response to match rendering field names
+        const demoData = demoResponse.data;
+        if (demoData.age_groups && !demoData.age_distribution) {
+          demoData.age_distribution = {};
+          demoData.age_groups.forEach(g => {
+            demoData.age_distribution[g.age_group] = { count: g.count, percentage: g.percentage };
+          });
+        }
+        setDemographics(demoData);
+
+        const diseaseData = diseaseResponse.data;
+        if (diseaseData.top_conditions && !diseaseData.conditions) {
+          diseaseData.conditions = diseaseData.top_conditions.map(c => ({
+            condition: c.condition_name,
+            count: c.patient_count,
+            prevalence_rate: c.percentage
+          }));
+        }
+        setDiseasePrevalence(diseaseData);
         setMedicationPatterns(medResponse.data);
       } catch (apiError) {
         
@@ -178,24 +195,28 @@ function Analytics() {
                 <Typography variant="h6" gutterBottom>
                   Gender Distribution
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={demographics.gender_distribution}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="count"
-                      label={(entry) => `${entry.gender}: ${entry.percentage}%`}
-                    >
-                      {demographics.gender_distribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                {demographics.gender_distribution && demographics.gender_distribution.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={demographics.gender_distribution}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="count"
+                        label={(entry) => `${entry.gender}: ${entry.percentage}%`}
+                      >
+                        {demographics.gender_distribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>No gender distribution data available</Typography>
+                )}
               </Paper>
             </Grid>
 
@@ -204,22 +225,26 @@ function Analytics() {
                 <Typography variant="h6" gutterBottom>
                   Age Distribution
                 </Typography>
-                <Grid container spacing={2}>
-                  {Object.entries(demographics.age_distribution).map(([group, data]) => (
-                    <Grid item xs={6} key={group}>
-                      <Card>
-                        <CardContent>
-                          <Typography variant="h4" color="primary">
-                            {data.count}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {group.replace('_', ' ')} ({data.percentage}%)
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
+                {demographics.age_distribution ? (
+                  <Grid container spacing={2}>
+                    {Object.entries(demographics.age_distribution).map(([group, data]) => (
+                      <Grid item xs={6} key={group}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h4" color="primary">
+                              {data?.count ?? 0}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {group.replace('_', ' ')} ({data?.percentage ?? 0}%)
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                ) : (
+                  <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>No age distribution data available</Typography>
+                )}
               </Paper>
             </Grid>
 
@@ -231,8 +256,7 @@ function Analytics() {
                 {demographics.race_distribution && demographics.race_distribution.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={demographics.race_distribution}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="race" />
+                        <XAxis dataKey="race" />
                       <YAxis />
                       <Tooltip />
                       <Bar dataKey="count" fill="#8884d8" />
@@ -259,7 +283,6 @@ function Analytics() {
                 </Typography>
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={diseasePrevalence.conditions.filter(c => c.count > 0).sort((a, b) => b.prevalence_rate - a.prevalence_rate)}>
-                    <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="condition" angle={-45} textAnchor="end" height={100} />
                     <YAxis label={{ value: 'Prevalence Rate (%)', angle: -90, position: 'insideLeft' }} />
                     <Tooltip />
@@ -313,11 +336,10 @@ function Analytics() {
                 </Typography>
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={medicationPatterns.top_medications}>
-                    <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="medication" angle={-45} textAnchor="end" height={100} />
                     <YAxis />
                     <Tooltip />
-                    <Bar dataKey="prescription_count" fill="#FF8042" />
+                    <Bar dataKey={medicationPatterns.top_medications?.[0]?.prescription_count !== undefined ? 'prescription_count' : 'count'} fill="#FF8042" />
                   </BarChart>
                 </ResponsiveContainer>
               </Paper>
@@ -331,13 +353,13 @@ function Analytics() {
                 <Card sx={{ mt: 2 }}>
                   <CardContent>
                     <Typography variant="h4" color="warning.main">
-                      {medicationPatterns.polypharmacy.polypharmacy_rate}%
+                      {medicationPatterns.polypharmacy?.polypharmacy_rate ?? 'N/A'}%
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Patients on 5+ medications
                     </Typography>
                     <Typography variant="body2" sx={{ mt: 1 }}>
-                      {medicationPatterns.polypharmacy.patients_with_5plus_meds} of {medicationPatterns.polypharmacy.total_patients_with_meds} patients
+                      {medicationPatterns.polypharmacy?.patients_with_5plus_meds ?? 0} of {medicationPatterns.polypharmacy?.total_patients_with_meds ?? 0} patients
                     </Typography>
                   </CardContent>
                 </Card>

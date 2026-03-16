@@ -719,8 +719,8 @@ const ResultsTabOptimized = ({
 
     // Default table view
     return (
-      <TableContainer sx={{ borderRadius: 0 }}>
-        <Table sx={{ '& .MuiTableCell-root': { borderRadius: 0 } }}>
+      <TableContainer>
+        <Table>
           <TableHead>
             <TableRow>
               <TableCell>Test Name</TableCell>
@@ -791,9 +791,8 @@ const ResultsTabOptimized = ({
                         label={status.label} 
                         size="small" 
                         color={status.color}
-                        sx={{ 
+                        sx={{
                           fontWeight: 'bold',
-                          borderRadius: 0,
                           height: 22
                         }}
                       />
@@ -864,7 +863,7 @@ const ResultsTabOptimized = ({
                 size="small"
                 color="warning"
                 icon={<AbnormalIcon fontSize="small" />}
-                sx={{ borderRadius: 0, height: 24 }}
+                sx={{ height: 24 }}
               />
             )}
             {filterPeriod !== 'all' && (
@@ -873,7 +872,7 @@ const ResultsTabOptimized = ({
                 size="small"
                 variant="outlined"
                 onDelete={() => setFilterPeriod('all')}
-                sx={{ borderRadius: 0, height: 24 }}
+                sx={{ height: 24 }}
               />
             )}
           </Stack>
@@ -901,7 +900,7 @@ const ResultsTabOptimized = ({
             <Divider orientation="vertical" flexItem />
             <IconButton
               size="small"
-              onClick={() => {/* Add print handler */}}
+              onClick={() => window.print()}
               title="Print"
             >
               <PrintIcon />
@@ -982,7 +981,7 @@ const ResultsTabOptimized = ({
         onClose={() => setDetailsDialogOpen(false)}
         maxWidth="md"
         fullWidth
-        PaperProps={{ sx: { borderRadius: 0 } }}
+        PaperProps={{ sx: {} }}
       >
         <DialogTitle>
           Result Details
@@ -1000,8 +999,52 @@ const ResultsTabOptimized = ({
               <Typography variant="h6" gutterBottom>
                 {getResourceDisplayText(selectedResult)}
               </Typography>
-              {/* Add detailed result view here */}
-              <pre>{JSON.stringify(selectedResult, null, 2)}</pre>
+              <Grid container spacing={2} sx={{ mt: 1 }}>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">Resource Type</Typography>
+                  <Typography variant="body2">{selectedResult.resourceType}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">Status</Typography>
+                  <Typography variant="body2">{selectedResult.status}</Typography>
+                </Grid>
+                {selectedResult.effectiveDateTime && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Date</Typography>
+                    <Typography variant="body2">{new Date(selectedResult.effectiveDateTime).toLocaleString()}</Typography>
+                  </Grid>
+                )}
+                {selectedResult.valueQuantity && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Value</Typography>
+                    <Typography variant="body2">
+                      {selectedResult.valueQuantity.value} {selectedResult.valueQuantity.unit}
+                    </Typography>
+                  </Grid>
+                )}
+                {selectedResult.interpretation?.[0] && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Interpretation</Typography>
+                    <Typography variant="body2">
+                      {selectedResult.interpretation[0].coding?.[0]?.display || selectedResult.interpretation[0].text || selectedResult.interpretation[0].coding?.[0]?.code}
+                    </Typography>
+                  </Grid>
+                )}
+                {selectedResult.referenceRange?.[0] && (
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Reference Range</Typography>
+                    <Typography variant="body2">
+                      {selectedResult.referenceRange[0].low?.value ?? ''} - {selectedResult.referenceRange[0].high?.value ?? ''} {selectedResult.referenceRange[0].low?.unit || ''}
+                    </Typography>
+                  </Grid>
+                )}
+                {selectedResult.note?.[0]?.text && (
+                  <Grid item xs={12}>
+                    <Typography variant="caption" color="text.secondary">Notes</Typography>
+                    <Typography variant="body2">{selectedResult.note[0].text}</Typography>
+                  </Grid>
+                )}
+              </Grid>
             </Box>
           )}
         </DialogContent>

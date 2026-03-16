@@ -321,7 +321,7 @@ const ClinicalDataGrid = ({
   
   return (
     <Box sx={{ width: '100%' }}>
-      <Paper sx={{ width: '100%', mb: 2, borderRadius: 0 }}>
+      <Paper sx={{ width: '100%', mb: 2 }}>
         {title && (
           <EnhancedTableToolbar
             numSelected={selected.length}

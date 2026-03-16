@@ -11,7 +11,7 @@ module.exports = function(app) {
   // HAPI FHIR target (separate from backend)
   const hapiFhirTarget = isDocker
     ? 'http://hapi-fhir:8080'
-    : 'http://localhost:8888';
+    : process.env.REACT_APP_HAPI_FHIR_URL || 'http://localhost:8888';
 
   console.log(`[Proxy] Backend target: ${backendTarget} (Docker: ${isDocker})`);
   console.log(`[Proxy] HAPI FHIR target: ${hapiFhirTarget} (Docker: ${isDocker})`);
@@ -121,6 +121,12 @@ module.exports = function(app) {
     })
   );
   
+  // SMART/OAuth well-known discovery - proxy to backend
+  app.use(
+    '/.well-known',
+    createProxy('SMART Discovery')
+  );
+
   // CDS Services routes - need to add the path back
   app.use(
     '/cds-services',

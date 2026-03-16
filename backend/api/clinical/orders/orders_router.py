@@ -1150,9 +1150,9 @@ async def get_order_sets(
                     last_updated = datetime.fromisoformat(
                         plan_def["meta"]["lastUpdated"].replace("Z", "+00:00")
                     )
-                except:
+                except (ValueError, TypeError):
                     pass
-            
+
             order_sets.append(OrderSetSummary(
                 id=plan_def.get("id"),
                 name=plan_def.get("title") or plan_def.get("name", "Unnamed Order Set"),

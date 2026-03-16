@@ -147,51 +147,22 @@ const DICOMViewer = ({ study, onClose }) => {
     }
   };
 
+  /**
+   * Extract study directory from study object.
+   * Uses studyDirectory property if available, otherwise falls back to standard format.
+   * Backend expects format: study_{id}
+   */
   const extractStudyDirectory = (studyObj) => {
-    console.log('[DICOMViewer] Extracting study directory from:', studyObj);
-
-    // Try to extract study directory from various possible sources
-    if (studyObj.studyDirectory) {
-      console.log('[DICOMViewer] Using studyDirectory property:', studyObj.studyDirectory);
+    // Primary: Use studyDirectory property (set by ImagingTab during loading)
+    if (studyObj?.studyDirectory) {
       return studyObj.studyDirectory;
     }
 
-    console.log('[DICOMViewer] No studyDirectory property found, using fallback logic');
-    
-    // Check for DICOM directory in extensions
-    if (studyObj.extension) {
-      const dicomDirExt = studyObj.extension.find(
-        ext => ext.url === EXTENSION_URLS.DICOM_DIRECTORY
-      );
-      if (dicomDirExt && dicomDirExt.valueString) {
-        return dicomDirExt.valueString;
-      }
+    // Fallback: Use standard format matching backend convention
+    if (studyObj?.id) {
+      return `study_${studyObj.id}`;
     }
-    
-    // Try to derive from study ID - this is the new format we're using
-    if (studyObj.id) {
-      // Determine study type from modality or description
-      let studyType = 'CT_CHEST'; // Default
-      
-      if (studyObj.modality && studyObj.modality.length > 0) {
-        const modalityCode = studyObj.modality[0].code;
-        if (modalityCode === 'CT') {
-          studyType = studyObj.description?.toLowerCase().includes('head') ? 'CT_HEAD' : 'CT_CHEST';
-        } else if (modalityCode === 'MR') {
-          studyType = 'MR_BRAIN';
-        } else if (modalityCode === 'US') {
-          studyType = 'US_ABDOMEN';
-        } else if (modalityCode === 'CR' || modalityCode === 'DX') {
-          studyType = 'XR_CHEST';
-        }
-      }
-      
-      // Generate directory name based on our convention
-      return `${studyType}_${studyObj.id.replace(/-/g, '')}`;
-    }
-    
-    // Should not reach here
-    
+
     return null;
   };
 

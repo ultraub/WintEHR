@@ -368,7 +368,6 @@ const ClinicalDataTable = ({
                   // Enhanced hover effect
                   '&:hover': {
                     backgroundColor: alpha(departmentColor, theme.palette.mode === 'dark' ? 0.15 : 0.08),
-                    transform: 'translateY(-1px)',
                     boxShadow: `0 2px 8px ${alpha(
                       theme.palette.mode === 'dark' ? theme.palette.common.white : theme.palette.common.black, 
                       0.05
@@ -402,7 +401,7 @@ const ClinicalDataTable = ({
                     sx={{
                       py: spacing / 4,
                       px: spacing / 2,
-                      borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                      borderBottom: `0.5px solid ${alpha(theme.palette.divider, 0.2)}`,
                       position: 'relative',
                       // Visual grouping for related columns
                       ...(column.group && {

@@ -399,7 +399,6 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
       <Paper
         elevation={0}
         sx={{
-          borderRadius: 0,
           borderBottom: 1,
           borderColor: 'divider',
           backgroundColor: 'background.paper',
@@ -424,16 +423,14 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
               Patient Summary
             </Typography>
             <Stack direction="row" spacing={1}>
-              <Chip 
-                label="Patient View" 
-                size="small" 
-                sx={{ borderRadius: 0 }}
+              <Chip
+                label="Patient View"
+                size="small"
               />
-              <Chip 
-                label={`ID: ${patientId}`} 
-                size="small" 
+              <Chip
+                label={`ID: ${patientId}`}
+                size="small"
                 variant="outlined"
-                sx={{ borderRadius: 0 }}
               />
             </Stack>
           </Stack>
@@ -496,7 +493,6 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                     boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
                     transition: 'all 0.2s ease',
                     '&:hover': {
-                      transform: 'translateY(-1px)',
                       boxShadow: '0 4px 8px rgba(0,0,0,0.25)'
                     }
                   }}
@@ -551,14 +547,11 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   : '0 1px 3px rgba(0,0,0,0.12)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                background: theme.palette.mode === 'dark' 
-                  ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.warning.main, 0.08)} 100%)`
-                  : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.warning.main, 0.02)} 100%)`,
+                backgroundColor: alpha(theme.palette.warning.main, 0.06),
                 '&:hover': {
-                  boxShadow: theme.palette.mode === 'dark' 
+                  boxShadow: theme.palette.mode === 'dark'
                     ? '0 4px 6px rgba(0,0,0,0.4)'
-                    : '0 4px 6px rgba(0,0,0,0.15)',
-                  transform: 'translateY(-2px)'
+                    : '0 4px 6px rgba(0,0,0,0.15)'
                 }
               }}
               onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart-review`)}
@@ -624,14 +617,11 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   : '0 1px 3px rgba(0,0,0,0.12)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                background: theme.palette.mode === 'dark' 
-                  ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.info.main, 0.08)} 100%)`
-                  : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.info.main, 0.02)} 100%)`,
+                backgroundColor: alpha(theme.palette.info.main, 0.06),
                 '&:hover': {
-                  boxShadow: theme.palette.mode === 'dark' 
+                  boxShadow: theme.palette.mode === 'dark'
                     ? '0 4px 6px rgba(0,0,0,0.4)'
-                    : '0 4px 6px rgba(0,0,0,0.15)',
-                  transform: 'translateY(-2px)'
+                    : '0 4px 6px rgba(0,0,0,0.15)'
                 }
               }}
               onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart-review`)}
@@ -697,12 +687,11 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   : '0 1px 3px rgba(0,0,0,0.12)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.success.main, 0.02)} 100%)`,
+                backgroundColor: alpha(theme.palette.success.main, 0.06),
                 '&:hover': {
-                  boxShadow: theme.palette.mode === 'dark' 
+                  boxShadow: theme.palette.mode === 'dark'
                     ? '0 4px 6px rgba(0,0,0,0.4)'
-                    : '0 4px 6px rgba(0,0,0,0.15)',
-                  transform: 'translateY(-2px)'
+                    : '0 4px 6px rgba(0,0,0,0.15)'
                 }
               }}
               onClick={() => navigate(`/patients/${patientId}/clinical?tab=results`)}
@@ -766,16 +755,11 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                 boxShadow: activeAllergies.length > 0 ? '0 1px 3px rgba(244,67,54,0.3)' : '0 1px 3px rgba(0,0,0,0.12)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                background: activeAllergies.length > 0 
-                  ? theme.palette.mode === 'dark'
-                    ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.error.main, 0.08)} 100%)`
-                    : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.error.main, 0.03)} 100%)`
-                  : theme.palette.mode === 'dark'
-                    ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.grey[800], 0.3)} 100%)`
-                    : `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.grey[200], 0.3)} 100%)`,
+                backgroundColor: activeAllergies.length > 0
+                  ? alpha(theme.palette.error.main, 0.06)
+                  : undefined,
                 '&:hover': {
-                  boxShadow: activeAllergies.length > 0 ? '0 4px 6px rgba(244,67,54,0.4)' : '0 4px 6px rgba(0,0,0,0.15)',
-                  transform: 'translateY(-2px)'
+                  boxShadow: activeAllergies.length > 0 ? '0 4px 6px rgba(244,67,54,0.4)' : '0 4px 6px rgba(0,0,0,0.15)'
                 }
               }}
               onClick={() => navigate(`/patients/${patientId}/clinical?tab=chart-review`)}
@@ -838,7 +822,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
               borderRadius: 1, 
               mb: 3,
               boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.error.main, 0.02)} 100%)`
+              backgroundColor: alpha(theme.palette.error.main, 0.06)
             }}
           >
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
@@ -993,9 +977,9 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                 boxShadow: theme.palette.mode === 'dark' 
                   ? '0 1px 3px rgba(0,0,0,0.3)'
                   : '0 1px 3px rgba(0,0,0,0.12)',
-                background: lastEncounter ? 
-                  `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.info.main, 0.02)} 100%)` :
-                  theme.palette.background.paper
+                backgroundColor: lastEncounter
+                  ? alpha(theme.palette.info.main, 0.06)
+                  : undefined
               }}
             >
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
@@ -1037,9 +1021,8 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
         {/* Quick Actions */}
         <Paper 
           elevation={0}
-          sx={{ 
-            p: 3, 
-            borderRadius: 1,
+          sx={{
+            p: 3,
             boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
             transition: 'all 0.2s ease',
             '&:hover': {
@@ -1051,34 +1034,30 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
             Quick Actions
           </Typography>
           <Stack direction="row" spacing={2} flexWrap="wrap">
-            <Button 
-              variant="outlined" 
+            <Button
+              variant="outlined"
               startIcon={<EncounterIcon />}
-              sx={{ borderRadius: 0 }}
-              onClick={() => navigate(`/patients/${patientId}/encounters`)}
+              onClick={() => navigate(`/patients/${patientId}/clinical`, { state: { activeTab: 'encounters' } })}
             >
               View Encounters
             </Button>
-            <Button 
-              variant="outlined" 
+            <Button
+              variant="outlined"
               startIcon={<LabIcon />}
-              sx={{ borderRadius: 0 }}
-              onClick={() => navigate(`/patients/${patientId}/lab-results`)}
+              onClick={() => navigate(`/patients/${patientId}/clinical`, { state: { activeTab: 'results' } })}
             >
               Lab Results
             </Button>
-            <Button 
-              variant="outlined" 
+            <Button
+              variant="outlined"
               startIcon={<MedicationIcon />}
-              sx={{ borderRadius: 0 }}
-              onClick={() => navigate(`/patients/${patientId}/medications`)}
+              onClick={() => navigate(`/patients/${patientId}/clinical`, { state: { activeTab: 'pharmacy' } })}
             >
               Medication History
             </Button>
-            <Button 
-              variant="outlined" 
+            <Button
+              variant="outlined"
               startIcon={<TimelineIcon />}
-              sx={{ borderRadius: 0 }}
               onClick={() => navigate(`/patients/${patientId}/timeline`)}
             >
               Clinical Timeline

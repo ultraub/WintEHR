@@ -199,24 +199,24 @@ export const getClinicalAnimation = (theme, animationType, context = {}) => {
   const animations = {
     dataUpdate: {
       duration: 300,
-      easing: 'cubic-bezier(0.0, 0, 0.2, 1)',
-      transform: 'translateY(-2px)'
+      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+      transform: 'none'
     },
     criticalAlert: {
       duration: 600,
-      easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
       animation: 'pulse',
       iterations: 3
     },
     success: {
       duration: 400,
-      easing: 'cubic-bezier(0.0, 0, 0.2, 1)',
-      transform: 'scale(1.02)'
+      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+      transform: 'scale(1.01)'
     },
     hover: {
       duration: 150,
-      easing: 'cubic-bezier(0.0, 0, 0.2, 1)',
-      transform: 'translateY(-1px)'
+      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+      transform: 'none'
     }
   };
   
@@ -358,11 +358,12 @@ export const getColoredShadow = (color) => {
 /**
  * Create a glass morphism effect
  */
-export const getGlassMorphism = (bgAlpha = 0.7, blur = 10) => ({
+export const getGlassMorphism = (bgAlpha = 0.72, blur = 20) => ({
   backgroundColor: alpha('#ffffff', bgAlpha),
-  backdropFilter: `blur(${blur}px)`,
-  border: `1px solid ${alpha('#ffffff', 0.18)}`,
-  boxShadow: clinicalTokens.modernShadows.sm
+  backdropFilter: `saturate(180%) blur(${blur}px)`,
+  WebkitBackdropFilter: `saturate(180%) blur(${blur}px)`,
+  border: `0.5px solid ${alpha('#ffffff', 0.2)}`,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
 });
 
 /**
@@ -396,9 +397,8 @@ export const getAnimation = (preset, customDuration) => {
 export const getHoverEffect = (type = 'lift', theme) => {
   const effects = {
     lift: {
-      transition: `all ${clinicalTokens.animations.duration.fast}ms ${clinicalTokens.animations.easing.easeOut}`,
+      transition: 'all 150ms cubic-bezier(0.2, 0.8, 0.2, 1)',
       '&:hover': {
-        transform: 'translateY(-2px)',
         boxShadow: clinicalTokens.modernShadows.lg
       }
     },
@@ -432,13 +432,12 @@ export const getClinicalCardStyles = (severity = 'normal', elevation = 1, hovera
   const severityConfig = clinicalTokens.severity[severity];
   
   return {
-    background: severityConfig.gradient || severityConfig.bg,
-    borderLeft: `4px solid ${severityConfig.borderColor}`,
+    background: severityConfig.bg,
+    borderLeft: `3px solid ${severityConfig.borderColor}`,
     boxShadow: getElevationShadow(elevation),
-    transition: `all ${clinicalTokens.animations.duration.normal}ms ${clinicalTokens.animations.easing.easeOut}`,
+    transition: 'all 250ms cubic-bezier(0.2, 0.8, 0.2, 1)',
     ...(hoverable && {
       '&:hover': {
-        transform: 'translateY(-2px)',
         boxShadow: severityConfig.shadow || clinicalTokens.modernShadows.lg,
         background: severityConfig.hoverBg
       }
@@ -498,30 +497,24 @@ export const getClinicalButtonStyles = (variant = 'primary', size = 'medium') =>
   
   const variantConfig = {
     primary: {
-      background: clinicalTokens.gradients.primary,
       color: '#ffffff',
       boxShadow: clinicalTokens.modernShadows.primary,
       '&:hover': {
-        boxShadow: clinicalTokens.modernShadows.lg,
-        transform: 'translateY(-1px)'
+        boxShadow: clinicalTokens.modernShadows.lg
       }
     },
     success: {
-      background: clinicalTokens.gradients.success,
       color: '#ffffff',
       boxShadow: clinicalTokens.modernShadows.success,
       '&:hover': {
-        boxShadow: clinicalTokens.modernShadows.lg,
-        transform: 'translateY(-1px)'
+        boxShadow: clinicalTokens.modernShadows.lg
       }
     },
     warning: {
-      background: clinicalTokens.gradients.warning,
       color: '#ffffff',
       boxShadow: clinicalTokens.modernShadows.warning,
       '&:hover': {
-        boxShadow: clinicalTokens.modernShadows.lg,
-        transform: 'translateY(-1px)'
+        boxShadow: clinicalTokens.modernShadows.lg
       }
     },
     glass: getGlassMorphism(0.8, 8)

@@ -18,7 +18,6 @@ import {
   Divider
 } from '@mui/material';
 import {
-  LocalHospital as HospitalIcon,
   Login as LoginIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
@@ -113,28 +112,28 @@ const Login = () => {
       flexDirection: 'column',
       alignItems: 'center',
     }}>
-      <Paper 
-        elevation={0} 
-        sx={{ 
+      <Paper
+        elevation={0}
+        sx={{
           p: 5,
-          backgroundColor: 'white',
-          borderRadius: 2,
-          boxShadow: theme => `0 8px 32px ${theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.08)'}`,
+          backgroundColor: 'background.paper',
+          borderRadius: '24px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)',
         }}>
         <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <Box sx={{ 
-            width: 72, 
-            height: 72, 
-            borderRadius: 2,
-            backgroundColor: theme => theme.palette.mode === 'dark' ? theme.palette.primary.dark : theme.palette.primary.light,
-            opacity: 0.15,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            mb: 3,
-          }}>
-            <HospitalIcon sx={{ fontSize: 36, color: 'primary.main' }} />
-          </Box>
+          <Box
+            component="img"
+            src="/wintehr-logo.png"
+            alt="WintEHR"
+            sx={{
+              width: 120,
+              height: 120,
+              objectFit: 'contain',
+              mb: 3,
+              mx: 'auto',
+              display: 'block',
+            }}
+          />
           <Typography variant="h4" component="h1" gutterBottom sx={{ 
             fontWeight: 700,
             color: 'text.primary',
@@ -189,9 +188,14 @@ const Login = () => {
             onClick={handleLogin}
             disabled={!selectedProvider || loading}
             startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}
-            sx={{ 
+            sx={{
               py: 1.5,
               fontSize: '1rem',
+              borderRadius: '12px',
+              boxShadow: 'none',
+              '&:hover': {
+                boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
+              },
             }}
           >
             {loading ? 'Logging in...' : 'Sign In to WintEHR'}

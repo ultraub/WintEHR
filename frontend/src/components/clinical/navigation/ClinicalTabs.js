@@ -190,7 +190,7 @@ const ClinicalTabs = ({
         backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.paper : '#FFFFFF',
         borderBottom: 1,
         borderColor: 'divider',
-        boxShadow: theme.shadows[1],
+        boxShadow: 'none',
         position: 'sticky',
         top: LAYOUT_HEIGHTS.appBar,
         zIndex: Z_INDEX.appBar - 1,

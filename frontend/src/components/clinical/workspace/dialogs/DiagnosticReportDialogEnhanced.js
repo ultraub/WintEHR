@@ -88,7 +88,6 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import { debounce } from 'lodash';
 
-import { useFHIRClient } from '../../../../contexts/FHIRContext';
 import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
@@ -255,7 +254,6 @@ const DiagnosticReportDialogEnhanced = ({
   const theme = useTheme();
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
-  const fhirClient = useFHIRClient();
 
   // Dialog state
   const [activeStep, setActiveStep] = useState(0);
@@ -341,6 +339,7 @@ const DiagnosticReportDialogEnhanced = ({
   const loadTrendingReports = async () => {
     try {
       const recentReportsResult = await fhirClient.search('DiagnosticReport', {
+        ...(patientId ? { patient: `Patient/${patientId}` } : {}),
         _count: 100,
         _sort: '-date',
         status: 'final',

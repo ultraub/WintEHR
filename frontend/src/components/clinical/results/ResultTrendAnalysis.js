@@ -44,7 +44,6 @@ import {
   Area,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip as ChartTooltip,
   Legend,
   ResponsiveContainer,
@@ -365,8 +364,7 @@ const ResultTrendAnalysis = ({ patientId, initialTestCode = null }) => {
         <Box sx={{ width: '100%', height: 400 }}>
           <ResponsiveContainer>
             <LineChart data={trendData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
+              <XAxis
                 dataKey="date" 
                 angle={-45}
                 textAnchor="end"

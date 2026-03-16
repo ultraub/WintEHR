@@ -82,7 +82,7 @@ services:
 
       # HAPI FHIR Configuration
       hapi.fhir.fhir_version: R4
-      hapi.fhir.server_address: ${HAPI_FHIR_SERVER_ADDRESS:-http://localhost:8080/fhir}
+      hapi.fhir.server_address: ${HAPI_FHIR_SERVER_ADDRESS:-https://${DOMAIN:-localhost}/fhir/R4}
       hapi.fhir.allow_external_references: true
       hapi.fhir.allow_multiple_delete: true
       hapi.fhir.allow_cascading_deletes: true
@@ -137,6 +137,8 @@ services:
       - USE_REDIS_CACHE=true
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SMART_BASE_URL=${SMART_BASE_URL:-http://localhost:8000}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
     networks:
       emr-network:
         aliases:
@@ -173,6 +175,9 @@ services:
       - USE_REDIS_CACHE=true
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
       - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DOMAIN=${DOMAIN:-localhost}
+      - FRONTEND_URL=${FRONTEND_URL:-}
+      - SMART_BASE_URL=${SMART_BASE_URL:-}
     networks:
       emr-network:
         aliases:
@@ -203,8 +208,8 @@ services:
       - REACT_APP_EMR_API=${REACT_APP_EMR_API:-/api/emr}
       - REACT_APP_CLINICAL_CANVAS_API=${REACT_APP_CLINICAL_CANVAS_API:-/api/clinical-canvas}
       - REACT_APP_API_URL=${REACT_APP_API_URL:-}
-      # WebSocket connects directly to backend (http-proxy-middleware v3 doesn't support ws proxy)
-      - REACT_APP_WEBSOCKET_URL=${REACT_APP_WEBSOCKET_URL:-ws://localhost:8000/api/ws}
+      # WebSocket URL — leave empty for auto-detection from window.location
+      - REACT_APP_WEBSOCKET_URL=${REACT_APP_WEBSOCKET_URL:-}
     networks:
       - emr-network
     depends_on:

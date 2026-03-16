@@ -6,23 +6,9 @@
  */
 
 import axios from 'axios';
+import { getBackendUrl } from '../config/apiConfig';
 
-// Determine API base URL based on environment
-// Use empty string for relative URLs in production (same origin)
-const getApiBaseUrl = () => {
-  // If explicit API URL is set, use it
-  if (process.env.REACT_APP_API_URL) {
-    return process.env.REACT_APP_API_URL;
-  }
-  // In development, use localhost
-  if (process.env.NODE_ENV === 'development') {
-    return 'http://localhost:8000';
-  }
-  // In production, use relative URLs (empty string means same origin)
-  return '';
-};
-
-const API_BASE_URL = getApiBaseUrl();
+const API_BASE_URL = getBackendUrl();
 
 class FHIRRelationshipService {
   constructor() {

@@ -52,7 +52,7 @@ import {
 } from '@mui/icons-material';
 import { format, differenceInYears, isValid, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
-import { usePatientCDSAlerts } from '../../../contexts/CDSContext';
+import { useCDS } from '../../../contexts/CDSContext';
 import { useNavigate } from 'react-router-dom';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import websocketService from '../../../services/websocket';
@@ -79,7 +79,8 @@ const CollapsiblePatientHeaderOptimized = ({
   const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
   
   const { currentPatient, getPatientResources, refreshPatientData } = useFHIRResource();
-  const { alerts } = usePatientCDSAlerts(patientId);
+  const { alerts: contextAlerts } = useCDS();
+  const alerts = contextAlerts?.['patient-view'] || [];
   const { subscribe } = useClinicalWorkflow();
   const dataQuality = useDataQualityLogger('CollapsiblePatientHeader');
   
@@ -160,8 +161,6 @@ const CollapsiblePatientHeaderOptimized = ({
 
   // Handle header updates
   const handleHeaderUpdate = useCallback((eventType, eventData) => {
-    console.log('[PatientHeader] Handling header update:', eventType, eventData);
-    
     // Refresh relevant data based on event type
     switch (eventType) {
       case CLINICAL_EVENTS.ALLERGY_ADDED:
@@ -198,8 +197,6 @@ const CollapsiblePatientHeaderOptimized = ({
   useEffect(() => {
     if (!patientId) return;
 
-    console.log('[PatientHeader] Setting up real-time subscriptions for patient:', patientId);
-
     const subscriptions = [];
 
     // Subscribe to allergy and alert events
@@ -218,16 +215,8 @@ const CollapsiblePatientHeaderOptimized = ({
 
     headerEvents.forEach(eventType => {
       const unsubscribe = subscribe(eventType, (event) => {
-        console.log('[PatientHeader] Event received:', {
-          eventType,
-          eventPatientId: event.patientId,
-          currentPatientId: patientId,
-          event
-        });
-        
         // Handle update if the event is for the current patient
         if (event.patientId === patientId) {
-          console.log('[PatientHeader] Updating header for event:', eventType);
           handleHeaderUpdate(eventType, event);
         }
       });
@@ -235,7 +224,6 @@ const CollapsiblePatientHeaderOptimized = ({
     });
 
     return () => {
-      console.log('[PatientHeader] Cleaning up subscriptions');
       subscriptions.forEach(unsub => unsub());
     };
   }, [patientId, subscribe, handleHeaderUpdate]);
@@ -243,8 +231,6 @@ const CollapsiblePatientHeaderOptimized = ({
   // WebSocket patient room subscription for multi-user sync
   useEffect(() => {
     if (!patientId || !websocketService.isConnected) return;
-
-    console.log('[PatientHeader] Setting up WebSocket patient room subscription for:', patientId);
 
     let subscriptionId = null;
 
@@ -259,7 +245,6 @@ const CollapsiblePatientHeaderOptimized = ({
         ];
 
         subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
-        console.log('[PatientHeader] Successfully subscribed to patient room:', subscriptionId);
       } catch (error) {
         console.error('[PatientHeader] Failed to subscribe to patient room:', error);
       }
@@ -269,7 +254,6 @@ const CollapsiblePatientHeaderOptimized = ({
 
     return () => {
       if (subscriptionId) {
-        console.log('[PatientHeader] Unsubscribing from patient room:', subscriptionId);
         websocketService.unsubscribeFromPatient(subscriptionId);
       }
     };

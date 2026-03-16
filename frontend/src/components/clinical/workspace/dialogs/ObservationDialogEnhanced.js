@@ -79,7 +79,6 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format, differenceInMinutes, parseISO } from 'date-fns';
 import { debounce } from 'lodash';
 
-import { useFHIRClient } from '../../../../contexts/FHIRContext';
 import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
@@ -199,8 +198,7 @@ const ObservationDialogEnhanced = ({
   const theme = useTheme();
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
-  const fhirClient = useFHIRClient();
-  
+
   // Use consistent dialog helpers
   const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(onSave, null);
   const { errors: validationErrors, validateForm, clearErrors } = useDialogValidation();
@@ -322,6 +320,7 @@ const ObservationDialogEnhanced = ({
   const loadTrendingObservations = async () => {
     try {
       const recentObservations = await fhirClient.search('Observation', {
+        ...(patientId ? { patient: `Patient/${patientId}` } : {}),
         _count: 100,
         _sort: '-date',
         status: 'final',
@@ -722,18 +721,14 @@ const ObservationDialogEnhanced = ({
     // Add method
     if (formData.method) {
       resource.method = {
-        coding: [{
-          display: formData.method,
-        }],
+        text: formData.method
       };
     }
-    
+
     // Add body site
     if (formData.bodySite) {
       resource.bodySite = {
-        coding: [{
-          display: formData.bodySite,
-        }],
+        text: formData.bodySite
       };
     }
     
@@ -798,7 +793,7 @@ const ObservationDialogEnhanced = ({
         await Promise.all(promises);
         
         // Publish event for vital signs
-        await publish(CLINICAL_EVENTS.VITALS_RECORDED, {
+        await publish(CLINICAL_EVENTS.VITAL_SIGNS_RECORDED, {
           patientId,
           vitals: vitalsData,
           timestamp: new Date().toISOString(),

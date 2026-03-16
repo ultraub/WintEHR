@@ -956,7 +956,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
       try {
         const resourceTypes = Array.from(selectedTypes);
         subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
-        console.log('[TimelineTabModern] Successfully subscribed to patient room:', subscriptionId);
         setReloadTrigger(prev => prev + 1);
       } catch (error) {
         console.error('[TimelineTabModern] Failed to subscribe to patient room:', error);
@@ -1195,15 +1194,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
       currentDate.setDate(currentDate.getDate() + 1);
     }
     
-    console.log('[TimelineTabModern] Calendar data:', {
-      count: calendarGridData.length,
-      sample: calendarGridData.slice(0, 5),
-      dateRange: {
-        from: format(fromDate, 'yyyy-MM-dd'),
-        to: format(toDate, 'yyyy-MM-dd')
-      }
-    });
-    
     return calendarGridData;
   }, [processedEvents, heatmapView, dateRange]);
   
@@ -1385,7 +1375,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   // Handle resource updates from WebSocket
   const handleResourceUpdate = useCallback((event) => {
     if (event.patientId === patientId && selectedTypes.has(event.resourceType)) {
-      console.log('[TimelineTabModern] Resource updated:', event);
       // Trigger a reload after a short delay to batch updates
       setReloadTrigger(prev => prev + 1);
     }
@@ -1400,7 +1389,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   // Process timeline data
   const processTimelineData = useCallback(() => {
     // Data processing is handled in the memoized values
-    console.log('[TimelineTabModern] Processing timeline data');
   }, []);
 
   // Handlers
@@ -1436,21 +1424,52 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   };
   
   const handleExport = () => {
-    // TODO: Implement export functionality
-    setSnackbar({
-      open: true,
-      message: 'Export functionality coming soon!',
-      severity: 'info'
-    });
+    if (!processedEvents || processedEvents.length === 0) {
+      setSnackbar({ open: true, message: 'No timeline events to export', severity: 'info' });
+      return;
+    }
+    try {
+      const data = processedEvents.map(event => ({
+        Date: event._date ? new Date(event._date).toLocaleDateString() : '',
+        Type: event.resourceType || '',
+        Category: event._type?.category || '',
+        Title: event._title || '',
+        Description: (event._description || '').replace(/"/g, '""'),
+        Status: event.status || '',
+        Severity: event._severity || ''
+      }));
+      const csv = [
+        Object.keys(data[0]).join(','),
+        ...data.map(row => Object.values(row).map(v => `"${v || ''}"`).join(','))
+      ].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `patient-timeline-${patientId}-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setSnackbar({ open: true, message: `Exported ${data.length} timeline events`, severity: 'success' });
+    } catch (err) {
+      setSnackbar({ open: true, message: 'Failed to export timeline', severity: 'error' });
+    }
   };
-  
+
   const handleShare = () => {
-    // TODO: Implement share functionality
-    setSnackbar({
-      open: true,
-      message: 'Share functionality coming soon!',
-      severity: 'info'
-    });
+    if (!processedEvents || processedEvents.length === 0) {
+      setSnackbar({ open: true, message: 'No timeline events to copy', severity: 'info' });
+      return;
+    }
+    try {
+      const text = processedEvents.map(event => {
+        const date = event._date ? new Date(event._date).toLocaleDateString() : 'Unknown date';
+        return `${date} - [${event.resourceType}] ${event._title || 'Untitled'}`;
+      }).join('\n');
+      navigator.clipboard.writeText(text);
+      setSnackbar({ open: true, message: 'Timeline copied to clipboard', severity: 'success' });
+    } catch (err) {
+      setSnackbar({ open: true, message: 'Failed to copy timeline', severity: 'error' });
+    }
   };
   
   const handlePrint = () => {
@@ -1559,8 +1578,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         {/* Enhanced Header with View Tabs */}
         <Paper 
           elevation={0} 
-          sx={{ 
-            borderRadius: 0,
+          sx={{
             borderBottom: 1,
             borderColor: 'divider',
             bgcolor: isDarkMode ? 'grey.800' : 'background.paper'
@@ -1686,7 +1704,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                 variant="outlined"
                 startIcon={showFilters ? <ExpandLessIcon /> : <FilterIcon />}
                 onClick={() => setShowFilters(!showFilters)}
-                sx={{ borderRadius: 0 }}
               >
                 Filters
               </Button>
@@ -1696,7 +1713,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                     <Select
                       value={groupBy}
                       onChange={(e) => setGroupBy(e.target.value)}
-                      sx={{ borderRadius: 0 }}
                     >
                       <MenuItem value="type">By Type</MenuItem>
                       <MenuItem value="category">By Category</MenuItem>
@@ -1718,7 +1734,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                   <Select
                     value={heatmapView}
                     onChange={(e) => setHeatmapView(e.target.value)}
-                    sx={{ borderRadius: 0 }}
                   >
                     <MenuItem value="activity">Activity</MenuItem>
                     <MenuItem value="severity">Severity</MenuItem>
@@ -1732,7 +1747,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         
         {/* Advanced Filters */}
         <Collapse in={showFilters}>
-          <Paper elevation={0} sx={{ p: 2, borderRadius: 0, borderBottom: 1, borderColor: 'divider' }}>
+          <Paper elevation={0} sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
             <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
                 <Typography variant="subtitle2" gutterBottom>Event Types</Typography>
@@ -2147,7 +2162,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                   
                   {/* Event Type Distribution */}
                   <Grid item xs={12} md={6}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 0, height: 400 }}>
+                    <Paper elevation={0} sx={{ p: 2, height: 400 }}>
                       <Typography variant="h6" gutterBottom>Event Types</Typography>
                       <Box sx={{ height: 'calc(100% - 40px)', position: 'relative' }}>
                         {analyticsData.byType.map((item, index) => {
@@ -2187,7 +2202,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                   
                   {/* Severity Distribution */}
                   <Grid item xs={12} md={6}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 0, height: 400 }}>
+                    <Paper elevation={0} sx={{ p: 2, height: 400 }}>
                       <Typography variant="h6" gutterBottom>Severity Distribution</Typography>
                       <Box sx={{ height: 'calc(100% - 40px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Stack spacing={2} sx={{ width: '100%', maxWidth: 300 }}>
@@ -2234,7 +2249,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                   
                   {/* Timeline Trends */}
                   <Grid item xs={12}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 0 }}>
+                    <Paper elevation={0} sx={{ p: 2 }}>
                       <Typography variant="h6" gutterBottom>Activity Over Time</Typography>
                       <Box sx={{ height: 300, position: 'relative' }}>
                         {analyticsData.trends.length === 0 ? (
@@ -2289,7 +2304,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
           onClose={() => setDetailsDialogOpen(false)}
           maxWidth="md"
           fullWidth
-          PaperProps={{ sx: { borderRadius: 0 } }}
+          PaperProps={{ sx: {} }}
         >
           <DialogTitle>
             Event Details
@@ -2408,12 +2423,11 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                   setDetailsDialogOpen(false);
                 }}
                 variant="contained"
-                sx={{ borderRadius: 0 }}
               >
                 View in Tab
               </Button>
             )}
-            <Button onClick={() => setDetailsDialogOpen(false)} sx={{ borderRadius: 0 }}>
+            <Button onClick={() => setDetailsDialogOpen(false)}>
               Close
             </Button>
           </DialogActions>

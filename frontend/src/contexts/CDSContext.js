@@ -37,7 +37,8 @@ export const CDSProvider = ({ children }) => {
 
   // Track current patient to clear alerts on patient change
   const [currentPatientId, setCurrentPatientId] = useState(null);
-  
+  const currentPatientIdRef = useRef(null);
+
   // Refs for managing state without causing re-renders
   const executingHooks = useRef(new Set());
   const lastExecutionTime = useRef({});
@@ -310,17 +311,13 @@ export const CDSProvider = ({ children }) => {
   
   // Execute patient-view hooks when patient changes - using stable callback
   const executePatientViewHooks = useStableCallback(async (patientId) => {
-    // [CDS Debug] executePatientViewHooks called with patientId:', patientId);
-    // [CDS Debug] Current patientId:', currentPatientId);
-    
-    if (!patientId || patientId === currentPatientId) {
-      cdsLogger.debug('CDSContext: executePatientViewHooks skipped', { patientId, currentPatientId });
-      // [CDS Debug] Skipping execution - same patient or no patient');
+    if (!patientId || patientId === currentPatientIdRef.current) {
+      cdsLogger.debug('CDSContext: executePatientViewHooks skipped', { patientId, current: currentPatientIdRef.current });
       return;
     }
-    
+
     cdsLogger.info(`CDSContext: Patient changed to ${patientId}`);
-    // [CDS Debug] Patient changed from ${currentPatientId} to ${patientId}`);
+    currentPatientIdRef.current = patientId;
     setCurrentPatientId(patientId);
     
     // Clear existing alerts when patient changes
@@ -413,25 +410,22 @@ export const usePatientCDSAlerts = (patientId) => {
   // [CDS Debug] Services loaded:', servicesLoaded, 'Services count:', services?.length);
   
   useEffect(() => {
-    // [CDS Debug] usePatientCDSAlerts effect - patientId:', patientId, 'prev:', prevPatientIdRef.current);
-    // [CDS Debug] usePatientCDSAlerts effect - servicesLoaded:', servicesLoaded, 'services:', services?.length);
-    
-    // Reset execution flag if patient changed
-    if (patientId && patientId !== prevPatientIdRef.current) {
-      hasExecutedRef.current = false;
+    if (!patientId) return;
+
+    // Only execute when patient actually changes
+    if (patientId !== prevPatientIdRef.current) {
       prevPatientIdRef.current = patientId;
+      hasExecutedRef.current = false;
     }
-    
-    // Execute if we have a patient, services are loaded, and we haven't executed yet
-    const shouldExecute = patientId && servicesLoaded && services?.length > 0 && !hasExecutedRef.current;
-    
-    if (shouldExecute) {
+
+    // Execute once per patient when services are ready
+    if (!hasExecutedRef.current && servicesLoaded && services?.length > 0) {
       cdsLogger.debug(`usePatientCDSAlerts: Executing hooks for patient ${patientId}`);
-      // [CDS Debug] Triggering executePatientViewHooks for patient ${patientId}`);
       hasExecutedRef.current = true;
       executePatientViewHooks(patientId);
     }
-  }, [patientId, executePatientViewHooks, servicesLoaded, services]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId, servicesLoaded]);
   
   // Get patient-view alerts directly from context state, only re-compute when they actually change
   const alerts = useMemo(() => {

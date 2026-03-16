@@ -98,7 +98,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             "font-src": ["'self'", "https://fonts.gstatic.com"],
             "img-src": ["'self'", "data:", "blob:"],
-            "connect-src": ["'self'", "ws:", "wss:"],
+            "connect-src": ["'self'", "ws:", "wss:", "https:"],
             "frame-ancestors": ["'none'"],
             "base-uri": ["'self'"],
             "form-action": ["'self'"]
@@ -179,15 +179,37 @@ class CORSSecurityMiddleware(BaseHTTPMiddleware):
         self.max_age = max_age
     
     def _get_default_origins(self) -> list:
-        """Get default allowed origins based on environment."""
+        """Get default allowed origins based on environment.
+
+        Uses CORS_ORIGINS env var if set, otherwise derives from FRONTEND_URL/DOMAIN
+        in production or allows localhost in development.
+        """
+        # CORS_ORIGINS env var takes priority in ALL environments
+        cors_env = os.getenv("CORS_ORIGINS")
+        if cors_env:
+            return [o.strip() for o in cors_env.split(",") if o.strip()]
+
         env = os.getenv("ENVIRONMENT", "development").lower()
-        
-        if env == "production":
-            # In production, explicitly list allowed origins
-            return [
-                os.getenv("FRONTEND_URL", "https://app.wintehr.com"),
-                # Add other production origins as needed
-            ]
+
+        if env in ("production", "prod"):
+            origins = []
+            # Use explicit FRONTEND_URL if set
+            frontend_url = os.getenv("FRONTEND_URL")
+            if frontend_url:
+                origins.append(frontend_url)
+            # Also derive from DOMAIN env var (set by deploy.sh)
+            domain = os.getenv("DOMAIN")
+            if domain:
+                domain_origin = f"https://{domain}"
+                if domain_origin not in origins:
+                    origins.append(domain_origin)
+            # Warn if no origins configured in production
+            if not origins:
+                logger.warning(
+                    "No CORS origins configured in production. "
+                    "Set CORS_ORIGINS, FRONTEND_URL, or DOMAIN env var."
+                )
+            return origins
         else:
             # Development allows localhost
             return [

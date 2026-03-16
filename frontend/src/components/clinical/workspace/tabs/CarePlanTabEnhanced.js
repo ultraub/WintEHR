@@ -325,7 +325,7 @@ const GoalProgressChart = ({ goal, observations }) => {
   }
 
   return (
-    <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 0, border: 1, borderColor: 'divider' }}>
+    <Box sx={{ p: 2, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
       <Typography variant="subtitle2" gutterBottom>
         Progress Trend
       </Typography>
@@ -454,21 +454,10 @@ const CarePlanTabEnhanced = ({
   const goals = getPatientResources(patientId, 'Goal') || [];
   const careTeams = getPatientResources(patientId, 'CareTeam') || [];
 
-  // Debug logging
-  console.log('CarePlanTab RENDER:', {
-    patientId,
-    carePlans: carePlans.length,
-    careTeams: careTeams.length,
-    goals: goals.length,
-    loadAttemptedFor: loadAttemptedRef.current
-  });
-
   // Get active care plan
   const activeCarePlan = carePlans.find(cp => cp.status === 'active') || carePlans[0];
   const activities = activeCarePlan?.activity || [];
   const careTeam = careTeams[0];
-
-  console.log('CarePlanTab: activeCarePlan=', activeCarePlan?.id, 'activities=', activities.length, 'careTeam=', careTeam?.id);
 
   // Load resources when tab mounts - store in context (persists across remounts)
   useEffect(() => {
@@ -487,18 +476,15 @@ const CarePlanTabEnhanced = ({
 
       // Skip if all data is already loaded
       if (!needsCarePlans && !needsCareTeams && !needsGoals) {
-        console.log('CarePlanTab: All data already in context, skipping fetch');
         return;
       }
 
       // Check if we've already tried fetching for this patient
       if (loadAttemptedRef.current === patientId) {
-        console.log('CarePlanTab: Already attempted load for this patient');
         return;
       }
 
       loadAttemptedRef.current = patientId;
-      console.log('CarePlanTab: Loading resources for patient', patientId, '- needs:', { needsCarePlans, needsCareTeams, needsGoals });
 
       try {
         // Fetch only what's missing in parallel using searchResources (creates patient relationships)
@@ -524,12 +510,6 @@ const CarePlanTabEnhanced = ({
 
         const results = await Promise.all(fetchPromises);
 
-        // searchResources automatically stores resources AND creates patient relationships
-        results.forEach(({ type, count }) => {
-          console.log('CarePlanTab: Fetched', count, type);
-        });
-
-        console.log('CarePlanTab: Resources stored in context with relationships');
       } catch (err) {
         console.error('CarePlanTab: Fetch failed:', err);
       }
@@ -1240,7 +1220,7 @@ const CarePlanTabEnhanced = ({
                       const planTeam = careTeams.find(t => plan.careTeam?.some(ref => ref.reference?.includes(t.id)));
 
                       return (
-                        <Card key={plan.id} sx={{ borderRadius: 0, borderLeft: 4, borderLeftColor: 'primary.main' }}>
+                        <Card key={plan.id} sx={{ borderLeft: 4, borderLeftColor: 'primary.main' }}>
                           <CardHeader
                             avatar={<MedicalIcon color="primary" />}
                             title={planCondition}
@@ -1348,7 +1328,7 @@ const CarePlanTabEnhanced = ({
                         || plan.category?.find(c => c.text)?.text
                         || 'Care Plan';
                       return (
-                        <Card key={plan.id} sx={{ borderRadius: 0, opacity: 0.8, bgcolor: 'action.hover' }}>
+                        <Card key={plan.id} sx={{ opacity: 0.8, bgcolor: 'action.hover' }}>
                           <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center">
                               <Stack direction="row" spacing={1} alignItems="center">
@@ -1396,7 +1376,7 @@ const CarePlanTabEnhanced = ({
         {activeTab === 1 && (
           <Box sx={{ p: 2 }}>
             <Stack spacing={2}>
-              <Paper sx={{ p: 2, borderRadius: 0 }}>
+              <Paper sx={{ p: 2 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                   <Typography variant="h6">
                     Care Team Members
@@ -1475,7 +1455,7 @@ const CarePlanTabEnhanced = ({
 
               {/* Patient is also part of the care team */}
               {aggregatedCareTeam.some(m => m.role?.[0]?.text === 'Patient') && (
-                <Alert severity="info" sx={{ borderRadius: 0 }}>
+                <Alert severity="info">
                   <AlertTitle>Patient Involvement</AlertTitle>
                   The patient is an active participant in their care coordination.
                 </Alert>
@@ -1500,7 +1480,6 @@ const CarePlanTabEnhanced = ({
                       value={filterStatus}
                       onChange={(e) => setFilterStatus(e.target.value)}
                       label="Status"
-                      sx={{ borderRadius: 0 }}
                     >
                       <MenuItem value="all">All Status</MenuItem>
                       <MenuItem value="active">Active</MenuItem>
@@ -1516,7 +1495,6 @@ const CarePlanTabEnhanced = ({
                       value={filterCategory}
                       onChange={(e) => setFilterCategory(e.target.value)}
                       label="Category"
-                      sx={{ borderRadius: 0 }}
                     >
                       <MenuItem value="all">All Categories</MenuItem>
                       {Object.entries(goalCategories).map(([key, config]) => (
@@ -1680,9 +1658,8 @@ const CarePlanTabEnhanced = ({
                       setProgressDialogOpen(true);
                     }
                   }}
-                  sx={{ 
+                  sx={{
                     backgroundColor: index % 2 === 1 ? 'action.hover' : 'transparent',
-                    borderRadius: 0,
                     '&:hover': {
                       backgroundColor: 'action.selected'
                     }
@@ -1721,8 +1698,7 @@ const CarePlanTabEnhanced = ({
         sx={{
           position: 'fixed',
           bottom: 16,
-          right: 16,
-          borderRadius: 0
+          right: 16
         }}
         onClick={() => {
           setSelectedGoal(null);
@@ -1798,10 +1774,9 @@ const CarePlanTabEnhanced = ({
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setGoalDialogOpen(false)} sx={{ borderRadius: 0 }} disabled={isSaving}>Cancel</Button>
+          <Button onClick={() => setGoalDialogOpen(false)} disabled={isSaving}>Cancel</Button>
           <Button
             variant="contained"
-            sx={{ borderRadius: 0 }}
             onClick={handleSaveGoal}
             disabled={isSaving}
           >
@@ -1811,14 +1786,14 @@ const CarePlanTabEnhanced = ({
       </Dialog>
       
       {/* Progress Dialog */}
-      <Dialog open={progressDialogOpen} onClose={() => setProgressDialogOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 0 } }}>
+      <Dialog open={progressDialogOpen} onClose={() => setProgressDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>
           Goal Progress - {selectedGoal?.description?.text || 'Goal'}
         </DialogTitle>
         <DialogContent>
           {selectedGoal && (
             <Stack spacing={3} sx={{ mt: 2 }}>
-              <Alert severity="info" sx={{ borderRadius: 0 }}>
+              <Alert severity="info">
                 <Typography variant="body2">
                   <strong>Category:</strong> {goalCategories[selectedGoal.category?.[0]?.coding?.[0]?.code || 'health-maintenance']?.label}
                   {selectedGoal.target?.[0]?.dueDate && (
@@ -1885,10 +1860,9 @@ const CarePlanTabEnhanced = ({
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setProgressDialogOpen(false)} sx={{ borderRadius: 0 }}>Close</Button>
-          <Button 
-            variant="contained" 
-            sx={{ borderRadius: 0 }}
+          <Button onClick={() => setProgressDialogOpen(false)}>Close</Button>
+          <Button
+            variant="contained"
             onClick={() => {
               setSnackbar({
                 open: true,
@@ -1904,7 +1878,7 @@ const CarePlanTabEnhanced = ({
       </Dialog>
       
       {/* Team Member Dialog */}
-      <Dialog open={teamDialogOpen} onClose={() => setTeamDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 0 } }}>
+      <Dialog open={teamDialogOpen} onClose={() => setTeamDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
           {selectedParticipant ? 'Edit Team Member' : 'Add Team Member'}
         </DialogTitle>
@@ -1970,10 +1944,9 @@ const CarePlanTabEnhanced = ({
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTeamDialogOpen(false)} sx={{ borderRadius: 0 }} disabled={isSaving}>Cancel</Button>
+          <Button onClick={() => setTeamDialogOpen(false)} disabled={isSaving}>Cancel</Button>
           <Button
             variant="contained"
-            sx={{ borderRadius: 0 }}
             onClick={handleSaveTeamMember}
             disabled={isSaving}
           >
@@ -1983,7 +1956,7 @@ const CarePlanTabEnhanced = ({
       </Dialog>
       
       {/* Activity Dialog */}
-      <Dialog open={activityDialogOpen} onClose={() => setActivityDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 0 } }}>
+      <Dialog open={activityDialogOpen} onClose={() => setActivityDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
           {selectedActivity ? 'Edit Activity' : 'Add Activity'}
         </DialogTitle>
@@ -2088,10 +2061,9 @@ const CarePlanTabEnhanced = ({
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setActivityDialogOpen(false)} sx={{ borderRadius: 0 }} disabled={isSaving}>Cancel</Button>
+          <Button onClick={() => setActivityDialogOpen(false)} disabled={isSaving}>Cancel</Button>
           <Button
             variant="contained"
-            sx={{ borderRadius: 0 }}
             onClick={handleSaveActivity}
             disabled={isSaving}
           >
@@ -2110,7 +2082,7 @@ const CarePlanTabEnhanced = ({
         <Alert 
           onClose={() => setSnackbar({ ...snackbar, open: false })} 
           severity={snackbar.severity}
-          sx={{ width: '100%', borderRadius: 0 }}
+          sx={{ width: '100%' }}
         >
           {snackbar.message}
         </Alert>

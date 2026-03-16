@@ -78,7 +78,6 @@ const InfoCard = ({ icon, label, value, trend, severity, onClick }) => {
         height: '100%',
         '&:hover': onClick ? {
           backgroundColor: alpha(theme.palette.primary.main, 0.04),
-          transform: 'translateY(-1px)',
           boxShadow: 1
         } : {}
       }}

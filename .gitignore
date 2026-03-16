@@ -124,6 +124,7 @@ scripts/screenshots/
 !docs/**/*.png
 !docs/**/*.jpg
 !docs/**/*.jpeg
+!frontend/public/*.png
 
 # Experimental and archived code
 mcp-server/
@@ -284,3 +285,4 @@ backend/api/cds_hooks/VISUAL_BUILDER_SCHEMA.md
 backend/api/cds_studio/IMPLEMENTATION_SUMMARY.md
 .kiro
 frontend/frontend-build.tar.gz
+.serena/project.yml

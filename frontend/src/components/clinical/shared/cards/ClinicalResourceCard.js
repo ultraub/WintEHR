@@ -123,7 +123,7 @@ const ClinicalResourceCard = ({
   // Base styles
   const baseStyles = {
     p: 2,
-    borderRadius: variant === 'clinical' ? '4px' : 0, // Sharp corners per default, rounded for clinical
+    // borderRadius inherited from MuiCard/MuiPaper theme override (12px)
     border: '1px solid',
     borderColor: theme.palette.mode === 'dark' 
       ? alpha(theme.palette.divider, 0.3)
@@ -141,7 +141,6 @@ const ClinicalResourceCard = ({
       backgroundColor: theme.palette.mode === 'dark'
         ? alpha(theme.palette.action.hover, 0.12)
         : alpha(theme.palette.action.hover, 0.08),
-      transform: 'translateX(2px)',
       boxShadow: theme.palette.mode === 'dark' ? theme.shadows[2] : theme.shadows[1]
     },
     // Add urgency indicator

@@ -327,7 +327,7 @@ class CatalogExtractor:
                                             "high": ref_data.get('high', {}).get('value'),
                                             "text": ref_data.get('text')
                                         }
-                                except:
+                                except (ValueError, TypeError, KeyError):
                                     pass
 
                             lab_tests_dict[code] = {

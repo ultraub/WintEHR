@@ -22,7 +22,11 @@ class WebSocketService {
     this.maxReconnectDelay = 30000; // Max 30 seconds
     this.listeners = new Map();
     this.messageQueue = [];
+    this.maxQueueSize = 100;
     this.isConnected = false;
+    this.reconnectTimer = null;
+    this.pongTimeout = null;
+    this.activeSubscriptions = new Map();
     this.heartbeatInterval = null;
     this.connectionListeners = new Set();
     this.currentToken = null;
@@ -152,7 +156,11 @@ class WebSocketService {
         this.authFailureCount = 0; // Reset auth failures on successful connection
         break;
       case 'pong':
-        // Heartbeat response
+        // Heartbeat response — clear pong timeout
+        if (this.pongTimeout) {
+          clearTimeout(this.pongTimeout);
+          this.pongTimeout = null;
+        }
         break;
       case 'error':
         // Server error
@@ -211,7 +219,7 @@ class WebSocketService {
     this.send(message);
     
     // Store subscription info for reconnection
-    this.activeSubscriptions = this.activeSubscriptions || new Map();
+    if (!this.activeSubscriptions) this.activeSubscriptions = new Map();
     this.activeSubscriptions.set(subscriptionId, { patientId, resourceTypes });
     
     return subscriptionId;
@@ -266,7 +274,7 @@ class WebSocketService {
     this.send(message);
     
     // Store subscription info for reconnection
-    this.activeSubscriptions = this.activeSubscriptions || new Map();
+    if (!this.activeSubscriptions) this.activeSubscriptions = new Map();
     this.activeSubscriptions.set(subscriptionId, { room: roomName });
     
     return subscriptionId;
@@ -361,8 +369,10 @@ class WebSocketService {
     if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
-      // Queue message if not connected
-      // Queuing message
+      // Queue message if not connected, dropping oldest if at capacity
+      if (this.messageQueue.length >= this.maxQueueSize) {
+        this.messageQueue.shift();
+      }
       this.messageQueue.push(message);
     }
   }
@@ -430,15 +440,20 @@ class WebSocketService {
       return;
     }
 
+    // Clear any existing reconnect timer to prevent stacking
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
     this.reconnectAttempts++;
     const delay = Math.min(
       this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
       this.maxReconnectDelay
     );
 
-    // Scheduling reconnection
-    
-    setTimeout(async () => {
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
       // Try to refresh token before reconnecting if we had auth issues
       if (this.authFailureCount > 0 && this.tokenRefreshCallback) {
         await this.refreshToken();
@@ -452,10 +467,25 @@ class WebSocketService {
    */
   startHeartbeat() {
     this.stopHeartbeat();
-    
+
     this.heartbeatInterval = setInterval(() => {
       if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
         this.send({ type: 'ping' });
+
+        // Set pong timeout — if no pong received within 10s, assume connection dead
+        if (this.pongTimeout) clearTimeout(this.pongTimeout);
+        this.pongTimeout = setTimeout(() => {
+          this.pongTimeout = null;
+          if (this.isConnected) {
+            this.isConnected = false;
+            this.stopHeartbeat();
+            if (this.ws) {
+              this.ws.close();
+            }
+            this.notifyConnectionListeners('disconnected');
+            this.scheduleReconnect();
+          }
+        }, 10000);
       }
     }, 30000); // Send ping every 30 seconds
   }
@@ -467,6 +497,10 @@ class WebSocketService {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
+    }
+    if (this.pongTimeout) {
+      clearTimeout(this.pongTimeout);
+      this.pongTimeout = null;
     }
   }
 
@@ -497,12 +531,17 @@ class WebSocketService {
    */
   disconnect() {
     this.stopHeartbeat();
-    
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
     if (this.ws) {
       this.ws.close(1000, 'Client disconnect');
       this.ws = null;
     }
-    
+
     this.isConnected = false;
     this.messageQueue = [];
     this.reconnectAttempts = 0;
@@ -515,7 +554,8 @@ class WebSocketService {
     return {
       isConnected: this.isConnected,
       reconnectAttempts: this.reconnectAttempts,
-      queuedMessages: this.messageQueue.length
+      queuedMessages: this.messageQueue.length,
+      isConfigured: !!this.baseUrl
     };
   }
 }

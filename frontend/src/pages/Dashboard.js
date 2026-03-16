@@ -70,7 +70,6 @@ import {
   PolarRadiusAxis,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip as ChartTooltip,
   Legend,
   ResponsiveContainer,
@@ -90,20 +89,18 @@ import PatientListWidget from '../components/dashboard/widgets/PatientListWidget
 import CareGapsWidget from '../components/dashboard/widgets/CareGapsWidget';
 import QuickReferenceWidget from '../components/dashboard/widgets/QuickReferenceWidget';
 
-// Color palette for charts
-const CHART_COLORS = [
-  '#2196f3', // Blue
-  '#4caf50', // Green
-  '#ff9800', // Orange
-  '#f44336', // Red
-  '#9c27b0', // Purple
-  '#00bcd4', // Cyan
-  '#ffeb3b', // Yellow
-  '#795548', // Brown
-];
-
 function Dashboard() {
   const theme = useTheme();
+
+  // Theme-derived chart colors
+  const chartColors = [
+    theme.palette.primary.main,
+    theme.palette.success.main,
+    theme.palette.warning.main,
+    theme.palette.error.main,
+    theme.palette.info.main,
+    theme.palette.secondary.main,
+  ];
   const navigate = useNavigate();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
@@ -205,7 +202,13 @@ function Dashboard() {
           <Box>
             <Tooltip title="Refresh data">
               <IconButton onClick={handleRefresh} disabled={refreshing}>
-                <RefreshIcon className={refreshing ? 'rotating' : ''} />
+                <RefreshIcon sx={{
+                  animation: refreshing ? 'spin 1s linear infinite' : 'none',
+                  '@keyframes spin': {
+                    '0%': { transform: 'rotate(0deg)' },
+                    '100%': { transform: 'rotate(360deg)' }
+                  }
+                }} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -373,7 +376,6 @@ function Dashboard() {
                           <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0.1}/>
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.3)} />
                       <XAxis 
                         dataKey="dayOfWeek" 
                         stroke={theme.palette.text.secondary}
@@ -387,7 +389,8 @@ function Dashboard() {
                         contentStyle={{
                           backgroundColor: theme.palette.background.paper,
                           border: `1px solid ${theme.palette.divider}`,
-                          borderRadius: 8
+                          borderRadius: 12,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.10)'
                         }}
                         labelFormatter={(value, data) => {
                           if (data && data[0]?.payload?.date) {
@@ -441,14 +444,15 @@ function Dashboard() {
                         animationDuration={800}
                       >
                         {(chronicDiseaseStats?.diseases || []).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
                         ))}
                       </Pie>
                       <ChartTooltip
                         contentStyle={{
                           backgroundColor: theme.palette.background.paper,
                           border: `1px solid ${theme.palette.divider}`,
-                          borderRadius: 8
+                          borderRadius: 12,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.10)'
                         }}
                       />
                     </PieChart>
@@ -472,7 +476,7 @@ function Dashboard() {
                               width: 12,
                               height: 12,
                               borderRadius: '50%',
-                              backgroundColor: CHART_COLORS[index % CHART_COLORS.length],
+                              backgroundColor: chartColors[index % chartColors.length],
                               mr: 1
                             }}
                           />
@@ -820,7 +824,6 @@ function Dashboard() {
                       data={trendingData?.encounterTypes || []}
                       margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.3)} />
                       <XAxis 
                         dataKey="type" 
                         angle={-30}
@@ -853,7 +856,6 @@ function Dashboard() {
                       layout="vertical"
                       margin={{ top: 20, right: 30, left: 100, bottom: 20 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.3)} />
                       <XAxis 
                         type="number" 
                         domain={[0, 100]}
@@ -937,20 +939,6 @@ function Dashboard() {
         )}
       </Box>
 
-      <style jsx>{`
-        @keyframes rotate {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
-        }
-        
-        .rotating {
-          animation: rotate 1s linear infinite;
-        }
-      `}</style>
     </Box>
   );
 }

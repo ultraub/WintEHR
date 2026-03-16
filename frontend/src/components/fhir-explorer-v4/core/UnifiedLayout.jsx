@@ -61,9 +61,11 @@ import {
   Playground as PlaygroundIcon,
   BarChart as ChartIcon,
   AccountTree as NetworkIcon,
-  Storage as DataIcon
+  Storage as DataIcon,
+  Home as HomeIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
+import { useNavigate } from 'react-router-dom';
 
 // Import mode constants
 import { APP_MODES, DISCOVERY_VIEWS, QUERY_VIEWS, VISUALIZATION_VIEWS } from '../constants/appConstants';
@@ -162,6 +164,7 @@ const AppHeader = ({
   dataLoading,
   showDrawerToggle = false
 }) => {
+  const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationsAnchor, setNotificationsAnchor] = useState(null);
 
@@ -217,6 +220,16 @@ const AppHeader = ({
             <MenuIcon />
           </IconButton>
         )}
+
+        {/* Back to main app */}
+        <Tooltip title="Back to WintEHR">
+          <IconButton
+            onClick={() => navigate('/')}
+            sx={{ mr: 1, color: 'text.secondary' }}
+          >
+            <HomeIcon />
+          </IconButton>
+        </Tooltip>
 
         {/* Logo and title */}
         <Box sx={{ display: 'flex', alignItems: 'center', mr: 3 }}>

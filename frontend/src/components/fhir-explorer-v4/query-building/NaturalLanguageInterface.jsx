@@ -307,7 +307,7 @@ function NaturalLanguageInterface({ onNavigate, onExecuteQuery, useFHIRData, use
       setIsProcessing(true);
       
       // Parse the query URL to extract resource type and parameters
-      const url = new URL(`http://localhost${query.query}`);
+      const url = new URL(query.query, window.location.origin);
       const resourceType = url.pathname.split('/')[1];
       const params = Object.fromEntries(url.searchParams.entries());
       

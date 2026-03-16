@@ -461,9 +461,9 @@ def _build_result_summary(observation: Dict[str, Any], include_critical_check: b
     if observation.get("effectiveDateTime"):
         try:
             effective_date = datetime.fromisoformat(observation["effectiveDateTime"].replace("Z", "+00:00"))
-        except:
+        except (ValueError, TypeError):
             pass
-    
+
     # Check for critical value
     is_critical = False
     if include_critical_check and value is not None and loinc_code:
@@ -484,7 +484,7 @@ def _build_result_summary(observation: Dict[str, Any], include_critical_check: b
                 elif sub_ext.get("url") == "acknowledgedAt":
                     try:
                         acknowledged_at = datetime.fromisoformat(sub_ext.get("valueDateTime", "").replace("Z", "+00:00"))
-                    except:
+                    except (ValueError, TypeError):
                         pass
     
     return ResultSummary(
@@ -555,7 +555,7 @@ def _check_critical_value(observation: Dict[str, Any]) -> Optional[CriticalValue
     if effective_date:
         try:
             detected_at = datetime.fromisoformat(effective_date.replace("Z", "+00:00"))
-        except:
+        except (ValueError, TypeError):
             pass
     
     return CriticalValueAlert(

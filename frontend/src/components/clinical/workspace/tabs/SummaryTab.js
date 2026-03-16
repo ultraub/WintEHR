@@ -83,13 +83,11 @@ const RecentItem = ({ primary, secondary, icon, status, onClick }) => {
     <ListItem 
       component="button"
       onClick={onClick}
-      sx={{ 
-        borderRadius: 0,
+      sx={{
         mb: theme.spacing(1),
         transition: `all ${theme.animations?.duration?.short || 250}ms ${theme.animations?.easing?.easeInOut || 'ease-in-out'}`,
-        '&:hover': { 
-          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover',
-          transform: 'translateY(-1px)'
+        '&:hover': {
+          backgroundColor: theme.clinical?.interactions?.hover || 'action.hover'
         },
         cursor: 'pointer',
         border: 'none',
@@ -831,18 +829,22 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                 icon={<LabIcon />}
                 severity={recentLabs.some(lab => {
                   const interp = getObservationInterpretation(lab);
-                  return interp === 'H' || interp === 'L';
+                  const code = interp?.coding?.[0]?.code || interp;
+                  return code === 'H' || code === 'L' || code === 'HH' || code === 'LL';
                 }) ? 'high' : 'normal'}
                 status={recentLabs.filter(lab => {
                   const interp = getObservationInterpretation(lab);
-                  return interp === 'H' || interp === 'L';
+                  const code = interp?.coding?.[0]?.code || interp;
+                  return code === 'H' || code === 'L' || code === 'HH' || code === 'LL';
                 }).length > 0 ? `${recentLabs.filter(lab => {
                   const interp = getObservationInterpretation(lab);
-                  return interp === 'H' || interp === 'L';
+                  const code = interp?.coding?.[0]?.code || interp;
+                  return code === 'H' || code === 'L' || code === 'HH' || code === 'LL';
                 }).length} abnormal` : null}
                 statusColor={recentLabs.some(lab => {
                   const interp = getObservationInterpretation(lab);
-                  return interp === 'H' || interp === 'L';
+                  const code = interp?.coding?.[0]?.code || interp;
+                  return code === 'H' || code === 'L' || code === 'HH' || code === 'LL';
                 }) ? 'warning' : 'default'}
                 actions={
                   <IconButton
@@ -859,7 +861,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                   {recentLabs.length > 0 ? (
                     recentLabs.slice(0, density === 'compact' ? 3 : 5).map((lab) => {
                       const interpretation = getObservationInterpretation(lab);
-                      const isAbnormal = interpretation === 'H' || interpretation === 'L';
+                      const interpCode = interpretation?.coding?.[0]?.code || interpretation;
+                      const isAbnormal = interpCode === 'H' || interpCode === 'L' || interpCode === 'HH' || interpCode === 'LL';
                       
                       return (
                         <ListItem

@@ -2,13 +2,19 @@
  * API Configuration Utility
  *
  * Centralized configuration for all API endpoints and service URLs.
- * Eliminates hardcoded URLs and Docker detection duplication across services.
+ *
+ * PHILOSOPHY: Environment-Agnostic Deployment
+ * - Frontend uses EMPTY/RELATIVE URLs by default so that the CRA dev server
+ *   proxy (development) or nginx (production) routes requests correctly.
+ * - REACT_APP_* env vars override only when explicitly set to a non-empty value.
+ * - NEVER hardcode hostnames (localhost, container names, domain names).
+ * - Code must work seamlessly on any system: local dev, Docker, Azure, AWS, GCP.
  *
  * Environment Variables:
- * - REACT_APP_API_URL: Backend API base URL
- * - REACT_APP_FHIR_ENDPOINT: FHIR server endpoint
- * - REACT_APP_CDS_HOOKS_URL: CDS Hooks service URL
- * - REACT_APP_WEBSOCKET_URL: WebSocket connection URL
+ * - REACT_APP_API_URL: Backend API base URL (leave empty for proxy/relative)
+ * - REACT_APP_FHIR_ENDPOINT: FHIR server endpoint (leave empty for proxy)
+ * - REACT_APP_CDS_HOOKS_URL: CDS Hooks service URL (leave empty for proxy)
+ * - REACT_APP_WEBSOCKET_URL: WebSocket connection URL (auto-derived if empty)
  * - NODE_ENV: Node environment (development/production)
  *
  * Usage:
@@ -19,7 +25,6 @@
 
 class ApiConfig {
   constructor() {
-    this._isDocker = null;
     this._config = null;
     this.initialize();
   }
@@ -32,12 +37,8 @@ class ApiConfig {
       return;
     }
 
-    // Detect Docker environment
-    this._isDocker = this.detectDockerEnvironment();
-
     // Build configuration
     this._config = {
-      isDocker: this._isDocker,
       isDevelopment: process.env.NODE_ENV === 'development',
       isProduction: process.env.NODE_ENV === 'production',
 
@@ -60,48 +61,24 @@ class ApiConfig {
     // Log configuration in development
     if (this._config.isDevelopment) {
       console.log('[ApiConfig] Configuration initialized:', {
-        isDocker: this._config.isDocker,
-        backend: this._config.backend.baseUrl,
+        backend: this._config.backend.baseUrl || '(relative)',
         fhir: this._config.fhir.baseUrl,
-        cdsHooks: this._config.cdsHooks.baseUrl
+        cdsHooks: this._config.cdsHooks.baseUrl || '(relative)'
       });
     }
   }
 
   /**
-   * Detect if running in Docker environment
-   * Checks hostname to determine if we're inside a Docker container
-   */
-  detectDockerEnvironment() {
-    // In Docker, hostname will typically be a container name or non-localhost address
-    const hostname = window.location.hostname;
-    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
-
-    // Additional check: In Docker, HOST env var is often set to '0.0.0.0'
-    const hostEnv = process.env.HOST;
-    const isDockerHost = hostEnv === '0.0.0.0';
-
-    return !isLocalhost || isDockerHost;
-  }
-
-  /**
    * Build backend API configuration
+   *
+   * Uses REACT_APP_API_URL if set to a non-empty value.
+   * Otherwise defaults to empty string (relative URLs via proxy/nginx).
    */
   buildBackendConfig() {
-    // Priority: ENV variable > Docker/local detection > default
     const envUrl = process.env.REACT_APP_API_URL;
 
-    // Check if env var is explicitly set (even if empty)
-    // Empty string means "use relative URLs via nginx proxy"
-    if (envUrl !== undefined) {
-      if (envUrl === '') {
-        // Using nginx proxy - all API calls go through same origin
-        return {
-          baseUrl: '',
-          apiPath: '/api',
-          fullUrl: '/api'
-        };
-      }
+    // Use env var if explicitly set to a non-empty value
+    if (envUrl) {
       return {
         baseUrl: envUrl,
         apiPath: '/api',
@@ -109,20 +86,11 @@ class ApiConfig {
       };
     }
 
-    // Docker environment uses container service name
-    if (this._isDocker) {
-      return {
-        baseUrl: 'http://emr-backend-dev:8000',
-        apiPath: '/api',
-        fullUrl: 'http://emr-backend-dev:8000/api'
-      };
-    }
-
-    // Local development uses localhost
+    // Default: relative URLs — proxy (dev) or nginx (prod) handles routing
     return {
-      baseUrl: 'http://localhost:8000',
+      baseUrl: '',
       apiPath: '/api',
-      fullUrl: 'http://localhost:8000/api'
+      fullUrl: '/api'
     };
   }
 
@@ -140,8 +108,7 @@ class ApiConfig {
       };
     }
 
-    // In production and Docker, use proxy paths
-    // In development, FHIR requests are proxied to HAPI FHIR server
+    // Default: relative URLs via proxy
     return {
       baseUrl: '/fhir',
       r4Path: '/R4',
@@ -163,7 +130,7 @@ class ApiConfig {
       };
     }
 
-    // CDS Hooks routes to backend
+    // CDS Hooks routes to backend — use relative URL
     const backendUrl = this._config?.backend?.baseUrl || this.buildBackendConfig().baseUrl;
 
     return {
@@ -187,30 +154,15 @@ class ApiConfig {
       };
     }
 
-    // Build WebSocket URL based on backend configuration
-    const backendConfig = this._config?.backend || this.buildBackendConfig();
-
-    // If backend URL is empty (using nginx proxy), derive from current page
-    if (!backendConfig.baseUrl || backendConfig.baseUrl === '') {
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
-      return {
-        baseUrl: `${wsProtocol}//${host}`,
-        protocol: wsProtocol,
-        fullUrl: `${wsProtocol}//${host}/api/ws`
-      };
-    }
-
-    // Legacy: absolute backend URL
-    const wsProtocol = backendConfig.baseUrl.startsWith('https') ? 'wss:' : 'ws:';
-
-    // Extract host from backend URL
-    const backendHost = backendConfig.baseUrl.replace(/^https?:\/\//, '');
-
+    // Derive WebSocket URL from the current page origin
+    // This works regardless of whether the page is served from localhost,
+    // an Azure VM IP, a custom domain, etc.
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
     return {
-      baseUrl: `${wsProtocol}//${backendHost}`,
+      baseUrl: `${wsProtocol}//${host}`,
       protocol: wsProtocol,
-      fullUrl: `${wsProtocol}//${backendHost}/api/ws`
+      fullUrl: `${wsProtocol}//${host}/api/ws`
     };
   }
 
@@ -288,13 +240,6 @@ class ApiConfig {
   }
 
   /**
-   * Check if running in Docker environment
-   */
-  isDocker() {
-    return this._config.isDocker;
-  }
-
-  /**
    * Check if running in development mode
    */
   isDevelopment() {
@@ -344,7 +289,6 @@ export const getCdsHooksUrl = () => apiConfig.getCdsHooksUrl();
 export const getCdsHooksServicesUrl = () => apiConfig.getCdsHooksServicesUrl();
 export const getWebSocketUrl = () => apiConfig.getWebSocketUrl();
 export const getEmrUrl = () => apiConfig.getEmrUrl();
-export const isDocker = () => apiConfig.isDocker();
 export const isDevelopment = () => apiConfig.isDevelopment();
 export const isProduction = () => apiConfig.isProduction();
 export const buildUrl = (service, path) => apiConfig.buildUrl(service, path);

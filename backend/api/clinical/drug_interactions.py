@@ -628,7 +628,7 @@ def check_dosage_ranges(medications: List[Dict[str, str]]) -> List[DosageAlert]:
                                 adjustment=f"Reduce to maximum {ranges['max_daily']} {ranges['unit']} daily"
                             ))
                         break
-        except:
+        except (ValueError, TypeError, KeyError):
             pass  # Unable to parse dose
     
     return alerts

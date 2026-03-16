@@ -488,7 +488,7 @@ Return only the component code without markdown code blocks."""
                         "queryPlan": {"simplified": True},
                         "reasoning": "Fallback to simplified pipeline"
                     }
-            except:
+            except Exception:
                 pass
             return {
                 "success": False,

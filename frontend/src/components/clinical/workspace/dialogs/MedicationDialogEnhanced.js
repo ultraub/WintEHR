@@ -695,14 +695,10 @@ const MedicationDialogEnhanced = ({
               }]
             }
           },
-          ...(formData.prn && {
-            asNeededBoolean: true,
-            ...(formData.prnReason && {
-              asNeededCodeableConcept: {
-                text: formData.prnReason
-              }
-            })
-          }),
+          ...(formData.prn && (formData.prnReason
+            ? { asNeededCodeableConcept: { text: formData.prnReason } }
+            : { asNeededBoolean: true }
+          )),
           route: {
             coding: [{
               system: 'http://snomed.info/sct',
@@ -928,7 +924,6 @@ const MedicationDialogEnhanced = ({
                               transition: 'all 0.2s',
                               '&:hover': {
                                 borderColor: theme.palette.primary.main,
-                                transform: 'translateY(-2px)',
                                 boxShadow: theme.shadows[2],
                               },
                             }}

@@ -37,7 +37,6 @@ import {
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
   PieChart,
@@ -844,7 +843,7 @@ function DataCharts({ onNavigate, fhirData }) {
                   {selectedChartType === 'bar' && (
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={ageGroupsWithPercentages}>
-                        <CartesianGrid strokeDasharray="3 3" />
+
                         <XAxis dataKey="name" />
                         <YAxis />
                         <RechartsTooltip />
@@ -855,7 +854,7 @@ function DataCharts({ onNavigate, fhirData }) {
                   {selectedChartType === 'line' && (
                     <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={ageGroupsWithPercentages}>
-                        <CartesianGrid strokeDasharray="3 3" />
+
                         <XAxis dataKey="name" />
                         <YAxis />
                         <RechartsTooltip />
@@ -866,7 +865,7 @@ function DataCharts({ onNavigate, fhirData }) {
                   {selectedChartType === 'area' && (
                     <ResponsiveContainer width="100%" height={300}>
                       <AreaChart data={ageGroupsWithPercentages}>
-                        <CartesianGrid strokeDasharray="3 3" />
+
                         <XAxis dataKey="name" />
                         <YAxis />
                         <RechartsTooltip />
@@ -999,7 +998,7 @@ function DataCharts({ onNavigate, fhirData }) {
                 <SafeChartWrapper height={300}>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={demographicsData.ethnicityDistribution} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
+
                       <XAxis dataKey="name" />
                       <YAxis />
                       <RechartsTooltip />
@@ -1126,7 +1125,7 @@ function DataCharts({ onNavigate, fhirData }) {
                 <SafeChartWrapper height={400}>
                   <ResponsiveContainer width="100%" height={400}>
                     <BarChart data={diseaseData.slice(0, 10)} layout="horizontal" margin={{ top: 5, right: 30, left: 150, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
+
                       <XAxis type="number" />
                       <YAxis 
                         dataKey="name" 
@@ -1234,7 +1233,7 @@ function DataCharts({ onNavigate, fhirData }) {
                 <SafeChartWrapper height={250}>
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={riskScoresData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
+
                       <XAxis dataKey="name" />
                       <YAxis />
                       <RechartsTooltip />
@@ -1554,7 +1553,7 @@ function DataCharts({ onNavigate, fhirData }) {
                 <SafeChartWrapper height={400}>
                   <ResponsiveContainer width="100%" height={400}>
                     <LineChart data={trendsData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
+
                       <XAxis 
                         dataKey="displayDate" 
                         angle={-45}

@@ -69,7 +69,7 @@ import CDSHooksVerifier from '../cds/CDSHooksVerifier';
 import CDSCardDisplay from '../cds/CDSCardDisplay';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { cdsHooksService } from '../../../../services/cdsHooksService';
-import { fhirClient } from '../../../../services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useNavigate } from 'react-router-dom';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { useCDSActions } from '../../../../hooks/useCDSActions';
@@ -128,10 +128,10 @@ const CDSHooksTab = ({ patientId }) => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (patientId && tabValue === 0) {
+    if (patientId && tabValue === 0 && services.length > 0) {
       executePatientViewHooks();
     }
-  }, [patientId, tabValue]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [patientId, tabValue, services.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Subscribe to CDS-relevant events
   useEffect(() => {
@@ -555,7 +555,6 @@ const CDSHooksTab = ({ patientId }) => {
 
             if (result.success) {
               successCount++;
-              console.log(`Successfully executed ${action.type} action:`, result);
             } else {
               errorCount++;
               errors.push(result.message || `Failed to execute ${action.type} action`);

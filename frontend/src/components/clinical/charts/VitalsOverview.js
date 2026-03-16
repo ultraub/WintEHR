@@ -24,7 +24,6 @@ import {
   Line,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   ReferenceLine
@@ -370,8 +369,7 @@ const VitalsOverview = ({ patientId, vitalsData = null, compact = false }) => {
         
         <ResponsiveContainer width="100%" height={compact ? 180 : 220}>
           <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
+            <XAxis
               dataKey="displayDate"
               tick={{ fontSize: 10 }}
             />

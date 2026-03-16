@@ -13,6 +13,24 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format, parseISO } from 'date-fns';
 
+const OMB_RACE_CATEGORIES = [
+  { value: '', label: 'Not specified' },
+  { value: 'American Indian or Alaska Native', label: 'American Indian or Alaska Native' },
+  { value: 'Asian', label: 'Asian' },
+  { value: 'Black or African American', label: 'Black or African American' },
+  { value: 'Native Hawaiian or Other Pacific Islander', label: 'Native Hawaiian or Other Pacific Islander' },
+  { value: 'White', label: 'White' },
+  { value: 'Other', label: 'Other' },
+  { value: 'Unknown', label: 'Unknown' }
+];
+
+const OMB_ETHNICITY_CATEGORIES = [
+  { value: '', label: 'Not specified' },
+  { value: 'Hispanic or Latino', label: 'Hispanic or Latino' },
+  { value: 'Not Hispanic or Latino', label: 'Not Hispanic or Latino' },
+  { value: 'Unknown', label: 'Unknown' }
+];
+
 const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
   const [formData, setFormData] = useState({
     first_name: '',
@@ -32,6 +50,8 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
     emergency_contact_name: '',
     emergency_contact_phone: ''
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
 
   useEffect(() => {
     if (patient) {
@@ -60,28 +80,59 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
         emergency_contact_phone: ''
       });
     }
-  }, [patient]);
+    setValidationErrors({});
+  }, [patient?.id]);
 
   const handleChange = (field) => (event) => {
     setFormData({ ...formData, [field]: event.target.value });
+    if (validationErrors[field]) {
+      setValidationErrors(prev => { const next = { ...prev }; delete next[field]; return next; });
+    }
   };
 
   const handleDateChange = (date) => {
     setFormData({ ...formData, date_of_birth: date });
+    if (validationErrors.date_of_birth) {
+      setValidationErrors(prev => { const next = { ...prev }; delete next.date_of_birth; return next; });
+    }
   };
 
-  const handleSubmit = () => {
-    const submissionData = {
-      ...formData,
-      date_of_birth: formData.date_of_birth ? format(formData.date_of_birth, 'yyyy-MM-dd') : null
-    };
-    onSubmit(submissionData);
+  const validate = () => {
+    const errors = {};
+    if (!formData.first_name.trim()) errors.first_name = 'First name is required';
+    if (!formData.last_name.trim()) errors.last_name = 'Last name is required';
+    if (!formData.gender) errors.gender = 'Gender is required';
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Invalid email address';
+    }
+    if (formData.phone && !/^[\d\s()+-]{7,20}$/.test(formData.phone)) {
+      errors.phone = 'Invalid phone number';
+    }
+    if (formData.zip_code && !/^\d{5}(-\d{4})?$/.test(formData.zip_code)) {
+      errors.zip_code = 'Invalid ZIP code (e.g., 12345 or 12345-6789)';
+    }
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setSubmitting(true);
+    try {
+      const submissionData = {
+        ...formData,
+        date_of_birth: formData.date_of_birth ? format(formData.date_of_birth, 'yyyy-MM-dd') : null
+      };
+      await onSubmit(submissionData);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>{patient ? 'Edit Patient' : 'Add New Patient'}</DialogTitle>
-      <DialogContent>
+      <DialogContent dividers sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
         <Box sx={{ mt: 2 }}>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
@@ -91,6 +142,8 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
                 label="First Name"
                 value={formData.first_name}
                 onChange={handleChange('first_name')}
+                error={!!validationErrors.first_name}
+                helperText={validationErrors.first_name}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -100,6 +153,8 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
                 label="Last Name"
                 value={formData.last_name}
                 onChange={handleChange('last_name')}
+                error={!!validationErrors.last_name}
+                helperText={validationErrors.last_name}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -121,27 +176,40 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
                 label="Gender"
                 value={formData.gender}
                 onChange={handleChange('gender')}
+                error={!!validationErrors.gender}
+                helperText={validationErrors.gender}
               >
                 <MenuItem value="male">Male</MenuItem>
                 <MenuItem value="female">Female</MenuItem>
                 <MenuItem value="other">Other</MenuItem>
+                <MenuItem value="unknown">Unknown</MenuItem>
               </TextField>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
+                select
                 label="Race"
                 value={formData.race}
                 onChange={handleChange('race')}
-              />
+              >
+                {OMB_RACE_CATEGORIES.map(opt => (
+                  <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                ))}
+              </TextField>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
+                select
                 label="Ethnicity"
                 value={formData.ethnicity}
                 onChange={handleChange('ethnicity')}
-              />
+              >
+                {OMB_ETHNICITY_CATEGORIES.map(opt => (
+                  <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                ))}
+              </TextField>
             </Grid>
             <Grid item xs={12}>
               <TextField
@@ -173,6 +241,9 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
                 label="ZIP Code"
                 value={formData.zip_code}
                 onChange={handleChange('zip_code')}
+                error={!!validationErrors.zip_code}
+                helperText={validationErrors.zip_code}
+                placeholder="12345"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -181,6 +252,9 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
                 label="Phone"
                 value={formData.phone}
                 onChange={handleChange('phone')}
+                error={!!validationErrors.phone}
+                helperText={validationErrors.phone}
+                placeholder="(555) 123-4567"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -190,6 +264,9 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
                 type="email"
                 value={formData.email}
                 onChange={handleChange('email')}
+                error={!!validationErrors.email}
+                helperText={validationErrors.email}
+                placeholder="patient@example.com"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -229,8 +306,8 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained" color="primary">
-          {patient ? 'Update' : 'Create'}
+        <Button onClick={handleSubmit} variant="contained" color="primary" disabled={submitting}>
+          {submitting ? 'Saving...' : (patient ? 'Update' : 'Create')}
         </Button>
       </DialogActions>
     </Dialog>

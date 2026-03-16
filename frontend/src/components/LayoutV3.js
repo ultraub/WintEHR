@@ -3,7 +3,7 @@
  * Modern application layout with improved navigation, search, and workflow support
  */
 import React, { useState, useContext } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import {
   AppBar,
   Box,
@@ -31,10 +31,8 @@ import {
   ListSubheader,
   Breadcrumbs,
   Link,
-  SpeedDial,
-  SpeedDialAction,
-  SpeedDialIcon
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
@@ -52,13 +50,11 @@ import {
   ExpandLess,
   ExpandMore,
   Home as HomeIcon,
-  Add as AddIcon,
   Timeline as TimelineIcon,
   MedicalServices as MedicalIcon,
   Analytics as AnalyticsIcon,
-  CloudUpload as UploadIcon,
-  Download as DownloadIcon,
-  Refresh as RefreshIcon
+  CalendarMonth as ScheduleIcon,
+  Assignment as EncountersIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { MedicalThemeContext } from '../App';
@@ -76,8 +72,10 @@ const navigationConfig = {
     icon: <MedicalIcon />,
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions' },
+      { text: 'Schedule', icon: <ScheduleIcon />, path: '/schedule', description: 'Appointments & scheduling' },
       { text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management' },
-      { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing', badge: 'New' }
+      { text: 'Encounters', icon: <EncountersIcon />, path: '/encounters', description: 'Visit management' },
+      { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing' }
     ]
   },
   analytics: {
@@ -93,8 +91,8 @@ const navigationConfig = {
     title: 'Developer Tools',
     icon: <ApiIcon />,
     items: [
-      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'Next-gen FHIR exploration with AI', badge: 'Enhanced' },
-      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', badge: 'Enhanced' }
+      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'FHIR resource exploration & queries' },
+      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio' }
     ]
   },
   admin: {
@@ -106,14 +104,6 @@ const navigationConfig = {
     ]
   }
 };
-
-const quickActions = [
-  { name: 'New Patient', icon: <AddIcon />, action: 'newPatient' },
-  { name: 'Upload Data', icon: <UploadIcon />, action: 'uploadData' },
-  { name: 'Export Report', icon: <DownloadIcon />, action: 'exportReport' },
-  { name: 'Refresh Data', icon: <RefreshIcon />, action: 'refreshData' }
-];
-
 
 const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath, onNavigate }) => {
   return (
@@ -150,13 +140,12 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
                   borderRadius: 1,
                   mb: 0.5,
                   '&.Mui-selected': {
-                    bgcolor: 'primary.main',
-                    color: 'primary.contrastText',
-                    '& .MuiListItemIcon-root': {
-                      color: 'primary.contrastText'
-                    },
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                    color: 'primary.main',
+                    fontWeight: 600,
+                    '& .MuiListItemIcon-root': { color: 'primary.main' },
                     '&:hover': {
-                      bgcolor: 'primary.dark'
+                      bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12)
                     }
                   }
                 }}
@@ -222,7 +211,8 @@ const BreadcrumbNavigation = ({ location }) => {
       <Link
         underline="hover"
         color="inherit"
-        href="/dashboard"
+        component={RouterLink}
+        to="/dashboard"
         sx={{ display: 'flex', alignItems: 'center' }}
       >
         <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
@@ -241,7 +231,8 @@ const BreadcrumbNavigation = ({ location }) => {
           <Link
             underline="hover"
             color="inherit"
-            href={href}
+            component={RouterLink}
+            to={href}
             key={segment}
           >
             {title}
@@ -300,20 +291,24 @@ function LayoutV3({ children }) {
     handleProfileMenuClose();
   };
 
-  const handleQuickAction = (action) => {
-    // Implement quick actions
-  };
-
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Logo/Brand */}
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-          WintEHR
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          FHIR-Native Clinical Platform
-        </Typography>
+      <Box sx={{ p: 2, borderBottom: '0.5px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box
+          component="img"
+          src="/wintehr-logo-icon.png"
+          alt="WintEHR"
+          sx={{ width: 56, height: 56, objectFit: 'contain' }}
+        />
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+            WintEHR
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: '0.02em', fontSize: '0.7rem' }}>
+            FHIR-Native Clinical Platform
+          </Typography>
+        </Box>
       </Box>
 
       {/* Navigation */}
@@ -350,10 +345,14 @@ function LayoutV3({ children }) {
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
           ml: { md: `${drawerWidth}px` },
-          bgcolor: 'background.paper',
+          bgcolor: theme.palette.mode === 'dark'
+            ? 'rgba(30, 41, 59, 0.78)'
+            : 'rgba(255, 255, 255, 0.72)',
           color: 'text.primary',
-          boxShadow: theme.shadows[1],
-          borderBottom: 1,
+          boxShadow: 'none',
+          backdropFilter: 'saturate(180%) blur(20px)',
+          WebkitBackdropFilter: 'saturate(180%) blur(20px)',
+          borderBottom: '0.5px solid',
           borderColor: 'divider'
         }}
       >
@@ -470,7 +469,7 @@ function LayoutV3({ children }) {
         }}
       >
         <Toolbar />
-        <Box sx={{ flexGrow: 1, overflow: 'auto', p: 3 }}>
+        <Box sx={{ flexGrow: 1, overflow: 'auto', p: { xs: 2, sm: 2.5, md: 3 } }}>
           <BreadcrumbNavigation location={location} />
           <TransitionWrapper transition="fade" duration={300}>
             {children}
@@ -478,21 +477,6 @@ function LayoutV3({ children }) {
         </Box>
       </Box>
 
-      {/* Quick Actions Speed Dial */}
-      <SpeedDial
-        ariaLabel="Quick Actions"
-        sx={{ position: 'fixed', bottom: 16, right: 16 }}
-        icon={<SpeedDialIcon />}
-      >
-        {quickActions.map((action) => (
-          <SpeedDialAction
-            key={action.name}
-            icon={action.icon}
-            tooltipTitle={action.name}
-            onClick={() => handleQuickAction(action.action)}
-          />
-        ))}
-      </SpeedDial>
     </Box>
   );
 }

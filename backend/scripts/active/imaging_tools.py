@@ -13,7 +13,6 @@ This script consolidates functionality from multiple imaging-related scripts.
 
 import argparse
 import os
-import os
 import sys
 import uuid
 from datetime import datetime
@@ -161,9 +160,9 @@ class ImagingToolkit:
                         )
                         if response.status_code == 201:
                             logging.info(f"✅ Added {procedure} for {patient.first_name} {patient.last_name}")
-                    except:
+                    except Exception:
                         pass
-                        
+
     def _create_base_dicom_dataset(self):
         """Create a base DICOM dataset with common attributes."""
         # Create file meta

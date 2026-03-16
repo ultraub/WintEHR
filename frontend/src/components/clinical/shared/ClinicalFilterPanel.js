@@ -210,11 +210,8 @@ const ClinicalFilterPanel = ({
                     </InputAdornment>
                   )
                 }}
-                sx={{ 
-                  flex: 1,
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 0
-                  }
+                sx={{
+                  flex: 1
                 }}
               />
               

@@ -272,7 +272,7 @@ class HAPICDSIntegrator:
                 plan_def = await self.hapi_client.read("PlanDefinition", service_id)
                 if plan_def.get("status") == "active":
                     return plan_def
-            except:
+            except Exception:
                 pass
 
             return None

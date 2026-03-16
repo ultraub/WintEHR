@@ -695,23 +695,69 @@ class CDSStudioService:
         version: str,
         notes: Optional[str] = None
     ):
-        """Save service source code to database"""
-        # TODO: Implement database storage
-        pass
+        """Save generated source code to the visual builder service_configs table.
+
+        Note: Generated code is for display/export only (never compiled or executed).
+        The VisualServiceProvider interprets the JSON config directly.
+        """
+        if not self.db:
+            return
+        try:
+            import hashlib
+            from sqlalchemy import text as sa_text
+            code_hash = hashlib.sha256(source_code.encode()).hexdigest()[:16]
+            await self.db.execute(sa_text(
+                """UPDATE cds_visual_builder.service_configs
+                   SET generated_code = :code, code_hash = :hash, updated_at = NOW()
+                   WHERE service_id = :sid"""
+            ), {"code": source_code, "hash": code_hash, "sid": service_id})
+            await self.db.commit()
+        except Exception as e:
+            logger.error(f"Error saving source code for {service_id}: {e}")
 
     async def _get_service_source_code(self, service_id: str) -> Optional[str]:
-        """Get service source code from database"""
-        # TODO: Implement database retrieval
-        return None
+        """Get generated source code from the visual builder service_configs table"""
+        if not self.db:
+            return None
+        try:
+            from sqlalchemy import text as sa_text
+            result = await self.db.execute(sa_text(
+                """SELECT generated_code FROM cds_visual_builder.service_configs
+                   WHERE service_id = :sid"""
+            ), {"sid": service_id})
+            row = result.fetchone()
+            return row[0] if row else None
+        except Exception as e:
+            logger.error(f"Error getting source code for {service_id}: {e}")
+            return None
 
     async def _get_service_metrics_summary(self, service_id: str) -> Dict[str, Any]:
-        """Get summary metrics for a service"""
-        # TODO: Query service_executions table
-        return {
-            "last_executed": None,
-            "count_24h": 0,
-            "success_rate": 0.0
-        }
+        """Get summary metrics from the visual builder execution_logs table"""
+        if not self.db:
+            return {"last_executed": None, "count_24h": 0, "success_rate": 0.0}
+        try:
+            from sqlalchemy import text as sa_text
+            result = await self.db.execute(sa_text(
+                """SELECT
+                       MAX(executed_at) AS last_executed,
+                       COUNT(*) FILTER (WHERE executed_at > NOW() - INTERVAL '24 hours') AS count_24h,
+                       CASE WHEN COUNT(*) > 0
+                            THEN ROUND(COUNT(*) FILTER (WHERE success = true)::numeric / COUNT(*)::numeric, 3)
+                            ELSE 0.0
+                       END AS success_rate
+                   FROM cds_visual_builder.execution_logs
+                   WHERE service_id = :sid"""
+            ), {"sid": service_id})
+            row = result.fetchone()
+            if row:
+                return {
+                    "last_executed": row[0].isoformat() if row[0] else None,
+                    "count_24h": row[1] or 0,
+                    "success_rate": float(row[2]) if row[2] else 0.0
+                }
+        except Exception as e:
+            logger.error(f"Error getting metrics for {service_id}: {e}")
+        return {"last_executed": None, "count_24h": 0, "success_rate": 0.0}
 
     def _get_origin_explanation(self, origin: str) -> str:
         """Get human-readable explanation of service origin"""
@@ -759,7 +805,7 @@ class CDSStudioService:
         try:
             prefetch = json.loads(prefetch_str)
             return f"{len(prefetch)} prefetch queries defined: {', '.join(prefetch.keys())}"
-        except:
+        except (json.JSONDecodeError, ValueError):
             return "Invalid prefetch template"
 
     def _get_extension_description(self, url: str) -> str:
@@ -776,23 +822,284 @@ class CDSStudioService:
         key = url.split("/")[-1]
         return descriptions.get(key, "Custom extension")
 
-    # Stub methods for remaining functionality
     async def get_service_metrics(self, service_id: str) -> Optional[ServiceMetrics]:
-        """Get detailed metrics - TODO: Implement"""
+        """Get detailed metrics from execution_logs table"""
+        if not self.db:
+            return None
+        try:
+            from sqlalchemy import text as sa_text
+            result = await self.db.execute(sa_text(
+                """SELECT
+                       COUNT(*) AS total_executions,
+                       COUNT(*) FILTER (WHERE executed_at > NOW() - INTERVAL '24 hours') AS executions_24h,
+                       CASE WHEN COUNT(*) > 0
+                            THEN ROUND(COUNT(*) FILTER (WHERE success = true)::numeric / COUNT(*)::numeric, 3)
+                            ELSE 0.0
+                       END AS success_rate,
+                       COALESCE(AVG(execution_time_ms), 0)::integer AS avg_response_time_ms,
+                       COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY execution_time_ms), 0)::integer AS p95_response_time_ms,
+                       COALESCE(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY execution_time_ms), 0)::integer AS p99_response_time_ms,
+                       COALESCE(SUM(cards_returned), 0) AS cards_shown
+                   FROM cds_visual_builder.execution_logs
+                   WHERE service_id = :sid"""
+            ), {"sid": service_id})
+            row = result.fetchone()
+            if row:
+                return ServiceMetrics(
+                    service_id=service_id,
+                    total_executions=row[0] or 0,
+                    executions_24h=row[1] or 0,
+                    success_rate=float(row[2]) if row[2] else 0.0,
+                    avg_response_time_ms=row[3] or 0,
+                    p95_response_time_ms=row[4] or 0,
+                    p99_response_time_ms=row[5] or 0,
+                    cards_shown=row[6] or 0,
+                )
+        except Exception as e:
+            logger.error(f"Error getting detailed metrics for {service_id}: {e}")
         return None
+
+    async def get_system_metrics(self, time_range: str = "24h") -> Dict[str, Any]:
+        """Get aggregated metrics across all active CDS services for dashboard display."""
+        if not self.db:
+            return {"services": {}, "summary": {"total_services": 0, "total_executions": 0}}
+
+        try:
+            from sqlalchemy import text as sa_text
+
+            # Parse time range to interval
+            interval_map = {"1h": "1 hour", "24h": "24 hours", "7d": "7 days", "30d": "30 days"}
+            interval = interval_map.get(time_range, "24 hours")
+
+            # Single aggregated query instead of N+1 per-service calls
+            result = await self.db.execute(sa_text(
+                """SELECT
+                    service_id,
+                    COUNT(*) as total_executions,
+                    COUNT(*) FILTER (WHERE success = true) as successful,
+                    COUNT(*) FILTER (WHERE success = false) as failed,
+                    AVG(execution_time_ms) as avg_response_time,
+                    MAX(executed_at) as last_execution
+                FROM cds_visual_builder.execution_logs
+                WHERE executed_at >= NOW() - :interval::interval
+                GROUP BY service_id
+                ORDER BY total_executions DESC"""
+            ), {"interval": interval})
+            rows = result.fetchall()
+
+            all_metrics = {}
+            total_executions = 0
+            for row in rows:
+                sid = row[0]
+                executions = row[1]
+                total_executions += executions
+                all_metrics[sid] = {
+                    "total_executions": executions,
+                    "successful_executions": row[2],
+                    "failed_executions": row[3],
+                    "success_rate": round(row[2] / executions * 100, 1) if executions > 0 else 0,
+                    "avg_response_time_ms": round(row[4], 1) if row[4] else 0,
+                    "last_execution": row[5].isoformat() if row[5] else None
+                }
+
+            return {
+                "services": all_metrics,
+                "summary": {
+                    "total_services": len(all_metrics),
+                    "total_executions": total_executions,
+                    "time_range": time_range
+                }
+            }
+
+        except Exception as e:
+            # Handle table not existing (fresh DB) or other DB errors gracefully
+            error_msg = str(e).lower()
+            if "does not exist" in error_msg or "relation" in error_msg:
+                logger.debug("CDS execution_logs table not yet created — returning empty metrics")
+            else:
+                logger.error(f"Error getting system metrics: {e}")
+            return {"services": {}, "summary": {"total_services": 0, "total_executions": 0}}
 
     async def update_service_status(self, service_id: str, status: ServiceStatus):
-        """Update service status - TODO: Implement"""
-        pass
+        """
+        Update service status in both HAPI FHIR PlanDefinition and local config.
+
+        Maps ServiceStatus to FHIR PlanDefinition status:
+        - ACTIVE → "active"
+        - DRAFT → "draft"
+        - INACTIVE → "retired"
+        """
+        fhir_status_map = {
+            ServiceStatus.ACTIVE: "active",
+            ServiceStatus.DRAFT: "draft",
+            ServiceStatus.INACTIVE: "retired",
+            ServiceStatus.FAILING: "draft",
+        }
+
+        # Update local visual builder config
+        if self.db:
+            try:
+                from sqlalchemy import text as sa_text
+                await self.db.execute(sa_text(
+                    """UPDATE cds_visual_builder.service_configs
+                       SET status = :status, updated_at = NOW()
+                       WHERE service_id = :sid"""
+                ), {"status": status.value.upper(), "sid": service_id})
+                await self.db.commit()
+            except Exception as e:
+                logger.error(f"Error updating local status for {service_id}: {e}")
+
+        # Update HAPI FHIR PlanDefinition if it exists
+        try:
+            fhir_status = fhir_status_map.get(status, "draft")
+            bundle = await self.hapi_client.search("PlanDefinition", {
+                "name": service_id,
+                "_count": "1"
+            })
+            entries = bundle.get("entry", [])
+            if entries:
+                plan_def = entries[0].get("resource", {})
+                plan_def["status"] = fhir_status
+                await self.hapi_client.update(
+                    "PlanDefinition", plan_def["id"], plan_def
+                )
+                logger.info(f"Updated PlanDefinition status for {service_id} to {fhir_status}")
+        except Exception as e:
+            logger.error(f"Error updating FHIR PlanDefinition status for {service_id}: {e}")
 
     async def delete_service(self, service_id: str, hard_delete: bool = False):
-        """Delete service - TODO: Implement"""
-        pass
+        """
+        Delete a CDS service.
+
+        Soft delete (default): Sets status to INACTIVE/retired.
+        Hard delete: Removes from database and HAPI FHIR.
+        """
+        if hard_delete:
+            # Remove from local database
+            if self.db:
+                try:
+                    from sqlalchemy import text as sa_text
+                    await self.db.execute(sa_text(
+                        """DELETE FROM cds_visual_builder.service_configs
+                           WHERE service_id = :sid"""
+                    ), {"sid": service_id})
+                    await self.db.commit()
+                except Exception as e:
+                    logger.error(f"Error hard-deleting local config for {service_id}: {e}")
+
+            # Remove PlanDefinition from HAPI FHIR
+            try:
+                bundle = await self.hapi_client.search("PlanDefinition", {
+                    "name": service_id,
+                    "_count": "1"
+                })
+                entries = bundle.get("entry", [])
+                if entries:
+                    plan_id = entries[0].get("resource", {}).get("id")
+                    if plan_id:
+                        await self.hapi_client.delete("PlanDefinition", plan_id)
+                        logger.info(f"Hard-deleted PlanDefinition {plan_id} for {service_id}")
+            except Exception as e:
+                logger.error(f"Error deleting FHIR PlanDefinition for {service_id}: {e}")
+        else:
+            # Soft delete: set to inactive/retired
+            await self.update_service_status(service_id, ServiceStatus.INACTIVE)
+            logger.info(f"Soft-deleted service {service_id} (set to INACTIVE)")
 
     async def get_version_history(self, service_id: str) -> Optional[VersionHistoryResponse]:
-        """Get version history - TODO: Implement"""
-        return None
+        """Get version history from the service_versions table"""
+        if not self.db:
+            return None
+        try:
+            from sqlalchemy import text as sa_text
+            # Get current version
+            current_result = await self.db.execute(sa_text(
+                """SELECT version FROM cds_visual_builder.service_configs
+                   WHERE service_id = :sid"""
+            ), {"sid": service_id})
+            current_row = current_result.fetchone()
+            current_version = str(current_row[0]) if current_row else "1"
+
+            # Get version history
+            result = await self.db.execute(sa_text(
+                """SELECT version, created_by, created_at, code_hash
+                   FROM cds_visual_builder.service_versions
+                   WHERE service_id = :sid
+                   ORDER BY version DESC"""
+            ), {"sid": service_id})
+            rows = result.fetchall()
+            versions = [
+                ServiceVersion(
+                    version=str(row[0]),
+                    created_by=row[1] or "unknown",
+                    created_at=row[2].isoformat() if row[2] else None,
+                    change_summary=f"Version {row[0]} (hash: {row[3][:8]})" if row[3] else f"Version {row[0]}"
+                )
+                for row in rows
+            ]
+
+            return VersionHistoryResponse(
+                service_id=service_id,
+                current_version=current_version,
+                versions=versions
+            )
+        except Exception as e:
+            logger.error(f"Error getting version history for {service_id}: {e}")
+            return None
 
     async def rollback_service(self, service_id: str, request: RollbackRequest) -> Dict[str, Any]:
-        """Rollback to previous version - TODO: Implement"""
-        return {"new_version": "1.0.0"}
+        """Rollback to a previous version by restoring config snapshot"""
+        if not self.db:
+            return {"success": False, "error": "Database not available"}
+        try:
+            from sqlalchemy import text as sa_text
+            target = int(request.target_version)
+
+            # Get the target version's config snapshot
+            result = await self.db.execute(sa_text(
+                """SELECT conditions, card_config, display_config, prefetch_config, generated_code
+                   FROM cds_visual_builder.service_versions
+                   WHERE service_id = :sid AND version = :ver"""
+            ), {"sid": service_id, "ver": target})
+            row = result.fetchone()
+            if not row:
+                return {"success": False, "error": f"Version {target} not found"}
+
+            # Restore the config (this triggers the version snapshot trigger)
+            await self.db.execute(sa_text(
+                """UPDATE cds_visual_builder.service_configs
+                   SET conditions = :conditions,
+                       card_config = :card_config,
+                       display_config = :display_config,
+                       prefetch_config = :prefetch_config,
+                       generated_code = :code,
+                       updated_at = NOW()
+                   WHERE service_id = :sid"""
+            ), {
+                "conditions": row[0],
+                "card_config": row[1],
+                "display_config": row[2],
+                "prefetch_config": row[3],
+                "code": row[4],
+                "sid": service_id
+            })
+            await self.db.commit()
+
+            # Get the new version number
+            ver_result = await self.db.execute(sa_text(
+                """SELECT version FROM cds_visual_builder.service_configs
+                   WHERE service_id = :sid"""
+            ), {"sid": service_id})
+            ver_row = ver_result.fetchone()
+            new_version = str(ver_row[0]) if ver_row else str(target)
+
+            logger.info(f"Rolled back {service_id} to version {target}, now at version {new_version}")
+            return {
+                "success": True,
+                "new_version": new_version,
+                "rolled_back_to": str(target),
+                "notes": request.rollback_notes
+            }
+        except Exception as e:
+            logger.error(f"Error rolling back {service_id}: {e}")
+            return {"success": False, "error": str(e)}

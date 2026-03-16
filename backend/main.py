@@ -40,9 +40,14 @@ setup_performance_monitoring(app)
 
 # Add default CORS for development if security middleware is disabled
 if os.getenv("DISABLE_SECURITY_MIDDLEWARE", "false").lower() == "true":
+    cors_origins = [
+        o.strip() for o in
+        os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+        if o.strip()
+    ]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://localhost:5173"],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
