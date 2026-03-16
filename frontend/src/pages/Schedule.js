@@ -49,6 +49,7 @@ import {
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format, addDays, subDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday, isSameDay, parseISO } from 'date-fns';
+import { fhirClient } from '../core/fhir/services/fhirClient';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -504,19 +505,16 @@ function NewAppointmentDialog({ open, onClose, onSave, providers, selectedDate }
     }
     setPatientLoading(true);
     try {
-      const response = await fetch(`/api/fhir/Patient?name=${encodeURIComponent(query)}&_count=10`);
-      if (response.ok) {
-        const data = await response.json();
-        const patients = (data.entry || []).map(e => {
-          const r = e.resource;
-          const name = r.name?.[0];
-          const display = name
-            ? `${name.family || ''}, ${(name.given || []).join(' ')}`.trim()
-            : `Patient/${r.id}`;
-          return { id: r.id, display };
-        });
-        setPatientOptions(patients);
-      }
+      const data = await fhirClient.search('Patient', { name: query, _count: 10 });
+      const patients = (data.entry || []).map(e => {
+        const r = e.resource;
+        const name = r.name?.[0];
+        const display = name
+          ? `${name.family || ''}, ${(name.given || []).join(' ')}`.trim()
+          : `Patient/${r.id}`;
+        return { id: r.id, display };
+      });
+      setPatientOptions(patients);
     } catch (err) {
       console.error('Patient search failed:', err);
     } finally {
@@ -758,34 +756,18 @@ const Schedule = () => {
   useEffect(() => {
     const fetchProviders = async () => {
       try {
-        const response = await fetch('/api/scheduling/providers');
-        if (response.ok) {
-          const data = await response.json();
-          setProviders(data.providers || data || []);
-        } else {
-          // Fallback: try FHIR Practitioner search
-          const fhirResponse = await fetch('/api/fhir/Practitioner?_count=50');
-          if (fhirResponse.ok) {
-            const bundle = await fhirResponse.json();
-            const pracs = (bundle.entry || []).map(e => {
-              const r = e.resource;
-              const name = r.name?.[0];
-              const display = name
-                ? `${(name.prefix || []).join(' ')} ${(name.given || []).join(' ')} ${name.family || ''}`.trim()
-                : `Practitioner/${r.id}`;
-              return { id: r.id, display };
-            });
-            setProviders(pracs);
-          }
-        }
+        const bundle = await fhirClient.search('Practitioner', { _count: 50, active: true });
+        const pracs = (bundle.entry || []).map(e => {
+          const r = e.resource;
+          const name = r.name?.[0];
+          const display = name
+            ? `${(name.prefix || []).join(' ')} ${(name.given || []).join(' ')} ${name.family || ''}`.trim()
+            : `Practitioner/${r.id}`;
+          return { id: r.id, display };
+        });
+        setProviders(pracs);
       } catch (err) {
         console.error('Failed to fetch providers:', err);
-        // Use demo fallback so the page is still usable
-        setProviders([
-          { id: 'prac-1', display: 'Dr. Sarah Chen' },
-          { id: 'prac-2', display: 'Dr. Michael Torres' },
-          { id: 'prac-3', display: 'Dr. Emily Watson' }
-        ]);
       }
     };
     fetchProviders();
@@ -801,27 +783,38 @@ const Schedule = () => {
     setError(null);
 
     try {
-      let dateParam;
+      const params = { _sort: 'date', _count: 100 };
       if (viewMode === 'week') {
         const start = startOfWeek(selectedDate, { weekStartsOn: 1 });
         const end = endOfWeek(selectedDate, { weekStartsOn: 1 });
-        dateParam = `start=${format(start, 'yyyy-MM-dd')}&end=${format(end, 'yyyy-MM-dd')}`;
+        params.date = [`ge${format(start, 'yyyy-MM-dd')}`, `le${format(end, 'yyyy-MM-dd')}`];
       } else {
-        dateParam = `date=${format(selectedDate, 'yyyy-MM-dd')}`;
+        params.date = format(selectedDate, 'yyyy-MM-dd');
+      }
+      if (selectedProvider !== 'all') {
+        params.actor = `Practitioner/${selectedProvider}`;
       }
 
-      const providerParam = selectedProvider !== 'all' ? `&providerId=${selectedProvider}` : '';
-      const response = await fetch(`/api/scheduling/appointments?${dateParam}${providerParam}`);
-
-      if (response.ok) {
-        const data = await response.json();
-        setAppointments(data.appointments || data || []);
-      } else if (response.status === 404) {
-        // Endpoint not implemented yet - show empty state
-        setAppointments([]);
-      } else {
-        throw new Error(`Failed to fetch appointments: ${response.status}`);
-      }
+      const bundle = await fhirClient.search('Appointment', params);
+      const entries = (bundle.entry || []).map(e => {
+        const r = e.resource;
+        // Flatten FHIR Appointment to the shape the UI expects
+        const patientParticipant = r.participant?.find(p => p.actor?.reference?.startsWith('Patient/'));
+        const practitionerParticipant = r.participant?.find(p => p.actor?.reference?.startsWith('Practitioner/'));
+        return {
+          id: r.id,
+          status: r.status,
+          start: r.start,
+          end: r.end,
+          appointmentType: r.appointmentType?.coding?.[0]?.code || r.appointmentType?.text || 'ROUTINE',
+          reason: r.reasonCode?.[0]?.text || '',
+          patientId: patientParticipant?.actor?.reference?.replace('Patient/', '') || '',
+          patientName: patientParticipant?.actor?.display || 'Unknown Patient',
+          providerId: practitionerParticipant?.actor?.reference?.replace('Practitioner/', '') || '',
+          providerName: practitionerParticipant?.actor?.display || 'Unknown Provider',
+        };
+      });
+      setAppointments(entries);
     } catch (err) {
       console.error('Error fetching appointments:', err);
       setError(err.message);
@@ -861,26 +854,16 @@ const Schedule = () => {
 
   const handleStatusChange = async (appointmentId, newStatus) => {
     try {
-      const response = await fetch(`/api/scheduling/appointments/${appointmentId}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
-
-      if (response.ok) {
-        // Optimistic update
-        setAppointments(prev =>
-          prev.map(a => a.id === appointmentId ? { ...a, status: newStatus } : a)
-        );
-      } else {
-        // Still do optimistic update for demo purposes
-        setAppointments(prev =>
-          prev.map(a => a.id === appointmentId ? { ...a, status: newStatus } : a)
-        );
-      }
+      // Read current appointment, update status, write back
+      const current = await fhirClient.read('Appointment', appointmentId);
+      current.status = newStatus;
+      await fhirClient.update('Appointment', appointmentId, current);
+      setAppointments(prev =>
+        prev.map(a => a.id === appointmentId ? { ...a, status: newStatus } : a)
+      );
     } catch (err) {
       console.error('Status update failed:', err);
-      // Optimistic update even on network error for educational use
+      // Optimistic update for educational demo
       setAppointments(prev =>
         prev.map(a => a.id === appointmentId ? { ...a, status: newStatus } : a)
       );
@@ -888,23 +871,39 @@ const Schedule = () => {
   };
 
   const handleSaveAppointment = async (payload) => {
-    const response = await fetch('/api/scheduling/appointments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (response.ok) {
-      const saved = await response.json();
-      setAppointments(prev => [...prev, saved]);
-    } else {
-      // Add locally for educational demo even if backend not available
-      const localAppointment = {
-        id: `local-${Date.now()}`,
-        ...payload,
-        status: 'booked'
+    try {
+      // Build FHIR Appointment resource
+      const fhirAppointment = {
+        resourceType: 'Appointment',
+        status: 'booked',
+        appointmentType: {
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/v2-0276',
+            code: payload.appointmentType || 'ROUTINE',
+            display: payload.appointmentType || 'Routine'
+          }]
+        },
+        start: payload.start,
+        end: payload.end,
+        participant: [
+          {
+            actor: { reference: `Patient/${payload.patientId}`, display: payload.patientName || '' },
+            status: 'accepted'
+          },
+          {
+            actor: { reference: `Practitioner/${payload.practitionerId}`, display: payload.providerName || '' },
+            status: 'accepted'
+          }
+        ],
+        ...(payload.reason ? { reasonCode: [{ text: payload.reason }] } : {})
       };
-      setAppointments(prev => [...prev, localAppointment]);
+
+      const saved = await fhirClient.create('Appointment', fhirAppointment);
+      // Refresh list to get the server-assigned data
+      fetchAppointments(true);
+    } catch (err) {
+      console.error('Failed to create appointment:', err);
+      setError('Failed to book appointment: ' + err.message);
     }
   };
 
