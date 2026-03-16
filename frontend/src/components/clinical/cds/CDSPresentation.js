@@ -172,7 +172,7 @@ const CDSPresentation = ({
 
     const timers = autoHideTimersRef.current;
     alerts.forEach(alert => {
-      const alertKey = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+      const alertKey = `${alert.serviceId}-${alert.summary}`;
       if (!dismissedAlerts.has(alertKey) && !timers.has(alertKey)) {
         const timer = setTimeout(() => {
           setDismissedAlerts(prev => {
@@ -196,9 +196,9 @@ const CDSPresentation = ({
     };
   }, [autoHide, hideDelay, mode, alerts, dismissedAlerts, patientId]);
 
-  // Handle alert dismissal
+  // Handle alert dismissal — use stable key (serviceId+summary) not transient uuid
   const handleDismissAlert = (alert, reason = '', permanent = false) => {
-    const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+    const alertId = `${alert.serviceId}-${alert.summary}`;
     
     // Update local state
     setDismissedAlerts(prev => new Set([...prev, alertId]));
@@ -228,10 +228,10 @@ const CDSPresentation = ({
     }
   };
 
-  // Handle alert snooze
+  // Handle alert snooze — use stable key (serviceId+summary) not transient uuid
   const handleSnoozeAlert = (alert, durationMinutes) => {
-    const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
-    const alertKey = `${alert.serviceId}-${alert.summary}`;
+    const alertId = `${alert.serviceId}-${alert.summary}`;
+    const alertKey = alertId;
     const snoozeUntil = new Date(Date.now() + durationMinutes * 60 * 1000);
     
     // Update local state
@@ -498,7 +498,7 @@ const CDSPresentation = ({
   };
 
   const visibleAlerts = alerts.filter(alert => {
-    const alertKey = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+    const alertKey = `${alert.serviceId}-${alert.summary}`;
     return !dismissedAlerts.has(alertKey) && !isAlertSnoozed(alert);
   }).slice(0, maxAlerts);
 
@@ -550,7 +550,7 @@ const CDSPresentation = ({
         maxWidth: 400
       }}>
         {visibleAlerts.map((alert, index) => {
-          const alertKey = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+          const alertKey = `${alert.serviceId}-${alert.summary}`;
           const isVisible = !dismissedAlerts.has(alertKey) && !isAlertSnoozed(alert);
           
           if (!isVisible) return null;
@@ -619,7 +619,7 @@ const CDSPresentation = ({
   // Modal mode - Hard-stop blocking modal with acknowledgment
   if (mode === PRESENTATION_MODES.MODAL) {
     const handleAcknowledge = (alert) => {
-      const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+      const alertId = `${alert.serviceId}-${alert.summary}`;
       
       if (alert.displayBehavior?.reasonRequired) {
         setCurrentAlertForAck(alert);
@@ -656,7 +656,7 @@ const CDSPresentation = ({
         
         // Check if all alerts have been dismissed
         const remainingAlerts = alerts.filter(alert => {
-          const aId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+          const aId = `${alert.serviceId}-${alert.summary}`;
           return aId !== alertId && !dismissedAlerts.has(aId) && !isAlertSnoozed(alert) && !acknowledgedAlerts.has(aId);
         });
         
@@ -688,7 +688,7 @@ const CDSPresentation = ({
             </Alert>
             <Stack spacing={2}>
               {visibleAlerts.map((alert, index) => {
-                const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+                const alertId = `${alert.serviceId}-${alert.summary}`;
                 const isAcknowledged = acknowledgedAlerts.has(alertId);
                 const { content } = renderAlert(alert);
 
@@ -742,7 +742,7 @@ const CDSPresentation = ({
             </Stack>
           </DialogContent>
           {visibleAlerts.every(alert => {
-            const alertId = alert.uuid || alert.id || `${alert.serviceId}-${alert.summary}`;
+            const alertId = `${alert.serviceId}-${alert.summary}`;
             return acknowledgedAlerts.has(alertId);
           }) && (
             <DialogActions>

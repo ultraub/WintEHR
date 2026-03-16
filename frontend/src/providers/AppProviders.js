@@ -22,13 +22,13 @@ const CoreDataProvider = createCompoundProvider([
   AuthProvider,
   FHIRResourceProvider,
   ProviderDirectoryProvider,
-  CDSProvider,
   SMARTProvider  // SMART on FHIR app integration
 ]);
 
 // Clinical domain providers (often update together)
 const ClinicalDomainProvider = createCompoundProvider([
   ClinicalProvider,
+  CDSProvider,  // CDS only needed in clinical context, not globally
   DocumentationProvider,
   OrderProvider,
   TaskProvider
