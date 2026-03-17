@@ -117,15 +117,15 @@ const baseTypography = {
 const professionalMedicalPalette = {
   mode: 'light',
   primary: {
-    main: '#1565C0', // Medical blue
-    light: '#42A5F5',
-    dark: '#0D47A1',
+    main: '#6366F1', // Indigo
+    light: '#818CF8',
+    dark: '#4F46E5',
     contrastText: '#FFFFFF'
   },
   secondary: {
-    main: '#2E7D32', // Medical green
-    light: '#66BB6A',
-    dark: '#1B5E20',
+    main: '#F97316', // Coral/orange
+    light: '#FB923C',
+    dark: '#EA580C',
     contrastText: '#FFFFFF'
   },
   error: {
@@ -141,9 +141,9 @@ const professionalMedicalPalette = {
     contrastText: '#FFFFFF'
   },
   info: {
-    main: '#0288D1',
-    light: '#4FC3F7',
-    dark: '#01579B',
+    main: '#6366F1',
+    light: '#818CF8',
+    dark: '#4F46E5',
     contrastText: '#FFFFFF'
   },
   success: {
@@ -153,47 +153,58 @@ const professionalMedicalPalette = {
     contrastText: '#FFFFFF'
   },
   background: {
-    default: '#F5F5F7',
+    default: '#FAFAF9',
     paper: '#FFFFFF',
-    surface: '#F2F2F7'
+    surface: '#F5F5F4'
   },
   text: {
-    primary: '#1A202C',
-    secondary: '#4A5568',
-    disabled: '#A0AEC0'
+    primary: '#1C1917',
+    secondary: '#78716C',
+    disabled: '#A8A29E'
   },
-  divider: '#E5E5EA',
+  divider: '#E7E5E4',
+  // Sidebar palette tokens for dark sidebar
+  sidebar: {
+    bg: '#1C1917',
+    hover: '#292524',
+    text: '#A8A29E',
+    textActive: '#6366F1',
+    bgActive: 'rgba(99, 102, 241, 0.1)',
+    divider: 'rgba(255, 255, 255, 0.08)',
+    brand: '#FAFAF9',
+    sectionLabel: '#78716C',
+  },
   action: {
-    active: '#1565C0',
-    hover: 'rgba(21, 101, 192, 0.04)',
-    selected: 'rgba(21, 101, 192, 0.08)',
+    active: '#6366F1',
+    hover: 'rgba(99, 102, 241, 0.04)',
+    selected: 'rgba(99, 102, 241, 0.08)',
     disabled: 'rgba(0, 0, 0, 0.26)',
     disabledBackground: 'rgba(0, 0, 0, 0.12)'
   },
   // Clinical-specific semantic tokens
   clinical: {
     surfaces: {
-      primary: 'rgba(21, 101, 192, 0.05)',
-      secondary: 'rgba(46, 125, 50, 0.05)',
+      primary: 'rgba(99, 102, 241, 0.05)',
+      secondary: 'rgba(249, 115, 22, 0.05)',
       warning: 'rgba(245, 124, 0, 0.05)',
       error: 'rgba(211, 47, 47, 0.05)',
-      info: 'rgba(2, 136, 209, 0.05)',
+      info: 'rgba(99, 102, 241, 0.05)',
       success: 'rgba(56, 142, 60, 0.05)'
     },
     interactions: {
-      hover: 'rgba(21, 101, 192, 0.08)',
-      pressed: 'rgba(21, 101, 192, 0.12)',
-      focus: 'rgba(21, 101, 192, 0.16)',
-      selected: 'rgba(21, 101, 192, 0.08)'
+      hover: 'rgba(99, 102, 241, 0.08)',
+      pressed: 'rgba(99, 102, 241, 0.12)',
+      focus: 'rgba(99, 102, 241, 0.16)',
+      selected: 'rgba(99, 102, 241, 0.08)'
     },
     status: {
       active: '#4CAF50',
       inactive: '#9E9E9E',
       pending: '#FF9800',
-      completed: '#2196F3',
+      completed: '#6366F1',
       cancelled: '#F44336',
-      draft: '#757575',
-      inProgress: '#3F51B5'
+      draft: '#78716C',
+      inProgress: '#6366F1'
     },
     severity: {
       normal: '#4CAF50',
@@ -233,14 +244,14 @@ const professionalMedicalPalette = {
     // Time-based themes for clinical shifts
     shifts: {
       day: {
-        background: '#FAFBFC',
-        surface: '#F5F7FA',
-        text: '#1A202C'
+        background: '#FAFAF9',
+        surface: '#F5F5F4',
+        text: '#1C1917'
       },
       night: {
-        background: '#1A202C',
-        surface: '#2D3748',
-        text: '#F7FAFC'
+        background: '#1C1917',
+        surface: '#292524',
+        text: '#F5F5F4'
       },
       emergency: {
         background: '#FFF3E0',
@@ -253,7 +264,7 @@ const professionalMedicalPalette = {
       reassuring: '#4CAF50',
       concerning: '#FF9800',
       alarming: '#F44336',
-      neutral: '#9E9E9E'
+      neutral: '#78716C'
     }
   }
 };
@@ -1623,12 +1634,12 @@ const getComponentOverrides = (palette) => ({
   MuiCard: {
     styleOverrides: {
       root: {
-        borderRadius: 12,
-        boxShadow: '0 0.5px 1px rgba(0, 0, 0, 0.05)',
-        border: `1px solid ${palette.divider}`,
+        borderRadius: 8,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+        border: '1px solid #E7E5E4',
         transition: 'box-shadow 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
-          boxShadow: '0 4px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)'
+          boxShadow: '0 4px 6px rgba(28, 25, 23, 0.07), 0 2px 4px rgba(28, 25, 23, 0.04)'
         }
       }
     }
@@ -1636,7 +1647,7 @@ const getComponentOverrides = (palette) => ({
   MuiPaper: {
     styleOverrides: {
       root: {
-        borderRadius: 12,
+        borderRadius: 8,
         backgroundImage: 'none'
       }
     }
@@ -1644,14 +1655,14 @@ const getComponentOverrides = (palette) => ({
   MuiButton: {
     styleOverrides: {
       root: {
-        borderRadius: 8,
+        borderRadius: 6,
         textTransform: 'none',
         fontWeight: 500,
         fontSize: '0.875rem',
         padding: '8px 16px',
         transition: 'all 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)'
+          boxShadow: '0 1px 3px rgba(28, 25, 23, 0.08)'
         }
       },
       contained: {
@@ -1679,7 +1690,7 @@ const getComponentOverrides = (palette) => ({
           borderRadius: 8,
           transition: 'border-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
           '&.Mui-focused': {
-            boxShadow: `0 0 0 3px ${palette.action?.selected || 'rgba(21, 101, 192, 0.08)'}`
+            boxShadow: `0 0 0 3px ${palette.action?.selected || 'rgba(99, 102, 241, 0.08)'}`
           }
         }
       }
@@ -1872,7 +1883,7 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
     palette,
     typography: baseTypography,
     shape: {
-      borderRadius: 12
+      borderRadius: 8
     },
     spacing: 8,
     breakpoints: {
@@ -1981,15 +1992,15 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
       }
     },
     shadows: [
-      'none',                                                              // 0
-      '0 0.5px 1px rgba(0, 0, 0, 0.05)',                                  // 1 - subtle
-      '0 1px 2px rgba(0, 0, 0, 0.06), 0 0.5px 1px rgba(0, 0, 0, 0.04)', // 2
-      '0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',   // 3
-      '0 4px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',   // 4 - cards
-      '0 6px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)',  // 5
-      '0 8px 16px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)', // 6 - elevated
-      '0 12px 24px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.04)',  // 7
-      '0 16px 32px rgba(0, 0, 0, 0.10), 0 4px 8px rgba(0, 0, 0, 0.04)', // 8 - modals
+      'none',                                                                        // 0
+      '0 1px 2px rgba(28, 25, 23, 0.06)',                                            // 1 - subtle
+      '0 1px 3px rgba(28, 25, 23, 0.08), 0 1px 2px rgba(28, 25, 23, 0.04)',         // 2
+      '0 4px 6px rgba(28, 25, 23, 0.07), 0 2px 4px rgba(28, 25, 23, 0.04)',         // 3
+      '0 10px 15px rgba(28, 25, 23, 0.08), 0 4px 6px rgba(28, 25, 23, 0.04)',       // 4 - cards
+      '0 6px 12px rgba(28, 25, 23, 0.08), 0 2px 4px rgba(28, 25, 23, 0.04)',        // 5
+      '0 8px 16px rgba(28, 25, 23, 0.08), 0 2px 4px rgba(28, 25, 23, 0.04)',        // 6 - elevated
+      '0 12px 24px rgba(28, 25, 23, 0.08), 0 4px 8px rgba(28, 25, 23, 0.04)',       // 7
+      '0 20px 25px rgba(28, 25, 23, 0.10), 0 8px 10px rgba(28, 25, 23, 0.04)',      // 8 - modals
       '0 20px 40px rgba(0, 0, 0, 0.10), 0 6px 12px rgba(0, 0, 0, 0.04)', // 9
       '0 24px 48px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.04)', // 10
       '0 28px 56px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.04)', // 11
@@ -2020,7 +2031,7 @@ export const themePresets = {
   professional: {
     name: 'Professional Medical',
     description: 'Clean, professional medical interface',
-    preview: '#1565C0'
+    preview: '#6366F1'
   },
   dark: {
     name: 'Dark Medical',

@@ -24,24 +24,24 @@ export const clinicalTokens = {
     severityNormal: 'none'
   },
   
-  // Apple-style soft shadows
+  // Warm soft shadows
   modernShadows: {
     xs: 'none',
-    sm: '0 1px 2px rgba(0,0,0,0.04)',
-    md: '0 2px 4px rgba(0,0,0,0.06)',
-    lg: '0 4px 8px rgba(0,0,0,0.08)',
-    xl: '0 8px 16px rgba(0,0,0,0.10)',
-    primary: '0 2px 8px rgba(21, 101, 192, 0.12)',
+    sm: '0 1px 2px rgba(28, 25, 23, 0.06)',
+    md: '0 2px 4px rgba(28, 25, 23, 0.08)',
+    lg: '0 4px 8px rgba(28, 25, 23, 0.08)',
+    xl: '0 8px 16px rgba(28, 25, 23, 0.10)',
+    primary: '0 2px 8px rgba(99, 102, 241, 0.12)',
     success: '0 2px 8px rgba(76, 175, 80, 0.12)',
     warning: '0 2px 8px rgba(255, 152, 0, 0.12)',
     error: '0 2px 8px rgba(244, 67, 54, 0.12)',
     elevation0: 'none',
-    elevation1: '0 1px 2px rgba(0,0,0,0.04)',
-    elevation2: '0 2px 4px rgba(0,0,0,0.06)',
-    elevation3: '0 4px 8px rgba(0,0,0,0.08)',
-    elevation4: '0 8px 16px rgba(0,0,0,0.10)',
-    inner: 'inset 0 1px 2px rgba(0,0,0,0.02)',
-    innerDeep: 'inset 0 2px 4px rgba(0,0,0,0.04)'
+    elevation1: '0 1px 2px rgba(28, 25, 23, 0.06)',
+    elevation2: '0 2px 4px rgba(28, 25, 23, 0.08)',
+    elevation3: '0 4px 8px rgba(28, 25, 23, 0.08)',
+    elevation4: '0 8px 16px rgba(28, 25, 23, 0.10)',
+    inner: 'inset 0 1px 2px rgba(28, 25, 23, 0.03)',
+    innerDeep: 'inset 0 2px 4px rgba(28, 25, 23, 0.05)'
   },
   
   // Animation presets
@@ -138,13 +138,13 @@ export const clinicalTokens = {
       hoverBg: '#D1FAE5',
       shadow: '0 1px 2px 0 rgba(5, 150, 105, 0.05)'
     },
-    normal: { 
-      bg: '#F9FAFB',  // gray-50
+    normal: {
+      bg: '#FAFAF9',  // stone-50
       gradient: 'none',
-      color: '#6B7280',  // gray-500
+      color: '#78716C',  // stone-500
       icon: '●',
-      borderColor: '#E5E7EB',  // gray-200
-      hoverBg: '#F3F4F6',  // gray-100
+      borderColor: '#E7E5E4',  // stone-200
+      hoverBg: '#F5F5F4',  // stone-100
       shadow: 'none'
     }
   },
@@ -203,30 +203,30 @@ export const clinicalTokens = {
     sharp: 0  // 0px - Available for explicit sharp corners (severity borders)
   },
 
-  // Shadow depths for elevation - Subtle professional shadows
+  // Shadow depths for elevation - Warm professional shadows
   shadows: {
     xs: 'none',  // No shadow for background surfaces
-    sm: '0 1px 2px rgba(0, 0, 0, 0.04)',  // Subtle shadow for cards
-    md: '0 2px 4px rgba(0, 0, 0, 0.06)',  // Hover states
-    lg: '0 4px 8px rgba(0, 0, 0, 0.08)',  // Dropdowns and floating elements
-    xl: '0 8px 16px rgba(0, 0, 0, 0.10)'  // Modals and overlays
+    sm: '0 1px 2px rgba(28, 25, 23, 0.06)',  // Subtle shadow for cards
+    md: '0 2px 4px rgba(28, 25, 23, 0.08)',  // Hover states
+    lg: '0 4px 8px rgba(28, 25, 23, 0.08)',  // Dropdowns and floating elements
+    xl: '0 8px 16px rgba(28, 25, 23, 0.10)'  // Modals and overlays
   },
 
   // Clinical status indicators
   status: {
-    active: { color: '#1976D2', bg: '#E3F2FD', icon: '●' },
-    inactive: { color: '#757575', bg: '#F5F5F5', icon: '○' },
+    active: { color: '#6366F1', bg: '#EEF2FF', icon: '●' },
+    inactive: { color: '#78716C', bg: '#F5F5F4', icon: '○' },
     pending: { color: '#F57C00', bg: '#FFF3E0', icon: '◐' },
     completed: { color: '#388E3C', bg: '#E8F5E9', icon: '✓' },
     cancelled: { color: '#D32F2F', bg: '#FFEBEE', icon: '✗' },
-    draft: { color: '#9E9E9E', bg: '#FAFAFA', icon: '▫' },
-    inProgress: { color: '#1976D2', bg: '#E3F2FD', icon: '◔' }
+    draft: { color: '#A8A29E', bg: '#FAFAF9', icon: '▫' },
+    inProgress: { color: '#6366F1', bg: '#EEF2FF', icon: '◔' }
   },
 
   // Clinical workflow states
   workflow: {
-    notStarted: { color: '#9E9E9E', label: 'Not Started' },
-    inProgress: { color: '#2196F3', label: 'In Progress' },
+    notStarted: { color: '#A8A29E', label: 'Not Started' },
+    inProgress: { color: '#6366F1', label: 'In Progress' },
     review: { color: '#FF9800', label: 'Under Review' },
     approved: { color: '#4CAF50', label: 'Approved' },
     rejected: { color: '#F44336', label: 'Rejected' },
@@ -238,7 +238,7 @@ export const clinicalTokens = {
     stat: { color: '#F44336', label: 'STAT', weight: 1000 },
     urgent: { color: '#FF5722', label: 'Urgent', weight: 100 },
     high: { color: '#FF9800', label: 'High', weight: 10 },
-    routine: { color: '#2196F3', label: 'Routine', weight: 1 },
+    routine: { color: '#6366F1', label: 'Routine', weight: 1 },
     low: { color: '#9E9E9E', label: 'Low', weight: 0 }
   },
 

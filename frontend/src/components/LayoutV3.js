@@ -32,7 +32,6 @@ import {
   Breadcrumbs,
   Link,
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
@@ -112,64 +111,90 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
         component="div"
         sx={{
           bgcolor: 'transparent',
-          color: 'text.secondary',
+          color: '#78716C',
           fontWeight: 600,
-          fontSize: '0.75rem',
+          fontSize: '0.7rem',
           textTransform: 'uppercase',
-          letterSpacing: 1,
+          letterSpacing: '0.08em',
           py: 1
         }}
       >
-        <ListItemButton onClick={() => onToggle(sectionKey)} sx={{ borderRadius: 1 }}>
-          <ListItemIcon sx={{ minWidth: 36 }}>
+        <ListItemButton
+          onClick={() => onToggle(sectionKey)}
+          sx={{
+            borderRadius: 1,
+            color: '#78716C',
+            '&:hover': { bgcolor: '#292524' },
+            '& .MuiListItemIcon-root': { color: '#78716C' },
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 36, color: '#78716C' }}>
             {section.icon}
           </ListItemIcon>
-          <ListItemText primary={section.title} />
-          {isOpen ? <ExpandLess /> : <ExpandMore />}
+          <ListItemText
+            primary={section.title}
+            primaryTypographyProps={{
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              color: '#78716C',
+            }}
+          />
+          {isOpen ? <ExpandLess sx={{ color: '#78716C' }} /> : <ExpandMore sx={{ color: '#78716C' }} />}
         </ListItemButton>
       </ListSubheader>
-      
+
       <Collapse in={isOpen} timeout="auto" unmountOnExit>
         <List dense sx={{ pl: 1 }}>
-          {section.items.map((item) => (
-            <ListItem key={item.path} disablePadding>
-              <ListItemButton
-                onClick={() => onNavigate(item.path)}
-                selected={selectedPath === item.path}
-                sx={{
-                  borderRadius: 1,
-                  mb: 0.5,
-                  '&.Mui-selected': {
-                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
-                    color: 'primary.main',
-                    fontWeight: 600,
-                    '& .MuiListItemIcon-root': { color: 'primary.main' },
+          {section.items.map((item) => {
+            const isActive = selectedPath === item.path;
+            return (
+              <ListItem key={item.path} disablePadding>
+                <ListItemButton
+                  onClick={() => onNavigate(item.path)}
+                  selected={isActive}
+                  sx={{
+                    borderRadius: 1,
+                    mb: 0.5,
+                    color: '#A8A29E',
+                    borderLeft: isActive ? '3px solid #6366F1' : '3px solid transparent',
+                    '& .MuiListItemIcon-root': { color: '#78716C' },
                     '&:hover': {
-                      bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12)
-                    }
-                  }
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 36 }}>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={item.text}
-                  secondary={item.description}
-                  primaryTypographyProps={{ fontSize: '0.875rem' }}
-                  secondaryTypographyProps={{ fontSize: '0.75rem' }}
-                />
-                {item.badge && (
-                  <Chip 
-                    label={item.badge} 
-                    size="small" 
-                    color="primary" 
-                    sx={{ ml: 1, height: 20 }}
+                      bgcolor: '#292524',
+                      color: '#D6D3D1',
+                      '& .MuiListItemIcon-root': { color: '#D6D3D1' },
+                    },
+                    '&.Mui-selected': {
+                      bgcolor: 'rgba(99, 102, 241, 0.1)',
+                      color: '#6366F1',
+                      '& .MuiListItemIcon-root': { color: '#6366F1' },
+                      '&:hover': {
+                        bgcolor: 'rgba(99, 102, 241, 0.15)',
+                      },
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 36 }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    secondary={item.description}
+                    primaryTypographyProps={{ fontSize: '0.875rem', color: 'inherit' }}
+                    secondaryTypographyProps={{ fontSize: '0.75rem', color: '#78716C' }}
                   />
-                )}
-              </ListItemButton>
-            </ListItem>
-          ))}
+                  {item.badge && (
+                    <Chip
+                      label={item.badge}
+                      size="small"
+                      sx={{ ml: 1, height: 20, bgcolor: '#6366F1', color: '#FAFAF9' }}
+                    />
+                  )}
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
         </List>
       </Collapse>
     </Box>
@@ -178,21 +203,21 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
 
 const UserProfile = ({ user, onLogout, onProfileClick }) => {
   return (
-    <Card sx={{ m: 2, mt: 'auto' }}>
+    <Card sx={{ m: 2, mt: 'auto', bgcolor: 'transparent', backgroundImage: 'none', boxShadow: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
         <Stack direction="row" spacing={2} alignItems="center">
-          <Avatar sx={{ bgcolor: 'primary.main' }}>
+          <Avatar sx={{ bgcolor: '#6366F1', border: '2px solid #6366F1' }}>
             {user?.name?.[0] || 'U'}
           </Avatar>
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-            <Typography variant="subtitle2" noWrap>
+            <Typography variant="subtitle2" noWrap sx={{ color: '#D6D3D1' }}>
               {user?.name || 'User'}
             </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap>
+            <Typography variant="caption" noWrap sx={{ color: '#78716C' }}>
               {user?.role || 'Clinician'}
             </Typography>
           </Box>
-          <IconButton size="small" onClick={onLogout}>
+          <IconButton size="small" onClick={onLogout} sx={{ color: '#78716C', '&:hover': { color: '#D6D3D1', bgcolor: '#292524' } }}>
             <LogoutIcon fontSize="small" />
           </IconButton>
         </Stack>
@@ -292,20 +317,32 @@ function LayoutV3({ children }) {
   };
 
   const drawer = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      bgcolor: '#1C1917',
+      '& .MuiList-root': { bgcolor: 'transparent' },
+      '& .MuiListSubheader-root': { bgcolor: 'transparent' },
+      /* Scrollbar styling */
+      '& ::-webkit-scrollbar': { width: 6 },
+      '& ::-webkit-scrollbar-track': { bgcolor: 'transparent' },
+      '& ::-webkit-scrollbar-thumb': { bgcolor: '#44403C', borderRadius: 3 },
+      '& ::-webkit-scrollbar-thumb:hover': { bgcolor: '#57534E' },
+    }}>
       {/* Logo/Brand */}
-      <Box sx={{ p: 2, borderBottom: '0.5px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <Box sx={{ p: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Box
           component="img"
           src="/wintehr-logo-icon.png"
           alt="WintEHR"
-          sx={{ width: 56, height: 56, objectFit: 'contain' }}
+          sx={{ width: 56, height: 56, objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
         />
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: '#FAFAF9', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
             WintEHR
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: '0.02em', fontSize: '0.7rem' }}>
+          <Typography variant="caption" sx={{ color: '#78716C', letterSpacing: '0.02em', fontSize: '0.7rem' }}>
             FHIR-Native Clinical Platform
           </Typography>
         </Box>
@@ -434,7 +471,12 @@ function LayoutV3({ children }) {
           ModalProps={{ keepMounted: true }}
           sx={{
             display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth }
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: drawerWidth,
+              bgcolor: '#1C1917',
+              borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+            }
           }}
         >
           {drawer}
@@ -443,11 +485,11 @@ function LayoutV3({ children }) {
           variant="permanent"
           sx={{
             display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { 
-              boxSizing: 'border-box', 
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
               width: drawerWidth,
-              borderRight: 1,
-              borderColor: 'divider'
+              bgcolor: '#1C1917',
+              borderRight: '1px solid rgba(255, 255, 255, 0.08)',
             }
           }}
           open

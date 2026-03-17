@@ -1,11 +1,11 @@
 /**
  * Login Page Component
- * Provider selection and authentication
+ * Split-panel layout: warm charcoal branding + white form panel
+ * Part of the "Warm Slate Modern" design refresh
  */
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Paper,
   Typography,
   FormControl,
   InputLabel,
@@ -14,9 +14,10 @@ import {
   Button,
   Alert,
   CircularProgress,
-  Container,
   Divider,
-  useTheme
+  Grid,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Login as LoginIcon,
@@ -33,8 +34,26 @@ const roleDescriptions = {
   admin: 'Access to system settings, audit trail, and user management'
 };
 
+/* --- Warm Slate palette tokens --- */
+const palette = {
+  stone900: '#1C1917',
+  stone800: '#292524',
+  stone700: '#44403C',
+  stone600: '#57534E',
+  stone500: '#78716C',
+  stone400: '#A8A29E',
+  stone300: '#D6D3D1',
+  stone200: '#E7E5E4',
+  stone100: '#F5F5F4',
+  stone50:  '#FAFAF9',
+  indigo:   '#6366F1',
+  indigoHover: '#4F46E5',
+  white:    '#FAFAF9',
+};
+
 const Login = () => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const [providers, setProviders] = useState([]);
@@ -57,23 +76,21 @@ const Login = () => {
   const loadProviders = async () => {
     try {
       const response = await api.get('/api/auth/config');
-      // Extract available users from auth config
       const availableUsers = response.data.available_users || [];
-      
-      // Map users to provider format with display names
+
       const userDisplayNames = {
         'demo': 'Dr. Demo User',
         'nurse': 'Nurse Jane Smith',
         'pharmacist': 'Pharmacist John Doe',
         'admin': 'Administrator'
       };
-      
+
       const formattedProviders = availableUsers.map(username => ({
         id: username,
         username: username,
         display_name: userDisplayNames[username] || username
       }));
-      
+
       setProviders(formattedProviders);
     } catch (error) {
       console.error('Failed to load auth config:', error);
@@ -91,14 +108,12 @@ const Login = () => {
     setError('');
 
     try {
-      // Find the selected provider's username
       const provider = providers.find(p => p.id === selectedProvider);
       if (!provider) {
         setError('Invalid provider selection');
         return;
       }
-      
-      // Login with username (password defaults to 'password' in training mode)
+
       await login(provider.username);
       navigate('/patients');
     } catch (error) {
@@ -115,54 +130,153 @@ const Login = () => {
     }
   };
 
-  return (
-    <Container maxWidth="sm" sx={{ 
-      mt: 8,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-    }}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: 5,
-          backgroundColor: 'background.paper',
-          borderRadius: theme.shape.borderRadius * 3,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)',
-        }}>
-        <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <Box
-            component="img"
-            src="/wintehr-logo.png"
-            alt="WintEHR"
-            sx={{
-              width: 120,
-              height: 120,
-              objectFit: 'contain',
-              mb: 3,
-              mx: 'auto',
-              display: 'block',
-            }}
-          />
-          <Typography variant="h4" component="h1" gutterBottom sx={{ 
+  /* ------------------------------------------------------------------ */
+  /*  Left branding panel                                                */
+  /* ------------------------------------------------------------------ */
+  const brandingPanel = (
+    <Box
+      sx={{
+        backgroundColor: palette.stone900,
+        color: palette.white,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        minHeight: isMobile ? 'auto' : '100vh',
+        py: isMobile ? 5 : 0,
+        px: 4,
+      }}
+    >
+      {/* Centred branding block */}
+      <Box sx={{ maxWidth: 340, textAlign: 'center' }}>
+        <Box
+          component="img"
+          src="/wintehr-logo.png"
+          alt="WintEHR logo"
+          sx={{
+            width: 80,
+            height: 80,
+            objectFit: 'contain',
+            mb: 2.5,
+            mx: 'auto',
+            display: 'block',
+            filter: 'brightness(0) invert(1)',
+          }}
+        />
+
+        <Typography
+          variant="h4"
+          component="h1"
+          sx={{
             fontWeight: 700,
-            color: 'text.primary',
-          }}>
-            Welcome to WintEHR
-          </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-            Select your provider profile to continue
-          </Typography>
-        </Box>
+            fontSize: '2.5rem',
+            color: palette.white,
+            letterSpacing: '-0.02em',
+            lineHeight: 1.1,
+          }}
+        >
+          WintEHR
+        </Typography>
 
-        <Divider sx={{ my: 4 }} />
+        <Typography
+          sx={{
+            color: palette.stone400,
+            fontSize: '1rem',
+            mt: 0.75,
+            mb: 3,
+            letterSpacing: '0.02em',
+          }}
+        >
+          FHIR-Native Clinical Platform
+        </Typography>
 
+        <Divider
+          sx={{
+            borderColor: palette.stone700,
+            width: 48,
+            mx: 'auto',
+            mb: 3,
+          }}
+        />
+
+        <Typography
+          sx={{
+            color: palette.stone500,
+            fontSize: '0.875rem',
+            lineHeight: 1.7,
+          }}
+        >
+          An educational platform for learning healthcare IT concepts, FHIR R4
+          workflows, and clinical decision support.
+        </Typography>
+      </Box>
+
+      {/* Version footer pinned to bottom (desktop) / inline (mobile) */}
+      <Box
+        sx={{
+          position: isMobile ? 'static' : 'absolute',
+          bottom: isMobile ? undefined : 28,
+          left: 0,
+          right: 0,
+          textAlign: 'center',
+          mt: isMobile ? 4 : 0,
+        }}
+      >
+        <Typography sx={{ color: palette.stone600, fontSize: '0.75rem' }}>
+          v6.1 &bull; React 18 &bull; FastAPI &bull; HAPI FHIR
+        </Typography>
+      </Box>
+    </Box>
+  );
+
+  /* ------------------------------------------------------------------ */
+  /*  Right form panel                                                   */
+  /* ------------------------------------------------------------------ */
+  const formPanel = (
+    <Box
+      sx={{
+        backgroundColor: palette.stone50,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: isMobile ? 'auto' : '100vh',
+        py: isMobile ? 6 : 0,
+        px: 3,
+      }}
+    >
+      <Box sx={{ width: '100%', maxWidth: 400 }}>
+        {/* Heading */}
+        <Typography
+          variant="h5"
+          component="h2"
+          sx={{
+            fontWeight: 600,
+            color: palette.stone900,
+            mb: 0.5,
+          }}
+        >
+          Welcome back
+        </Typography>
+
+        <Typography
+          sx={{
+            color: palette.stone500,
+            fontSize: '0.9375rem',
+            mb: 4,
+          }}
+        >
+          Select your provider profile to continue
+        </Typography>
+
+        {/* Error alert */}
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
           </Alert>
         )}
 
+        {/* Provider select */}
         <Box component="form" onSubmit={(e) => e.preventDefault()}>
           <FormControl fullWidth sx={{ mb: 3 }}>
             <InputLabel id="provider-select-label">Select Provider</InputLabel>
@@ -183,7 +297,7 @@ const Login = () => {
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       {provider.specialty}
-                      {provider.npi && ` • NPI: ${provider.npi}`}
+                      {provider.npi && ` \u2022 NPI: ${provider.npi}`}
                     </Typography>
                   </Box>
                 </MenuItem>
@@ -191,6 +305,7 @@ const Login = () => {
             </Select>
           </FormControl>
 
+          {/* Role description info box */}
           {selectedProvider && roleDescriptions[selectedProvider] && (
             <Box
               sx={{
@@ -199,45 +314,98 @@ const Login = () => {
                 gap: 1,
                 mb: 3,
                 p: 1.5,
-                borderRadius: theme.shape.borderRadius,
-                backgroundColor: 'action.hover',
+                borderRadius: 1,
+                backgroundColor: palette.stone100,
+                border: `1px solid ${palette.stone200}`,
               }}
             >
-              <InfoIcon fontSize="small" color="action" sx={{ mt: 0.25 }} />
-              <Typography variant="body2" color="text.secondary">
+              <InfoIcon
+                fontSize="small"
+                sx={{ mt: 0.25, color: palette.stone400 }}
+              />
+              <Typography
+                variant="body2"
+                sx={{ color: palette.stone600 }}
+              >
                 {roleDescriptions[selectedProvider]}
               </Typography>
             </Box>
           )}
 
+          {/* Sign in button */}
           <Button
             fullWidth
             variant="contained"
             size="large"
             onClick={handleLogin}
             disabled={!selectedProvider || loading}
-            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}
+            startIcon={
+              loading
+                ? <CircularProgress size={20} color="inherit" />
+                : <LoginIcon />
+            }
             sx={{
               py: 1.5,
               fontSize: '1rem',
-              borderRadius: theme.shape.borderRadius * 1.5,
+              fontWeight: 600,
+              borderRadius: '6px',
+              textTransform: 'none',
+              backgroundColor: palette.indigo,
               boxShadow: 'none',
               '&:hover': {
-                boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
+                backgroundColor: palette.indigoHover,
+                boxShadow: '0 2px 8px rgba(99,102,241,0.35)',
+              },
+              '&.Mui-disabled': {
+                backgroundColor: palette.stone300,
+                color: palette.stone500,
               },
             }}
           >
-            {loading ? 'Logging in...' : 'Sign In to WintEHR'}
+            {loading ? 'Signing in\u2026' : 'Sign In to WintEHR'}
           </Button>
         </Box>
 
-        <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Typography variant="caption" color="text.secondary">
-            Educational Platform • Synthetic Synthea Data • For Teaching Only
+        {/* Footer */}
+        <Box sx={{ mt: 5, textAlign: 'center' }}>
+          <Typography sx={{ color: palette.stone400, fontSize: '0.75rem' }}>
+            Educational Platform &bull; Synthetic Synthea Data &bull; For
+            Teaching Only
           </Typography>
         </Box>
-      </Paper>
-    </Container>
+      </Box>
+    </Box>
+  );
+
+  /* ------------------------------------------------------------------ */
+  /*  Page shell: two-panel grid                                         */
+  /* ------------------------------------------------------------------ */
+  return (
+    <Grid
+      container
+      sx={{
+        minHeight: '100vh',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Left branding panel - 5/12 on desktop, full width compact on mobile */}
+      <Grid
+        item
+        xs={12}
+        md={5}
+      >
+        {brandingPanel}
+      </Grid>
+
+      {/* Right form panel - 7/12 on desktop, full width on mobile */}
+      <Grid
+        item
+        xs={12}
+        md={7}
+      >
+        {formPanel}
+      </Grid>
+    </Grid>
   );
 };
 
