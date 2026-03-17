@@ -139,7 +139,15 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Scheduling router registered")
     except Exception as e:
         logger.error(f"Failed to register scheduling router: {e}")
-    
+
+    # 6c. Questionnaires & Forms
+    try:
+        from api.questionnaires.router import router as questionnaires_router
+        app.include_router(questionnaires_router, tags=["Questionnaires"])
+        logger.info("✓ Questionnaires router registered")
+    except Exception as e:
+        logger.error(f"Failed to register questionnaires router: {e}")
+
     # 7. Imaging & DICOM Services
     try:
         from api.dicom.dicom_service import router as dicom_router

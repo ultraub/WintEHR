@@ -9,7 +9,6 @@ import {
   Stack,
   Grid,
   Chip,
-  CircularProgress,
   LinearProgress,
   Divider
 } from '@mui/material';
@@ -22,6 +21,8 @@ import {
   CheckCircle as CompletedIcon,
   Warning as GapIcon
 } from '@mui/icons-material';
+import ClinicalLoadingState from '../components/clinical/shared/ClinicalLoadingState';
+import ClinicalEmptyState from '../components/clinical/shared/ClinicalEmptyState';
 import dashboardDataService from '../services/dashboard/dashboardDataService';
 
 const CareGapsPage = () => {
@@ -74,24 +75,23 @@ const CareGapsPage = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-        <Stack spacing={2} alignItems="center">
-          <CircularProgress />
-          <Typography color="text.secondary">Analyzing care gaps from FHIR data...</Typography>
-        </Stack>
+      <Box sx={{ minHeight: 400, p: 3 }}>
+        <ClinicalLoadingState.Page />
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          Failed to load care gaps: {error}
-        </Alert>
-        <Button variant="outlined" onClick={fetchCareGaps}>
-          Retry
-        </Button>
+      <Box sx={{ p: 3 }}>
+        <ClinicalEmptyState
+          title="Unable to load care gaps"
+          message={`Failed to load care gaps: ${error}`}
+          severity="error"
+          actions={[
+            { label: 'Retry', icon: <RefreshIcon />, onClick: fetchCareGaps }
+          ]}
+        />
       </Box>
     );
   }

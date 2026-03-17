@@ -15,13 +15,9 @@ import Settings from '../pages/Settings';
 import Schedule from '../pages/Schedule';
 import NotFound from '../pages/NotFound';
 import MedicationReconciliationPage from '../pages/MedicationReconciliationPage';
-import VitalSignsPage from '../pages/VitalSignsPage';
-import TrainingCenterPage from '../pages/TrainingCenterPage';
 import { CDSStudioPage } from '../modules/cds-studio';
 import CDSPresentationModeTester from '../components/clinical/cds/CDSPresentationModeTester';
 import EncountersPage from '../pages/EncountersPage';
-import LabResultsPage from '../pages/LabResultsPage';
-import MedicationsPage from '../pages/MedicationsPage';
 import QualityMeasuresPage from '../pages/QualityMeasuresPage';
 import CareGapsPage from '../pages/CareGapsPage';
 import AuditTrailPage from '../pages/AuditTrailPage';
@@ -103,16 +99,6 @@ export const router = createBrowserRouter([
     )
   },
   {
-    path: '/patients/:id/vital-signs',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <VitalSignsPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
-  },
-  {
     path: '/dashboard',
     element: (
       <ProtectedRoute>
@@ -132,26 +118,6 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <LayoutV3>
           <EncountersPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
-  },
-  {
-    path: '/lab-results',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <LabResultsPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
-  },
-  {
-    path: '/medications',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <MedicationsPage />
         </LayoutV3>
       </ProtectedRoute>
     )
@@ -285,16 +251,6 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <LayoutV3>
           <Settings />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
-  },
-  {
-    path: '/training',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <TrainingCenterPage />
         </LayoutV3>
       </ProtectedRoute>
     )

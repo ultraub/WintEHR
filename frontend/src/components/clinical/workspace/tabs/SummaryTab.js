@@ -22,7 +22,25 @@ import {
   Alert,
   LinearProgress,
   useTheme,
-  alpha
+  alpha,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Checkbox,
+  FormControlLabel,
+  CircularProgress,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow
 } from '@mui/material';
 import {
   Warning as WarningIcon,
@@ -38,7 +56,15 @@ import {
   Refresh as RefreshIcon,
   CalendarMonth as CalendarIcon,
   Print as PrintIcon,
-  Event as EventIcon
+  Event as EventIcon,
+  FamilyRestroom as FamilyHistoryIcon,
+  Add as AddIcon,
+  Close as CloseIcon,
+  People as PeopleIcon,
+  PersonAdd as PersonAddIcon,
+  Phone as PhoneIcon,
+  Email as EmailIcon,
+  GppGood as ConsentIcon
 } from '@mui/icons-material';
 import { formatDistanceToNow, parseISO, isWithinInterval, subDays } from 'date-fns';
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
@@ -64,6 +90,7 @@ import {
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import CareTeamSummary from '../components/CareTeamSummary';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
+import QuestionnairesSection from '../components/QuestionnairesSection';
 import { StatusChip } from '../../shared/display';
 import { ViewControls, useDensity } from '../../shared/layout';
 import { 
@@ -73,14 +100,639 @@ import {
   ClinicalEmptyState
 } from '../../shared';
 
-// Use the new MetricCard component from common components
+// Family relationship codes (v3-RoleCode)
+const RELATIONSHIP_OPTIONS = [
+  { code: 'FTH', display: 'Father' },
+  { code: 'MTH', display: 'Mother' },
+  { code: 'BRO', display: 'Brother' },
+  { code: 'SIS', display: 'Sister' },
+  { code: 'SON', display: 'Son' },
+  { code: 'DAU', display: 'Daughter' },
+  { code: 'MGRMTH', display: 'Maternal Grandmother' },
+  { code: 'PGRMTH', display: 'Paternal Grandmother' },
+  { code: 'MGRFTH', display: 'Maternal Grandfather' },
+  { code: 'PGRFTH', display: 'Paternal Grandfather' }
+];
+
+const INITIAL_FAMILY_HISTORY_FORM = {
+  relationship: '',
+  condition: '',
+  onsetAge: '',
+  deceased: false,
+  deceasedAge: '',
+  notes: ''
+};
+
+// Add Family History Dialog
+const AddFamilyHistoryDialog = ({ open, onClose, patientId, onSaved }) => {
+  const [formData, setFormData] = useState(INITIAL_FAMILY_HISTORY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleClose = () => {
+    setFormData(INITIAL_FAMILY_HISTORY_FORM);
+    setError(null);
+    onClose();
+  };
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = async () => {
+    if (!formData.relationship) {
+      setError('Relationship is required');
+      return;
+    }
+    if (!formData.condition.trim()) {
+      setError('Condition is required');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const rel = RELATIONSHIP_OPTIONS.find(r => r.code === formData.relationship);
+
+      const resource = {
+        resourceType: 'FamilyMemberHistory',
+        status: 'completed',
+        patient: { reference: `Patient/${patientId}` },
+        relationship: {
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/v3-RoleCode',
+            code: rel.code,
+            display: rel.display
+          }],
+          text: rel.display
+        },
+        condition: [{
+          code: { text: formData.condition.trim() },
+          ...(formData.onsetAge ? {
+            onsetAge: {
+              value: parseInt(formData.onsetAge, 10),
+              unit: 'years',
+              system: 'http://unitsofmeasure.org',
+              code: 'a'
+            }
+          } : {})
+        }],
+        ...(formData.deceased ? { deceasedBoolean: true } : {}),
+        ...(formData.deceased && formData.deceasedAge ? {
+          deceasedAge: {
+            value: parseInt(formData.deceasedAge, 10),
+            unit: 'years',
+            system: 'http://unitsofmeasure.org',
+            code: 'a'
+          },
+          deceasedBoolean: undefined
+        } : {}),
+        ...(formData.notes.trim() ? {
+          note: [{ text: formData.notes.trim() }]
+        } : {})
+      };
+
+      // If deceasedAge is provided, remove deceasedBoolean (FHIR allows one or the other)
+      if (resource.deceasedAge) {
+        delete resource.deceasedBoolean;
+      }
+
+      await fhirClient.create('FamilyMemberHistory', resource);
+      handleClose();
+      if (onSaved) onSaved();
+    } catch (err) {
+      console.error('Failed to save family history:', err);
+      setError('Failed to save family history. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 0 } }}
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <FamilyHistoryIcon color="primary" />
+          <Typography variant="h6">Add Family History</Typography>
+        </Box>
+        <IconButton onClick={handleClose} size="small" aria-label="Close dialog">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent dividers>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+        )}
+        <Grid container spacing={2} sx={{ mt: 0 }}>
+          <Grid item xs={12}>
+            <FormControl fullWidth required>
+              <InputLabel id="relationship-label">Relationship</InputLabel>
+              <Select
+                labelId="relationship-label"
+                value={formData.relationship}
+                label="Relationship"
+                onChange={(e) => handleChange('relationship', e.target.value)}
+                sx={{ borderRadius: 0 }}
+              >
+                {RELATIONSHIP_OPTIONS.map((rel) => (
+                  <MenuItem key={rel.code} value={rel.code}>
+                    {rel.display}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              required
+              label="Condition"
+              value={formData.condition}
+              onChange={(e) => handleChange('condition', e.target.value)}
+              placeholder="e.g., Diabetes mellitus type 2"
+              InputProps={{ sx: { borderRadius: 0 } }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Onset Age (years)"
+              type="number"
+              value={formData.onsetAge}
+              onChange={(e) => handleChange('onsetAge', e.target.value)}
+              inputProps={{ min: 0, max: 150 }}
+              InputProps={{ sx: { borderRadius: 0 } }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.deceased}
+                  onChange={(e) => handleChange('deceased', e.target.checked)}
+                />
+              }
+              label="Deceased"
+            />
+          </Grid>
+          {formData.deceased && (
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Age at Death (years)"
+                type="number"
+                value={formData.deceasedAge}
+                onChange={(e) => handleChange('deceasedAge', e.target.value)}
+                inputProps={{ min: 0, max: 150 }}
+                InputProps={{ sx: { borderRadius: 0 } }}
+              />
+            </Grid>
+          )}
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Notes"
+              value={formData.notes}
+              onChange={(e) => handleChange('notes', e.target.value)}
+              placeholder="Additional notes about this family history entry"
+              InputProps={{ sx: { borderRadius: 0 } }}
+            />
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button onClick={handleClose} disabled={saving} sx={{ borderRadius: 0 }}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSave}
+          disabled={saving}
+          startIcon={saving ? <CircularProgress size={16} /> : <AddIcon />}
+          sx={{ borderRadius: 0 }}
+        >
+          {saving ? 'Saving...' : 'Save'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+// Related Person relationship options (v3-RoleCode)
+const RELATED_PERSON_RELATIONSHIPS = [
+  { code: 'ECON', display: 'Emergency Contact' },
+  { code: 'SPS', display: 'Spouse' },
+  { code: 'PRN', display: 'Parent' },
+  { code: 'CHILD', display: 'Child' },
+  { code: 'SIB', display: 'Sibling' },
+  { code: 'GUARD', display: 'Guardian' },
+  { code: 'O', display: 'Other' }
+];
+
+const INITIAL_RELATED_PERSON_FORM = {
+  firstName: '',
+  lastName: '',
+  relationship: '',
+  phone: '',
+  email: '',
+  address: ''
+};
+
+// Add Related Person Dialog
+const AddRelatedPersonDialog = ({ open, onClose, patientId, onSaved }) => {
+  const [formData, setFormData] = useState(INITIAL_RELATED_PERSON_FORM);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleClose = () => {
+    setFormData(INITIAL_RELATED_PERSON_FORM);
+    setError(null);
+    onClose();
+  };
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = async () => {
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setError('First name and last name are required');
+      return;
+    }
+    if (!formData.relationship) {
+      setError('Relationship is required');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const rel = RELATED_PERSON_RELATIONSHIPS.find(r => r.code === formData.relationship);
+
+      const telecom = [];
+      if (formData.phone.trim()) {
+        telecom.push({ system: 'phone', value: formData.phone.trim() });
+      }
+      if (formData.email.trim()) {
+        telecom.push({ system: 'email', value: formData.email.trim() });
+      }
+
+      const resource = {
+        resourceType: 'RelatedPerson',
+        patient: { reference: `Patient/${patientId}` },
+        relationship: [{
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/v3-RoleCode',
+            code: rel.code,
+            display: rel.display
+          }],
+          text: rel.display
+        }],
+        name: [{ given: [formData.firstName.trim()], family: formData.lastName.trim() }],
+        ...(telecom.length > 0 ? { telecom } : {}),
+        ...(formData.address.trim() ? {
+          address: [{ text: formData.address.trim() }]
+        } : {})
+      };
+
+      await fhirClient.create('RelatedPerson', resource);
+      handleClose();
+      if (onSaved) onSaved();
+    } catch (err) {
+      console.error('Failed to save related person:', err);
+      setError('Failed to save contact. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 0 } }}
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PersonAddIcon color="primary" />
+          <Typography variant="h6">Add Contact</Typography>
+        </Box>
+        <IconButton onClick={handleClose} size="small" aria-label="Close dialog">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent dividers>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+        )}
+        <Grid container spacing={2} sx={{ mt: 0 }}>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              required
+              label="First Name"
+              value={formData.firstName}
+              onChange={(e) => handleChange('firstName', e.target.value)}
+              InputProps={{ sx: { borderRadius: 0 } }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              required
+              label="Last Name"
+              value={formData.lastName}
+              onChange={(e) => handleChange('lastName', e.target.value)}
+              InputProps={{ sx: { borderRadius: 0 } }}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <FormControl fullWidth required>
+              <InputLabel id="related-person-relationship-label">Relationship</InputLabel>
+              <Select
+                labelId="related-person-relationship-label"
+                value={formData.relationship}
+                label="Relationship"
+                onChange={(e) => handleChange('relationship', e.target.value)}
+                sx={{ borderRadius: 0 }}
+              >
+                {RELATED_PERSON_RELATIONSHIPS.map((rel) => (
+                  <MenuItem key={rel.code} value={rel.code}>
+                    {rel.display}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Phone"
+              value={formData.phone}
+              onChange={(e) => handleChange('phone', e.target.value)}
+              placeholder="e.g., (555) 123-4567"
+              InputProps={{ sx: { borderRadius: 0 } }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Email"
+              value={formData.email}
+              onChange={(e) => handleChange('email', e.target.value)}
+              placeholder="e.g., contact@example.com"
+              InputProps={{ sx: { borderRadius: 0 } }}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Address (optional)"
+              value={formData.address}
+              onChange={(e) => handleChange('address', e.target.value)}
+              placeholder="Street address, city, state, ZIP"
+              InputProps={{ sx: { borderRadius: 0 } }}
+            />
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button onClick={handleClose} disabled={saving} sx={{ borderRadius: 0 }}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSave}
+          disabled={saving}
+          startIcon={saving ? <CircularProgress size={16} /> : <PersonAddIcon />}
+          sx={{ borderRadius: 0 }}
+        >
+          {saving ? 'Saving...' : 'Add Contact'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+// Consent category options
+const CONSENT_CATEGORIES = [
+  { code: '59284-0', display: 'Treatment', scope: 'treatment', scopeDisplay: 'Treatment' },
+  { code: '57016-8', display: 'Research Participation', scope: 'research', scopeDisplay: 'Research' },
+  { code: '64292-6', display: 'Data Sharing', scope: 'patient-privacy', scopeDisplay: 'Privacy' },
+  { code: '75781-5', display: 'Advance Directive', scope: 'adr', scopeDisplay: 'Advance Directive' },
+  { code: '64293-4', display: 'HIPAA Authorization', scope: 'patient-privacy', scopeDisplay: 'Privacy' }
+];
+
+const CONSENT_STATUSES = [
+  { value: 'active', display: 'Active' },
+  { value: 'rejected', display: 'Rejected' },
+  { value: 'inactive', display: 'Inactive' }
+];
+
+const INITIAL_CONSENT_FORM = {
+  category: '',
+  status: 'active',
+  consentDate: new Date().toISOString().split('T')[0],
+  periodEnd: '',
+  notes: ''
+};
+
+// Record Consent Dialog
+const RecordConsentDialog = ({ open, onClose, patientId, onSaved }) => {
+  const [formData, setFormData] = useState(INITIAL_CONSENT_FORM);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleClose = () => {
+    setFormData(INITIAL_CONSENT_FORM);
+    setError(null);
+    onClose();
+  };
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = async () => {
+    if (!formData.category) {
+      setError('Consent category is required');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const cat = CONSENT_CATEGORIES.find(c => c.code === formData.category);
+
+      const resource = {
+        resourceType: 'Consent',
+        status: formData.status,
+        scope: {
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/consentscope',
+            code: cat.scope,
+            display: cat.scopeDisplay
+          }]
+        },
+        category: [{
+          coding: [{
+            system: 'http://loinc.org',
+            code: cat.code,
+            display: cat.display
+          }]
+        }],
+        patient: { reference: `Patient/${patientId}` },
+        dateTime: formData.consentDate,
+        ...(formData.periodEnd ? {
+          provision: { period: { end: formData.periodEnd } }
+        } : {}),
+        ...(formData.notes.trim() ? {
+          note: [{ text: formData.notes.trim() }]
+        } : {})
+      };
+
+      await fhirClient.create('Consent', resource);
+      handleClose();
+      if (onSaved) onSaved();
+    } catch (err) {
+      console.error('Failed to save consent:', err);
+      setError('Failed to record consent. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 0 } }}
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ConsentIcon color="primary" />
+          <Typography variant="h6">Record Consent</Typography>
+        </Box>
+        <IconButton onClick={handleClose} size="small" aria-label="Close dialog">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent dividers>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+        )}
+        <Grid container spacing={2} sx={{ mt: 0 }}>
+          <Grid item xs={12}>
+            <FormControl fullWidth required>
+              <InputLabel id="consent-category-label">Consent Category</InputLabel>
+              <Select
+                labelId="consent-category-label"
+                value={formData.category}
+                label="Consent Category"
+                onChange={(e) => handleChange('category', e.target.value)}
+                sx={{ borderRadius: 0 }}
+              >
+                {CONSENT_CATEGORIES.map((cat) => (
+                  <MenuItem key={cat.code} value={cat.code}>
+                    {cat.display}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth required>
+              <InputLabel id="consent-status-label">Status</InputLabel>
+              <Select
+                labelId="consent-status-label"
+                value={formData.status}
+                label="Status"
+                onChange={(e) => handleChange('status', e.target.value)}
+                sx={{ borderRadius: 0 }}
+              >
+                {CONSENT_STATUSES.map((s) => (
+                  <MenuItem key={s.value} value={s.value}>
+                    {s.display}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Consent Date"
+              type="date"
+              value={formData.consentDate}
+              onChange={(e) => handleChange('consentDate', e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              InputProps={{ sx: { borderRadius: 0 } }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Expiration Date (optional)"
+              type="date"
+              value={formData.periodEnd}
+              onChange={(e) => handleChange('periodEnd', e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              InputProps={{ sx: { borderRadius: 0 } }}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Notes"
+              value={formData.notes}
+              onChange={(e) => handleChange('notes', e.target.value)}
+              placeholder="Additional notes about this consent"
+              InputProps={{ sx: { borderRadius: 0 } }}
+            />
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button onClick={handleClose} disabled={saving} sx={{ borderRadius: 0 }}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSave}
+          disabled={saving}
+          startIcon={saving ? <CircularProgress size={16} /> : <ConsentIcon />}
+          sx={{ borderRadius: 0 }}
+        >
+          {saving ? 'Saving...' : 'Record Consent'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
 
 // Recent Item Component
 const RecentItem = ({ primary, secondary, icon, status, onClick }) => {
   const theme = useTheme();
-  
+
   return (
-    <ListItem 
+    <ListItem
       component="button"
       onClick={onClick}
       sx={{
@@ -137,6 +789,18 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [density, setDensity] = useDensity('comfortable');
   const [viewMode, setViewMode] = useState('dashboard');
+  const [familyHistory, setFamilyHistory] = useState([]);
+  const [familyHistoryLoading, setFamilyHistoryLoading] = useState(false);
+  const [familyHistoryError, setFamilyHistoryError] = useState(null);
+  const [familyHistoryDialogOpen, setFamilyHistoryDialogOpen] = useState(false);
+  const [relatedPersons, setRelatedPersons] = useState([]);
+  const [relatedPersonsLoading, setRelatedPersonsLoading] = useState(false);
+  const [relatedPersonsError, setRelatedPersonsError] = useState(null);
+  const [relatedPersonDialogOpen, setRelatedPersonDialogOpen] = useState(false);
+  const [consents, setConsents] = useState([]);
+  const [consentsLoading, setConsentsLoading] = useState(false);
+  const [consentsError, setConsentsError] = useState(null);
+  const [consentDialogOpen, setConsentDialogOpen] = useState(false);
   const [stats, setStats] = useState({
     activeProblems: 0,
     activeMedications: 0,
@@ -256,6 +920,75 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
       s.patient?.reference === `Patient/${patientId}` ||
       s.patient?.reference === `urn:uuid:${patientId}`
     ), [resources.ServiceRequest, patientId]);
+
+  // Load family history from HAPI FHIR (not in FHIRResourceContext cache)
+  const loadFamilyHistory = useCallback(async () => {
+    if (!patientId) return;
+    setFamilyHistoryLoading(true);
+    setFamilyHistoryError(null);
+    try {
+      const response = await fhirClient.search('FamilyMemberHistory', {
+        patient: `Patient/${patientId}`
+      });
+      const entries = response.entry?.map(e => e.resource) || [];
+      setFamilyHistory(entries);
+    } catch (err) {
+      console.error('Failed to load family history:', err);
+      setFamilyHistoryError('Failed to load family history');
+    } finally {
+      setFamilyHistoryLoading(false);
+    }
+  }, [patientId]);
+
+  useEffect(() => {
+    loadFamilyHistory();
+  }, [loadFamilyHistory]);
+
+  // Load related persons from HAPI FHIR
+  const loadRelatedPersons = useCallback(async () => {
+    if (!patientId) return;
+    setRelatedPersonsLoading(true);
+    setRelatedPersonsError(null);
+    try {
+      const response = await fhirClient.search('RelatedPerson', {
+        patient: `Patient/${patientId}`
+      });
+      const entries = response.entry?.map(e => e.resource) || [];
+      setRelatedPersons(entries);
+    } catch (err) {
+      console.error('Failed to load related persons:', err);
+      setRelatedPersonsError('Failed to load contacts');
+    } finally {
+      setRelatedPersonsLoading(false);
+    }
+  }, [patientId]);
+
+  useEffect(() => {
+    loadRelatedPersons();
+  }, [loadRelatedPersons]);
+
+  // Load consents from HAPI FHIR
+  const loadConsents = useCallback(async () => {
+    if (!patientId) return;
+    setConsentsLoading(true);
+    setConsentsError(null);
+    try {
+      const response = await fhirClient.search('Consent', {
+        patient: `Patient/${patientId}`
+      });
+      const entries = response.entry?.map(e => e.resource) || [];
+      setConsents(entries);
+    } catch (err) {
+      console.error('Failed to load consents:', err);
+      setConsentsError('Failed to load consent records');
+    } finally {
+      setConsentsLoading(false);
+    }
+  }, [patientId]);
+
+  useEffect(() => {
+    loadConsents();
+  }, [loadConsents]);
 
   // Define loadDashboardData function with stable callback to prevent infinite loops
   const loadDashboardData = useStableCallback(async () => {
@@ -1025,6 +1758,339 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
           </Grid>
         </Grid>
 
+        {/* Family History Section */}
+        <Grid container spacing={3} sx={{ mt: 1 }}>
+          <Grid item xs={12}>
+            <ClinicalResourceCard
+              title="Family History"
+              subtitle={familyHistoryLoading ? 'Loading...' : `${familyHistory.length} record${familyHistory.length !== 1 ? 's' : ''}`}
+              icon={<FamilyHistoryIcon />}
+              severity="normal"
+              actions={
+                <Button
+                  size="small"
+                  startIcon={<AddIcon />}
+                  onClick={() => setFamilyHistoryDialogOpen(true)}
+                  sx={{ borderRadius: 0 }}
+                >
+                  Add
+                </Button>
+              }
+            >
+              {familyHistoryLoading ? (
+                <Box sx={{ p: 2, display: 'flex', justifyContent: 'center' }}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : familyHistoryError ? (
+                <Alert severity="error" sx={{ m: 1 }}>
+                  {familyHistoryError}
+                  <Button size="small" onClick={loadFamilyHistory} sx={{ ml: 1 }}>
+                    Retry
+                  </Button>
+                </Alert>
+              ) : familyHistory.length === 0 ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ p: 2, textAlign: 'center' }}
+                >
+                  No family history recorded
+                </Typography>
+              ) : (
+                <TableContainer>
+                  <Table size="small" aria-label="Family history">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Relationship</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Condition</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Onset Age</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Deceased</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Notes</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {familyHistory.map((fmh) => {
+                        const relationship = fmh.relationship?.coding?.[0]?.display
+                          || fmh.relationship?.text
+                          || 'Unknown';
+                        const condition = fmh.condition?.[0]?.code?.coding?.[0]?.display
+                          || fmh.condition?.[0]?.code?.text
+                          || '--';
+                        const onsetAge = fmh.condition?.[0]?.onsetAge
+                          ? `${fmh.condition[0].onsetAge.value} ${fmh.condition[0].onsetAge.unit || 'years'}`
+                          : '--';
+                        const deceased = fmh.deceasedAge
+                          ? `Yes (age ${fmh.deceasedAge.value} ${fmh.deceasedAge.unit || 'years'})`
+                          : fmh.deceasedBoolean === true
+                            ? 'Yes'
+                            : fmh.deceasedBoolean === false
+                              ? 'No'
+                              : '--';
+                        const notes = fmh.note?.[0]?.text || '--';
+
+                        return (
+                          <TableRow key={fmh.id} hover>
+                            <TableCell>
+                              <Chip
+                                label={relationship}
+                                size="small"
+                                variant="outlined"
+                                sx={{ borderRadius: 0 }}
+                              />
+                            </TableCell>
+                            <TableCell>{condition}</TableCell>
+                            <TableCell>{onsetAge}</TableCell>
+                            <TableCell>{deceased}</TableCell>
+                            <TableCell
+                              sx={{
+                                maxWidth: 200,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}
+                              title={notes !== '--' ? notes : undefined}
+                            >
+                              {notes}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </ClinicalResourceCard>
+          </Grid>
+        </Grid>
+
+        <AddFamilyHistoryDialog
+          open={familyHistoryDialogOpen}
+          onClose={() => setFamilyHistoryDialogOpen(false)}
+          patientId={patientId}
+          onSaved={loadFamilyHistory}
+        />
+
+        {/* Contacts & Relationships Section */}
+        <Grid container spacing={3} sx={{ mt: 1 }}>
+          <Grid item xs={12} md={6}>
+            <ClinicalResourceCard
+              title="Contacts & Relationships"
+              subtitle={relatedPersonsLoading ? 'Loading...' : `${relatedPersons.length} contact${relatedPersons.length !== 1 ? 's' : ''}`}
+              icon={<PeopleIcon />}
+              severity="normal"
+              actions={
+                <Button
+                  size="small"
+                  startIcon={<PersonAddIcon />}
+                  onClick={() => setRelatedPersonDialogOpen(true)}
+                  sx={{ borderRadius: 0 }}
+                >
+                  Add Contact
+                </Button>
+              }
+            >
+              {relatedPersonsLoading ? (
+                <Box sx={{ p: 2, display: 'flex', justifyContent: 'center' }}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : relatedPersonsError ? (
+                <Alert severity="error" sx={{ m: 1 }}>
+                  {relatedPersonsError}
+                  <Button size="small" onClick={loadRelatedPersons} sx={{ ml: 1 }}>
+                    Retry
+                  </Button>
+                </Alert>
+              ) : relatedPersons.length === 0 ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ p: 2, textAlign: 'center' }}
+                >
+                  No emergency contacts or related persons recorded
+                </Typography>
+              ) : (
+                <List disablePadding>
+                  {relatedPersons.map((rp) => {
+                    const name = rp.name?.[0]
+                      ? `${(rp.name[0].given || []).join(' ')} ${rp.name[0].family || ''}`.trim()
+                      : 'Unknown';
+                    const relationship = rp.relationship?.[0]?.coding?.[0]?.display
+                      || rp.relationship?.[0]?.text
+                      || 'Related Person';
+                    const phone = rp.telecom?.find(t => t.system === 'phone')?.value;
+                    const email = rp.telecom?.find(t => t.system === 'email')?.value;
+
+                    return (
+                      <ListItem
+                        key={rp.id}
+                        sx={{
+                          px: density === 'compact' ? 1 : 2,
+                          py: density === 'compact' ? 0.5 : 1
+                        }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 36 }}>
+                          <PeopleIcon
+                            color="action"
+                            fontSize={density === 'compact' ? 'small' : 'medium'}
+                          />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant={density === 'compact' ? 'body2' : 'body1'}>
+                                {name}
+                              </Typography>
+                              <Chip
+                                label={relationship}
+                                size="small"
+                                variant="outlined"
+                                sx={{ borderRadius: 0 }}
+                              />
+                            </Box>
+                          }
+                          secondary={
+                            <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
+                              {phone && (
+                                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <PhoneIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                                  <Typography variant="caption" color="text.secondary">{phone}</Typography>
+                                </Box>
+                              )}
+                              {email && (
+                                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <EmailIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                                  <Typography variant="caption" color="text.secondary">{email}</Typography>
+                                </Box>
+                              )}
+                              {!phone && !email && (
+                                <Typography variant="caption" color="text.secondary">No contact info</Typography>
+                              )}
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                    );
+                  })}
+                </List>
+              )}
+            </ClinicalResourceCard>
+          </Grid>
+
+          {/* Consent Status Section */}
+          <Grid item xs={12} md={6}>
+            <ClinicalResourceCard
+              title="Consent Status"
+              subtitle={consentsLoading ? 'Loading...' : `${consents.length} record${consents.length !== 1 ? 's' : ''}`}
+              icon={<ConsentIcon />}
+              severity="normal"
+              actions={
+                <Button
+                  size="small"
+                  startIcon={<AddIcon />}
+                  onClick={() => setConsentDialogOpen(true)}
+                  sx={{ borderRadius: 0 }}
+                >
+                  Record Consent
+                </Button>
+              }
+            >
+              {consentsLoading ? (
+                <Box sx={{ p: 2, display: 'flex', justifyContent: 'center' }}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : consentsError ? (
+                <Alert severity="error" sx={{ m: 1 }}>
+                  {consentsError}
+                  <Button size="small" onClick={loadConsents} sx={{ ml: 1 }}>
+                    Retry
+                  </Button>
+                </Alert>
+              ) : consents.length === 0 ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ p: 2, textAlign: 'center' }}
+                >
+                  No consent records found
+                </Typography>
+              ) : (
+                <List disablePadding>
+                  {consents.map((consent) => {
+                    const category = consent.category?.[0]?.coding?.[0]?.display
+                      || consent.category?.[0]?.text
+                      || 'Consent';
+                    const status = consent.status || 'unknown';
+                    const dateTime = consent.dateTime
+                      ? formatClinicalDate(consent.dateTime)
+                      : 'Date unknown';
+                    const periodEnd = consent.provision?.period?.end
+                      ? formatClinicalDate(consent.provision.period.end)
+                      : null;
+
+                    const statusColor = status === 'active'
+                      ? 'success'
+                      : status === 'rejected'
+                        ? 'error'
+                        : 'default';
+
+                    return (
+                      <ListItem
+                        key={consent.id}
+                        sx={{
+                          px: density === 'compact' ? 1 : 2,
+                          py: density === 'compact' ? 0.5 : 1
+                        }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 36 }}>
+                          <ConsentIcon
+                            color={status === 'active' ? 'success' : status === 'rejected' ? 'error' : 'action'}
+                            fontSize={density === 'compact' ? 'small' : 'medium'}
+                          />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant={density === 'compact' ? 'body2' : 'body1'}>
+                                {category}
+                              </Typography>
+                              <Chip
+                                label={status}
+                                size="small"
+                                color={statusColor}
+                                sx={{ borderRadius: 0, textTransform: 'capitalize' }}
+                              />
+                            </Box>
+                          }
+                          secondary={
+                            <Typography variant="caption" color="text.secondary">
+                              {dateTime}
+                              {periodEnd ? ` - Expires: ${periodEnd}` : ''}
+                            </Typography>
+                          }
+                        />
+                      </ListItem>
+                    );
+                  })}
+                </List>
+              )}
+            </ClinicalResourceCard>
+          </Grid>
+        </Grid>
+
+        <AddRelatedPersonDialog
+          open={relatedPersonDialogOpen}
+          onClose={() => setRelatedPersonDialogOpen(false)}
+          patientId={patientId}
+          onSaved={loadRelatedPersons}
+        />
+
+        <RecordConsentDialog
+          open={consentDialogOpen}
+          onClose={() => setConsentDialogOpen(false)}
+          patientId={patientId}
+          onSaved={loadConsents}
+        />
+
         {/* Additional Information Row */}
         <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
           Recent Activity
@@ -1084,6 +2150,9 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
             />
           </Grid>
         </Grid>
+
+        {/* Forms & Questionnaires */}
+        <QuestionnairesSection patientId={patientId} />
       </Box>
     </Box>
   );
