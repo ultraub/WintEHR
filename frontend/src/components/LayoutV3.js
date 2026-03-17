@@ -111,7 +111,7 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
         component="div"
         sx={{
           bgcolor: 'transparent',
-          color: '#78716C',
+          color: '#8B85A0',
           fontWeight: 600,
           fontSize: '0.7rem',
           textTransform: 'uppercase',
@@ -123,12 +123,12 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
           onClick={() => onToggle(sectionKey)}
           sx={{
             borderRadius: 1,
-            color: '#78716C',
-            '&:hover': { bgcolor: '#3A3532' },
-            '& .MuiListItemIcon-root': { color: '#78716C' },
+            color: '#8B85A0',
+            '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)' },
+            '& .MuiListItemIcon-root': { color: '#8B85A0' },
           }}
         >
-          <ListItemIcon sx={{ minWidth: 36, color: '#78716C' }}>
+          <ListItemIcon sx={{ minWidth: 36, color: '#8B85A0' }}>
             {section.icon}
           </ListItemIcon>
           <ListItemText
@@ -138,10 +138,10 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
               fontWeight: 600,
               textTransform: 'uppercase',
               letterSpacing: '0.08em',
-              color: '#78716C',
+              color: '#8B85A0',
             }}
           />
-          {isOpen ? <ExpandLess sx={{ color: '#78716C' }} /> : <ExpandMore sx={{ color: '#78716C' }} />}
+          {isOpen ? <ExpandLess sx={{ color: '#8B85A0' }} /> : <ExpandMore sx={{ color: '#8B85A0' }} />}
         </ListItemButton>
       </ListSubheader>
 
@@ -157,20 +157,21 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
                   sx={{
                     borderRadius: 1,
                     mb: 0.5,
-                    color: '#D6D3D1',
+                    color: '#E2E0EA',
                     borderLeft: isActive ? '3px solid #6366F1' : '3px solid transparent',
-                    '& .MuiListItemIcon-root': { color: '#78716C' },
+                    '& .MuiListItemIcon-root': { color: '#8B85A0' },
                     '&:hover': {
-                      bgcolor: '#3A3532',
-                      color: '#D6D3D1',
-                      '& .MuiListItemIcon-root': { color: '#D6D3D1' },
+                      bgcolor: 'rgba(99, 102, 241, 0.12)',
+                      color: '#E2E0EA',
+                      '& .MuiListItemIcon-root': { color: '#E2E0EA' },
                     },
                     '&.Mui-selected': {
-                      bgcolor: 'rgba(99, 102, 241, 0.1)',
-                      color: '#6366F1',
-                      '& .MuiListItemIcon-root': { color: '#6366F1' },
+                      bgcolor: 'rgba(99, 102, 241, 0.12)',
+                      color: '#A5B4FC',
+                      boxShadow: 'inset 0 0 20px rgba(99, 102, 241, 0.08), 0 0 12px rgba(99, 102, 241, 0.06)',
+                      '& .MuiListItemIcon-root': { color: '#A5B4FC' },
                       '&:hover': {
-                        bgcolor: 'rgba(99, 102, 241, 0.15)',
+                        bgcolor: 'rgba(99, 102, 241, 0.18)',
                       },
                     },
                   }}
@@ -182,7 +183,7 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
                     primary={item.text}
                     secondary={item.description}
                     primaryTypographyProps={{ fontSize: '0.875rem', color: 'inherit' }}
-                    secondaryTypographyProps={{ fontSize: '0.75rem', color: '#78716C' }}
+                    secondaryTypographyProps={{ fontSize: '0.75rem', color: '#8B85A0' }}
                   />
                   {item.badge && (
                     <Chip
@@ -210,14 +211,14 @@ const UserProfile = ({ user, onLogout, onProfileClick }) => {
             {user?.name?.[0] || 'U'}
           </Avatar>
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-            <Typography variant="subtitle2" noWrap sx={{ color: '#D6D3D1' }}>
+            <Typography variant="subtitle2" noWrap sx={{ color: '#E2E0EA' }}>
               {user?.name || 'User'}
             </Typography>
-            <Typography variant="caption" noWrap sx={{ color: '#78716C' }}>
+            <Typography variant="caption" noWrap sx={{ color: '#8B85A0' }}>
               {user?.role || 'Clinician'}
             </Typography>
           </Box>
-          <IconButton size="small" onClick={onLogout} sx={{ color: '#78716C', '&:hover': { color: '#D6D3D1', bgcolor: '#3A3532' } }}>
+          <IconButton size="small" onClick={onLogout} sx={{ color: '#8B85A0', '&:hover': { color: '#E2E0EA', bgcolor: 'rgba(99, 102, 241, 0.12)' } }}>
             <LogoutIcon fontSize="small" />
           </IconButton>
         </Stack>
@@ -321,7 +322,7 @@ function LayoutV3({ children }) {
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      bgcolor: '#2D2926',
+      background: 'linear-gradient(180deg, #1A1735 0%, #252244 45%, #1F1D2B 100%)',
       '& .MuiList-root': { bgcolor: 'transparent' },
       '& .MuiListSubheader-root': { bgcolor: 'transparent' },
       /* Scrollbar styling */
@@ -342,7 +343,7 @@ function LayoutV3({ children }) {
           <Typography variant="h5" sx={{ fontWeight: 700, color: '#FAFAF9', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
             WintEHR
           </Typography>
-          <Typography variant="caption" sx={{ color: '#78716C', letterSpacing: '0.02em', fontSize: '0.7rem' }}>
+          <Typography variant="caption" sx={{ color: '#8B85A0', letterSpacing: '0.02em', fontSize: '0.7rem' }}>
             FHIR-Native Clinical Platform
           </Typography>
         </Box>
@@ -474,8 +475,8 @@ function LayoutV3({ children }) {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              bgcolor: '#2D2926',
-              borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'linear-gradient(180deg, #1A1735 0%, #252244 45%, #1F1D2B 100%)',
+              borderRight: '1px solid rgba(99, 102, 241, 0.15)',
             }
           }}
         >
@@ -488,8 +489,8 @@ function LayoutV3({ children }) {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              bgcolor: '#2D2926',
-              borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'linear-gradient(180deg, #1A1735 0%, #252244 45%, #1F1D2B 100%)',
+              borderRight: '1px solid rgba(99, 102, 241, 0.15)',
             }
           }}
           open

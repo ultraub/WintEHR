@@ -36,8 +36,8 @@ const roleDescriptions = {
 
 /* --- Warm Slate palette tokens --- */
 const palette = {
-  stone900: '#2D2926',
-  stone800: '#3A3532',
+  stone900: '#1F1D2B',
+  stone800: '#252244',
   stone700: '#44403C',
   stone600: '#57534E',
   stone500: '#78716C',
@@ -136,7 +136,7 @@ const Login = () => {
   const brandingPanel = (
     <Box
       sx={{
-        backgroundColor: palette.stone900,
+        background: `linear-gradient(180deg, #1A1735 0%, ${palette.stone800} 50%, ${palette.stone900} 100%)`,
         color: palette.white,
         display: 'flex',
         flexDirection: 'column',

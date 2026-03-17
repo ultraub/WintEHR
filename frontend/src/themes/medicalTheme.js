@@ -165,8 +165,8 @@ const professionalMedicalPalette = {
   divider: '#E7E5E4',
   // Sidebar palette tokens for dark sidebar
   sidebar: {
-    bg: '#2D2926',
-    hover: '#3A3532',
+    bg: '#1F1D2B',
+    hover: 'rgba(99, 102, 241, 0.12)',
     text: '#A8A29E',
     textActive: '#6366F1',
     bgActive: 'rgba(99, 102, 241, 0.1)',
