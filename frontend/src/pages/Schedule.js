@@ -801,11 +801,28 @@ const Schedule = () => {
         // Flatten FHIR Appointment to the shape the UI expects
         const patientParticipant = r.participant?.find(p => p.actor?.reference?.startsWith('Patient/'));
         const practitionerParticipant = r.participant?.find(p => p.actor?.reference?.startsWith('Practitioner/'));
+
+        // Extract startTime (HH:MM) and duration from FHIR start/end ISO strings
+        let startTime = '08:00';
+        let duration = 30;
+        if (r.start) {
+          const startDate = new Date(r.start);
+          const hours = startDate.getHours().toString().padStart(2, '0');
+          const minutes = startDate.getMinutes().toString().padStart(2, '0');
+          startTime = `${hours}:${minutes}`;
+          if (r.end) {
+            const endDate = new Date(r.end);
+            duration = Math.round((endDate - startDate) / 60000);
+          }
+        }
+
         return {
           id: r.id,
           status: r.status,
           start: r.start,
           end: r.end,
+          startTime,
+          duration,
           appointmentType: r.appointmentType?.coding?.[0]?.code || r.appointmentType?.text || 'ROUTINE',
           reason: r.reasonCode?.[0]?.text || '',
           patientId: patientParticipant?.actor?.reference?.replace('Patient/', '') || '',
