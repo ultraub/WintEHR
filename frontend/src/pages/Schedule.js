@@ -506,8 +506,8 @@ function NewAppointmentDialog({ open, onClose, onSave, providers, selectedDate }
     setPatientLoading(true);
     try {
       const data = await fhirClient.search('Patient', { name: query, _count: 10 });
-      const patients = (data.entry || []).map(e => {
-        const r = e.resource;
+      const patientResources = data.resources || (data.entry || []).map(e => e.resource);
+      const patients = patientResources.map(r => {
         const name = r.name?.[0];
         const display = name
           ? `${name.family || ''}, ${(name.given || []).join(' ')}`.trim()
@@ -757,8 +757,8 @@ const Schedule = () => {
     const fetchProviders = async () => {
       try {
         const bundle = await fhirClient.search('Practitioner', { _count: 50, active: true });
-        const pracs = (bundle.entry || []).map(e => {
-          const r = e.resource;
+        const pracResources = bundle.resources || (bundle.entry || []).map(e => e.resource);
+        const pracs = pracResources.map(r => {
           const name = r.name?.[0];
           const display = name
             ? `${(name.prefix || []).join(' ')} ${(name.given || []).join(' ')} ${name.family || ''}`.trim()
@@ -796,8 +796,8 @@ const Schedule = () => {
       }
 
       const bundle = await fhirClient.search('Appointment', params);
-      const entries = (bundle.entry || []).map(e => {
-        const r = e.resource;
+      const apptResources = bundle.resources || (bundle.entry || []).map(e => e.resource);
+      const entries = apptResources.map(r => {
         // Flatten FHIR Appointment to the shape the UI expects
         const patientParticipant = r.participant?.find(p => p.actor?.reference?.startsWith('Patient/'));
         const practitionerParticipant = r.participant?.find(p => p.actor?.reference?.startsWith('Practitioner/'));
