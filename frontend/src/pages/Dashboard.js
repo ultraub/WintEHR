@@ -192,10 +192,13 @@ function Dashboard() {
       <Box sx={{ p: 3, pb: 0 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <Box>
-            <Typography variant="h4" fontWeight="bold" gutterBottom>
-              Clinical Dashboard
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <DashboardIcon color="primary" sx={{ fontSize: 32 }} />
+              <Typography variant="h4" fontWeight="bold">
+                Clinical Dashboard
+              </Typography>
+            </Stack>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               {format(new Date(), 'EEEE, MMMM d, yyyy')} • Welcome back, {user?.name || 'Doctor'}
             </Typography>
           </Box>

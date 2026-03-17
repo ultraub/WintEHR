@@ -41,7 +41,6 @@ import {
   CheckCircle as CompletedIcon,
   Cancel as CancelledIcon,
   Event as BookedIcon,
-  Info as InfoIcon,
   ViewDay as DayViewIcon,
   ViewWeek as WeekViewIcon,
   Phone as TelehealthIcon,
@@ -964,12 +963,6 @@ const Schedule = () => {
           Provider Schedule
         </Typography>
       </Stack>
-
-      {/* Educational banner */}
-      <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 2, borderRadius: 0 }}>
-        Educational scheduling system using FHIR Appointment resources.
-        Appointments are managed through the scheduling API and stored as FHIR resources in HAPI FHIR.
-      </Alert>
 
       {/* Toolbar: date navigation, view toggle, provider filter, actions */}
       <Paper elevation={0} sx={{ mb: 2, p: 1.5, borderRadius: 0, border: '1px solid', borderColor: 'divider' }}>

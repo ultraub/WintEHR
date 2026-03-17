@@ -491,7 +491,12 @@ function PatientList() {
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">Patients</Typography>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <PeopleIcon color="primary" sx={{ fontSize: 32 }} />
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
+            Patients
+          </Typography>
+        </Stack>
         <Box>
           <Tooltip title="Export patient list">
             <IconButton 

@@ -45,7 +45,8 @@ import {
   CheckCircle as FinishedIcon,
   Cancel as CancelledIcon,
   Schedule as PlannedIcon,
-  Info as InfoIcon
+  Assignment as AssignmentIcon,
+  HourglassEmpty as HourglassEmptyIcon
 } from '@mui/icons-material';
 import { format, isToday, parseISO } from 'date-fns';
 import { fhirClient } from '../core/fhir/services/fhirClient';
@@ -517,16 +518,37 @@ const SummaryStats = ({ encounters, total, loading }) => {
   }).length;
 
   const stats = [
-    { label: 'Total Encounters', value: total, color: 'text.primary' },
-    { label: 'In Progress', value: inProgressCount, color: 'primary.main' },
-    { label: 'Completed Today', value: completedTodayCount, color: 'success.main' }
+    {
+      label: 'Total Encounters',
+      value: total,
+      color: '#4F46E5',
+      bgColor: '#EEF2FF',
+      icon: <AssignmentIcon sx={{ fontSize: 24, color: '#4F46E5', opacity: 0.5 }} />
+    },
+    {
+      label: 'In Progress',
+      value: inProgressCount,
+      color: '#D97706',
+      bgColor: '#FFFBEB',
+      icon: <HourglassEmptyIcon sx={{ fontSize: 24, color: '#D97706', opacity: 0.5 }} />
+    },
+    {
+      label: 'Completed Today',
+      value: completedTodayCount,
+      color: '#059669',
+      bgColor: '#F0FDF4',
+      icon: <FinishedIcon sx={{ fontSize: 24, color: '#059669', opacity: 0.5 }} />
+    }
   ];
 
   return (
     <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
       {stats.map((stat) => (
-        <Card key={stat.label} sx={{ flex: 1, borderRadius: 0 }}>
+        <Card key={stat.label} sx={{ flex: 1, borderRadius: 2, bgcolor: stat.bgColor, position: 'relative', overflow: 'visible' }}>
           <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
+              {stat.icon}
+            </Box>
             <Typography variant="caption" color="text.secondary">
               {stat.label}
             </Typography>
@@ -744,16 +766,6 @@ const EncountersPage = () => {
           </Button>
         </Stack>
       </Stack>
-
-      {/* Educational Info Banner */}
-      <Alert
-        severity="info"
-        icon={<InfoIcon />}
-        sx={{ mb: 2, borderRadius: 0 }}
-      >
-        Encounters are loaded from Synthea synthetic patient data stored in HAPI FHIR.
-        This is an educational tool -- never use with real patient data.
-      </Alert>
 
       {/* Summary Stats */}
       <SummaryStats encounters={encounters} total={total} loading={loading} />
