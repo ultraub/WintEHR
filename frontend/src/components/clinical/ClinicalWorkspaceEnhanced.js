@@ -136,8 +136,18 @@ const ClinicalWorkspaceEnhanced = ({
   // Use parent's activeModule directly
   const activeTab = activeModule;
   
-  // CDS Alerts
+  // CDS Alerts — show dialog once per patient, then stay dismissed after close
   const { alerts: cdsAlerts } = usePatientCDSAlerts(patientId);
+  const [cdsDialogDismissed, setCdsDialogDismissed] = useState(false);
+  const prevPatientRef = React.useRef(patientId);
+
+  // Reset dismissed state when patient changes
+  React.useEffect(() => {
+    if (patientId !== prevPatientRef.current) {
+      prevPatientRef.current = patientId;
+      setCdsDialogDismissed(false);
+    }
+  }, [patientId]);
 
   // Use parent-provided data
   const activePatient = patient;
@@ -312,20 +322,20 @@ const ClinicalWorkspaceEnhanced = ({
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* CDS Alerts - Always inline at workspace level to avoid modal popups on tab switch */}
-      {cdsAlerts && cdsAlerts.length > 0 && (
-        <Box sx={{ px: 2, pt: 2, pb: 0 }}>
-          <CDSPresentation
-            alerts={cdsAlerts}
-            mode={PRESENTATION_MODES.INLINE}
-            patientId={patientId}
-            maxAlerts={3}
-            allowInteraction={true}
-            onAlertAction={(alertId, action, data) => {
-              // Dismiss/snooze persistence handled by CDSPresentation
-            }}
-          />
-        </Box>
+      {/* CDS Alerts - Show as dialog once per patient, dismissed on close */}
+      {cdsAlerts && cdsAlerts.length > 0 && !cdsDialogDismissed && (
+        <CDSPresentation
+          alerts={cdsAlerts}
+          mode={PRESENTATION_MODES.STANDARD}
+          patientId={patientId}
+          allowInteraction={true}
+          onAlertAction={(alertId, action, data) => {
+            if (action === 'dismiss' || action === 'close') {
+              setCdsDialogDismissed(true);
+            }
+          }}
+          onClose={() => setCdsDialogDismissed(true)}
+        />
       )}
       
       {/* Tab Content - no extra spacing */}
