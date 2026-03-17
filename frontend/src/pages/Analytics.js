@@ -6,15 +6,15 @@ import {
   Typography,
   Card,
   CardContent,
-  CircularProgress,
   Alert,
   Tab,
   Tabs,
+  useTheme,
 } from '@mui/material';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../services/api';
-
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+import ClinicalLoadingState from '../components/clinical/shared/ClinicalLoadingState';
+import { getChartColors } from '../themes/chartColors';
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -31,6 +31,10 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 function Analytics() {
+  const theme = useTheme();
+  const chartColors = getChartColors(theme);
+  const COLORS = chartColors.palette.slice(0, 6);
+
   const [tabValue, setTabValue] = useState(0);
   const [demographics, setDemographics] = useState(null);
   const [diseasePrevalence, setDiseasePrevalence] = useState(null);
@@ -147,8 +151,8 @@ function Analytics() {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
+      <Box sx={{ minHeight: 400, p: 3 }}>
+        <ClinicalLoadingState.Page />
       </Box>
     );
   }
@@ -203,7 +207,7 @@ function Analytics() {
                         cx="50%"
                         cy="50%"
                         outerRadius={80}
-                        fill="#8884d8"
+                        fill={COLORS[0]}
                         dataKey="count"
                         label={(entry) => `${entry.gender}: ${entry.percentage}%`}
                       >
@@ -259,7 +263,7 @@ function Analytics() {
                         <XAxis dataKey="race" />
                       <YAxis />
                       <Tooltip />
-                      <Bar dataKey="count" fill="#8884d8" />
+                      <Bar dataKey="count" fill={COLORS[0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -286,7 +290,7 @@ function Analytics() {
                     <XAxis dataKey="condition" angle={-45} textAnchor="end" height={100} />
                     <YAxis label={{ value: 'Prevalence Rate (%)', angle: -90, position: 'insideLeft' }} />
                     <Tooltip />
-                    <Bar dataKey="prevalence_rate" fill="#00C49F" />
+                    <Bar dataKey="prevalence_rate" fill={COLORS[1]} />
                   </BarChart>
                 </ResponsiveContainer>
               </Paper>
@@ -339,7 +343,7 @@ function Analytics() {
                     <XAxis dataKey="medication" angle={-45} textAnchor="end" height={100} />
                     <YAxis />
                     <Tooltip />
-                    <Bar dataKey={medicationPatterns.top_medications?.[0]?.prescription_count !== undefined ? 'prescription_count' : 'count'} fill="#FF8042" />
+                    <Bar dataKey={medicationPatterns.top_medications?.[0]?.prescription_count !== undefined ? 'prescription_count' : 'count'} fill={COLORS[3]} />
                   </BarChart>
                 </ResponsiveContainer>
               </Paper>

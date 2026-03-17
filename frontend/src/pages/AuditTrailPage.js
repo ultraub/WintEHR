@@ -16,11 +16,11 @@ import {
   Chip,
   TextField,
   MenuItem,
-  CircularProgress,
   Grid,
   Paper,
   Tooltip,
-  IconButton
+  IconButton,
+  Collapse
 } from '@mui/material';
 import {
   Security as AuditIcon,
@@ -28,9 +28,12 @@ import {
   Refresh as RefreshIcon,
   CheckCircle as SuccessIcon,
   Error as ErrorIcon,
-  Schedule as TimeIcon
+  Schedule as TimeIcon,
+  KeyboardArrowDown as ExpandIcon,
+  KeyboardArrowUp as CollapseIcon
 } from '@mui/icons-material';
 import api from '../services/api';
+import ClinicalLoadingState from '../components/clinical/shared/ClinicalLoadingState';
 
 /**
  * AuditTrailPage - Displays CDS audit events fetched from the backend.
@@ -47,6 +50,9 @@ const AuditTrailPage = () => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Expanded row state
+  const [expandedRow, setExpandedRow] = useState(null);
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -231,13 +237,8 @@ const AuditTrailPage = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-        <Stack alignItems="center" spacing={2}>
-          <CircularProgress />
-          <Typography variant="body2" color="text.secondary">
-            Loading audit trail...
-          </Typography>
-        </Stack>
+      <Box sx={{ minHeight: 400, p: 3 }}>
+        <ClinicalLoadingState.Table rows={8} columns={6} />
       </Box>
     );
   }
@@ -394,6 +395,7 @@ const AuditTrailPage = () => {
               <Table size="small">
                 <TableHead>
                   <TableRow>
+                    <TableCell padding="checkbox" />
                     <TableCell>Timestamp</TableCell>
                     <TableCell>Action</TableCell>
                     <TableCell>User</TableCell>
@@ -405,60 +407,198 @@ const AuditTrailPage = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredEvents.map((event, index) => (
-                    <TableRow
-                      key={event.execution_id || index}
-                      hover
-                      sx={{
-                        '&:last-child td, &:last-child th': { border: 0 }
-                      }}
-                    >
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                        {formatTimestamp(event.recorded)}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={getActionTypeLabel(event.action_type)}
-                          size="small"
-                          variant="outlined"
-                          color="primary"
-                        />
-                      </TableCell>
-                      <TableCell>{event.user_id || 'System'}</TableCell>
-                      <TableCell
-                        sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
-                      >
-                        {event.patient_id || 'N/A'}
-                      </TableCell>
-                      <TableCell
-                        sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
-                      >
-                        {event.service_id || 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={getOutcomeLabel(event.outcome)}
-                          color={getOutcomeColor(event.outcome)}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          maxWidth: 300,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        <Tooltip title={event.message || ''} placement="top-start">
-                          <span>{event.message || ''}</span>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell align="right">
-                        {event.execution_time_ms != null ? event.execution_time_ms : 'N/A'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredEvents.map((event, index) => {
+                    const rowKey = event.execution_id || index;
+                    const isExpanded = expandedRow === rowKey;
+                    return (
+                      <React.Fragment key={rowKey}>
+                        <TableRow
+                          hover
+                          onClick={() => setExpandedRow(isExpanded ? null : rowKey)}
+                          sx={{
+                            cursor: 'pointer',
+                            '& > *': { borderBottom: isExpanded ? 'unset' : undefined }
+                          }}
+                        >
+                          <TableCell padding="checkbox">
+                            <IconButton
+                              size="small"
+                              aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedRow(isExpanded ? null : rowKey);
+                              }}
+                            >
+                              {isExpanded ? <CollapseIcon /> : <ExpandIcon />}
+                            </IconButton>
+                          </TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                            {formatTimestamp(event.recorded)}
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={getActionTypeLabel(event.action_type)}
+                              size="small"
+                              variant="outlined"
+                              color="primary"
+                            />
+                          </TableCell>
+                          <TableCell>{event.user_id || 'System'}</TableCell>
+                          <TableCell
+                            sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                          >
+                            {event.patient_id || 'N/A'}
+                          </TableCell>
+                          <TableCell
+                            sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                          >
+                            {event.service_id || 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={getOutcomeLabel(event.outcome)}
+                              color={getOutcomeColor(event.outcome)}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell
+                            sx={{
+                              maxWidth: 300,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            <Tooltip title={event.message || ''} placement="top-start">
+                              <span>{event.message || ''}</span>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell align="right">
+                            {event.execution_time_ms != null ? event.execution_time_ms : 'N/A'}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ py: 0 }} colSpan={9}>
+                            <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                              <Box sx={{ py: 2, px: 2 }}>
+                                <Typography variant="subtitle2" gutterBottom>
+                                  Event Details
+                                </Typography>
+                                <Grid container spacing={2}>
+                                  <Grid item xs={12}>
+                                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                                      <strong>Full Message:</strong>
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mb: 1 }}>
+                                      {event.message || 'No message available'}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={12} sm={6} md={3}>
+                                    <Typography variant="caption" color="text.secondary">Execution ID</Typography>
+                                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                                      {event.execution_id || 'N/A'}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={12} sm={6} md={3}>
+                                    <Typography variant="caption" color="text.secondary">Action Type</Typography>
+                                    <Typography variant="body2">
+                                      {getActionTypeLabel(event.action_type)}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={12} sm={6} md={3}>
+                                    <Typography variant="caption" color="text.secondary">User</Typography>
+                                    <Typography variant="body2">
+                                      {event.user_id || 'System'}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={12} sm={6} md={3}>
+                                    <Typography variant="caption" color="text.secondary">Patient ID</Typography>
+                                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                                      {event.patient_id || 'N/A'}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={12} sm={6} md={3}>
+                                    <Typography variant="caption" color="text.secondary">Service ID</Typography>
+                                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                                      {event.service_id || 'N/A'}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={12} sm={6} md={3}>
+                                    <Typography variant="caption" color="text.secondary">Outcome</Typography>
+                                    <Typography variant="body2">
+                                      {getOutcomeLabel(event.outcome)}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={12} sm={6} md={3}>
+                                    <Typography variant="caption" color="text.secondary">Execution Time</Typography>
+                                    <Typography variant="body2">
+                                      {event.execution_time_ms != null ? `${event.execution_time_ms} ms` : 'N/A'}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={12} sm={6} md={3}>
+                                    <Typography variant="caption" color="text.secondary">Recorded At</Typography>
+                                    <Typography variant="body2">
+                                      {event.recorded
+                                        ? new Date(event.recorded).toLocaleString(undefined, {
+                                            weekday: 'short',
+                                            year: 'numeric',
+                                            month: 'short',
+                                            day: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                            second: '2-digit'
+                                          })
+                                        : 'N/A'}
+                                    </Typography>
+                                  </Grid>
+                                  {event.hook_id && (
+                                    <Grid item xs={12} sm={6} md={3}>
+                                      <Typography variant="caption" color="text.secondary">Hook ID</Typography>
+                                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                                        {event.hook_id}
+                                      </Typography>
+                                    </Grid>
+                                  )}
+                                  {event.resource_type && (
+                                    <Grid item xs={12} sm={6} md={3}>
+                                      <Typography variant="caption" color="text.secondary">Resource Type</Typography>
+                                      <Typography variant="body2">
+                                        {event.resource_type}
+                                      </Typography>
+                                    </Grid>
+                                  )}
+                                  {event.resource_id && (
+                                    <Grid item xs={12} sm={6} md={3}>
+                                      <Typography variant="caption" color="text.secondary">Resource ID</Typography>
+                                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                                        {event.resource_id}
+                                      </Typography>
+                                    </Grid>
+                                  )}
+                                  {event.errors && event.errors.length > 0 && (
+                                    <Grid item xs={12}>
+                                      <Typography variant="caption" color="text.secondary">Errors</Typography>
+                                      <Typography variant="body2" color="error.main" sx={{ whiteSpace: 'pre-wrap' }}>
+                                        {Array.isArray(event.errors) ? event.errors.join('\n') : event.errors}
+                                      </Typography>
+                                    </Grid>
+                                  )}
+                                  {event.warnings && event.warnings.length > 0 && (
+                                    <Grid item xs={12}>
+                                      <Typography variant="caption" color="text.secondary">Warnings</Typography>
+                                      <Typography variant="body2" color="warning.main" sx={{ whiteSpace: 'pre-wrap' }}>
+                                        {Array.isArray(event.warnings) ? event.warnings.join('\n') : event.warnings}
+                                      </Typography>
+                                    </Grid>
+                                  )}
+                                </Grid>
+                              </Box>
+                            </Collapse>
+                          </TableCell>
+                        </TableRow>
+                      </React.Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>

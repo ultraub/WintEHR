@@ -10,7 +10,6 @@ import {
   Grid,
   LinearProgress,
   Chip,
-  CircularProgress,
   Divider
 } from '@mui/material';
 import {
@@ -19,8 +18,11 @@ import {
   GetApp as ExportIcon,
   CheckCircle as MetIcon,
   Cancel as NotMetIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
+import ClinicalLoadingState from '../components/clinical/shared/ClinicalLoadingState';
+import ClinicalEmptyState from '../components/clinical/shared/ClinicalEmptyState';
 
 const QualityMeasuresPage = () => {
   const [summary, setSummary] = useState(null);
@@ -69,24 +71,23 @@ const QualityMeasuresPage = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-        <Stack spacing={2} alignItems="center">
-          <CircularProgress />
-          <Typography color="text.secondary">Calculating quality measures from FHIR data...</Typography>
-        </Stack>
+      <Box sx={{ minHeight: 400, p: 3 }}>
+        <ClinicalLoadingState.Page />
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          Failed to load quality measures: {error}
-        </Alert>
-        <Button variant="outlined" onClick={() => window.location.reload()}>
-          Retry
-        </Button>
+      <Box sx={{ p: 3 }}>
+        <ClinicalEmptyState
+          title="Unable to load quality measures"
+          message={`Failed to load quality measures: ${error}`}
+          severity="error"
+          actions={[
+            { label: 'Retry', icon: <RefreshIcon />, onClick: () => window.location.reload() }
+          ]}
+        />
       </Box>
     );
   }

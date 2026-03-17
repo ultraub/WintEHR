@@ -92,8 +92,15 @@ const extractPatientId = (encounter) => {
   return ref.replace('Patient/', '').replace('urn:uuid:', '');
 };
 
-const extractPatientDisplay = (encounter) => {
-  return encounter?.subject?.display || 'Unknown Patient';
+const extractPatientDisplay = (encounter, patientMap) => {
+  // First try the display field on the encounter itself
+  if (encounter?.subject?.display) return encounter.subject.display;
+  // Then try the resolved patient map (from _include)
+  const patientId = extractPatientId(encounter);
+  if (patientId && patientMap && patientMap[patientId]) {
+    return patientMap[patientId];
+  }
+  return 'Unknown Patient';
 };
 
 const extractEncounterType = (encounter) => {
@@ -394,7 +401,7 @@ const NewEncounterDialog = ({ open, onClose, onCreated }) => {
 
 // --- Encounter Summary Dialog ---
 
-const EncounterSummaryDialog = ({ open, onClose, encounter }) => {
+const EncounterSummaryDialog = ({ open, onClose, encounter, patientMap }) => {
   if (!encounter) return null;
 
   const statusProps = getStatusChipProps(encounter.status);
@@ -418,7 +425,7 @@ const EncounterSummaryDialog = ({ open, onClose, encounter }) => {
         <Stack spacing={2}>
           <Box>
             <Typography variant="caption" color="text.secondary">Patient</Typography>
-            <Typography variant="body1">{extractPatientDisplay(encounter)}</Typography>
+            <Typography variant="body1">{extractPatientDisplay(encounter, patientMap)}</Typography>
           </Box>
           <Box>
             <Typography variant="caption" color="text.secondary">Status</Typography>
@@ -540,6 +547,7 @@ const EncountersPage = () => {
 
   // Data state
   const [encounters, setEncounters] = useState([]);
+  const [patientMap, setPatientMap] = useState({}); // patientId -> display name
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -595,7 +603,8 @@ const EncountersPage = () => {
         _sort: '-date',
         _count: rowsPerPage,
         _offset: page * rowsPerPage,
-        _total: 'accurate'
+        _total: 'accurate',
+        _include: 'Encounter:subject'
       };
 
       if (statusFilter !== 'all') {
@@ -607,7 +616,46 @@ const EncountersPage = () => {
       }
 
       const result = await fhirClient.search('Encounter', params);
-      setEncounters(result.resources || []);
+
+      // Separate Encounter resources from included Patient resources
+      const allResources = result.resources || [];
+      const encounterResources = allResources.filter(
+        (r) => r.resourceType === 'Encounter'
+      );
+      const patientResources = allResources.filter(
+        (r) => r.resourceType === 'Patient'
+      );
+
+      // Also check bundle entries for included patients (search.mode === 'include')
+      // in case the fhirClient pre-filtered resources
+      if (result.bundle?.entry) {
+        for (const entry of result.bundle.entry) {
+          if (
+            entry.resource?.resourceType === 'Patient' &&
+            entry.search?.mode === 'include' &&
+            !patientResources.find((p) => p.id === entry.resource.id)
+          ) {
+            patientResources.push(entry.resource);
+          }
+        }
+      }
+
+      // Build patient display name map
+      const newPatientMap = {};
+      for (const pt of patientResources) {
+        if (pt.id) {
+          const name = pt.name?.[0] || {};
+          const given = (name.given || []).join(' ');
+          const family = name.family || '';
+          const display = family && given
+            ? `${family}, ${given}`
+            : family || given || `Patient/${pt.id}`;
+          newPatientMap[pt.id] = display;
+        }
+      }
+
+      setPatientMap(newPatientMap);
+      setEncounters(encounterResources);
       setTotal(result.total || 0);
     } catch (err) {
       console.error('Failed to fetch encounters:', err);
@@ -833,7 +881,7 @@ const EncountersPage = () => {
                     >
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {extractPatientDisplay(encounter)}
+                          {extractPatientDisplay(encounter, patientMap)}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -874,7 +922,7 @@ const EncountersPage = () => {
                                 color="primary"
                                 onClick={() => handleOpenChart(encounter)}
                                 disabled={!patientId}
-                                aria-label={`Open chart for ${extractPatientDisplay(encounter)}`}
+                                aria-label={`Open chart for ${extractPatientDisplay(encounter, patientMap)}`}
                               >
                                 <OpenChartIcon fontSize="small" />
                               </IconButton>
@@ -929,6 +977,7 @@ const EncountersPage = () => {
           setSelectedEncounter(null);
         }}
         encounter={selectedEncounter}
+        patientMap={patientMap}
       />
     </Box>
   );

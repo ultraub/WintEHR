@@ -15,16 +15,26 @@ import {
   Alert,
   CircularProgress,
   Container,
-  Divider
+  Divider,
+  useTheme
 } from '@mui/material';
 import {
-  Login as LoginIcon
+  Login as LoginIcon,
+  Info as InfoIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
+const roleDescriptions = {
+  demo: 'Full access to clinical workspace, orders, prescriptions, and all features',
+  nurse: 'Access to patient vitals, documentation, and medication administration',
+  pharmacist: 'Access to pharmacy dispensing, medication verification, and inventory',
+  admin: 'Access to system settings, audit trail, and user management'
+};
+
 const Login = () => {
+  const theme = useTheme();
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const [providers, setProviders] = useState([]);
@@ -117,7 +127,7 @@ const Login = () => {
         sx={{
           p: 5,
           backgroundColor: 'background.paper',
-          borderRadius: '24px',
+          borderRadius: theme.shape.borderRadius * 3,
           boxShadow: '0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)',
         }}>
         <Box sx={{ textAlign: 'center', mb: 4 }}>
@@ -181,6 +191,25 @@ const Login = () => {
             </Select>
           </FormControl>
 
+          {selectedProvider && roleDescriptions[selectedProvider] && (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 1,
+                mb: 3,
+                p: 1.5,
+                borderRadius: theme.shape.borderRadius,
+                backgroundColor: 'action.hover',
+              }}
+            >
+              <InfoIcon fontSize="small" color="action" sx={{ mt: 0.25 }} />
+              <Typography variant="body2" color="text.secondary">
+                {roleDescriptions[selectedProvider]}
+              </Typography>
+            </Box>
+          )}
+
           <Button
             fullWidth
             variant="contained"
@@ -191,7 +220,7 @@ const Login = () => {
             sx={{
               py: 1.5,
               fontSize: '1rem',
-              borderRadius: '12px',
+              borderRadius: theme.shape.borderRadius * 1.5,
               boxShadow: 'none',
               '&:hover': {
                 boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
@@ -203,8 +232,11 @@ const Login = () => {
         </Box>
 
         <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" color="text.secondary" display="block">
             Educational EMR System • For Teaching Purposes Only
+          </Typography>
+          <Typography variant="caption" color="text.disabled" display="block" sx={{ mt: 0.5 }}>
+            Educational platform using synthetic Synthea data
           </Typography>
         </Box>
       </Paper>

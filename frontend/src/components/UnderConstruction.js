@@ -204,9 +204,9 @@ const UnderConstruction = ({
             Development Notice
           </AlertTitle>
           <Typography variant="body2">
-            This feature is currently being developed to meet healthcare industry standards 
-            and ensure HIPAA compliance. We appreciate your patience as we build a secure 
-            and reliable solution for your clinical needs.
+            This feature is currently being developed for the WintEHR educational platform.
+            We appreciate your patience as we continue building tools for learning
+            healthcare IT concepts.
           </Typography>
         </Alert>
       </Box>

@@ -417,6 +417,8 @@ const CarePlanTabEnhanced = ({
   const [progressDialogOpen, setProgressDialogOpen] = useState(false);
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [activityDialogOpen, setActivityDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ title: '', category: 'assess-plan', description: '' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -1360,8 +1362,8 @@ const CarePlanTabEnhanced = ({
                     {
                       label: 'Create Care Plan',
                       onClick: () => {
-                        // TODO: Open care plan creation dialog
-                        setSnackbar({ open: true, message: 'Care plan creation coming soon', severity: 'info' });
+                        setCreateForm({ title: '', category: 'assess-plan', description: '' });
+                        setCreateDialogOpen(true);
                       },
                       color: 'primary'
                     }
@@ -2072,6 +2074,106 @@ const CarePlanTabEnhanced = ({
         </DialogActions>
       </Dialog>
       
+      {/* Create Care Plan Dialog */}
+      <Dialog
+        open={createDialogOpen}
+        onClose={() => !isSaving && setCreateDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Create Care Plan</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Title"
+              fullWidth
+              value={createForm.title}
+              onChange={(e) => setCreateForm(prev => ({ ...prev, title: e.target.value }))}
+              placeholder="e.g., Diabetes Management Plan"
+              disabled={isSaving}
+              autoFocus
+            />
+            <FormControl fullWidth>
+              <InputLabel id="create-careplan-category-label">Category</InputLabel>
+              <Select
+                labelId="create-careplan-category-label"
+                value={createForm.category}
+                label="Category"
+                onChange={(e) => setCreateForm(prev => ({ ...prev, category: e.target.value }))}
+                disabled={isSaving}
+              >
+                <MenuItem value="assess-plan">Assessment and Plan</MenuItem>
+                <MenuItem value="longitudinal">Longitudinal Care Plan</MenuItem>
+                <MenuItem value="discharge">Discharge Plan</MenuItem>
+                <MenuItem value="mental-health">Mental Health Plan</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              label="Description"
+              fullWidth
+              multiline
+              rows={3}
+              value={createForm.description}
+              onChange={(e) => setCreateForm(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Describe the goals and scope of this care plan"
+              disabled={isSaving}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateDialogOpen(false)} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={!createForm.title.trim() || isSaving}
+            onClick={async () => {
+              setIsSaving(true);
+              try {
+                const carePlanResource = {
+                  resourceType: 'CarePlan',
+                  status: 'draft',
+                  intent: 'plan',
+                  title: createForm.title.trim(),
+                  subject: { reference: `Patient/${patientId}` },
+                  created: new Date().toISOString(),
+                  category: [
+                    {
+                      coding: [
+                        {
+                          system: 'http://hl7.org/fhir/us/core/CodeSystem/careplan-category',
+                          code: createForm.category,
+                          display: createForm.category === 'assess-plan' ? 'Assessment and Plan'
+                            : createForm.category === 'longitudinal' ? 'Longitudinal Care Plan'
+                            : createForm.category === 'discharge' ? 'Discharge Plan'
+                            : 'Mental Health Plan'
+                        }
+                      ]
+                    }
+                  ],
+                  ...(createForm.description.trim() && {
+                    description: createForm.description.trim()
+                  })
+                };
+
+                await fhirClient.create('CarePlan', carePlanResource);
+                loadAttemptedRef.current = null;
+                await refreshPatientResources(patientId, ['CarePlan']);
+                setCreateDialogOpen(false);
+                setSnackbar({ open: true, message: 'Care plan created successfully', severity: 'success' });
+              } catch (err) {
+                console.error('Failed to create care plan:', err);
+                setSnackbar({ open: true, message: 'Failed to create care plan', severity: 'error' });
+              } finally {
+                setIsSaving(false);
+              }
+            }}
+          >
+            {isSaving ? 'Creating...' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Snackbar */}
       <Snackbar
         open={snackbar.open}
@@ -2079,8 +2181,8 @@ const CarePlanTabEnhanced = ({
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >
