@@ -592,6 +592,7 @@ const CDSPresentation = ({
   // Popup mode - Modal dialog
   if (mode === PRESENTATION_MODES.POPUP) {
     return (
+      <>
       <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
         <DialogTitle>
           Clinical Decision Support
@@ -620,6 +621,49 @@ const CDSPresentation = ({
           <Button onClick={handleClose}>Close</Button>
         </DialogActions>
       </Dialog>
+      {/* Snooze dialog for POPUP mode — must be outside the main Dialog */}
+      {showSnoozeDialog && alertToSnooze && (
+        <Dialog open={showSnoozeDialog} onClose={() => setShowSnoozeDialog(false)} maxWidth="xs" fullWidth sx={{ zIndex: 1400 }}>
+          <DialogTitle>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <SnoozeIcon color="primary" />
+              <Typography>Snooze Alert</Typography>
+            </Stack>
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" gutterBottom>
+              How long would you like to snooze this alert?
+            </Typography>
+            <Alert severity={getSeverityColor(alertToSnooze.indicator)} sx={{ my: 2 }}>
+              <Typography variant="subtitle2">{alertToSnooze.summary}</Typography>
+            </Alert>
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>Snooze Duration</InputLabel>
+              <Select
+                value={snoozeDuration}
+                onChange={(e) => setSnoozeDuration(e.target.value)}
+                label="Snooze Duration"
+              >
+                <MenuItem value={15}>15 minutes</MenuItem>
+                <MenuItem value={30}>30 minutes</MenuItem>
+                <MenuItem value={60}>1 hour</MenuItem>
+                <MenuItem value={120}>2 hours</MenuItem>
+                <MenuItem value={480}>8 hours</MenuItem>
+                <MenuItem value={1440}>24 hours</MenuItem>
+              </Select>
+            </FormControl>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => { setShowSnoozeDialog(false); setAlertToSnooze(null); }}>Cancel</Button>
+            <Button variant="contained" onClick={() => {
+              handleSnoozeAlert(alertToSnooze, snoozeDuration);
+              setShowSnoozeDialog(false);
+              setAlertToSnooze(null);
+            }}>Snooze</Button>
+          </DialogActions>
+        </Dialog>
+      )}
+      </>
     );
   }
 
