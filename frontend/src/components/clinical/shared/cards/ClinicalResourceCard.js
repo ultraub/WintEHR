@@ -109,7 +109,7 @@ const ClinicalResourceCard = ({
   const getPriorityColor = () => {
     const priorityColors = {
       low: theme.palette.success?.main || '#4caf50',
-      normal: theme.palette.info?.main || '#2196f3',
+      normal: theme.palette.info?.main || '#6366F1',
       high: theme.palette.warning?.main || '#ff9800',
       urgent: theme.palette.error?.main || '#f44336'
     };

@@ -79,7 +79,7 @@ const NAVIGATION_STRUCTURE = {
     label: 'Dashboard',
     icon: <DashboardIcon />,
     description: 'Overview and quick access',
-    color: '#1976d2'
+    color: '#6366F1'
   },
   [APP_MODES.DISCOVERY]: {
     label: 'Discovery',
@@ -238,7 +238,7 @@ const AppHeader = ({
               width: 32,
               height: 32,
               borderRadius: '8px',
-              background: 'linear-gradient(45deg, #1976d2, #42a5f5)',
+              background: 'linear-gradient(45deg, #6366F1, #818CF8)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -431,10 +431,10 @@ const NavigationDrawer = ({
             mb: 0.5,
             borderRadius: 2,
             backgroundColor: isActive 
-              ? alpha(config.color || '#1976d2', 0.1)
+              ? alpha(config.color || '#6366F1', 0.1)
               : 'transparent',
             '&:hover': {
-              backgroundColor: alpha(config.color || '#1976d2', 0.05)
+              backgroundColor: alpha(config.color || '#6366F1', 0.05)
             }
           }}
         >
@@ -494,10 +494,10 @@ const NavigationDrawer = ({
                       mb: 0.5,
                       borderRadius: 2,
                       backgroundColor: isViewActive 
-                        ? alpha(config.color || '#1976d2', 0.08)
+                        ? alpha(config.color || '#6366F1', 0.08)
                         : 'transparent',
                       '&:hover': {
-                        backgroundColor: alpha(config.color || '#1976d2', 0.04)
+                        backgroundColor: alpha(config.color || '#6366F1', 0.04)
                       }
                     }}
                   >

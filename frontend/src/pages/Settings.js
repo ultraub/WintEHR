@@ -56,7 +56,7 @@ import api from '../services/api';
 // ---------------------------------------------------------------------------
 
 const departments = [
-  { id: 'general', name: 'General Medicine', icon: <GeneralIcon />, color: '#1976D2' },
+  { id: 'general', name: 'General Medicine', icon: <GeneralIcon />, color: '#6366F1' },
   { id: 'emergency', name: 'Emergency', icon: <MedicalIcon />, color: '#D32F2F' },
   { id: 'cardiology', name: 'Cardiology', icon: <CardiologyIcon />, color: '#E91E63' },
   { id: 'pediatrics', name: 'Pediatrics', icon: <PediatricsIcon />, color: '#4CAF50' },
@@ -70,10 +70,10 @@ const DENSITY_OPTIONS = [
 ];
 
 const previewColors = {
-  professional: { light: { primary: '#1565C0', secondary: '#2E7D32', bg: '#FAFBFC' }, dark: { primary: '#42A5F5', secondary: '#66BB6A', bg: '#0A0E13' } },
+  professional: { light: { primary: '#6366F1', secondary: '#2E7D32', bg: '#FAFBFC' }, dark: { primary: '#42A5F5', secondary: '#66BB6A', bg: '#0A0E13' } },
   accessible:   { light: { primary: '#0066CC', secondary: '#006600', bg: '#FFFFFF' }, dark: { primary: '#3399FF', secondary: '#339933', bg: '#000000' } },
   warm:         { light: { primary: '#7C4DFF', secondary: '#FF7043', bg: '#FFFEF7' }, dark: { primary: '#B085F5', secondary: '#FFAB91', bg: '#1A0E1A' } },
-  dark:         { light: { primary: '#1976D2', secondary: '#4CAF50', bg: '#FAFAFA' }, dark: { primary: '#42A5F5', secondary: '#66BB6A', bg: '#0A0E13' } },
+  dark:         { light: { primary: '#6366F1', secondary: '#4CAF50', bg: '#FAFAFA' }, dark: { primary: '#42A5F5', secondary: '#66BB6A', bg: '#0A0E13' } },
   ocean:        { light: { primary: '#0097A7', secondary: '#00ACC1', bg: '#F0F7F8' }, dark: { primary: '#4DD0E1', secondary: '#5DDEF4', bg: '#0A0E13' } },
   forest:       { light: { primary: '#2E7D32', secondary: '#558B2F', bg: '#F1F8E9' }, dark: { primary: '#81C784', secondary: '#A5D6A7', bg: '#0A0E13' } },
   sunrise:      { light: { primary: '#F57C00', secondary: '#FFD54F', bg: '#FFF8E1' }, dark: { primary: '#FFB74D', secondary: '#FFFF81', bg: '#0A0E13' } },

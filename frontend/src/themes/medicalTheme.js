@@ -930,9 +930,9 @@ const forestWellnessPalette = {
     contrastText: '#000000'
   },
   info: {
-    main: '#1976D2',
-    light: '#63A4FF',
-    dark: '#004BA0',
+    main: '#6366F1',
+    light: '#A5B4FC',
+    dark: '#4F46E5',
     contrastText: '#FFFFFF'
   },
   success: {
@@ -978,7 +978,7 @@ const forestWellnessPalette = {
       active: '#43A047',
       inactive: '#9E9E9E',
       pending: '#F9A825',
-      completed: '#1976D2',
+      completed: '#6366F1',
       cancelled: '#C62828',
       draft: '#757575',
       inProgress: '#15803D'
@@ -1071,9 +1071,9 @@ const sunriseCarePalette = {
     contrastText: '#000000'
   },
   info: {
-    main: '#1E88E5',
-    light: '#6AB7FF',
-    dark: '#005CB2',
+    main: '#6366F1',
+    light: '#A5B4FC',
+    dark: '#4F46E5',
     contrastText: '#FFFFFF'
   },
   success: {
@@ -1119,7 +1119,7 @@ const sunriseCarePalette = {
       active: '#689F38',
       inactive: '#9E9E9E',
       pending: '#FFA000',
-      completed: '#1E88E5',
+      completed: '#6366F1',
       cancelled: '#D32F2F',
       draft: '#757575',
       inProgress: '#EA580C'
@@ -1494,9 +1494,9 @@ const pediatricFriendlyPalette = {
     contrastText: '#000000'
   },
   info: {
-    main: '#2196F3',
-    light: '#BBDEFB',
-    dark: '#1976D2',
+    main: '#6366F1',
+    light: '#C7D2FE',
+    dark: '#4F46E5',
     contrastText: '#FFFFFF'
   },
   success: {

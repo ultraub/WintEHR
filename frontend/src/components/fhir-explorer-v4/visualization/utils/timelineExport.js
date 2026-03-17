@@ -116,7 +116,7 @@ export const exportToSVG = (timelineData, dimensions, filename = 'timeline') => 
 // Helper function to get resource colors
 const getResourceColor = (resourceType) => {
   const colors = {
-    Encounter: '#1976d2',
+    Encounter: '#6366F1',
     Condition: '#d32f2f',
     MedicationRequest: '#ed6c02',
     Procedure: '#7b1fa2',

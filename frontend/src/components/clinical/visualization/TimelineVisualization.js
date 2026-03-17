@@ -49,7 +49,7 @@ import { throttle, performanceMonitor } from '../performance/optimizations';
 const TRACKS = {
   encounters: { 
     label: 'Clinical Encounters', 
-    color: '#1976d2', // Primary blue
+    color: '#6366F1', // Primary indigo
     height: 60,
     priority: 1 
   },
@@ -67,7 +67,7 @@ const TRACKS = {
   },
   labs: { 
     label: 'Lab Results', 
-    color: '#2196f3', // Info blue
+    color: '#6366F1', // Info indigo
     height: 60,
     priority: 4 
   },

@@ -698,7 +698,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       
       /* Path highlighting styles */
       .path-node { stroke: #ff9800 !important; stroke-width: 4px !important; }
-      .path-endpoint { stroke: #2196f3 !important; stroke-width: 5px !important; }
+      .path-endpoint { stroke: #6366F1 !important; stroke-width: 5px !important; }
       .path-link { stroke: #ff9800 !important; stroke-width: 3px !important; stroke-opacity: 1 !important; }
     `);
 

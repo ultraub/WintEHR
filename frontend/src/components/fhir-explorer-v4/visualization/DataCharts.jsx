@@ -108,7 +108,7 @@ function DataCharts({ onNavigate, fhirData }) {
   const chartColors = getChartColors(theme);
   
   // Use the palette colors for charts with fallback
-  const CHART_COLORS = chartColors?.palette || ['#1976D2', '#388E3C', '#F57C00', '#D32F2F', '#7B1FA2', '#0288D1', '#388E3C', '#FFA726'];
+  const CHART_COLORS = chartColors?.palette || ['#6366F1', '#388E3C', '#F57C00', '#D32F2F', '#7B1FA2', '#0288D1', '#388E3C', '#FFA726'];
   
   const [currentTab, setCurrentTab] = useState(0);
   const [loading, setLoading] = useState(false);

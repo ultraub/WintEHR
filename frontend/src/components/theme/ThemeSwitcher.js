@@ -61,7 +61,7 @@ import {
 
 // Department configuration
 const departments = [
-  { id: 'general', name: 'General Medicine', icon: <GeneralIcon />, color: '#1976D2' },
+  { id: 'general', name: 'General Medicine', icon: <GeneralIcon />, color: '#6366F1' },
   { id: 'emergency', name: 'Emergency', icon: <EmergencyIcon />, color: '#D32F2F' },
   { id: 'cardiology', name: 'Cardiology', icon: <CardiologyIcon />, color: '#E91E63' },
   { id: 'pediatrics', name: 'Pediatrics', icon: <PediatricsIcon />, color: '#4CAF50' },
@@ -76,7 +76,7 @@ const ThemePreviewCard = ({
 }) => {
   const previewStyles = {
     professional: {
-      light: { primary: '#1565C0', secondary: '#2E7D32', background: '#FAFBFC' },
+      light: { primary: '#6366F1', secondary: '#2E7D32', background: '#FAFBFC' },
       dark: { primary: '#42A5F5', secondary: '#66BB6A', background: '#0A0E13' }
     },
     accessible: {
@@ -88,7 +88,7 @@ const ThemePreviewCard = ({
       dark: { primary: '#B085F5', secondary: '#FFAB91', background: '#1A0E1A' }
     },
     dark: {
-      light: { primary: '#1976D2', secondary: '#4CAF50', background: '#FAFAFA' },
+      light: { primary: '#6366F1', secondary: '#4CAF50', background: '#FAFAFA' },
       dark: { primary: '#42A5F5', secondary: '#66BB6A', background: '#0A0E13' }
     },
     ocean: {
@@ -329,7 +329,7 @@ const ThemeSwitcher = () => {
     id: 'general', 
     name: 'General Medicine', 
     icon: <MedicalIcon />, 
-    color: '#1976D2' 
+    color: '#6366F1'
   };
 
   const handleOpen = () => setOpen(true);
@@ -403,7 +403,7 @@ const ThemeSwitcher = () => {
                     onChange={(e) => setSelectedDepartment(e.target.value)}
                     label="Department"
                     startAdornment={currentDepartmentInfo && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', mr: 1, color: currentDepartmentInfo.color || '#1976D2' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mr: 1, color: currentDepartmentInfo.color || '#6366F1' }}>
                         {currentDepartmentInfo.icon || <MedicalIcon />}
                       </Box>
                     )}

@@ -43,7 +43,7 @@ const VITAL_SIGNS = {
   bloodPressure: {
     label: 'Blood Pressure',
     unit: 'mmHg',
-    colors: { systolic: '#d32f2f', diastolic: '#1976d2' },
+    colors: { systolic: '#d32f2f', diastolic: '#6366F1' },
     normalRange: { systolic: [90, 140], diastolic: [60, 90] }
   },
   heartRate: {

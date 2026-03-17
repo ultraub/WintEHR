@@ -167,7 +167,7 @@ class FHIRRelationshipService {
   getResourceColor(resourceType) {
     const colorMap = {
       // Administrative
-      'Patient': '#1976d2',
+      'Patient': '#6366F1',
       'Practitioner': '#2e7d32',
       'Organization': '#ed6c02',
       'Location': '#0288d1',

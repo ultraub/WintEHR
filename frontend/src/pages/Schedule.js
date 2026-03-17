@@ -76,7 +76,7 @@ const DURATIONS = [
 ];
 
 const STATUS_CONFIG = {
-  booked:      { label: 'Booked',     color: 'info',    muiColor: '#1976d2', bgColor: '#e3f2fd', icon: BookedIcon },
+  booked:      { label: 'Booked',     color: 'info',    muiColor: '#6366F1', bgColor: '#eef2ff', icon: BookedIcon },
   'checked-in': { label: 'Checked In', color: 'warning', muiColor: '#ed6c02', bgColor: '#fff3e0', icon: CheckInIcon },
   fulfilled:   { label: 'Completed',  color: 'success', muiColor: '#2e7d32', bgColor: '#e8f5e9', icon: CompletedIcon },
   cancelled:   { label: 'Cancelled',  color: 'default', muiColor: '#9e9e9e', bgColor: '#f5f5f5', icon: CancelledIcon },
@@ -136,8 +136,8 @@ function TodaysSummary({ appointments }) {
   }, [appointments]);
 
   const cards = [
-    { label: 'Total',      value: stats.total,     color: '#1976d2', bgColor: '#e3f2fd' },
-    { label: 'Booked',     value: stats.booked,    color: '#1976d2', bgColor: '#e3f2fd' },
+    { label: 'Total',      value: stats.total,     color: '#6366F1', bgColor: '#eef2ff' },
+    { label: 'Booked',     value: stats.booked,    color: '#6366F1', bgColor: '#eef2ff' },
     { label: 'Checked In', value: stats.checkedIn, color: '#ed6c02', bgColor: '#fff3e0' },
     { label: 'Completed',  value: stats.completed, color: '#2e7d32', bgColor: '#e8f5e9' },
     { label: 'No Shows',   value: stats.noShows,   color: '#d32f2f', bgColor: '#fbe9e7' }

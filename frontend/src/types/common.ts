@@ -40,7 +40,7 @@ export const SEVERITY_COLORS: Record<ClinicalSeverity, { color: string; bgcolor:
   high: { color: '#f57c00', bgcolor: '#fff3e0' },
   medium: { color: '#fbc02d', bgcolor: '#fffde7' },
   low: { color: '#388e3c', bgcolor: '#e8f5e9' },
-  info: { color: '#1976d2', bgcolor: '#e3f2fd' },
+  info: { color: '#6366F1', bgcolor: '#eef2ff' },
 };
 
 /**
@@ -49,7 +49,7 @@ export const SEVERITY_COLORS: Record<ClinicalSeverity, { color: string; bgcolor:
 export const STATUS_COLORS: Record<ClinicalStatus, string> = {
   active: '#388e3c',
   inactive: '#757575',
-  completed: '#1976d2',
+  completed: '#6366F1',
   cancelled: '#d32f2f',
   pending: '#f57c00',
   draft: '#9e9e9e',

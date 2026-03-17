@@ -361,7 +361,7 @@ const EnhancedBaseResourceDialog = ({
             variant="outlined" 
             sx={{ 
               p: spacing * 2, 
-              backgroundColor: alpha(theme.palette.primary?.main || '#1976D2', 0.02) 
+              backgroundColor: alpha(theme.palette.primary?.main || '#6366F1', 0.02)
             }}
           >
             {renderPreview(formData)}

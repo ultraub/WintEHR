@@ -90,7 +90,7 @@ const MetricCard = ({
       return theme.palette[color].main;
     }
     
-    return theme.palette.primary?.main || '#1976D2';
+    return theme.palette.primary?.main || '#6366F1';
   };
 
   const cardColor = getColor();

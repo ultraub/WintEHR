@@ -18,7 +18,7 @@ export const getChartColors = (theme) => {
   // Base colors that work well for data visualization
   const baseColors = {
     professional: {
-      primary: ['#1976D2', '#2196F3', '#42A5F5', '#64B5F6', '#90CAF9'],
+      primary: ['#6366F1', '#818CF8', '#A5B4FC', '#C7D2FE', '#E0E7FF'],
       secondary: ['#388E3C', '#4CAF50', '#66BB6A', '#81C784', '#A5D6A7'],
       accent: ['#F57C00', '#FF9800', '#FFB74D', '#FFCC80', '#FFE0B2'],
       danger: ['#D32F2F', '#F44336', '#EF5350', '#E57373', '#EF9A9A'],

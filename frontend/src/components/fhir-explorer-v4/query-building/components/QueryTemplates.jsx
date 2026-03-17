@@ -69,7 +69,7 @@ const TEMPLATE_CATEGORIES = {
   quality: {
     name: 'Quality Measures',
     icon: QualityIcon,
-    color: '#2196f3',
+    color: '#6366F1',
     description: 'Clinical quality and performance metrics'
   },
   population: {

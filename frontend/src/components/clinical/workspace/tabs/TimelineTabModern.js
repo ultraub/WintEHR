@@ -265,7 +265,7 @@ import {
 const eventTypes = {
   'Encounter': { 
     icon: <EncounterIcon />, 
-    color: '#1976d2', // Blue
+    color: '#6366F1', // Indigo
     label: 'Visit',
     category: 'clinical',
     importance: 8
@@ -416,7 +416,7 @@ const journeyMilestones = {
   },
   'followup': {
     icon: <EventIcon />,
-    color: '#2196f3',
+    color: '#6366F1',
     label: 'Follow-up',
     description: 'Follow-up appointment'
   },
@@ -1113,7 +1113,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         style: `color: ${
           severity === 'critical' ? '#f44336' :
           severity === 'high' ? '#ff9800' :
-          severity === 'moderate' ? '#2196f3' : '#4caf50'
+          severity === 'moderate' ? '#6366F1' : '#4caf50'
         };`
       }));
     }
@@ -1338,7 +1338,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         label: severity.charAt(0).toUpperCase() + severity.slice(1),
         color: severity === 'critical' ? '#f44336' :
                severity === 'high' ? '#ff9800' :
-               severity === 'moderate' ? '#2196f3' : '#4caf50'
+               severity === 'moderate' ? '#6366F1' : '#4caf50'
       })),
       trends: eventTrends,
       total: processedEvents.length,
@@ -2344,12 +2344,12 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                           bgcolor: alpha(
                             selectedEvent._severity === 'critical' ? '#f44336' :
                             selectedEvent._severity === 'high' ? '#ff9800' :
-                            selectedEvent._severity === 'moderate' ? '#2196f3' : '#4caf50',
+                            selectedEvent._severity === 'moderate' ? '#6366F1' : '#4caf50',
                             0.1
                           ),
                           color: selectedEvent._severity === 'critical' ? '#f44336' :
                                  selectedEvent._severity === 'high' ? '#ff9800' :
-                                 selectedEvent._severity === 'moderate' ? '#2196f3' : '#4caf50'
+                                 selectedEvent._severity === 'moderate' ? '#6366F1' : '#4caf50'
                         }}
                       />
                       {isResourceInactive(selectedEvent) && (
@@ -2635,7 +2635,7 @@ const CalendarHeatmapComponent = ({ data, processedEvents, heatmapView, setHeatm
       const severityColors = {
         'critical': '#f44336',
         'high': '#ff9800',
-        'moderate': '#2196f3',
+        'moderate': '#6366F1',
         'low': '#4caf50',
         'none': isDarkMode ? '#1e1e1e' : '#f5f5f5'
       };

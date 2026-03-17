@@ -71,7 +71,7 @@ import { APP_MODES, DISCOVERY_VIEWS, QUERY_VIEWS, VISUALIZATION_VIEWS } from '..
 
 // Resource type configurations with colors and icons
 const RESOURCE_CONFIGS = {
-  Patient: { icon: <PeopleIcon />, color: '#2196f3', label: 'Patients' },
+  Patient: { icon: <PeopleIcon />, color: '#6366F1', label: 'Patients' },
   Observation: { icon: <ScienceIcon />, color: '#4caf50', label: 'Observations' },
   Condition: { icon: <AssessmentIcon />, color: '#f44336', label: 'Conditions' },
   MedicationRequest: { icon: <MedicationIcon />, color: '#ff9800', label: 'Medications' },
@@ -123,7 +123,7 @@ const SAMPLE_QUERIES = [
     description: 'Patients with recent encounters',
     query: '/fhir/R4/Patient?_has:Encounter:patient:date=ge2024-01-01',
     icon: <PeopleIcon />,
-    color: '#2196f3'
+    color: '#6366F1'
   },
   {
     title: 'Current Medications',
@@ -462,7 +462,7 @@ function DashboardHome({ onNavigate, fhirData, queryHistory, theme }) {
                 value={calculatedStats.totalResources}
                 change={12}
                 icon={<AssessmentIcon />}
-                color="#1976d2"
+                color="#6366F1"
                 loading={loading}
               />
             </div>
@@ -476,7 +476,7 @@ function DashboardHome({ onNavigate, fhirData, queryHistory, theme }) {
                 value={calculatedStats.totalPatients}
                 change={5}
                 icon={<PeopleIcon />}
-                color="#2196f3"
+                color="#6366F1"
                 loading={loading}
               />
             </div>

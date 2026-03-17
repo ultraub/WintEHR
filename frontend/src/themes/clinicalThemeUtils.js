@@ -127,7 +127,7 @@ export const getStatusColor = (theme, status, context = {}) => {
     active: theme.clinical?.status?.active || '#4CAF50',
     inactive: theme.clinical?.status?.inactive || '#9E9E9E',
     pending: theme.clinical?.status?.pending || '#FF9800',
-    completed: theme.clinical?.status?.completed || '#2196F3',
+    completed: theme.clinical?.status?.completed || '#6366F1',
     cancelled: theme.clinical?.status?.cancelled || '#F44336',
     draft: theme.clinical?.status?.draft || '#757575',
     inProgress: theme.clinical?.status?.inProgress || '#3F51B5'

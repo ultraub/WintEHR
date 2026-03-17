@@ -122,12 +122,12 @@ const createResourceTracks = (chartColors) => ({
  */
 const TimelineEvent = ({ event, scale, onEventClick, isSelected, RESOURCE_TRACKS }) => {
   const config = RESOURCE_TRACKS[event.resourceType] || RESOURCE_TRACKS.Observation || {
-    color: '#1976D2',
+    color: '#6366F1',
     label: 'Unknown',
     icon: <AssessmentIcon />
   };
   
-  const safeColor = config.color || '#1976D2';
+  const safeColor = config.color || '#6366F1';
   
   const eventStyle = {
     position: 'absolute',
@@ -185,12 +185,12 @@ const TimelineEvent = ({ event, scale, onEventClick, isSelected, RESOURCE_TRACKS
  */
 const TimelineTrack = ({ trackData, scale, onEventClick, selectedEvent, RESOURCE_TRACKS }) => {
   const config = RESOURCE_TRACKS[trackData.resourceType] || {
-    color: '#1976D2',
+    color: '#6366F1',
     label: 'Unknown',
     icon: <AssessmentIcon />
   };
   
-  const safeColor = config.color || '#1976D2';
+  const safeColor = config.color || '#6366F1';
   
   return (
     <Box
@@ -326,7 +326,7 @@ const TimelineControls = ({
               // Safety check for undefined colors
               const safeConfig = {
                 ...config,
-                color: config.color || '#1976D2'
+                color: config.color || '#6366F1'
               };
               
               return (
@@ -420,12 +420,12 @@ const EventDetailsPanel = ({ event, onClose, RESOURCE_TRACKS }) => {
   if (!event) return null;
 
   const config = RESOURCE_TRACKS[event.resourceType] || {
-    color: '#1976D2',
+    color: '#6366F1',
     label: 'Unknown',
     icon: <AssessmentIcon />
   };
   
-  const safeColor = config.color || '#1976D2';
+  const safeColor = config.color || '#6366F1';
 
   return (
     <Card sx={{ mt: 2 }}>

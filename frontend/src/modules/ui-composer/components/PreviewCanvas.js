@@ -150,10 +150,10 @@ const PreviewCanvas = () => {
         key={componentId}
         sx={{
           position: 'relative',
-          border: isSelected ? '2px solid #1976d2' : '1px solid transparent',
+          border: isSelected ? '2px solid #6366F1' : '1px solid transparent',
           borderRadius: 1,
           '&:hover': {
-            border: previewMode === 'edit' ? '1px solid #1976d2' : 'none',
+            border: previewMode === 'edit' ? '1px solid #6366F1' : 'none',
             cursor: previewMode === 'edit' ? 'pointer' : 'default'
           }
         }}
@@ -172,7 +172,7 @@ const PreviewCanvas = () => {
               left: -1,
               right: -1,
               bottom: -1,
-              border: '2px solid #1976d2',
+              border: '2px solid #6366F1',
               borderRadius: 1,
               pointerEvents: 'none',
               zIndex: 1

@@ -28,7 +28,7 @@ import {
 } from '@mui/icons-material';
 
 const GENDER_OPTIONS = [
-  { value: 'male', label: 'Male', icon: <MaleIcon />, color: '#1976d2' },
+  { value: 'male', label: 'Male', icon: <MaleIcon />, color: '#6366F1' },
   { value: 'female', label: 'Female', icon: <FemaleIcon />, color: '#d32f2f' },
   { value: 'other', label: 'Other', icon: <OtherIcon />, color: '#9c27b0' },
   { value: 'unknown', label: 'Unknown', icon: null, color: '#757575' }

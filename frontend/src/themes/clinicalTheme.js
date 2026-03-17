@@ -164,19 +164,19 @@ export const clinicalTokens = {
       heartRate: '#E91E63',
       bloodPressure: '#F44336',
       temperature: '#FF9800',
-      oxygenSaturation: '#2196F3',
+      oxygenSaturation: '#6366F1',
       respiratoryRate: '#00BCD4'
     },
     labs: {
       normal: '#4CAF50',
-      abnormalLow: '#2196F3',
+      abnormalLow: '#6366F1',
       abnormalHigh: '#FF5722',
       critical: '#F44336',
       pending: '#9E9E9E'
     },
     trends: {
       improving: '#4CAF50',
-      stable: '#2196F3',
+      stable: '#6366F1',
       worsening: '#FF5722',
       variable: '#FF9800'
     }

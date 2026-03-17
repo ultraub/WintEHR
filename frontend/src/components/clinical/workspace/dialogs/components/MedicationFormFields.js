@@ -549,13 +549,13 @@ const MedicationFormFields = ({
           variant="outlined" 
           sx={{ 
             p: 2, 
-            backgroundColor: alpha(theme.palette.info?.main || '#2196f3', 0.05),
-            borderColor: theme.palette.info?.main || '#2196f3'
+            backgroundColor: alpha(theme.palette.info?.main || '#6366F1', 0.05),
+            borderColor: theme.palette.info?.main || '#6366F1'
           }}
         >
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-            <InfoIcon fontSize="small" sx={{ color: theme.palette.info?.main || '#2196f3' }} />
-            <Typography variant="subtitle2" sx={{ color: theme.palette.info?.main || '#2196f3' }}>
+            <InfoIcon fontSize="small" sx={{ color: theme.palette.info?.main || '#6366F1' }} />
+            <Typography variant="subtitle2" sx={{ color: theme.palette.info?.main || '#6366F1' }}>
               Prescription Summary
             </Typography>
           </Stack>

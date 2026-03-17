@@ -64,7 +64,7 @@ import catalogService from '../../../../services/cdsClinicalDataService';
 const RESOURCE_CONFIGS = {
   MedicationRequest: {
     icon: <MedicationIcon />,
-    color: '#2196F3',
+    color: '#6366F1',
     searchParams: ['code', 'medication.code', '_text'],
     displayField: (resource) => resource?.medicationCodeableConcept?.coding?.[0]?.display || 
                                 resource?.medicationReference?.display || 'Unknown Medication',

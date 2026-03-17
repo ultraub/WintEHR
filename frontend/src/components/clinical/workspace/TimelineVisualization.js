@@ -41,14 +41,14 @@ import { format, parseISO, differenceInDays, addDays, startOfDay, endOfDay } fro
 
 // Event type configuration
 const eventTypeConfig = {
-  Encounter: { color: '#2196f3', label: 'Visit', icon: EncounterIcon },
+  Encounter: { color: '#6366F1', label: 'Visit', icon: EncounterIcon },
   Condition: { color: '#f44336', label: 'Condition', icon: ConditionIcon },
   MedicationRequest: { color: '#4caf50', label: 'Medication', icon: MedicationIcon },
   Observation: { color: '#ff9800', label: 'Lab/Vital', icon: ObservationIcon },
   Procedure: { color: '#9c27b0', label: 'Procedure', icon: ProcedureIcon },
   AllergyIntolerance: { color: '#ff5722', label: 'Allergy', icon: AllergyIcon },
   Immunization: { color: '#00bcd4', label: 'Vaccine', icon: ImmunizationIcon },
-  DiagnosticReport: { color: '#3f51b5', label: 'Report', icon: ReportIcon },
+  DiagnosticReport: { color: '#6366F1', label: 'Report', icon: ReportIcon },
   CarePlan: { color: '#009688', label: 'Care Plan', icon: CarePlanIcon },
   Goal: { color: '#795548', label: 'Goal', icon: GoalIcon }
 };

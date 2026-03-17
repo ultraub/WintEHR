@@ -78,7 +78,7 @@ import { useQueryHistory } from '../hooks/useQueryHistory';
 // Query categories
 const QUERY_CATEGORIES = [
   { value: 'general', label: 'General', color: '#9e9e9e' },
-  { value: 'patient', label: 'Patient', color: '#2196f3' },
+  { value: 'patient', label: 'Patient', color: '#6366F1' },
   { value: 'clinical', label: 'Clinical', color: '#4caf50' },
   { value: 'administrative', label: 'Administrative', color: '#ff9800' },
   { value: 'financial', label: 'Financial', color: '#f44336' },

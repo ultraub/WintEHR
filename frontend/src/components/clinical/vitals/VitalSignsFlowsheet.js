@@ -67,7 +67,7 @@ const VITAL_SIGNS_CONFIG = {
     name: 'Respiratory Rate',
     unit: '/min',
     normalRange: { min: 12, max: 20 },
-    color: '#2196f3',
+    color: '#6366F1',
     loincCodes: ['9279-1']
   },
   'systolic-bp': {

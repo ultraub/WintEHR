@@ -48,7 +48,7 @@ const resourceTypeConfig = {
     track: 0
   },
   MedicationRequest: {
-    color: '#2196F3',
+    color: '#6366F1',
     icon: <MedicationIcon fontSize="small" />,
     label: 'Medications',
     track: 1

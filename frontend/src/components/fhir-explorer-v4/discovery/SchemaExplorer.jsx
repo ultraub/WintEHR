@@ -57,7 +57,7 @@ import { fhirSchemaService } from '../../../services/fhirSchemaService';
 // Enhanced color mapping for all FHIR data types
 const DATA_TYPE_ICONS = {
   // Primitive types
-  boolean: { icon: <CheckCircleIcon />, color: '#2196F3' },
+  boolean: { icon: <CheckCircleIcon />, color: '#6366F1' },
   integer: { icon: <NumbersIcon />, color: '#FF9800' },
   string: { icon: <TextFieldsIcon />, color: '#4CAF50' },
   decimal: { icon: <NumbersIcon />, color: '#FF9800' },

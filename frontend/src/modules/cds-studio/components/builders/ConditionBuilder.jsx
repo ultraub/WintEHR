@@ -112,7 +112,7 @@ const ConditionBlock = ({
   onDelete,
   availableDataSources,
   level = 0,
-  operatorColor = '#2196F3',
+  operatorColor = '#6366F1',
   showPreview = false
 }) => {
   const [catalogOptions, setCatalogOptions] = useState([]);
@@ -627,10 +627,10 @@ const ConditionGroup = ({
   // Color coding based on logical operator for visual hierarchy
   const operatorColors = {
     AND: {
-      border: '#2196F3',      // Blue
-      bg: '#E3F2FD',          // Light blue
-      bgHover: '#BBDEFB',     // Darker blue on hover
-      icon: '#1976D2'         // Darker blue for icon
+      border: '#6366F1',      // Indigo
+      bg: '#EEF2FF',          // Light indigo
+      bgHover: '#C7D2FE',     // Darker indigo on hover
+      icon: '#4F46E5'         // Darker indigo for icon
     },
     OR: {
       border: '#FF9800',      // Orange

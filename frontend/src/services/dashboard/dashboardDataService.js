@@ -234,7 +234,7 @@ class DashboardDataService {
           eligible: eligibleColonoscopy,
           percentage: 0,
           icon: '🔍',
-          color: '#2196f3'
+          color: '#6366F1'
         }
       ];
 

@@ -98,7 +98,7 @@ const FHIR_RESOURCES = {
     category: 'clinical',
     difficulty: 'beginner',
     icon: <PeopleIcon />,
-    color: '#2196f3',
+    color: '#6366F1',
     description: 'Individuals receiving healthcare services',
     keyFields: ['name', 'birthDate', 'gender', 'address', 'identifier'],
     searchParams: ['name', 'family', 'given', 'identifier', 'birthdate', 'gender'],
@@ -272,7 +272,7 @@ const FHIR_RESOURCES = {
 const RESOURCE_CATEGORIES = {
   clinical: {
     label: 'Clinical',
-    color: '#2196f3',
+    color: '#6366F1',
     description: 'Core clinical resources for patient care',
     icon: <HospitalIcon />
   },

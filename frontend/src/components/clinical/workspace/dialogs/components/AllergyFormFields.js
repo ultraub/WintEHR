@@ -409,7 +409,7 @@ const AllergyFormFields = ({
             size="small"
             onClick={handleAddReaction}
             disabled={disabled}
-            sx={{ color: theme.palette.primary?.main || '#1976D2' }}
+            sx={{ color: theme.palette.primary?.main || '#6366F1' }}
           >
             <AddIcon />
           </IconButton>
