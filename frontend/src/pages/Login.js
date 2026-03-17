@@ -232,11 +232,8 @@ const Login = () => {
         </Box>
 
         <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Typography variant="caption" color="text.secondary" display="block">
-            Educational EMR System • For Teaching Purposes Only
-          </Typography>
-          <Typography variant="caption" color="text.disabled" display="block" sx={{ mt: 0.5 }}>
-            Educational platform using synthetic Synthea data
+          <Typography variant="caption" color="text.secondary">
+            Educational Platform • Synthetic Synthea Data • For Teaching Only
           </Typography>
         </Box>
       </Paper>
