@@ -124,7 +124,7 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
           sx={{
             borderRadius: 1,
             color: '#78716C',
-            '&:hover': { bgcolor: '#292524' },
+            '&:hover': { bgcolor: '#3A3532' },
             '& .MuiListItemIcon-root': { color: '#78716C' },
           }}
         >
@@ -161,7 +161,7 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
                     borderLeft: isActive ? '3px solid #6366F1' : '3px solid transparent',
                     '& .MuiListItemIcon-root': { color: '#78716C' },
                     '&:hover': {
-                      bgcolor: '#292524',
+                      bgcolor: '#3A3532',
                       color: '#D6D3D1',
                       '& .MuiListItemIcon-root': { color: '#D6D3D1' },
                     },
@@ -203,7 +203,7 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
 
 const UserProfile = ({ user, onLogout, onProfileClick }) => {
   return (
-    <Card sx={{ m: 2, mt: 'auto', bgcolor: 'transparent', backgroundImage: 'none', boxShadow: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+    <Card sx={{ m: 2, mt: 'auto', bgcolor: 'rgba(0, 0, 0, 0.15)', backgroundImage: 'none', boxShadow: 'none', borderRadius: 2, border: 'none' }}>
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
         <Stack direction="row" spacing={2} alignItems="center">
           <Avatar sx={{ bgcolor: '#6366F1', border: '2px solid #6366F1' }}>
@@ -217,7 +217,7 @@ const UserProfile = ({ user, onLogout, onProfileClick }) => {
               {user?.role || 'Clinician'}
             </Typography>
           </Box>
-          <IconButton size="small" onClick={onLogout} sx={{ color: '#78716C', '&:hover': { color: '#D6D3D1', bgcolor: '#292524' } }}>
+          <IconButton size="small" onClick={onLogout} sx={{ color: '#78716C', '&:hover': { color: '#D6D3D1', bgcolor: '#3A3532' } }}>
             <LogoutIcon fontSize="small" />
           </IconButton>
         </Stack>
@@ -321,7 +321,7 @@ function LayoutV3({ children }) {
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      bgcolor: '#1C1917',
+      bgcolor: '#2D2926',
       '& .MuiList-root': { bgcolor: 'transparent' },
       '& .MuiListSubheader-root': { bgcolor: 'transparent' },
       /* Scrollbar styling */
@@ -474,7 +474,7 @@ function LayoutV3({ children }) {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              bgcolor: '#1C1917',
+              bgcolor: '#2D2926',
               borderRight: '1px solid rgba(255, 255, 255, 0.08)',
             }
           }}
@@ -488,7 +488,7 @@ function LayoutV3({ children }) {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              bgcolor: '#1C1917',
+              bgcolor: '#2D2926',
               borderRight: '1px solid rgba(255, 255, 255, 0.08)',
             }
           }}

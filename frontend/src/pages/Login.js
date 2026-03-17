@@ -36,8 +36,8 @@ const roleDescriptions = {
 
 /* --- Warm Slate palette tokens --- */
 const palette = {
-  stone900: '#1C1917',
-  stone800: '#292524',
+  stone900: '#2D2926',
+  stone800: '#3A3532',
   stone700: '#44403C',
   stone600: '#57534E',
   stone500: '#78716C',
