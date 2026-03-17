@@ -157,7 +157,7 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
                   sx={{
                     borderRadius: 1,
                     mb: 0.5,
-                    color: '#A8A29E',
+                    color: '#D6D3D1',
                     borderLeft: isActive ? '3px solid #6366F1' : '3px solid transparent',
                     '& .MuiListItemIcon-root': { color: '#78716C' },
                     '&:hover': {

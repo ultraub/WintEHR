@@ -273,15 +273,15 @@ const professionalMedicalPalette = {
 const darkMedicalPalette = {
   mode: 'dark',
   primary: {
-    main: '#60A5FA', // Brighter blue for better contrast
-    light: '#93BBFC',
-    dark: '#2563EB',
+    main: '#818CF8', // Indigo-300 for dark mode (lighter indigo for contrast)
+    light: '#A5B4FC',
+    dark: '#6366F1',
     contrastText: '#FFFFFF'
   },
   secondary: {
-    main: '#86EFAC', // Brighter green
-    light: '#BBF7D0',
-    dark: '#22C55E',
+    main: '#FB923C', // Coral-400 for dark mode
+    light: '#FDBA74',
+    dark: '#F97316',
     contrastText: '#000000'
   },
   error: {
@@ -297,9 +297,9 @@ const darkMedicalPalette = {
     contrastText: '#000000'
   },
   info: {
-    main: '#60A5FA',
-    light: '#93BBFC',
-    dark: '#2563EB',
+    main: '#818CF8',
+    light: '#A5B4FC',
+    dark: '#6366F1',
     contrastText: '#FFFFFF'
   },
   success: {
@@ -309,35 +309,35 @@ const darkMedicalPalette = {
     contrastText: '#000000'
   },
   background: {
-    default: '#0F172A', // Slightly lighter for better layering
-    paper: '#1E293B',   // Better contrast with default
-    surface: '#334155'   // Third level for nested components
+    default: '#1A1A2E', // Warm dark with slight indigo undertone
+    paper: '#222236',   // Elevated surfaces
+    surface: '#2A2A40'  // Third level for nested components
   },
   text: {
-    primary: '#F8FAFC',   // Slightly brighter
-    secondary: '#CBD5E1', // Better contrast
-    disabled: '#64748B'   // More visible disabled state
+    primary: '#F8FAFC',
+    secondary: '#CBD5E1',
+    disabled: '#64748B'
   },
-  divider: '#334155', // Better visibility
+  divider: '#2A2A40',
   action: {
-    active: '#60A5FA',
-    hover: 'rgba(96, 165, 250, 0.12)',
-    selected: 'rgba(96, 165, 250, 0.16)',
+    active: '#818CF8',
+    hover: 'rgba(129, 140, 248, 0.12)',
+    selected: 'rgba(129, 140, 248, 0.16)',
     disabled: 'rgba(255, 255, 255, 0.3)',
     disabledBackground: 'rgba(255, 255, 255, 0.12)'
   },
   // Clinical-specific semantic tokens (dark mode - enhanced)
   clinical: {
     surfaces: {
-      primary: 'rgba(96, 165, 250, 0.08)',
-      secondary: 'rgba(134, 239, 172, 0.08)',
+      primary: 'rgba(129, 140, 248, 0.08)',
+      secondary: 'rgba(251, 146, 60, 0.08)',
       warning: 'rgba(252, 211, 77, 0.08)',
       error: 'rgba(248, 113, 113, 0.08)',
-      info: 'rgba(96, 165, 250, 0.08)',
+      info: 'rgba(129, 140, 248, 0.08)',
       success: 'rgba(134, 239, 172, 0.08)'
     },
     interactions: {
-      hover: 'rgba(96, 165, 250, 0.16)',
+      hover: 'rgba(129, 140, 248, 0.16)',
       pressed: 'rgba(96, 165, 250, 0.20)',
       focus: 'rgba(96, 165, 250, 0.24)',
       selected: 'rgba(96, 165, 250, 0.16)'
