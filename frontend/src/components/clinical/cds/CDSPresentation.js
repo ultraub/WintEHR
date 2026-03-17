@@ -28,7 +28,8 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Popover
+  Popover,
+  Menu
 } from '@mui/material';
 import {
   Warning as WarningIcon,
@@ -40,7 +41,9 @@ import {
   Link as LinkIcon,
   Launch as LaunchIcon,
   Snooze as SnoozeIcon,
-  Schedule as ScheduleIcon
+  Schedule as ScheduleIcon,
+  Check as AcknowledgeIcon,
+  GppMaybe as OverrideIcon
 } from '@mui/icons-material';
 import { cdsFeedbackService } from '../../../services/cdsFeedbackService';
 import { cdsActionExecutor } from '../../../services/cdsActionExecutor';
@@ -162,7 +165,11 @@ const CDSPresentation = ({
   
   // State for tracking acknowledged alerts in modal mode
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState(new Set());
-  
+
+  // State for quick snooze menu
+  const [snoozeMenuAnchor, setSnoozeMenuAnchor] = useState(null);
+  const [snoozeMenuAlert, setSnoozeMenuAlert] = useState(null);
+
   // State for compact mode popover
   const [anchorEl, setAnchorEl] = useState(null);
   
@@ -233,6 +240,31 @@ const CDSPresentation = ({
     if (onAlertAction) {
       onAlertAction(alertId, 'dismiss', reason);
     }
+  };
+
+  // Handle alert acknowledgment — "I've seen this" (CDS feedback: accepted)
+  const handleAcknowledgeAlert = (alert) => {
+    const alertId = `${alert.serviceId}-${alert.summary}`;
+    setDismissedAlerts(prev => new Set([...prev, alertId]));
+    if (patientId) {
+      cdsAlertPersistence.dismissAlert(patientId, alertId, 'acknowledged', false);
+    }
+    // Send acceptance feedback (not override)
+    if (alert.uuid && alert.serviceId) {
+      cdsFeedbackService.sendFeedback({
+        serviceId: alert.serviceId,
+        cardUuid: alert.uuid,
+        outcome: 'accepted'
+      });
+    }
+    if (onAlertAction) onAlertAction(alertId, 'acknowledge');
+  };
+
+  // Quick snooze from menu (no separate dialog needed)
+  const handleQuickSnooze = (alert, durationMinutes) => {
+    handleSnoozeAlert(alert, durationMinutes);
+    setSnoozeMenuAnchor(null);
+    setSnoozeMenuAlert(null);
   };
 
   // Handle alert snooze — use stable key (serviceId+summary) not transient uuid
@@ -472,32 +504,65 @@ const CDSPresentation = ({
     );
 
     const actions = allowInteraction ? (
-      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-        {alert.suggestions?.map(suggestion => 
+      <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', gap: 0.5 }}>
+        {/* Suggestions and links first */}
+        {alert.suggestions?.map(suggestion =>
           renderSuggestionButton(suggestion, alert)
         )}
         {renderLinks(alert.links)}
-        {!compact && alert.indicator !== 'critical' && (
-          <Tooltip title="Snooze alert">
-            <IconButton
-              size="small"
-              onClick={() => {
-                setAlertToSnooze(alert);
-                setShowSnoozeDialog(true);
-              }}
-            >
-              <SnoozeIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
-        {!compact && (
-          <IconButton
+
+        {/* Three-tier actions based on indicator level */}
+        {!compact && alert.indicator === 'critical' ? (
+          /* Critical: Override only (must provide reason) */
+          <Button
             size="small"
+            variant="outlined"
+            color="error"
+            startIcon={<OverrideIcon />}
             onClick={() => handleAlertAction(alert, 'dismiss')}
+            sx={{ borderRadius: 0 }}
           >
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        )}
+            Override
+          </Button>
+        ) : !compact ? (
+          /* Info/Warning: Acknowledge + Snooze + Override (for warning) */
+          <>
+            <Button
+              size="small"
+              variant="outlined"
+              color="success"
+              startIcon={<AcknowledgeIcon />}
+              onClick={() => handleAcknowledgeAlert(alert)}
+              sx={{ borderRadius: 0 }}
+            >
+              Acknowledge
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<SnoozeIcon />}
+              onClick={(e) => {
+                setSnoozeMenuAlert(alert);
+                setSnoozeMenuAnchor(e.currentTarget);
+              }}
+              sx={{ borderRadius: 0 }}
+            >
+              Snooze
+            </Button>
+            {alert.indicator === 'warning' && (
+              <Button
+                size="small"
+                variant="outlined"
+                color="error"
+                startIcon={<OverrideIcon />}
+                onClick={() => handleAlertAction(alert, 'dismiss')}
+                sx={{ borderRadius: 0 }}
+              >
+                Override
+              </Button>
+            )}
+          </>
+        ) : null}
       </Stack>
     ) : null;
 
@@ -621,6 +686,18 @@ const CDSPresentation = ({
           <Button onClick={handleClose}>Close</Button>
         </DialogActions>
       </Dialog>
+      {/* Quick snooze menu for POPUP mode */}
+      <Menu
+        anchorEl={snoozeMenuAnchor}
+        open={Boolean(snoozeMenuAnchor)}
+        onClose={() => { setSnoozeMenuAnchor(null); setSnoozeMenuAlert(null); }}
+        sx={{ zIndex: 1500 }}
+      >
+        <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 15)}>15 minutes</MenuItem>
+        <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 60)}>1 hour</MenuItem>
+        <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 240)}>4 hours</MenuItem>
+        <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 1440)}>24 hours</MenuItem>
+      </Menu>
       {/* Snooze dialog for POPUP mode — must be outside the main Dialog */}
       {showSnoozeDialog && alertToSnooze && (
         <Dialog open={showSnoozeDialog} onClose={() => setShowSnoozeDialog(false)} maxWidth="xs" fullWidth sx={{ zIndex: 1400 }}>
@@ -1125,6 +1202,7 @@ const CDSPresentation = ({
 
   // Default inline mode
   return (
+    <>
     <Stack spacing={1}>
       {visibleAlerts.map((alert, index) => {
         const { content, actions } = renderAlert(alert);
@@ -1138,6 +1216,19 @@ const CDSPresentation = ({
           </Alert>
         );
       })}
+    </Stack>
+
+    {/* Quick snooze menu for inline mode */}
+    <Menu
+      anchorEl={snoozeMenuAnchor}
+      open={Boolean(snoozeMenuAnchor)}
+      onClose={() => { setSnoozeMenuAnchor(null); setSnoozeMenuAlert(null); }}
+    >
+      <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 15)}>15 minutes</MenuItem>
+      <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 60)}>1 hour</MenuItem>
+      <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 240)}>4 hours</MenuItem>
+      <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 1440)}>24 hours</MenuItem>
+    </Menu>
 
       {/* Suggestion Detail Dialog */}
       {selectedAlert && (
@@ -1364,7 +1455,7 @@ const CDSPresentation = ({
           </DialogActions>
         </Dialog>
       )}
-    </Stack>
+    </>
   );
 };
 
