@@ -664,7 +664,7 @@ function NetworkDiagram({ onNavigate, fhirData }) {
             )}
 
             {/* Network SVG */}
-            <Box sx={{ border: '1px solid #ddd', borderRadius: 1, height: '600px', overflow: 'hidden', backgroundColor: '#f5f5f5' }}>
+            <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, height: '600px', overflow: 'hidden', backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.paper : '#F5F5F4' }}>
               {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                   <CircularProgress />

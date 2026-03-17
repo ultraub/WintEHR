@@ -187,7 +187,7 @@ const ServiceTestRunner = ({ serviceId }) => {
                 <AccordionDetails>
                   <Box
                     sx={{
-                      bgcolor: '#f5f5f5',
+                      bgcolor: 'action.hover',
                       p: 2,
                       borderRadius: 1,
                       fontFamily: 'monospace',
@@ -227,7 +227,7 @@ const ServiceTestRunner = ({ serviceId }) => {
                 <AccordionDetails>
                   <Box
                     sx={{
-                      bgcolor: '#f5f5f5',
+                      bgcolor: 'action.hover',
                       p: 2,
                       borderRadius: 1,
                       fontFamily: 'monospace',

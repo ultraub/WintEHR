@@ -248,7 +248,7 @@ const ProviderTestHarness = ({ patientId }) => {
             <Card>
               <CardContent>
                 <Typography variant="subtitle2" color="text.secondary">Full Analysis</Typography>
-                <Box mt={1} sx={{ backgroundColor: '#f5f5f5', p: 2, borderRadius: 1 }}>
+                <Box mt={1} sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 1 }}>
                   <pre style={{ margin: 0, fontSize: '0.875rem' }}>
                     {JSON.stringify(results.analysis, null, 2)}
                   </pre>

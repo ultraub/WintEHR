@@ -641,7 +641,7 @@ function PatientList() {
                 backgroundColor: (theme) => theme.palette.action.hover,
               },
               '& .MuiDataGrid-columnHeaders': {
-                backgroundColor: '#F5F5F7',
+                backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.surface || theme.palette.background.paper : '#F5F5F4',
                 borderBottom: '1px solid',
                 borderColor: 'divider',
               },

@@ -170,8 +170,8 @@ function Analytics() {
           severity="warning" 
           sx={{ 
             mb: 3, 
-            backgroundColor: '#fff3cd', 
-            border: '2px solid #ffcc02',
+            backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(251, 146, 60, 0.1)' : '#fff3cd',
+            border: (theme) => theme.palette.mode === 'dark' ? '2px solid rgba(251, 146, 60, 0.3)' : '2px solid #ffcc02',
             '& .MuiAlert-message': { fontWeight: 'bold' }
           }}
         >

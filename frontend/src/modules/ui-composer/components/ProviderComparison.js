@@ -124,7 +124,7 @@ const ProviderComparison = ({ request, context, onProviderSelect }) => {
                 Analysis Results:
               </Typography>
               <pre style={{ 
-                backgroundColor: '#f5f5f5', 
+                backgroundColor: 'var(--mui-palette-action-hover, #f5f5f4)', 
                 padding: '10px', 
                 borderRadius: '4px',
                 overflow: 'auto'
