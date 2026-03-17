@@ -195,7 +195,7 @@ const ClinicalSidebar = ({
         <IconButton
           onClick={onToggleCollapse}
           size="small"
-          sx={{ ml: collapsed ? 'auto' : 0, color: '#8B85A0', '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#E2E0EA' } }}
+          sx={{ ml: collapsed ? 'auto' : 0, color: '#A9A3C0', '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#F0EFF4' } }}
         >
           {collapsed ? <ExpandIcon /> : <CollapseIcon />}
         </IconButton>
@@ -228,17 +228,17 @@ const ClinicalSidebar = ({
                 <>
                   <ListItemText
                     primary={
-                      <Typography variant="subtitle1" fontWeight={600} sx={{ color: '#E2E0EA' }}>
+                      <Typography variant="subtitle1" fontWeight={600} sx={{ color: '#F0EFF4' }}>
                         {patient.name?.[0]?.given?.join(' ')} {patient.name?.[0]?.family}
                       </Typography>
                     }
                     secondary={
-                      <Typography variant="caption" sx={{ color: '#8B85A0' }}>
+                      <Typography variant="caption" sx={{ color: '#A9A3C0' }}>
                         MRN: {patient.identifier?.[0]?.value}
                       </Typography>
                     }
                   />
-                  {patientSectionOpen ? <ExpandLess sx={{ color: '#8B85A0' }} /> : <ExpandMore sx={{ color: '#8B85A0' }} />}
+                  {patientSectionOpen ? <ExpandLess sx={{ color: '#A9A3C0' }} /> : <ExpandMore sx={{ color: '#A9A3C0' }} />}
                 </>
               )}
             </ListItemButton>
@@ -247,13 +247,13 @@ const ClinicalSidebar = ({
           {!collapsed && (
             <Collapse in={patientSectionOpen}>
               <Box sx={{ px: 3, py: 2 }}>
-                <Typography variant="caption" sx={{ color: '#8B85A0' }}>
+                <Typography variant="caption" sx={{ color: '#A9A3C0' }}>
                   Age: {patient.age || 'Unknown'} &bull; {patient.gender}
                 </Typography>
                 <Box sx={{ mt: 1 }}>
                   <Tooltip title="View all alerts">
                     <Badge badgeContent={5} color="error">
-                      <IconButton size="small" sx={{ color: '#8B85A0', '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#E2E0EA' } }}>
+                      <IconButton size="small" sx={{ color: '#A9A3C0', '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#F0EFF4' } }}>
                         <AlertsIcon fontSize="small" />
                       </IconButton>
                     </Badge>
@@ -286,13 +286,13 @@ const ClinicalSidebar = ({
                   sx={{
                     borderRadius: 1,
                     my: 0.5,
-                    color: '#E2E0EA',
+                    color: '#F0EFF4',
                     borderLeft: isActive ? '3px solid #6366F1' : '3px solid transparent',
-                    '& .MuiListItemIcon-root': { color: '#8B85A0' },
+                    '& .MuiListItemIcon-root': { color: '#A9A3C0' },
                     '&:hover': {
                       bgcolor: 'rgba(99, 102, 241, 0.12)',
-                      color: '#E2E0EA',
-                      '& .MuiListItemIcon-root': { color: '#E2E0EA' },
+                      color: '#F0EFF4',
+                      '& .MuiListItemIcon-root': { color: '#F0EFF4' },
                     },
                     '&.Mui-selected': {
                       bgcolor: 'rgba(99, 102, 241, 0.1)',
@@ -331,7 +331,7 @@ const ClinicalSidebar = ({
                           display: 'block',
                           mt: 0.5,
                           lineHeight: 1.2,
-                          color: '#8B85A0',
+                          color: '#A9A3C0',
                         }
                       }}
                     />
@@ -352,10 +352,12 @@ const ClinicalSidebar = ({
             <ListItemButton
               onClick={() => !collapsed && setRecentPatientsOpen(!recentPatientsOpen)}
               sx={{
-                borderRadius: 1,
-                color: '#E2E0EA',
-                '& .MuiListItemIcon-root': { color: '#8B85A0' },
-                '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#E2E0EA', '& .MuiListItemIcon-root': { color: '#E2E0EA' } },
+                borderRadius: '6px',
+                color: '#F0EFF4',
+                bgcolor: 'rgba(255, 255, 255, 0.04)',
+                transition: 'all 0.15s ease',
+                '& .MuiListItemIcon-root': { color: '#C4BFD9' },
+                '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.10)', color: '#F0EFF4', '& .MuiListItemIcon-root': { color: '#F0EFF4' } },
               }}
             >
               <ListItemIcon sx={{ minWidth: collapsed ? 0 : 56 }}>
@@ -364,7 +366,7 @@ const ClinicalSidebar = ({
               {!collapsed && (
                 <>
                   <ListItemText primary="Recent Patients" primaryTypographyProps={{ color: 'inherit' }} />
-                  {recentPatientsOpen ? <ExpandLess sx={{ color: '#8B85A0' }} /> : <ExpandMore sx={{ color: '#8B85A0' }} />}
+                  {recentPatientsOpen ? <ExpandLess sx={{ color: '#A9A3C0' }} /> : <ExpandMore sx={{ color: '#A9A3C0' }} />}
                 </>
               )}
             </ListItemButton>
@@ -374,20 +376,20 @@ const ClinicalSidebar = ({
         {!collapsed && (
           <Collapse in={recentPatientsOpen}>
             <List dense sx={{ pl: 4 }}>
-              <ListItemButton sx={{ borderRadius: 1, color: '#E2E0EA', '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#E2E0EA' } }}>
+              <ListItemButton sx={{ borderRadius: '6px', color: '#F0EFF4', bgcolor: 'rgba(255, 255, 255, 0.04)', transition: 'all 0.15s ease', '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.10)', color: '#F0EFF4' } }}>
                 <ListItemText
                   primary="John Smith"
                   secondary="Seen 2h ago"
                   primaryTypographyProps={{ color: 'inherit' }}
-                  secondaryTypographyProps={{ color: '#8B85A0' }}
+                  secondaryTypographyProps={{ color: '#A9A3C0' }}
                 />
               </ListItemButton>
-              <ListItemButton sx={{ borderRadius: 1, color: '#E2E0EA', '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#E2E0EA' } }}>
+              <ListItemButton sx={{ borderRadius: '6px', color: '#F0EFF4', bgcolor: 'rgba(255, 255, 255, 0.04)', transition: 'all 0.15s ease', '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.10)', color: '#F0EFF4' } }}>
                 <ListItemText
                   primary="Jane Doe"
                   secondary="Seen yesterday"
                   primaryTypographyProps={{ color: 'inherit' }}
-                  secondaryTypographyProps={{ color: '#8B85A0' }}
+                  secondaryTypographyProps={{ color: '#A9A3C0' }}
                 />
               </ListItemButton>
             </List>
@@ -398,9 +400,9 @@ const ClinicalSidebar = ({
           <Tooltip title={collapsed ? 'Favorites' : ''} placement="right">
             <ListItemButton sx={{
               borderRadius: 1,
-              color: '#E2E0EA',
-              '& .MuiListItemIcon-root': { color: '#8B85A0' },
-              '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#E2E0EA', '& .MuiListItemIcon-root': { color: '#E2E0EA' } },
+              color: '#F0EFF4',
+              '& .MuiListItemIcon-root': { color: '#A9A3C0' },
+              '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#F0EFF4', '& .MuiListItemIcon-root': { color: '#F0EFF4' } },
             }}>
               <ListItemIcon sx={{ minWidth: collapsed ? 0 : 56 }}>
                 <FavoritesIcon />
@@ -422,9 +424,9 @@ const ClinicalSidebar = ({
               onClick={() => setSmartDrawerOpen(true)}
               sx={{
                 borderRadius: 1,
-                color: '#E2E0EA',
+                color: '#F0EFF4',
                 '& .MuiListItemIcon-root': { color: '#6366F1' },
-                '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#E2E0EA' },
+                '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#F0EFF4' },
               }}
             >
               <ListItemIcon sx={{ minWidth: collapsed ? 0 : 56 }}>
@@ -445,9 +447,9 @@ const ClinicalSidebar = ({
           <Tooltip title={collapsed ? 'Settings' : ''} placement="right">
             <ListItemButton sx={{
               borderRadius: 1,
-              color: '#E2E0EA',
-              '& .MuiListItemIcon-root': { color: '#8B85A0' },
-              '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#E2E0EA', '& .MuiListItemIcon-root': { color: '#E2E0EA' } },
+              color: '#F0EFF4',
+              '& .MuiListItemIcon-root': { color: '#A9A3C0' },
+              '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#F0EFF4', '& .MuiListItemIcon-root': { color: '#F0EFF4' } },
             }}>
               <ListItemIcon sx={{ minWidth: collapsed ? 0 : 56 }}>
                 <SettingsIcon />
@@ -461,9 +463,9 @@ const ClinicalSidebar = ({
           <Tooltip title={collapsed ? 'Help' : ''} placement="right">
             <ListItemButton sx={{
               borderRadius: 1,
-              color: '#E2E0EA',
-              '& .MuiListItemIcon-root': { color: '#8B85A0' },
-              '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#E2E0EA', '& .MuiListItemIcon-root': { color: '#E2E0EA' } },
+              color: '#F0EFF4',
+              '& .MuiListItemIcon-root': { color: '#A9A3C0' },
+              '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)', color: '#F0EFF4', '& .MuiListItemIcon-root': { color: '#F0EFF4' } },
             }}>
               <ListItemIcon sx={{ minWidth: collapsed ? 0 : 56 }}>
                 <HelpIcon />
