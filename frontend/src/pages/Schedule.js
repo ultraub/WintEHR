@@ -872,6 +872,25 @@ const Schedule = () => {
 
   const handleSaveAppointment = async (payload) => {
     try {
+      // Build ISO start/end from date + time + duration
+      const startDateTime = `${payload.date}T${payload.startTime}:00`;
+      const startDate = new Date(startDateTime);
+      const endDate = new Date(startDate.getTime() + (payload.duration || 30) * 60000);
+
+      // Build participant list — only include practitioner if selected
+      const participants = [
+        {
+          actor: { reference: `Patient/${payload.patientId}`, display: payload.patientName || '' },
+          status: 'accepted'
+        }
+      ];
+      if (payload.providerId) {
+        participants.push({
+          actor: { reference: `Practitioner/${payload.providerId}`, display: payload.providerName || '' },
+          status: 'accepted'
+        });
+      }
+
       // Build FHIR Appointment resource
       const fhirAppointment = {
         resourceType: 'Appointment',
@@ -883,18 +902,9 @@ const Schedule = () => {
             display: payload.appointmentType || 'Routine'
           }]
         },
-        start: payload.start,
-        end: payload.end,
-        participant: [
-          {
-            actor: { reference: `Patient/${payload.patientId}`, display: payload.patientName || '' },
-            status: 'accepted'
-          },
-          {
-            actor: { reference: `Practitioner/${payload.practitionerId}`, display: payload.providerName || '' },
-            status: 'accepted'
-          }
-        ],
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        participant: participants,
         ...(payload.reason ? { reasonCode: [{ text: payload.reason }] } : {})
       };
 

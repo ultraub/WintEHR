@@ -103,11 +103,12 @@ export const OVERRIDE_REASONS = {
   }
 };
 
-const CDSPresentation = ({ 
-  alerts = [], 
+const CDSPresentation = ({
+  alerts = [],
   mode = PRESENTATION_MODES.INLINE,
   position = 'top',
   onAlertAction,
+  onClose,
   autoHide = false,
   hideDelay = 5000,
   maxAlerts = 5,
@@ -115,6 +116,12 @@ const CDSPresentation = ({
   patientId = null
 }) => {
   const [open, setOpen] = useState(true);
+
+  // Notify parent when closed
+  const handleClose = () => {
+    setOpen(false);
+    if (onClose) onClose();
+  };
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [dismissedAlerts, setDismissedAlerts] = useState(() => {
     // Use persistent storage for dismissed alerts
@@ -585,7 +592,7 @@ const CDSPresentation = ({
   // Popup mode - Modal dialog
   if (mode === PRESENTATION_MODES.POPUP) {
     return (
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
         <DialogTitle>
           Clinical Decision Support
         </DialogTitle>
@@ -610,7 +617,7 @@ const CDSPresentation = ({
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>Close</Button>
+          <Button onClick={handleClose}>Close</Button>
         </DialogActions>
       </Dialog>
     );
@@ -796,13 +803,13 @@ const CDSPresentation = ({
       <Drawer
         anchor="right"
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={handleClose}
         PaperProps={{ sx: { width: 400 } }}
       >
         <Box sx={{ p: 2 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
             <Typography variant="h6">CDS Alerts</Typography>
-            <IconButton onClick={() => setOpen(false)}>
+            <IconButton onClick={handleClose}>
               <CloseIcon />
             </IconButton>
           </Stack>
