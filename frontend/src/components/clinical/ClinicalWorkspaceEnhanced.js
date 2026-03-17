@@ -326,7 +326,7 @@ const ClinicalWorkspaceEnhanced = ({
       {cdsAlerts && cdsAlerts.length > 0 && !cdsDialogDismissed && (
         <CDSPresentation
           alerts={cdsAlerts}
-          mode={PRESENTATION_MODES.STANDARD}
+          mode={PRESENTATION_MODES.POPUP}
           patientId={patientId}
           allowInteraction={true}
           onAlertAction={(alertId, action, data) => {
