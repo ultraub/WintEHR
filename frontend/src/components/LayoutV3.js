@@ -70,36 +70,36 @@ const navigationConfig = {
     title: 'Clinical Workflows',
     icon: <MedicalIcon />,
     items: [
-      { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions' },
-      { text: 'Schedule', icon: <ScheduleIcon />, path: '/schedule', description: 'Appointments & scheduling' },
-      { text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management' },
-      { text: 'Encounters', icon: <EncountersIcon />, path: '/encounters', description: 'Visit management' },
-      { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing' }
+      { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions', iconColor: '#6366F1' },
+      { text: 'Schedule', icon: <ScheduleIcon />, path: '/schedule', description: 'Appointments & scheduling', iconColor: '#8B5CF6' },
+      { text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management', iconColor: '#06B6D4' },
+      { text: 'Encounters', icon: <EncountersIcon />, path: '/encounters', description: 'Visit management', iconColor: '#F59E0B' },
+      { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing', iconColor: '#10B981' }
     ]
   },
   analytics: {
     title: 'Population Health',
     icon: <AnalyticsIcon />,
     items: [
-      { text: 'Population Analytics', icon: <TrendingUpIcon />, path: '/analytics', description: 'Health trends & metrics' },
-      { text: 'Quality Measures', icon: <AssessmentIcon />, path: '/quality', description: 'Performance tracking' },
-      { text: 'Care Gaps', icon: <TimelineIcon />, path: '/care-gaps', description: 'Preventive care tracking' }
+      { text: 'Population Analytics', icon: <TrendingUpIcon />, path: '/analytics', description: 'Health trends & metrics', iconColor: '#EC4899' },
+      { text: 'Quality Measures', icon: <AssessmentIcon />, path: '/quality', description: 'Performance tracking', iconColor: '#F97316' },
+      { text: 'Care Gaps', icon: <TimelineIcon />, path: '/care-gaps', description: 'Preventive care tracking', iconColor: '#14B8A6' }
     ]
   },
   tools: {
     title: 'Developer Tools',
     icon: <ApiIcon />,
     items: [
-      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'FHIR resource exploration & queries' },
-      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio' }
+      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'FHIR resource exploration & queries', iconColor: '#3B82F6' },
+      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', iconColor: '#A855F7' }
     ]
   },
   admin: {
     title: 'Administration',
     icon: <SecurityIcon />,
     items: [
-      { text: 'Audit Trail', icon: <SecurityIcon />, path: '/audit-trail', description: 'Security & compliance' },
-      { text: 'System Settings', icon: <SettingsIcon />, path: '/settings', description: 'Configuration' }
+      { text: 'Audit Trail', icon: <SecurityIcon />, path: '/audit-trail', description: 'Security & compliance', iconColor: '#EF4444' },
+      { text: 'System Settings', icon: <SettingsIcon />, path: '/settings', description: 'Configuration', iconColor: '#9CA3AF' }
     ]
   }
 };
@@ -159,18 +159,18 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
                     mb: 0.5,
                     color: '#EDEAF5',
                     borderLeft: isActive ? '3px solid #6366F1' : '3px solid transparent',
-                    '& .MuiListItemIcon-root': { color: '#9E98BA' },
+                    '& .MuiListItemIcon-root': { color: item.iconColor || '#9E98BA' },
                     transition: 'all 0.15s ease',
                     '&:hover': {
                       bgcolor: 'rgba(99, 102, 241, 0.12)',
                       color: '#EDEAF5',
-                      '& .MuiListItemIcon-root': { color: '#EDEAF5' },
+                      '& .MuiListItemIcon-root': { color: item.iconColor || '#EDEAF5' },
                     },
                     '&.Mui-selected': {
                       bgcolor: 'rgba(99, 102, 241, 0.14)',
                       color: '#B4BEFD',
                       boxShadow: 'inset 0 0 20px rgba(99, 102, 241, 0.08), 0 0 12px rgba(99, 102, 241, 0.06)',
-                      '& .MuiListItemIcon-root': { color: '#B4BEFD' },
+                      '& .MuiListItemIcon-root': { color: item.iconColor || '#B4BEFD' },
                       '&:hover': {
                         bgcolor: 'rgba(99, 102, 241, 0.20)',
                       },

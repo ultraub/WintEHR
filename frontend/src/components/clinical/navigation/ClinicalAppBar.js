@@ -88,8 +88,8 @@ const ClinicalAppBar = ({
           bgcolor: 'background.paper',
           color: 'text.primary',
           boxShadow: theme.shadows[1],
-          borderBottom: 1,
-          borderColor: 'divider',
+          borderBottom: '2px solid',
+          borderColor: 'primary.main',
           zIndex: Z_INDEX.appBar,
           height: LAYOUT_HEIGHTS.appBar
         }}

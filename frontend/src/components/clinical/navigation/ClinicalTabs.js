@@ -31,66 +31,16 @@ import { LAYOUT_HEIGHTS, Z_INDEX } from '../theme/clinicalThemeConstants';
 
 // Navigation items configuration
 const NAVIGATION_ITEMS = [
-  {
-    id: 'summary',
-    label: 'Summary',
-    icon: SummaryIcon,
-    badge: null
-  },
-  {
-    id: 'chart-review',
-    label: 'Chart Review',
-    icon: ChartReviewIcon,
-    badge: null
-  },
-  {
-    id: 'encounters',
-    label: 'Encounters',
-    icon: EncountersIcon,
-    badge: null
-  },
-  {
-    id: 'results',
-    label: 'Results',
-    icon: ResultsIcon,
-    badge: null
-  },
-  {
-    id: 'orders',
-    label: 'Orders',
-    icon: OrdersIcon,
-    badge: null
-  },
-  {
-    id: 'pharmacy',
-    label: 'Pharmacy',
-    icon: PharmacyIcon,
-    badge: null
-  },
-  {
-    id: 'imaging',
-    label: 'Imaging',
-    icon: ImagingIcon,
-    badge: null
-  },
-  {
-    id: 'documentation',
-    label: 'Documentation',
-    icon: DocumentationIcon,
-    badge: null
-  },
-  {
-    id: 'care-plan',
-    label: 'Care Plan',
-    icon: CarePlanIcon,
-    badge: null
-  },
-  {
-    id: 'timeline',
-    label: 'Timeline',
-    icon: TimelineIcon,
-    badge: null
-  }
+  { id: 'summary', label: 'Summary', icon: SummaryIcon, badge: null, color: '#6366F1' },
+  { id: 'chart-review', label: 'Chart Review', icon: ChartReviewIcon, badge: null, color: '#10B981' },
+  { id: 'encounters', label: 'Encounters', icon: EncountersIcon, badge: null, color: '#3B82F6' },
+  { id: 'results', label: 'Results', icon: ResultsIcon, badge: null, color: '#F59E0B' },
+  { id: 'orders', label: 'Orders', icon: OrdersIcon, badge: null, color: '#8B5CF6' },
+  { id: 'pharmacy', label: 'Pharmacy', icon: PharmacyIcon, badge: null, color: '#14B8A6' },
+  { id: 'imaging', label: 'Imaging', icon: ImagingIcon, badge: null, color: '#EF4444' },
+  { id: 'documentation', label: 'Documentation', icon: DocumentationIcon, badge: null, color: '#78716C' },
+  { id: 'care-plan', label: 'Care Plan', icon: CarePlanIcon, badge: null, color: '#EC4899' },
+  { id: 'timeline', label: 'Timeline', icon: TimelineIcon, badge: null, color: '#06B6D4' },
 ];
 
 const ClinicalTabs = ({
@@ -139,7 +89,7 @@ const ClinicalTabs = ({
         position: 'relative'
       }}>
         {showIcons && !isSmall && (
-          <item.icon sx={{ fontSize: dense ? 18 : 20 }} />
+          <item.icon sx={{ fontSize: dense ? 18 : 20, color: item.color || 'inherit', opacity: activeTab === item.id ? 1 : 0.7 }} />
         )}
         {hasBadge ? (
           <Badge
