@@ -157,21 +157,20 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
                   sx={{
                     borderRadius: '6px',
                     mb: 0.5,
-                    color: '#F0EFF4',
-                    bgcolor: 'rgba(255, 255, 255, 0.04)',
+                    color: '#EDEAF5',
                     borderLeft: isActive ? '3px solid #6366F1' : '3px solid transparent',
-                    '& .MuiListItemIcon-root': { color: '#C4BFD9' },
+                    '& .MuiListItemIcon-root': { color: '#9E98BA' },
                     transition: 'all 0.15s ease',
                     '&:hover': {
-                      bgcolor: 'rgba(99, 102, 241, 0.10)',
-                      color: '#F0EFF4',
-                      '& .MuiListItemIcon-root': { color: '#F0EFF4' },
+                      bgcolor: 'rgba(99, 102, 241, 0.12)',
+                      color: '#EDEAF5',
+                      '& .MuiListItemIcon-root': { color: '#EDEAF5' },
                     },
                     '&.Mui-selected': {
                       bgcolor: 'rgba(99, 102, 241, 0.14)',
-                      color: '#C7D2FE',
+                      color: '#B4BEFD',
                       boxShadow: 'inset 0 0 20px rgba(99, 102, 241, 0.08), 0 0 12px rgba(99, 102, 241, 0.06)',
-                      '& .MuiListItemIcon-root': { color: '#C7D2FE' },
+                      '& .MuiListItemIcon-root': { color: '#B4BEFD' },
                       '&:hover': {
                         bgcolor: 'rgba(99, 102, 241, 0.20)',
                       },
@@ -213,7 +212,7 @@ const UserProfile = ({ user, onLogout, onProfileClick }) => {
             {user?.name?.[0] || 'U'}
           </Avatar>
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-            <Typography variant="subtitle2" noWrap sx={{ color: '#F0EFF4' }}>
+            <Typography variant="subtitle2" noWrap sx={{ color: '#EDEAF5' }}>
               {user?.name || 'User'}
             </Typography>
             <Typography variant="caption" noWrap sx={{ color: '#A9A3C0' }}>
@@ -514,7 +513,14 @@ function LayoutV3({ children }) {
         }}
       >
         <Toolbar />
-        <Box sx={{ flexGrow: 1, overflow: 'auto', p: { xs: 2, sm: 2.5, md: 3 } }}>
+        <Box sx={{
+          flexGrow: 1,
+          overflow: 'auto',
+          p: { xs: 2, sm: 2.5, md: 3 },
+          backgroundImage: theme.palette.mode === 'dark'
+            ? 'linear-gradient(180deg, rgba(99,102,241,0.08) 0%, rgba(99,102,241,0.03) 140px, transparent 300px)'
+            : 'linear-gradient(180deg, rgba(99,102,241,0.05) 0%, rgba(99,102,241,0.015) 140px, transparent 300px)',
+        }}>
           <BreadcrumbNavigation location={location} />
           <TransitionWrapper transition="fade" duration={300}>
             {children}
