@@ -99,6 +99,13 @@ services:
 
       # Advanced search features
       hapi.fhir.advanced_lucene_indexing: false
+
+      # JVM heap size — prevents OOM on memory-constrained VMs
+      JAVA_TOOL_OPTIONS: "-Xmx1536m -Xms256m"
+    deploy:
+      resources:
+        limits:
+          memory: 2g
     networks:
       - emr-network
     depends_on:
