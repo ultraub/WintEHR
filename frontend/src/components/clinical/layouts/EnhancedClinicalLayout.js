@@ -153,10 +153,13 @@ const EnhancedClinicalLayout = ({
             sx={{
               flexGrow: 1,
               overflow: 'auto',
-              backgroundColor: theme.palette.mode === 'dark' 
-                ? theme.palette.background.default 
-                : theme.palette.grey[50], // Clean light gray background
-              position: 'relative', // For sticky positioning to work
+              backgroundColor: theme.palette.mode === 'dark'
+                ? theme.palette.background.default
+                : theme.palette.grey[50],
+              backgroundImage: theme.palette.mode === 'dark'
+                ? 'linear-gradient(180deg, rgba(99,102,241,0.14) 0%, rgba(99,102,241,0.05) 200px, transparent 500px)'
+                : 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.03) 200px, transparent 500px)',
+              position: 'relative',
             }}
           >
             {/* Collapsible Patient Header - INSIDE scrolling container with sticky positioning */}

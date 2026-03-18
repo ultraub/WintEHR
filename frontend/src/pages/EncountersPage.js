@@ -836,7 +836,7 @@ const EncountersPage = () => {
       )}
 
       {/* Encounters Table */}
-      <Paper variant="outlined" sx={{ borderRadius: 0 }}>
+      <Paper variant="outlined" sx={{ borderRadius: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
         <TableContainer>
           <Table size="small" aria-label="Encounters table">
             <TableHead>
