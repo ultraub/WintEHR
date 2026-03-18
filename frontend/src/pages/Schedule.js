@@ -278,7 +278,7 @@ function DailyScheduleView({ appointments, onStatusChange }) {
   }, [appointments]);
 
   return (
-    <Paper elevation={0} sx={{ borderRadius: 0, border: '1px solid', borderColor: 'divider', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+    <Paper sx={{ borderRadius: 0, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
       {/* Header */}
       <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Stack direction="row" spacing={1} alignItems="center">
@@ -377,7 +377,7 @@ function WeeklyScheduleView({ selectedDate, appointments, onStatusChange, onDate
   }, [weekDays, appointments]);
 
   return (
-    <Paper elevation={0} sx={{ borderRadius: 0, border: '1px solid', borderColor: 'divider', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+    <Paper sx={{ borderRadius: 0, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
       <Grid container>
         {weekDays.map((day) => {
           const key = format(day, 'yyyy-MM-dd');
@@ -965,7 +965,7 @@ const Schedule = () => {
       </Stack>
 
       {/* Toolbar: date navigation, view toggle, provider filter, actions */}
-      <Paper elevation={0} sx={{ mb: 2, p: 1.5, borderRadius: 0, border: '1px solid', borderColor: 'divider', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+      <Paper sx={{ mb: 2, p: 1.5, borderRadius: 0, border: '1px solid', borderColor: 'divider' }}>
         <Stack
           direction={{ xs: 'column', md: 'row' }}
           spacing={2}

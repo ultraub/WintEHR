@@ -1635,12 +1635,10 @@ const getComponentOverrides = (palette) => ({
     styleOverrides: {
       root: {
         borderRadius: 8,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
-        border: '1px solid #E7E5E4',
+        border: palette.mode === 'dark'
+          ? '1px solid rgba(99,102,241,0.12)'
+          : '1px solid #E7E5E4',
         transition: 'box-shadow 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
-        '&:hover': {
-          boxShadow: '0 4px 6px rgba(28, 25, 23, 0.07), 0 2px 4px rgba(28, 25, 23, 0.04)'
-        }
       }
     }
   },
@@ -1649,6 +1647,11 @@ const getComponentOverrides = (palette) => ({
       root: {
         borderRadius: 8,
         backgroundImage: 'none'
+      },
+      outlined: {
+        boxShadow: palette.mode === 'dark'
+          ? '0 1px 3px rgba(0,0,0,0.25)'
+          : '0 1px 3px rgba(0,0,0,0.06)',
       }
     }
   },
@@ -1748,7 +1751,22 @@ const getComponentOverrides = (palette) => ({
   MuiDialog: {
     styleOverrides: {
       paper: {
-        borderRadius: 16
+        borderRadius: 16,
+        ...(palette.mode === 'dark' && {
+          backgroundImage: 'linear-gradient(180deg, rgba(99,102,241,0.06) 0%, transparent 200px)',
+        }),
+      }
+    }
+  },
+  MuiTableHead: {
+    styleOverrides: {
+      root: {
+        backgroundColor: palette.mode === 'dark'
+          ? (palette.background?.surface || '#2A2A40')
+          : '#F5F5F4',
+        '& .MuiTableCell-head': {
+          fontWeight: 600,
+        }
       }
     }
   },
@@ -1991,16 +2009,26 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
         lineHeight: 1.6
       }
     },
-    shadows: [
+    shadows: mode === 'dark' ? [
       'none',                                                                        // 0
-      '0 1px 2px rgba(28, 25, 23, 0.06)',                                            // 1 - subtle
-      '0 1px 3px rgba(28, 25, 23, 0.08), 0 1px 2px rgba(28, 25, 23, 0.04)',         // 2
-      '0 4px 6px rgba(28, 25, 23, 0.07), 0 2px 4px rgba(28, 25, 23, 0.04)',         // 3
-      '0 10px 15px rgba(28, 25, 23, 0.08), 0 4px 6px rgba(28, 25, 23, 0.04)',       // 4 - cards
-      '0 6px 12px rgba(28, 25, 23, 0.08), 0 2px 4px rgba(28, 25, 23, 0.04)',        // 5
-      '0 8px 16px rgba(28, 25, 23, 0.08), 0 2px 4px rgba(28, 25, 23, 0.04)',        // 6 - elevated
-      '0 12px 24px rgba(28, 25, 23, 0.08), 0 4px 8px rgba(28, 25, 23, 0.04)',       // 7
-      '0 20px 25px rgba(28, 25, 23, 0.10), 0 8px 10px rgba(28, 25, 23, 0.04)',      // 8 - modals
+      '0 1px 3px rgba(0,0,0,0.30), 0 0 0 1px rgba(99,102,241,0.08)',               // 1 - default Paper
+      '0 2px 6px rgba(0,0,0,0.35), 0 0 0 1px rgba(99,102,241,0.10)',               // 2 - elevated
+      '0 4px 12px rgba(0,0,0,0.40), 0 0 0 1px rgba(99,102,241,0.08)',              // 3 - prominent
+      '0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(99,102,241,0.06)',              // 4 - cards
+      '0 6px 12px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.20)',                   // 5
+      '0 8px 16px rgba(0,0,0,0.40), 0 2px 4px rgba(0,0,0,0.20)',                   // 6 - elevated
+      '0 12px 24px rgba(0,0,0,0.45), 0 4px 8px rgba(0,0,0,0.20)',                  // 7
+      '0 20px 25px rgba(0,0,0,0.50), 0 8px 10px rgba(0,0,0,0.20)',                 // 8 - modals
+    ] : [
+      'none',                                                                        // 0
+      '0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)',                    // 1 - default Paper
+      '0 2px 6px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.04)',                    // 2 - elevated
+      '0 4px 12px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04)',                   // 3 - prominent
+      '0 8px 24px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.04)',                   // 4 - cards
+      '0 6px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',                   // 5
+      '0 8px 16px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',                   // 6 - elevated
+      '0 12px 24px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.04)',                  // 7
+      '0 20px 25px rgba(0,0,0,0.10), 0 8px 10px rgba(0,0,0,0.04)',                 // 8 - modals
       '0 20px 40px rgba(0, 0, 0, 0.10), 0 6px 12px rgba(0, 0, 0, 0.04)', // 9
       '0 24px 48px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.04)', // 10
       '0 28px 56px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.04)', // 11

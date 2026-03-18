@@ -558,7 +558,7 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                   <Box sx={{ flex: 1, overflow: 'auto' }}>
                     {/* Schema Elements List */}
                     <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                      <Typography variant="subtitle2" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                      <Typography variant="subtitle2" sx={{ p: 2, bgcolor: 'action.hover' }}>
                         FHIR Schema Elements
                       </Typography>
                       <List dense>
@@ -779,7 +779,7 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                         <Typography variant="subtitle2" sx={{ mt: 2 }} gutterBottom>
                           Path
                         </Typography>
-                        <Typography variant="body2" sx={{ fontFamily: 'monospace', bgcolor: 'grey.100', p: 1, borderRadius: 1 }}>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', bgcolor: 'action.hover', p: 1, borderRadius: 1 }}>
                           {selectedElement.path}
                         </Typography>
                       </>
@@ -795,7 +795,7 @@ function SchemaExplorer({ onNavigate, useFHIRData }) {
                     <Paper
                       sx={{
                         p: 2,
-                        bgcolor: 'grey.100',
+                        bgcolor: 'action.hover',
                         fontFamily: 'monospace',
                         fontSize: '0.875rem',
                         position: 'relative'

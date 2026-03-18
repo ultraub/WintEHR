@@ -236,7 +236,7 @@ const Login = () => {
   const formPanel = (
     <Box
       sx={{
-        backgroundColor: palette.stone50,
+        backgroundColor: theme.palette.background.paper,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -315,17 +315,17 @@ const Login = () => {
                 mb: 3,
                 p: 1.5,
                 borderRadius: 1,
-                backgroundColor: palette.stone100,
-                border: `1px solid ${palette.stone200}`,
+                backgroundColor: theme.palette.action.hover,
+                border: `1px solid ${theme.palette.divider}`,
               }}
             >
               <InfoIcon
                 fontSize="small"
-                sx={{ mt: 0.25, color: palette.stone400 }}
+                sx={{ mt: 0.25, color: theme.palette.text.secondary }}
               />
               <Typography
                 variant="body2"
-                sx={{ color: palette.stone600 }}
+                sx={{ color: theme.palette.text.secondary }}
               >
                 {roleDescriptions[selectedProvider]}
               </Typography>
