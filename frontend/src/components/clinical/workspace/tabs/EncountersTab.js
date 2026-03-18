@@ -606,7 +606,7 @@ const EncountersTab = ({
 
   return (
     <>
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
+      <Box>
       {/* Compact Header */}
       <Box sx={{ px: 2, pt: 1.5, pb: 0 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
@@ -719,7 +719,7 @@ const EncountersTab = ({
       </Box>
 
       {/* Main Content Area */}
-      <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+      <Box sx={{ p: 3 }}>
         {sortedEncounters.length === 0 ? (
           <Alert severity="info" sx={{ mt: 2 }}>
             No encounters found matching your criteria

@@ -20,6 +20,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { usePatientData } from '../../../hooks/usePatientData';
 import { useResponsive } from '../../../hooks/useResponsive';
 import { MedicalThemeContext } from '../../../App';
+import { LAYOUT_HEIGHTS, Z_INDEX } from '../theme/clinicalThemeConstants';
 
 // Module configuration
 const MODULES = {
@@ -88,7 +89,7 @@ const EnhancedClinicalLayout = ({
   const handleModuleChange = (moduleId) => {
     if (onModuleChange) {
       onModuleChange(moduleId);
-      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
 
       // Publish navigation event
       publish('navigation.module.changed', {
@@ -106,10 +107,10 @@ const EnhancedClinicalLayout = ({
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <Box sx={{ minHeight: '100vh' }}>
       <CssBaseline />
-      
-      {/* App Bar */}
+
+      {/* Fixed AppBar */}
       <ClinicalAppBar
         onMenuToggle={handleMenuToggle}
         onThemeToggle={toggleTheme}
@@ -120,8 +121,11 @@ const EnhancedClinicalLayout = ({
         department={department}
         shift={shift}
       />
-      
-      {/* Breadcrumbs - hide on mobile */}
+
+      {/* Spacer that pushes content below the fixed AppBar */}
+      <Box sx={{ height: LAYOUT_HEIGHTS.appBar }} />
+
+      {/* Breadcrumbs - in normal flow, scrolls away naturally */}
       {!isMobile && (
         <ClinicalBreadcrumbs
           patient={patient}
@@ -132,129 +136,97 @@ const EnhancedClinicalLayout = ({
           navigationContext={navigationContext}
         />
       )}
-      
-      {/* Main Layout Container */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-        
-        {/* Main Content Area */}
+
+      {/* Main content — natural page scroll, no overflow constraints */}
+      <Box
+        component="main"
+        ref={scrollContainerRef}
+        sx={{
+          backgroundColor: theme.palette.mode === 'dark'
+            ? theme.palette.background.default
+            : theme.palette.grey[50],
+          backgroundImage: theme.palette.mode === 'dark'
+            ? 'linear-gradient(180deg, rgba(99,102,241,0.14) 0%, rgba(99,102,241,0.05) 200px, transparent 500px)'
+            : 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.03) 200px, transparent 500px)',
+          minHeight: `calc(100vh - ${LAYOUT_HEIGHTS.appBar}px)`,
+        }}
+      >
+        {/* Sticky combined header: patient info + tabs stick together below the fixed AppBar */}
+        {(patient || loading) && (
+          <Box sx={{
+            position: 'sticky',
+            top: LAYOUT_HEIGHTS.appBar,
+            zIndex: Z_INDEX.appBar - 1,
+            backgroundColor: theme.palette.mode === 'dark'
+              ? 'rgba(30, 41, 59, 0.88)'
+              : 'rgba(255, 255, 255, 0.82)',
+            backdropFilter: 'saturate(180%) blur(20px)',
+            WebkitBackdropFilter: 'saturate(180%) blur(20px)',
+          }}>
+            <CollapsiblePatientHeaderOptimized
+              patientId={patient?.id || patientId}
+              onPrint={() => window.print()}
+              onNavigateToTab={handleModuleChange}
+              dataLoading={loading}
+              scrollContainerRef={scrollContainerRef}
+            />
+            <ClinicalTabs
+              activeTab={activeModule}
+              onTabChange={handleModuleChange}
+              variant={isMobile ? "scrollable" : "fullWidth"}
+              scrollButtons={isMobile ? "auto" : false}
+              showIcons={!isMobile}
+            />
+          </Box>
+        )}
+
+        {/* Tab content — renders at natural height, page scrolls */}
         <Box
-          component="main"
+          key={activeModule}
           sx={{
-            flexGrow: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden'
+            p: {
+              xs: 1,
+              sm: 2,
+              md: 3,
+            },
+            animation: 'fadeIn 150ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+            '@keyframes fadeIn': {
+              '0%': { opacity: 0, transform: 'translateY(4px)' },
+              '100%': { opacity: 1, transform: 'translateY(0)' }
+            }
           }}
         >
-          
-          {/* Content Area - responsive padding with ref for scroll tracking */}
-          <Box
-            ref={scrollContainerRef}
-            sx={{
-              flexGrow: 1,
-              overflow: 'auto',
-              backgroundColor: theme.palette.mode === 'dark'
-                ? theme.palette.background.default
-                : theme.palette.grey[50],
-              backgroundImage: theme.palette.mode === 'dark'
-                ? 'linear-gradient(180deg, rgba(99,102,241,0.14) 0%, rgba(99,102,241,0.05) 200px, transparent 500px)'
-                : 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.03) 200px, transparent 500px)',
-              position: 'relative',
-            }}
-          >
-            {/* Collapsible Patient Header - INSIDE scrolling container with sticky positioning */}
-            {(patient || loading) && (
-              <Box sx={{
-                position: 'sticky',
-                top: 0,
-                zIndex: 1100,
-                backgroundColor: theme.palette.mode === 'dark'
-                  ? 'rgba(30, 41, 59, 0.78)'
-                  : 'rgba(255, 255, 255, 0.72)',
-                backdropFilter: 'saturate(180%) blur(20px)',
-                WebkitBackdropFilter: 'saturate(180%) blur(20px)',
-                borderBottom: '0.5px solid',
-                borderColor: 'divider'
-              }}>
-                <CollapsiblePatientHeaderOptimized
-                  patientId={patient?.id || patientId}
-                  onPrint={() => window.print()}
-                  onNavigateToTab={handleModuleChange}
-                  dataLoading={loading}
-                  scrollContainerRef={scrollContainerRef}
-                />
-              </Box>
-            )}
-            
-            {/* Tab Navigation - also sticky below header */}
-            <Box sx={{ 
-              position: 'sticky',
-              top: 'auto', // Will stick after header
-              zIndex: 1000,
-              borderBottom: 1, 
-              borderColor: 'divider',
-              backgroundColor: 'background.paper',
-            }}>
-              <ClinicalTabs
-                activeTab={activeModule}
-                onTabChange={handleModuleChange}
-                variant={isMobile ? "scrollable" : "fullWidth"}
-                scrollButtons={isMobile ? "auto" : false}
-                showIcons={!isMobile}
-              />
-            </Box>
-
-            {/* Content with padding */}
-            <Box
-              key={activeModule}
-              sx={{
-                p: {
-                  xs: 1,      // 8px on mobile
-                  sm: 2,      // 16px on tablet
-                  md: 3,      // 24px on desktop
-                },
-                animation: 'fadeIn 150ms cubic-bezier(0.2, 0.8, 0.2, 1)',
-                '@keyframes fadeIn': {
-                  '0%': { opacity: 0, transform: 'translateY(4px)' },
-                  '100%': { opacity: 1, transform: 'translateY(0)' }
-                }
-              }}
-            >
-              {/* Pass enhanced props to children */}
-              {React.cloneElement(children, {
-              patient,
-              loading,
-              patientData: {
-                conditions,
-                medications,
-                allergies,
-                vitals,
-                lastEncounter,
-                // Additional computed data from hook
-                activeConditions,
-                activeMedications,
-                criticalAllergies,
-                latestVitals,
-                encounterCount,
-                conditionCount,
-                medicationCount,
-                allergyCount
-              },
-              isMobile,
-              isTablet,
-              isDesktop,
-              density: isMobile ? 'compact' : isTablet ? 'comfortable' : 'comfortable',
-              activeModule,
-              onModuleChange: handleModuleChange,
-              onRefresh: refreshPatientData,
-              error,
-              scrollContainerRef  // Pass the scroll container ref
-            })}
-            </Box>
-          </Box>
+          {React.cloneElement(children, {
+            patient,
+            loading,
+            patientData: {
+              conditions,
+              medications,
+              allergies,
+              vitals,
+              lastEncounter,
+              activeConditions,
+              activeMedications,
+              criticalAllergies,
+              latestVitals,
+              encounterCount,
+              conditionCount,
+              medicationCount,
+              allergyCount
+            },
+            isMobile,
+            isTablet,
+            isDesktop,
+            density: isMobile ? 'compact' : isTablet ? 'comfortable' : 'comfortable',
+            activeModule,
+            onModuleChange: handleModuleChange,
+            onRefresh: refreshPatientData,
+            error,
+            scrollContainerRef
+          })}
         </Box>
       </Box>
-      
+
       {/* Mobile Navigation Drawer */}
       {isMobile && (
         <Drawer
@@ -270,9 +242,9 @@ const EnhancedClinicalLayout = ({
           }}
         >
           <Box sx={{ p: 2 }}>
-            <Box sx={{ 
-              width: 40, 
-              height: 4, 
+            <Box sx={{
+              width: 40,
+              height: 4,
               backgroundColor: 'grey.300',
               borderRadius: 2,
               mx: 'auto',

@@ -1192,7 +1192,7 @@ const DocumentationTabEnhanced = ({
   }
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box>
       {/* Ultra-Compact Header */}
       <Box sx={{ 
         px: 1.5, 
@@ -1335,7 +1335,7 @@ const DocumentationTabEnhanced = ({
             borderColor: 'divider',
             backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.8) : 'grey.50'
           }}>
-            <Box sx={{ p: 1, height: '100%', overflow: 'auto' }}>
+            <Box sx={{ p: 1, minHeight: 300, overflow: 'auto' }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                 <Typography variant="subtitle2" fontWeight={600}>
                   Categories
@@ -1372,9 +1372,7 @@ const DocumentationTabEnhanced = ({
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
           {/* Content Views */}
-          <Box sx={{ 
-            flex: 1, 
-            overflow: 'auto',
+          <Box sx={{
             backgroundColor: theme.palette.mode === 'dark' ? 'background.default' : 'background.paper'
           }}>
             {viewMode === 'timeline' && (

@@ -962,7 +962,7 @@ const PharmacyTab = ({
   }
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box>
       {/* Header */}
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
@@ -1110,7 +1110,7 @@ const PharmacyTab = ({
       </Box>
 
       {/* Main Content Area */}
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
+      <Box>
         {/* Workflow Tabs */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs 

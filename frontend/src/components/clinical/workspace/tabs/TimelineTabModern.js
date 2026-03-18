@@ -1533,7 +1533,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   
   if ((loading && !hasLoadedInitialData) || !resources) {
     return (
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 2 }}>
+      <Box sx={{ p: 2 }}>
         <ClinicalLoadingState.SummaryCard count={4} />
         <Box sx={{ mt: 2 }}>
           <ClinicalLoadingState.FilterPanel />
@@ -1559,13 +1559,12 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   }
   
   return (
-    <Box 
+    <Box
       ref={containerRef}
-      sx={{ 
-        height: '100%', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        overflow: 'hidden',
+      sx={{
+        minHeight: 600,
+        display: 'flex',
+        flexDirection: 'column',
         bgcolor: isDarkMode ? 'grey.900' : 'background.default'
       }}
     >

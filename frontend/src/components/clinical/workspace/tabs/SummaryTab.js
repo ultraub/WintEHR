@@ -1278,11 +1278,11 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
   }
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <Box sx={{ position: 'relative' }}>
       {refreshing && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 }} />}
-      
+
       {/* Main Content */}
-      <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+      <Box sx={{ p: 3 }}>
         {/* Action Bar */}
         <Box sx={{ 
           display: 'flex', 

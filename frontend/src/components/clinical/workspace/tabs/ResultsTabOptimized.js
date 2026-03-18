@@ -848,7 +848,7 @@ const ResultsTabOptimized = ({
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
+    <Box>
       {/* Ultra-Compact Header with inline stats */}
       <Box sx={{ px: 1, pt: 0.75, pb: 0 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
@@ -971,7 +971,7 @@ const ResultsTabOptimized = ({
       </Tabs>
       
       {/* Content */}
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
+      <Box>
         {renderContent()}
       </Box>
       

@@ -513,7 +513,7 @@ const ChartReviewTabOptimized = ({
 
   if (loading) {
     return (
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: { xs: 1, sm: 2 } }}>
+      <Box sx={{ p: { xs: 1, sm: 2 } }}>
         {/* Summary Cards Skeleton */}
         <Grid container spacing={1} sx={{ mb: 2 }}>
           {Array.from({ length: 4 }).map((_, index) => (
@@ -530,7 +530,7 @@ const ChartReviewTabOptimized = ({
   }
   
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: theme.palette.mode === 'dark' ? 'background.default' : 'background.paper' }}>
+    <Box sx={{ backgroundColor: theme.palette.mode === 'dark' ? 'background.default' : 'background.paper' }}>
       {/* Collapsible Filter Panel */}
       <CollapsibleFilterPanel
         searchQuery={searchQuery}
@@ -598,7 +598,7 @@ const ChartReviewTabOptimized = ({
       )}
       
       {/* Main Content Area */}
-      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, sm: 2 } }}>
+      <Box sx={{ p: { xs: 1, sm: 2 } }}>
         {viewMode === 'dashboard' && (
           <FadeInContainer>
             <Box>

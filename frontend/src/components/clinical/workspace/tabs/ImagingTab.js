@@ -1120,7 +1120,7 @@ const ImagingTab = ({
   }
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} ref={scrollContainerRef}>
+    <Box>
       {/* Header with Summary Cards */}
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
@@ -1268,7 +1268,7 @@ const ImagingTab = ({
       )}
 
       {/* Content Views */}
-      <Box sx={{ flex: 1, overflow: 'auto', p: density === 'compact' ? 2 : 3 }}>
+      <Box sx={{ p: density === 'compact' ? 2 : 3 }}>
         {viewMode === 'timeline' && (
           <Box>
             <Typography variant="h6" gutterBottom>

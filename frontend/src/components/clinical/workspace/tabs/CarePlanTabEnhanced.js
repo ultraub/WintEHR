@@ -1158,7 +1158,7 @@ const CarePlanTabEnhanced = ({
   }
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box>
       {/* Metrics Bar */}
       <Stack direction="row" spacing={2} sx={{ p: 2, backgroundColor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
         {metrics.map((metric, index) => (
@@ -1201,7 +1201,7 @@ const CarePlanTabEnhanced = ({
       </Box>
       
       {/* Content Area */}
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
+      <Box>
         {/* Care Plans Tab (Tab 0) - NEW: Longitudinal Care View */}
         {activeTab === 0 && (
           <Box sx={{ p: 2 }}>
