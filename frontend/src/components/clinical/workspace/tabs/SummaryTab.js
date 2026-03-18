@@ -1324,6 +1324,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
               title="Active Problems"
               value={stats.activeProblems}
               icon={<ProblemIcon />}
+              accentColor="#EF4444"
               severity={stats.activeProblems > 5 ? 'high' : stats.activeProblems > 3 ? 'moderate' : 'normal'}
               trend={stats.activeProblems > 3 ? { direction: 'up' } : null}
             />
@@ -1333,6 +1334,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
               title="Medications"
               value={stats.activeMedications}
               icon={<MedicationIcon />}
+              accentColor="#3B82F6"
               severity="normal"
               chips={stats.overdueItems > 0 ? [{ label: `${stats.overdueItems} need refill`, color: 'error' }] : []}
             />
@@ -1342,6 +1344,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
               title="Recent Labs"
               value={stats.recentLabs}
               icon={<LabIcon />}
+              accentColor="#F59E0B"
               severity="info"
               chips={[{ label: 'Last 7 days', color: 'default' }]}
             />
@@ -1351,6 +1354,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
               title="Allergies"
               value={stats.totalAllergies}
               icon={<WarningIcon />}
+              accentColor="#F97316"
               severity={stats.totalAllergies > 3 ? 'high' : stats.totalAllergies > 0 ? 'moderate' : 'normal'}
             />
           </Grid>
@@ -1359,6 +1363,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
               title="Overdue"
               value={stats.overdueItems}
               icon={<CalendarIcon />}
+              accentColor="#8B5CF6"
               severity={stats.overdueItems > 0 ? 'high' : 'normal'}
               progress={stats.overdueItems > 0 ? (stats.overdueItems / 10) * 100 : 0}
             />

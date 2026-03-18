@@ -288,16 +288,16 @@ const ClinicalSidebar = ({
                     my: 0.5,
                     color: '#EDEAF5',
                     borderLeft: isActive ? '3px solid #6366F1' : '3px solid transparent',
-                    '& .MuiListItemIcon-root': { color: '#9E98BA' },
+                    '& .MuiListItemIcon-root': { color: item.color || '#9E98BA' },
                     '&:hover': {
                       bgcolor: 'rgba(99, 102, 241, 0.12)',
                       color: '#EDEAF5',
-                      '& .MuiListItemIcon-root': { color: '#EDEAF5' },
+                      '& .MuiListItemIcon-root': { color: item.color || '#EDEAF5' },
                     },
                     '&.Mui-selected': {
                       bgcolor: 'rgba(99, 102, 241, 0.1)',
                       color: '#6366F1',
-                      '& .MuiListItemIcon-root': { color: '#6366F1' },
+                      '& .MuiListItemIcon-root': { color: item.color || '#6366F1' },
                       '&:hover': {
                         bgcolor: 'rgba(99, 102, 241, 0.15)',
                       },
