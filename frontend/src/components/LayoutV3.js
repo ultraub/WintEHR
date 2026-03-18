@@ -386,7 +386,7 @@ function LayoutV3({ children }) {
           ml: { md: `${drawerWidth}px` },
           bgcolor: theme.palette.mode === 'dark'
             ? 'rgba(30, 41, 59, 0.78)'
-            : 'rgba(243, 241, 255, 0.82)',
+            : 'rgba(255, 255, 255, 0.72)',
           color: 'text.primary',
           boxShadow: 'none',
           backdropFilter: 'saturate(180%) blur(20px)',
