@@ -366,7 +366,7 @@ function Dashboard() {
 
             {/* Encounter Trends Chart */}
             <Grid item xs={12} md={8}>
-              <Paper sx={{ p: 2, height: 300 }}>
+              <Paper sx={{ p: 2, height: 300, boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)' }}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                   Patient Encounters - Last 30 Days
                 </Typography>
@@ -427,7 +427,7 @@ function Dashboard() {
 
             {/* Chronic Disease Distribution */}
             <Grid item xs={12} md={4}>
-              <Paper sx={{ p: 2, height: 300 }}>
+              <Paper sx={{ p: 2, height: 300, boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)' }}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                   Chronic Disease Registry
                 </Typography>
@@ -496,7 +496,7 @@ function Dashboard() {
 
             {/* Quick Actions */}
             <Grid item xs={12}>
-              <Paper sx={{ p: 2 }}>
+              <Paper sx={{ p: 2, boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)' }}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                   Quick Actions
                 </Typography>
@@ -584,7 +584,7 @@ function Dashboard() {
           <Grid container spacing={2}>
             {/* Active Clinical Alerts */}
             <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 2, height: 350 }}>
+              <Paper sx={{ p: 2, height: 350, boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)' }}>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                   <Typography variant="subtitle1" fontWeight="bold">
                     Active Clinical Alerts
@@ -647,7 +647,7 @@ function Dashboard() {
 
             {/* Safety Incidents Tracking */}
             <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 2, height: 350 }}>
+              <Paper sx={{ p: 2, height: 350, boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)' }}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                   Safety Incident Tracking (Last 30 Days)
                 </Typography>
@@ -697,7 +697,7 @@ function Dashboard() {
 
             {/* High-Risk Medication Monitoring */}
             <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 2 }}>
+              <Paper sx={{ p: 2, boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)' }}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                   High-Risk Medication Monitoring
                 </Typography>
@@ -754,7 +754,7 @@ function Dashboard() {
 
             {/* Quality Metrics Summary */}
             <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 2 }}>
+              <Paper sx={{ p: 2, boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)' }}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                   Patient Safety Quality Metrics ({qualityMetrics?.period || '30 days'})
                 </Typography>
@@ -817,7 +817,7 @@ function Dashboard() {
           <Grid container spacing={2}>
             {/* Encounter Types */}
             <Grid item xs={12} lg={6}>
-              <Paper sx={{ p: 2, height: 350 }}>
+              <Paper sx={{ p: 2, height: 350, boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)' }}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                   Encounter Types Distribution
                 </Typography>
@@ -845,7 +845,7 @@ function Dashboard() {
 
             {/* Care Gap Performance */}
             <Grid item xs={12} lg={6}>
-              <Paper sx={{ p: 2, height: 350 }}>
+              <Paper sx={{ p: 2, height: 350, boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)' }}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                   Preventive Care Performance
                 </Typography>
@@ -890,7 +890,7 @@ function Dashboard() {
 
             {/* Additional Analytics */}
             <Grid item xs={12}>
-              <Paper sx={{ p: 2 }}>
+              <Paper sx={{ p: 2, boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)' }}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                   Key Performance Indicators
                 </Typography>

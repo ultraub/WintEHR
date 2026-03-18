@@ -386,7 +386,7 @@ function LayoutV3({ children }) {
           ml: { md: `${drawerWidth}px` },
           bgcolor: theme.palette.mode === 'dark'
             ? 'rgba(30, 41, 59, 0.78)'
-            : 'rgba(255, 255, 255, 0.72)',
+            : 'rgba(243, 241, 255, 0.82)',
           color: 'text.primary',
           boxShadow: 'none',
           backdropFilter: 'saturate(180%) blur(20px)',
@@ -518,8 +518,8 @@ function LayoutV3({ children }) {
           overflow: 'auto',
           p: { xs: 2, sm: 2.5, md: 3 },
           backgroundImage: theme.palette.mode === 'dark'
-            ? 'linear-gradient(180deg, rgba(99,102,241,0.08) 0%, rgba(99,102,241,0.03) 140px, transparent 300px)'
-            : 'linear-gradient(180deg, rgba(99,102,241,0.05) 0%, rgba(99,102,241,0.015) 140px, transparent 300px)',
+            ? 'linear-gradient(180deg, rgba(99,102,241,0.14) 0%, rgba(99,102,241,0.05) 200px, transparent 500px)'
+            : 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.03) 200px, transparent 500px)',
         }}>
           <BreadcrumbNavigation location={location} />
           <TransitionWrapper transition="fade" duration={300}>

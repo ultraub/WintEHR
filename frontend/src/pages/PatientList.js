@@ -617,7 +617,7 @@ function PatientList() {
         </Alert>
       )}
 
-      <Paper sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+      <Paper sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05)' }}>
         {loading && <LinearProgress />}
         
         <Box sx={{ flexGrow: 1, height: 500 }}>
