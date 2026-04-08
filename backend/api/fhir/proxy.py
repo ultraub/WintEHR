@@ -140,11 +140,13 @@ async def proxy_to_hapi_fhir(path: str, request: Request):
                 content=body
             )
 
-            # Prepare response headers (exclude compression headers - httpx handles decompression)
+            # Prepare response headers — strip hop-by-hop and encoding headers
+            # that conflict when nginx proxies to us (causes "Content-Length and
+            # Transfer-Encoding sent at the same time" 502 errors)
             response_headers = dict(response.headers)
-            # Remove content-encoding headers since httpx already decompressed the response
             response_headers.pop("content-encoding", None)
-            response_headers.pop("content-length", None)  # Length may be wrong after decompression
+            response_headers.pop("content-length", None)
+            response_headers.pop("transfer-encoding", None)
 
             # Return HAPI FHIR response
             return Response(
