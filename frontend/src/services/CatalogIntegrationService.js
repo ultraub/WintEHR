@@ -25,14 +25,14 @@ class CatalogIntegrationService {
       const medications = await cdsClinicalDataService.getDynamicMedicationCatalog(searchTerm, limit);
       
       // Normalize for condition builder use
+      // API returns: generic_name, rxnorm_code, brand_name, strength, dosage_form
       const normalized = medications.map(med => ({
-        id: med.id || med.code,
-        code: med.code,
-        display: med.display || med.name,
-        system: med.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
-        category: med.category || 'medication',
+        id: med.id || med.rxnorm_code,
+        code: med.rxnorm_code || med.id,
+        display: med.generic_name || med.brand_name || med.id,
+        system: 'http://www.nlm.nih.gov/research/umls/rxnorm',
+        category: med.drug_class || 'medication',
         usage_count: med.usage_count || 0,
-        // Additional fields for CDS logic
         strength: med.strength,
         dosage_form: med.dosage_form,
         generic_name: med.generic_name,
@@ -60,17 +60,16 @@ class CatalogIntegrationService {
       const conditions = await cdsClinicalDataService.getDynamicConditionCatalog(searchTerm, limit);
       
       // Normalize for condition builder use
+      // API returns: display_name, icd10_code, snomed_code, category, chronic
       const normalized = conditions.map(condition => ({
-        id: condition.id || condition.code,
-        code: condition.code,
-        display: condition.display || condition.name,
-        system: condition.system || 'http://snomed.info/sct',
+        id: condition.id || condition.snomed_code || condition.icd10_code,
+        code: condition.snomed_code || condition.icd10_code || condition.id,
+        display: condition.display_name || condition.id,
+        system: condition.snomed_code ? 'http://snomed.info/sct' : 'http://hl7.org/fhir/sid/icd-10-cm',
         category: condition.category || 'condition',
         usage_count: condition.usage_count || 0,
-        // Additional fields for CDS logic
         severity: condition.severity,
-        clinical_status: condition.clinical_status || 'active',
-        verification_status: condition.verification_status || 'confirmed'
+        chronic: condition.chronic
       }));
 
       this.setCache(cacheKey, normalized);
@@ -94,19 +93,17 @@ class CatalogIntegrationService {
       const labTests = await cdsClinicalDataService.getLabCatalog(searchTerm, category, limit);
       
       // Normalize for condition builder use
+      // API returns: test_name, test_code, loinc_code, reference_range, specimen_type
       const normalized = labTests.map(lab => ({
-        id: lab.id || lab.code,
-        code: lab.code,
-        display: lab.display || lab.name,
-        system: lab.system || 'http://loinc.org',
-        category: lab.category || 'laboratory',
+        id: lab.id || lab.loinc_code || lab.test_code,
+        code: lab.loinc_code || lab.test_code || lab.id,
+        display: lab.test_name || lab.id,
+        system: 'http://loinc.org',
+        category: 'laboratory',
         usage_count: lab.usage_count || 0,
-        // Reference range information
         reference_range: lab.reference_range,
         unit: lab.unit,
-        normal_range: lab.normal_range,
-        critical_low: lab.critical_low,
-        critical_high: lab.critical_high
+        specimen_type: lab.specimen_type
       }));
 
       this.setCache(cacheKey, normalized);
@@ -163,29 +160,29 @@ class CatalogIntegrationService {
     try {
       const results = await cdsClinicalDataService.searchAllDynamicCatalogs(query, limit);
       
-      // Normalize results by category
+      // Normalize results by category (field names match catalog API response)
       const normalized = {
         medications: (results.medications || []).map(med => ({
-          id: med.id || med.code,
-          code: med.code,
-          display: med.display || med.name,
-          system: med.system || 'http://www.nlm.nih.gov/research/umls/rxnorm',
+          id: med.id || med.rxnorm_code,
+          code: med.rxnorm_code || med.id,
+          display: med.generic_name || med.brand_name || med.id,
+          system: 'http://www.nlm.nih.gov/research/umls/rxnorm',
           category: 'medication',
           usage_count: med.usage_count || 0
         })),
         conditions: (results.conditions || []).map(condition => ({
-          id: condition.id || condition.code,
-          code: condition.code,
-          display: condition.display || condition.name,
-          system: condition.system || 'http://snomed.info/sct',
+          id: condition.id || condition.snomed_code || condition.icd10_code,
+          code: condition.snomed_code || condition.icd10_code || condition.id,
+          display: condition.display_name || condition.id,
+          system: condition.snomed_code ? 'http://snomed.info/sct' : 'http://hl7.org/fhir/sid/icd-10-cm',
           category: 'condition',
           usage_count: condition.usage_count || 0
         })),
         lab_tests: (results.lab_tests || []).map(lab => ({
-          id: lab.id || lab.code,
-          code: lab.code,
-          display: lab.display || lab.name,
-          system: lab.system || 'http://loinc.org',
+          id: lab.id || lab.loinc_code || lab.test_code,
+          code: lab.loinc_code || lab.test_code || lab.id,
+          display: lab.test_name || lab.id,
+          system: 'http://loinc.org',
           category: 'laboratory',
           usage_count: lab.usage_count || 0,
           reference_range: lab.reference_range,
