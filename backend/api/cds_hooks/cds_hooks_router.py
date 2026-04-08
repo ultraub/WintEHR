@@ -303,14 +303,15 @@ async def discover_services(
                     "http://wintehr.local/fhir/StructureDefinition/service-origin"
                 )
 
-                # Only include external services from HAPI (built-in are in registry)
-                if origin == "external" or (service_origin == "external" and origin == service_origin):
+                # Include external and visual-builder services from HAPI
+                # (built-in services are already in the registry above)
+                if origin in ("external", "visual-builder"):
                     service = _plan_definition_to_cds_service(plan_def)
                     if service:
                         services.append(service)
                         hapi_count += 1
 
-            logger.info(f"Discovered {hapi_count} external services from HAPI FHIR")
+            logger.info(f"Discovered {hapi_count} external/visual-builder services from HAPI FHIR")
 
         except httpx.HTTPStatusError as e:
             logger.warning(f"FHIR server error discovering services: {e.response.status_code}")
