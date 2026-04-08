@@ -106,6 +106,11 @@ HAPI_FHIR_BASE_URL = _raw_hapi_url.rstrip("/fhir").rstrip("/")
 
 
 @router.api_route("/fhir/R4/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_fhir_r4(path: str, request: Request):
+    """Proxy /fhir/R4/* requests (used by frontend)."""
+    return await proxy_to_hapi_fhir(path, request)
+
+
 @router.api_route("/fhir/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_to_hapi_fhir(path: str, request: Request):
     """
