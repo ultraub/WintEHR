@@ -388,7 +388,7 @@ async def execute_service(
             if result.success:
                 cards = result.cards
             else:
-                logger.warning(f"Service {service_id} execution failed: {result.error_message}")
+                logger.warning(f"Service {service_id} execution failed: {result.error}")
 
         else:
             # 2. Fall back to HAPI FHIR PlanDefinition lookup
