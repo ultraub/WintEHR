@@ -128,7 +128,10 @@ const ConditionBlock = ({
 
   // Load catalog data with optional search term
   const loadCatalogData = useCallback(async (dataSource, searchTerm = '') => {
-    const catalogType = DATA_SOURCES[dataSource]?.catalogType;
+    // Find data source by id (dataSource is the id like 'conditions', not the key like 'HAS_CONDITION')
+    const dsConfig = availableDataSources.find(ds => ds.id === dataSource)
+      || Object.values(DATA_SOURCES).find(ds => ds.id === dataSource);
+    const catalogType = dsConfig?.catalogType;
     if (!catalogType) return;
 
     setLoadingCatalog(true);
@@ -163,7 +166,7 @@ const ConditionBlock = ({
     } finally {
       setLoadingCatalog(false);
     }
-  }, []);
+  }, [availableDataSources]);
 
   // Debounced search handler
   const handleCatalogSearch = React.useMemo(
