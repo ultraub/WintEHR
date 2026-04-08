@@ -38,6 +38,12 @@ setup_security_middleware(app)
 # Set up performance monitoring
 setup_performance_monitoring(app)
 
+# Set up SMART on FHIR token validation middleware
+# Controlled by SMART_ENABLED env var (default: true)
+# SMART_ALLOW_UNPROTECTED=true allows unauthenticated reads for demo mode
+from api.smart.middleware import setup_smart_middleware
+setup_smart_middleware(app)
+
 # Add default CORS for development if security middleware is disabled
 if os.getenv("DISABLE_SECURITY_MIDDLEWARE", "false").lower() == "true":
     cors_origins = [

@@ -55,12 +55,13 @@ class SMARTTokenMiddleware(BaseHTTPMiddleware):
     - Unprotected paths: /fhir/R4/metadata (capability statement)
     """
 
-    # Paths that require SMART authentication
-    PROTECTED_PATH_PATTERN = re.compile(r'^/fhir/R4/(?!metadata)')
+    # Paths that require SMART authentication (/fhir/ and /fhir/R4/)
+    PROTECTED_PATH_PATTERN = re.compile(r'^/fhir/(?:R4/)?(?!metadata)')
 
     # Paths that are always public
     PUBLIC_PATHS = {
         "/fhir/R4/metadata",
+        "/fhir/metadata",
         "/.well-known/smart-configuration",
         "/api/smart/authorize",
         "/api/smart/token",
@@ -229,8 +230,8 @@ class SMARTTokenMiddleware(BaseHTTPMiddleware):
         FHIR URLs follow a predictable pattern:
         [base]/[ResourceType]/[id]/[operation]
         """
-        # Remove /fhir/R4 prefix
-        fhir_path = path.replace("/fhir/R4/", "")
+        # Remove /fhir/R4/ or /fhir/ prefix
+        fhir_path = re.sub(r'^/fhir/(?:R4/)?', '', path)
 
         # Split by /
         parts = fhir_path.split("/")
