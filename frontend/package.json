@@ -22,7 +22,7 @@
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
-    "axios": "^1.13.6",
+    "axios": "^1.15.0",
     "chart.js": "^4.5.0",
     "cornerstone-core": "^2.6.1",
     "cornerstone-tools": "^6.0.0",
