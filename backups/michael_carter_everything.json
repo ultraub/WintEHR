@@ -1,0 +1,3433 @@
+{
+  "resourceType": "Bundle",
+  "id": "38e4c5eb-e8c5-496e-ba11-f58e45e8b945",
+  "meta": {
+    "lastUpdated": "2026-04-17T21:35:06.247+00:00"
+  },
+  "type": "searchset",
+  "total": 68,
+  "link": [ {
+    "relation": "self",
+    "url": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Patient/149471/$everything?_count=1000"
+  } ],
+  "entry": [ {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Patient/149471",
+    "resource": {
+      "resourceType": "Patient",
+      "id": "149471",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "identifier": [ {
+        "use": "official",
+        "type": {
+          "coding": [ {
+            "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+            "code": "MR",
+            "display": "Medical Record Number"
+          } ]
+        },
+        "system": "urn:oid:2.16.840.1.113883.4.3.24",
+        "value": "45823917"
+      } ],
+      "name": [ {
+        "use": "official",
+        "family": "Carter",
+        "given": [ "Michael", "Andrew" ]
+      } ],
+      "telecom": [ {
+        "system": "phone",
+        "value": "(410) 555-7392",
+        "use": "home"
+      } ],
+      "gender": "male",
+      "birthDate": "1976-07-18",
+      "address": [ {
+        "use": "home",
+        "line": [ "7842 Maple Ridge Lane" ],
+        "city": "MoN",
+        "state": "State",
+        "postalCode": "44521"
+      } ],
+      "maritalStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus",
+          "code": "M",
+          "display": "Married"
+        } ]
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/AllergyIntolerance/149476",
+    "resource": {
+      "resourceType": "AllergyIntolerance",
+      "id": "149476",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "clinicalStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+          "code": "active"
+        } ]
+      },
+      "verificationStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification",
+          "code": "confirmed"
+        } ]
+      },
+      "type": "allergy",
+      "category": [ "medication" ],
+      "code": {
+        "coding": [ {
+          "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+          "code": "7980",
+          "display": "Penicillin"
+        } ],
+        "text": "Penicillin"
+      },
+      "patient": {
+        "reference": "Patient/149471"
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Condition/149477",
+    "resource": {
+      "resourceType": "Condition",
+      "id": "149477",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "clinicalStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+          "code": "active"
+        } ]
+      },
+      "verificationStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+          "code": "confirmed"
+        } ]
+      },
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+          "code": "problem-list-item"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "309557009",
+          "display": "Pulmonary mass"
+        }, {
+          "system": "http://hl7.org/fhir/sid/icd-10-cm",
+          "code": "R91.8",
+          "display": "Other nonspecific abnormal finding of lung field"
+        } ],
+        "text": "Pulmonary mass, left lung"
+      },
+      "bodySite": [ {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "368209003",
+          "display": "Left lung structure"
+        } ]
+      } ],
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "note": [ {
+        "text": "Incidentally discovered on chest X-ray following evaluation of rib fracture sustained in a bar altercation. Confirmed by follow-up CT scan. Planned surgical excision scheduled 12/12/2025 at Metro Health Center; surgery cancelled by anesthesiologist on day of procedure."
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Condition/149478",
+    "resource": {
+      "resourceType": "Condition",
+      "id": "149478",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "clinicalStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+          "code": "active"
+        } ]
+      },
+      "verificationStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+          "code": "confirmed"
+        } ]
+      },
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+          "code": "problem-list-item"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "44054006",
+          "display": "Diabetes mellitus type 2"
+        }, {
+          "system": "http://hl7.org/fhir/sid/icd-10-cm",
+          "code": "E11.9",
+          "display": "Type 2 diabetes mellitus without complications"
+        } ],
+        "text": "Type 2 Diabetes Mellitus"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "note": [ {
+        "text": "Stable. Managed with semaglutide (dose escalated to 1 mg weekly in October 2025)."
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Condition/149479",
+    "resource": {
+      "resourceType": "Condition",
+      "id": "149479",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "clinicalStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+          "code": "active"
+        } ]
+      },
+      "verificationStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+          "code": "confirmed"
+        } ]
+      },
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+          "code": "problem-list-item"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "38341003",
+          "display": "Hypertensive disorder"
+        }, {
+          "system": "http://hl7.org/fhir/sid/icd-10-cm",
+          "code": "I10",
+          "display": "Essential (primary) hypertension"
+        } ],
+        "text": "Hypertension"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "note": [ {
+        "text": "Controlled on atenolol 50 mg daily (started March 2023)."
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Condition/149480",
+    "resource": {
+      "resourceType": "Condition",
+      "id": "149480",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "clinicalStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+          "code": "active"
+        } ]
+      },
+      "verificationStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+          "code": "confirmed"
+        } ]
+      },
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+          "code": "problem-list-item"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "433144002",
+          "display": "Chronic kidney disease stage 3"
+        }, {
+          "system": "http://hl7.org/fhir/sid/icd-10-cm",
+          "code": "N18.3",
+          "display": "Chronic kidney disease, stage 3 (moderate)"
+        } ],
+        "text": "Chronic Kidney Disease, stage 3"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "note": [ {
+        "text": "eGFR 49 mL/min/1.73m² (reduced). Creatinine 1.8 mg/dL (elevated). Consistent with CKD stage 3 per labs drawn 2025-11-20."
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Condition/149481",
+    "resource": {
+      "resourceType": "Condition",
+      "id": "149481",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "clinicalStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+          "code": "active"
+        } ]
+      },
+      "verificationStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+          "code": "confirmed"
+        } ]
+      },
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+          "code": "problem-list-item"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "235595009",
+          "display": "Gastroesophageal reflux disease"
+        }, {
+          "system": "http://hl7.org/fhir/sid/icd-10-cm",
+          "code": "K21.9",
+          "display": "Gastro-esophageal reflux disease without esophagitis"
+        } ],
+        "text": "Gastroesophageal reflux disease"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "note": [ {
+        "text": "Patient reports occasional bloating and heartburn."
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Condition/149482",
+    "resource": {
+      "resourceType": "Condition",
+      "id": "149482",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "clinicalStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+          "code": "active"
+        } ]
+      },
+      "verificationStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+          "code": "confirmed"
+        } ]
+      },
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+          "code": "problem-list-item"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "48694002",
+          "display": "Anxiety"
+        }, {
+          "system": "http://hl7.org/fhir/sid/icd-10-cm",
+          "code": "F41.9",
+          "display": "Anxiety disorder, unspecified"
+        } ],
+        "text": "Anxiety disorder"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "note": [ {
+        "text": "Significant anxiety reported regarding upcoming surgical procedure. Alprazolam 0.25 mg PO q8h PRN prescribed at pre-op evaluation on 2025-11-27."
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/MedicationRequest/149483",
+    "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "149483",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "completed",
+      "intent": "order",
+      "medicationCodeableConcept": {
+        "coding": [ {
+          "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+          "code": "2200542",
+          "display": "semaglutide"
+        } ],
+        "text": "Semaglutide 0.5 mg subcutaneous injection"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "reasonReference": [ {
+        "reference": "Condition/149478",
+        "display": "Type 2 Diabetes Mellitus"
+      } ],
+      "note": [ {
+        "text": "Initial dose for diabetes management. Escalated to 1 mg on 2025-10-15."
+      } ],
+      "dosageInstruction": [ {
+        "timing": {
+          "repeat": {
+            "frequency": 1,
+            "period": 1,
+            "periodUnit": "wk"
+          }
+        },
+        "route": {
+          "coding": [ {
+            "system": "http://snomed.info/sct",
+            "code": "34206005",
+            "display": "Subcutaneous route"
+          } ]
+        },
+        "doseAndRate": [ {
+          "doseQuantity": {
+            "value": 0.5,
+            "unit": "mg",
+            "system": "http://unitsofmeasure.org",
+            "code": "mg"
+          }
+        } ]
+      } ],
+      "dispenseRequest": {
+        "validityPeriod": {
+          "start": "2025-05-27",
+          "end": "2025-10-14"
+        }
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/MedicationRequest/149484",
+    "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "149484",
+      "meta": {
+        "versionId": "2",
+        "lastUpdated": "2026-03-13T14:47:20.509+00:00"
+      },
+      "status": "active",
+      "intent": "order",
+      "medicationCodeableConcept": {
+        "coding": [ {
+          "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+          "code": "2200542",
+          "display": "semaglutide"
+        } ],
+        "text": "Semaglutide 1 mg subcutaneous injection"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "reasonReference": [ {
+        "reference": "Condition/149478",
+        "display": "Type 2 Diabetes Mellitus"
+      } ],
+      "note": [ {
+        "text": "Dose escalated from 0.5 mg. Pre-op note (2025-11-27) instructed patient to continue current medications; semaglutide was NOT held before surgery on 2025-12-12. GLP-1 agonists typically require a 1-week hold prior to surgery due to gastroparesis/aspiration risk - this may have contributed to anesthesiologist cancelling the procedure."
+      } ],
+      "dosageInstruction": [ {
+        "timing": {
+          "repeat": {
+            "frequency": 1,
+            "period": 1,
+            "periodUnit": "wk"
+          }
+        },
+        "route": {
+          "coding": [ {
+            "system": "http://snomed.info/sct",
+            "code": "34206005",
+            "display": "Subcutaneous route"
+          } ]
+        },
+        "doseAndRate": [ {
+          "doseQuantity": {
+            "value": 1,
+            "unit": "mg",
+            "system": "http://unitsofmeasure.org",
+            "code": "mg"
+          }
+        } ]
+      } ],
+      "dispenseRequest": {
+        "validityPeriod": {
+          "start": "2025-10-15"
+        }
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/MedicationRequest/149485",
+    "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "149485",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "active",
+      "intent": "order",
+      "medicationCodeableConcept": {
+        "coding": [ {
+          "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+          "code": "33036",
+          "display": "Atenolol 50 MG Oral Tablet"
+        } ],
+        "text": "Atenolol 50 mg oral tablet"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "reasonReference": [ {
+        "reference": "Condition/149479",
+        "display": "Hypertension"
+      } ],
+      "dosageInstruction": [ {
+        "timing": {
+          "repeat": {
+            "frequency": 1,
+            "period": 1,
+            "periodUnit": "d"
+          }
+        },
+        "route": {
+          "coding": [ {
+            "system": "http://snomed.info/sct",
+            "code": "26643006",
+            "display": "Oral route"
+          } ]
+        },
+        "doseAndRate": [ {
+          "doseQuantity": {
+            "value": 50,
+            "unit": "mg",
+            "system": "http://unitsofmeasure.org",
+            "code": "mg"
+          }
+        } ]
+      } ],
+      "dispenseRequest": {
+        "validityPeriod": {
+          "start": "2023-03-10"
+        }
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/MedicationRequest/149486",
+    "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "149486",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "active",
+      "intent": "order",
+      "medicationCodeableConcept": {
+        "coding": [ {
+          "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+          "code": "308047",
+          "display": "Alprazolam 0.25 MG Oral Tablet"
+        } ],
+        "text": "Alprazolam (Xanax) 0.25 mg oral tablet"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "reasonReference": [ {
+        "reference": "Condition/149482",
+        "display": "Pre-operative anxiety"
+      } ],
+      "dosageInstruction": [ {
+        "text": "0.25 mg by mouth every 8 hours as needed for anxiety",
+        "timing": {
+          "repeat": {
+            "frequency": 3,
+            "period": 1,
+            "periodUnit": "d"
+          }
+        },
+        "asNeededBoolean": true,
+        "route": {
+          "coding": [ {
+            "system": "http://snomed.info/sct",
+            "code": "26643006",
+            "display": "Oral route"
+          } ]
+        },
+        "doseAndRate": [ {
+          "doseQuantity": {
+            "value": 0.25,
+            "unit": "mg",
+            "system": "http://unitsofmeasure.org",
+            "code": "mg"
+          }
+        } ]
+      } ],
+      "dispenseRequest": {
+        "validityPeriod": {
+          "start": "2025-11-27"
+        }
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149487",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149487",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "6690-2",
+          "display": "Leukocytes [#/volume] in Blood by Automated count"
+        } ],
+        "text": "WBC"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 6.8,
+        "unit": "x10^3/uL",
+        "system": "http://unitsofmeasure.org",
+        "code": "10*3/uL"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 4.0
+        },
+        "high": {
+          "value": 11.0
+        },
+        "text": "4.0–11.0 x10^3/uL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149488",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149488",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "789-8",
+          "display": "Erythrocytes [#/volume] in Blood by Automated count"
+        } ],
+        "text": "RBC"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 4.95,
+        "unit": "x10^6/uL",
+        "system": "http://unitsofmeasure.org",
+        "code": "10*6/uL"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 4.5
+        },
+        "high": {
+          "value": 5.9
+        },
+        "text": "4.5–5.9 x10^6/uL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149489",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149489",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "718-7",
+          "display": "Hemoglobin [Mass/volume] in Blood"
+        } ],
+        "text": "Hemoglobin"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 15.1,
+        "unit": "g/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "g/dL"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 13.5
+        },
+        "high": {
+          "value": 17.5
+        },
+        "text": "13.5–17.5 g/dL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149490",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149490",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "4544-3",
+          "display": "Hematocrit [Volume Fraction] of Blood by Automated count"
+        } ],
+        "text": "Hematocrit"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 44.8,
+        "unit": "%",
+        "system": "http://unitsofmeasure.org",
+        "code": "%"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 41
+        },
+        "high": {
+          "value": 53
+        },
+        "text": "41–53%"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149491",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149491",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "787-2",
+          "display": "MCV [Entitic volume] by Automated count"
+        } ],
+        "text": "MCV"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 90,
+        "unit": "fL",
+        "system": "http://unitsofmeasure.org",
+        "code": "fL"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 80
+        },
+        "high": {
+          "value": 100
+        },
+        "text": "80–100 fL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149492",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149492",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "785-6",
+          "display": "MCH [Entitic mass] by Automated count"
+        } ],
+        "text": "MCH"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 30.5,
+        "unit": "pg",
+        "system": "http://unitsofmeasure.org",
+        "code": "pg"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 27
+        },
+        "high": {
+          "value": 33
+        },
+        "text": "27–33 pg"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149493",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149493",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "786-4",
+          "display": "MCHC [Mass/volume] by Automated count"
+        } ],
+        "text": "MCHC"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 34,
+        "unit": "g/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "g/dL"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 32
+        },
+        "high": {
+          "value": 36
+        },
+        "text": "32–36 g/dL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149494",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149494",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "788-0",
+          "display": "Erythrocyte distribution width [Ratio] by Automated count"
+        } ],
+        "text": "RDW"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 12.8,
+        "unit": "%",
+        "system": "http://unitsofmeasure.org",
+        "code": "%"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 11
+        },
+        "high": {
+          "value": 15
+        },
+        "text": "11–15%"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149495",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149495",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "777-3",
+          "display": "Platelets [#/volume] in Blood by Automated count"
+        } ],
+        "text": "Platelets"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 258,
+        "unit": "x10^3/uL",
+        "system": "http://unitsofmeasure.org",
+        "code": "10*3/uL"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 150
+        },
+        "high": {
+          "value": 450
+        },
+        "text": "150–450 x10^3/uL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149496",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149496",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "2951-2",
+          "display": "Sodium [Moles/volume] in Serum or Plasma"
+        } ],
+        "text": "Sodium"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 139,
+        "unit": "mmol/L",
+        "system": "http://unitsofmeasure.org",
+        "code": "mmol/L"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 135
+        },
+        "high": {
+          "value": 145
+        },
+        "text": "135–145 mmol/L"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149497",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149497",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "2823-3",
+          "display": "Potassium [Moles/volume] in Serum or Plasma"
+        } ],
+        "text": "Potassium"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 4.3,
+        "unit": "mmol/L",
+        "system": "http://unitsofmeasure.org",
+        "code": "mmol/L"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 3.5
+        },
+        "high": {
+          "value": 5.1
+        },
+        "text": "3.5–5.1 mmol/L"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149498",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149498",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "2075-0",
+          "display": "Chloride [Moles/volume] in Serum or Plasma"
+        } ],
+        "text": "Chloride"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 102,
+        "unit": "mmol/L",
+        "system": "http://unitsofmeasure.org",
+        "code": "mmol/L"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 98
+        },
+        "high": {
+          "value": 107
+        },
+        "text": "98–107 mmol/L"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149499",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149499",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "2028-9",
+          "display": "Carbon dioxide [Moles/volume] in Serum or Plasma"
+        } ],
+        "text": "CO2"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 25,
+        "unit": "mmol/L",
+        "system": "http://unitsofmeasure.org",
+        "code": "mmol/L"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 22
+        },
+        "high": {
+          "value": 29
+        },
+        "text": "22–29 mmol/L"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149500",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149500",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "2345-7",
+          "display": "Glucose [Mass/volume] in Serum or Plasma"
+        } ],
+        "text": "Glucose"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 104,
+        "unit": "mg/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "mg/dL"
+      },
+      "interpretation": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+          "code": "H",
+          "display": "High"
+        } ]
+      } ],
+      "referenceRange": [ {
+        "low": {
+          "value": 70
+        },
+        "high": {
+          "value": 99
+        },
+        "text": "70–99 mg/dL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149501",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149501",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "17861-6",
+          "display": "Calcium [Mass/volume] in Serum or Plasma"
+        } ],
+        "text": "Calcium"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 9.4,
+        "unit": "mg/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "mg/dL"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 8.6
+        },
+        "high": {
+          "value": 10.2
+        },
+        "text": "8.6–10.2 mg/dL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149502",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149502",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "1751-7",
+          "display": "Albumin [Mass/volume] in Serum or Plasma"
+        } ],
+        "text": "Albumin"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 4.4,
+        "unit": "g/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "g/dL"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 3.5
+        },
+        "high": {
+          "value": 5.0
+        },
+        "text": "3.5–5.0 g/dL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149503",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149503",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "2885-2",
+          "display": "Protein [Mass/volume] in Serum or Plasma"
+        } ],
+        "text": "Total Protein"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 7.2,
+        "unit": "g/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "g/dL"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 6.0
+        },
+        "high": {
+          "value": 8.3
+        },
+        "text": "6.0–8.3 g/dL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149504",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149504",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "1920-8",
+          "display": "Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        } ],
+        "text": "AST"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 22,
+        "unit": "U/L",
+        "system": "http://unitsofmeasure.org",
+        "code": "U/L"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 10
+        },
+        "high": {
+          "value": 40
+        },
+        "text": "10–40 U/L"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149505",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149505",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "1742-6",
+          "display": "Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma"
+        } ],
+        "text": "ALT"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 26,
+        "unit": "U/L",
+        "system": "http://unitsofmeasure.org",
+        "code": "U/L"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 7
+        },
+        "high": {
+          "value": 56
+        },
+        "text": "7–56 U/L"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149506",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149506",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "6768-6",
+          "display": "Alkaline phosphatase [Enzymatic activity/volume] in Serum or Plasma"
+        } ],
+        "text": "Alkaline Phosphatase"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 78,
+        "unit": "U/L",
+        "system": "http://unitsofmeasure.org",
+        "code": "U/L"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 44
+        },
+        "high": {
+          "value": 147
+        },
+        "text": "44–147 U/L"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149507",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149507",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "3094-0",
+          "display": "Urea nitrogen [Mass/volume] in Serum or Plasma"
+        } ],
+        "text": "BUN"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 32,
+        "unit": "mg/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "mg/dL"
+      },
+      "interpretation": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+          "code": "H",
+          "display": "High"
+        } ]
+      } ],
+      "referenceRange": [ {
+        "low": {
+          "value": 7
+        },
+        "high": {
+          "value": 20
+        },
+        "text": "7–20 mg/dL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149508",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149508",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "2160-0",
+          "display": "Creatinine [Mass/volume] in Serum or Plasma"
+        } ],
+        "text": "Creatinine"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 1.8,
+        "unit": "mg/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "mg/dL"
+      },
+      "interpretation": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+          "code": "H",
+          "display": "High"
+        } ]
+      } ],
+      "referenceRange": [ {
+        "low": {
+          "value": 0.7
+        },
+        "high": {
+          "value": 1.3
+        },
+        "text": "0.7–1.3 mg/dL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149509",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149509",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "62238-1",
+          "display": "Glomerular filtration rate/1.73 sq M.predicted [Volume Rate/Area] in Serum, Plasma or Blood by Creatinine-based formula (CKD-EPI)"
+        } ],
+        "text": "eGFR"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 49,
+        "unit": "mL/min/1.73m²",
+        "system": "http://unitsofmeasure.org",
+        "code": "mL/min/{1.73_m2}"
+      },
+      "interpretation": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+          "code": "L",
+          "display": "Low"
+        } ]
+      } ],
+      "referenceRange": [ {
+        "text": ">90 mL/min/1.73m²"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149510",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149510",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "4548-4",
+          "display": "Hemoglobin A1c/Hemoglobin.total in Blood"
+        } ],
+        "text": "Hemoglobin A1C"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 5.9,
+        "unit": "%",
+        "system": "http://unitsofmeasure.org",
+        "code": "%"
+      },
+      "interpretation": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+          "code": "H",
+          "display": "High"
+        } ]
+      } ],
+      "referenceRange": [ {
+        "high": {
+          "value": 5.7
+        },
+        "text": "<5.7%"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149511",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149511",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "2093-3",
+          "display": "Cholesterol [Mass/volume] in Serum or Plasma"
+        } ],
+        "text": "Total Cholesterol"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 198,
+        "unit": "mg/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "mg/dL"
+      },
+      "referenceRange": [ {
+        "high": {
+          "value": 200
+        },
+        "text": "<200 mg/dL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149512",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149512",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "2089-1",
+          "display": "Cholesterol in LDL [Mass/volume] in Serum or Plasma"
+        } ],
+        "text": "LDL Cholesterol"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 134,
+        "unit": "mg/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "mg/dL"
+      },
+      "interpretation": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+          "code": "H",
+          "display": "High"
+        } ]
+      } ],
+      "referenceRange": [ {
+        "high": {
+          "value": 100
+        },
+        "text": "<100 mg/dL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149513",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149513",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "2085-9",
+          "display": "Cholesterol in HDL [Mass/volume] in Serum or Plasma"
+        } ],
+        "text": "HDL Cholesterol"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 45,
+        "unit": "mg/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "mg/dL"
+      },
+      "referenceRange": [ {
+        "low": {
+          "value": 40
+        },
+        "text": ">40 mg/dL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149514",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149514",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "2571-8",
+          "display": "Triglyceride [Mass/volume] in Serum or Plasma"
+        } ],
+        "text": "Triglycerides"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Organization/149474"
+      } ],
+      "valueQuantity": {
+        "value": 186,
+        "unit": "mg/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "mg/dL"
+      },
+      "interpretation": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+          "code": "H",
+          "display": "High"
+        } ]
+      } ],
+      "referenceRange": [ {
+        "high": {
+          "value": 150
+        },
+        "text": "<150 mg/dL"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149515",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149515",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "exam"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "11524-6",
+          "display": "EKG study"
+        } ],
+        "text": "Electrocardiogram (EKG)"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "performer": [ {
+        "reference": "Practitioner/149472"
+      } ],
+      "valueString": "No acute abnormalities",
+      "note": [ {
+        "text": "EKG reviewed by Dr. Whitaker during pre-operative workup. Completed within one week of pre-op evaluation on 2025-11-27."
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/DiagnosticReport/149516",
+    "resource": {
+      "resourceType": "DiagnosticReport",
+      "id": "149516",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v2-0074",
+          "code": "LAB",
+          "display": "Laboratory"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "24323-8",
+          "display": "Comprehensive metabolic 2000 panel - Serum or Plasma"
+        } ],
+        "text": "Pre-operative Laboratory Panel (CBC, CMP, HbA1c, Lipid Panel)"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "issued": "2025-11-20T08:42:00-05:00",
+      "performer": [ {
+        "reference": "Organization/149474",
+        "display": "MoN Critical Access Hospital Laboratory"
+      } ],
+      "resultsInterpreter": [ {
+        "reference": "Practitioner/149472",
+        "display": "Daniel R. Whitaker, MD"
+      } ],
+      "result": [ {
+        "reference": "Observation/149487",
+        "display": "WBC"
+      }, {
+        "reference": "Observation/149488",
+        "display": "RBC"
+      }, {
+        "reference": "Observation/149489",
+        "display": "Hemoglobin"
+      }, {
+        "reference": "Observation/149490",
+        "display": "Hematocrit"
+      }, {
+        "reference": "Observation/149491",
+        "display": "MCV"
+      }, {
+        "reference": "Observation/149492",
+        "display": "MCH"
+      }, {
+        "reference": "Observation/149493",
+        "display": "MCHC"
+      }, {
+        "reference": "Observation/149494",
+        "display": "RDW"
+      }, {
+        "reference": "Observation/149495",
+        "display": "Platelets"
+      }, {
+        "reference": "Observation/149496",
+        "display": "Sodium"
+      }, {
+        "reference": "Observation/149497",
+        "display": "Potassium"
+      }, {
+        "reference": "Observation/149498",
+        "display": "Chloride"
+      }, {
+        "reference": "Observation/149499",
+        "display": "CO2"
+      }, {
+        "reference": "Observation/149500",
+        "display": "Glucose"
+      }, {
+        "reference": "Observation/149501",
+        "display": "Calcium"
+      }, {
+        "reference": "Observation/149502",
+        "display": "Albumin"
+      }, {
+        "reference": "Observation/149503",
+        "display": "Total Protein"
+      }, {
+        "reference": "Observation/149504",
+        "display": "AST"
+      }, {
+        "reference": "Observation/149505",
+        "display": "ALT"
+      }, {
+        "reference": "Observation/149506",
+        "display": "Alkaline Phosphatase"
+      }, {
+        "reference": "Observation/149507",
+        "display": "BUN"
+      }, {
+        "reference": "Observation/149508",
+        "display": "Creatinine"
+      }, {
+        "reference": "Observation/149509",
+        "display": "eGFR"
+      }, {
+        "reference": "Observation/149510",
+        "display": "Hemoglobin A1C"
+      }, {
+        "reference": "Observation/149511",
+        "display": "Total Cholesterol"
+      }, {
+        "reference": "Observation/149512",
+        "display": "LDL Cholesterol"
+      }, {
+        "reference": "Observation/149513",
+        "display": "HDL Cholesterol"
+      }, {
+        "reference": "Observation/149514",
+        "display": "Triglycerides"
+      } ],
+      "conclusion": "Pre-operative labs notable for elevated BUN (32), elevated creatinine (1.8, H), reduced eGFR (49, L) consistent with known CKD stage 3. HbA1c 5.9% mildly elevated. LDL 134 mg/dL elevated above target. Triglycerides 186 mg/dL mildly elevated. CBC within acceptable limits. Reviewed and signed by ordering provider."
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Encounter/149517",
+    "resource": {
+      "resourceType": "Encounter",
+      "id": "149517",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "finished",
+      "class": {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": "AMB",
+        "display": "ambulatory"
+      },
+      "type": [ {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "185387006",
+          "display": "Pre-admission assessment"
+        } ],
+        "text": "Pre-operative evaluation"
+      } ],
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "participant": [ {
+        "type": [ {
+          "coding": [ {
+            "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
+            "code": "PPRF",
+            "display": "primary performer"
+          } ]
+        } ],
+        "individual": {
+          "reference": "Practitioner/149472",
+          "display": "Daniel R. Whitaker, MD"
+        }
+      } ],
+      "period": {
+        "start": "2025-11-27",
+        "end": "2025-11-27"
+      },
+      "reasonCode": [ {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "700232004",
+          "display": "Pre-operative assessment"
+        } ],
+        "text": "Pre-operative medical evaluation prior to planned excision of left lung mass"
+      } ],
+      "diagnosis": [ {
+        "condition": {
+          "reference": "Condition/149477"
+        },
+        "use": {
+          "coding": [ {
+            "system": "http://terminology.hl7.org/CodeSystem/diagnosis-role",
+            "code": "CC",
+            "display": "Chief complaint"
+          } ]
+        },
+        "rank": 1
+      }, {
+        "condition": {
+          "reference": "Condition/149478"
+        },
+        "rank": 2
+      }, {
+        "condition": {
+          "reference": "Condition/149479"
+        },
+        "rank": 3
+      }, {
+        "condition": {
+          "reference": "Condition/149480"
+        },
+        "rank": 4
+      }, {
+        "condition": {
+          "reference": "Condition/149481"
+        },
+        "rank": 5
+      }, {
+        "condition": {
+          "reference": "Condition/149482"
+        },
+        "rank": 6
+      } ],
+      "serviceProvider": {
+        "reference": "Organization/149474"
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Encounter/149519",
+    "resource": {
+      "resourceType": "Encounter",
+      "id": "149519",
+      "meta": {
+        "versionId": "2",
+        "lastUpdated": "2026-03-13T14:45:00.188+00:00"
+      },
+      "status": "finished",
+      "class": {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        "code": "VR",
+        "display": "virtual"
+      },
+      "type": [ {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "185317003",
+          "display": "Telephone encounter"
+        } ],
+        "text": "Telephone encounter - patient incident documentation"
+      } ],
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "participant": [ {
+        "individual": {
+          "reference": "Practitioner/149473",
+          "display": "Rebecca L. Harmon, RN"
+        }
+      } ],
+      "period": {
+        "start": "2025-12-14T09:18:00-05:00",
+        "end": "2025-12-14T09:18:00-05:00"
+      },
+      "serviceProvider": {
+        "reference": "Organization/149474"
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/RiskAssessment/149521",
+    "resource": {
+      "resourceType": "RiskAssessment",
+      "id": "149521",
+      "meta": {
+        "versionId": "2",
+        "lastUpdated": "2026-03-13T14:47:26.511+00:00"
+      },
+      "status": "final",
+      "method": {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "413137000",
+          "display": "Cardiac risk assessment"
+        } ],
+        "text": "Revised Cardiac Risk Index (RCRI)"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "encounter": {
+        "reference": "Encounter/149517"
+      },
+      "occurrenceDateTime": "2025-11-27",
+      "performer": {
+        "reference": "Practitioner/149472"
+      },
+      "prediction": [ {
+        "outcome": {
+          "coding": [ {
+            "system": "http://snomed.info/sct",
+            "code": "397829000",
+            "display": "Major adverse cardiac event"
+          } ],
+          "text": "Major cardiac complication (MACE)"
+        },
+        "probabilityDecimal": 0.01,
+        "qualitativeRisk": {
+          "coding": [ {
+            "system": "http://terminology.hl7.org/CodeSystem/risk-probability",
+            "code": "negligible",
+            "display": "Negligible likelihood"
+          } ],
+          "text": "Low risk - RCRI score 0, estimated <1% risk of major cardiac complication"
+        }
+      } ],
+      "note": [ {
+        "text": "RCRI Score: 0. No history of ischemic heart disease, CHF, cerebrovascular disease, or insulin-dependent diabetes. Creatinine mildly elevated consistent with CKD but <2 mg/dL. Planned surgery classified as intermediate risk. ASA Physical Status: Class III (severe systemic disease - T2DM, HTN, CKD - but not life-threatening)."
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/FamilyMemberHistory/149522",
+    "resource": {
+      "resourceType": "FamilyMemberHistory",
+      "id": "149522",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "completed",
+      "patient": {
+        "reference": "Patient/149471"
+      },
+      "relationship": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-RoleCode",
+          "code": "BRO",
+          "display": "Brother"
+        } ]
+      },
+      "condition": [ {
+        "code": {
+          "coding": [ {
+            "system": "http://snomed.info/sct",
+            "code": "22298006",
+            "display": "Myocardial infarction"
+          } ],
+          "text": "Myocardial infarction at age 45"
+        },
+        "onsetAge": {
+          "value": 45,
+          "unit": "years",
+          "system": "http://unitsofmeasure.org",
+          "code": "a"
+        }
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/FamilyMemberHistory/149523",
+    "resource": {
+      "resourceType": "FamilyMemberHistory",
+      "id": "149523",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "completed",
+      "patient": {
+        "reference": "Patient/149471"
+      },
+      "relationship": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-RoleCode",
+          "code": "FTH",
+          "display": "Father"
+        } ]
+      },
+      "condition": [ {
+        "code": {
+          "coding": [ {
+            "system": "http://snomed.info/sct",
+            "code": "38341003",
+            "display": "Hypertensive disorder"
+          } ],
+          "text": "Hypertension"
+        }
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/FamilyMemberHistory/149524",
+    "resource": {
+      "resourceType": "FamilyMemberHistory",
+      "id": "149524",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "completed",
+      "patient": {
+        "reference": "Patient/149471"
+      },
+      "relationship": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-RoleCode",
+          "code": "MTH",
+          "display": "Mother"
+        } ]
+      },
+      "condition": [ {
+        "code": {
+          "coding": [ {
+            "system": "http://snomed.info/sct",
+            "code": "38341003",
+            "display": "Hypertensive disorder"
+          } ],
+          "text": "Hypertension"
+        }
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Communication/149526",
+    "resource": {
+      "resourceType": "Communication",
+      "id": "149526",
+      "meta": {
+        "versionId": "2",
+        "lastUpdated": "2026-03-13T14:47:38.291+00:00"
+      },
+      "status": "completed",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/communication-category",
+          "code": "notification",
+          "display": "Notification"
+        } ],
+        "text": "Patient safety incident - telephone encounter documentation"
+      } ],
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "encounter": {
+        "reference": "Encounter/149519"
+      },
+      "sent": "2025-12-14T09:18:00",
+      "recipient": [ {
+        "reference": "Practitioner/149472",
+        "display": "Daniel R. Whitaker, MD"
+      } ],
+      "sender": {
+        "reference": "Practitioner/149473",
+        "display": "Rebecca L. Harmon, RN"
+      },
+      "payload": [ {
+        "contentString": "Incoming telephone call from patient Michael Andrew Carter (MRN 45823917) on 2025-12-14 at 09:18 AM. Patient expressed significant anger and distress regarding cancellation of lung mass excision surgery scheduled 2025-12-12 at Metro Health Center. Patient arrived at Metro Health Center with wife and daughter, was taken to surgical area; anesthesiologist cancelled the procedure stating 'medications were not correct.' Patient expressed severe anxiety about cancer progression due to the delay. Patient stated he was planning to come to MoN Critical Access Hospital to 'find' Dr. Whitaker for answers, and stated 'someone has to pay for it.' Patient tone was angry and agitated. Hospital administration and hospital security notified due to patient's stated intent to confront the physician."
+      } ],
+      "note": [ {
+        "authorReference": {
+          "reference": "Practitioner/149473"
+        },
+        "time": "2025-12-14T09:18:00",
+        "text": "Documented by Rebecca L. Harmon, RN. Hospital administration and security notified per protocol."
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149527",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149527",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "vital-signs",
+          "display": "Vital Signs"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "85354-9",
+          "display": "Blood pressure panel with all children optional"
+        } ],
+        "text": "Blood Pressure"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "encounter": {
+        "reference": "Encounter/149517"
+      },
+      "effectiveDateTime": "2025-11-27",
+      "performer": [ {
+        "reference": "Practitioner/149472"
+      } ],
+      "component": [ {
+        "code": {
+          "coding": [ {
+            "system": "http://loinc.org",
+            "code": "8480-6",
+            "display": "Systolic blood pressure"
+          } ]
+        },
+        "valueQuantity": {
+          "value": 128,
+          "unit": "mmHg",
+          "system": "http://unitsofmeasure.org",
+          "code": "mm[Hg]"
+        }
+      }, {
+        "code": {
+          "coding": [ {
+            "system": "http://loinc.org",
+            "code": "8462-4",
+            "display": "Diastolic blood pressure"
+          } ]
+        },
+        "valueQuantity": {
+          "value": 78,
+          "unit": "mmHg",
+          "system": "http://unitsofmeasure.org",
+          "code": "mm[Hg]"
+        }
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149528",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149528",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "vital-signs",
+          "display": "Vital Signs"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "8867-4",
+          "display": "Heart rate"
+        } ],
+        "text": "Heart Rate"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "encounter": {
+        "reference": "Encounter/149517"
+      },
+      "effectiveDateTime": "2025-11-27",
+      "performer": [ {
+        "reference": "Practitioner/149472"
+      } ],
+      "valueQuantity": {
+        "value": 72,
+        "unit": "beats/min",
+        "system": "http://unitsofmeasure.org",
+        "code": "/min"
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149529",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149529",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "vital-signs",
+          "display": "Vital Signs"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "9279-1",
+          "display": "Respiratory rate"
+        } ],
+        "text": "Respiratory Rate"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "encounter": {
+        "reference": "Encounter/149517"
+      },
+      "effectiveDateTime": "2025-11-27",
+      "performer": [ {
+        "reference": "Practitioner/149472"
+      } ],
+      "valueQuantity": {
+        "value": 16,
+        "unit": "breaths/min",
+        "system": "http://unitsofmeasure.org",
+        "code": "/min"
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149530",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149530",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "vital-signs",
+          "display": "Vital Signs"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "8310-5",
+          "display": "Body temperature"
+        } ],
+        "text": "Temperature"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "encounter": {
+        "reference": "Encounter/149517"
+      },
+      "effectiveDateTime": "2025-11-27",
+      "performer": [ {
+        "reference": "Practitioner/149472"
+      } ],
+      "valueQuantity": {
+        "value": 98.4,
+        "unit": "°F",
+        "system": "http://unitsofmeasure.org",
+        "code": "[degF]"
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149531",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149531",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "vital-signs",
+          "display": "Vital Signs"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "59408-5",
+          "display": "Oxygen saturation in Arterial blood by Pulse oximetry"
+        } ],
+        "text": "SpO2"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "encounter": {
+        "reference": "Encounter/149517"
+      },
+      "effectiveDateTime": "2025-11-27",
+      "performer": [ {
+        "reference": "Practitioner/149472"
+      } ],
+      "valueQuantity": {
+        "value": 98,
+        "unit": "%",
+        "system": "http://unitsofmeasure.org",
+        "code": "%"
+      },
+      "note": [ {
+        "text": "Room air"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/DiagnosticReport/149532",
+    "resource": {
+      "resourceType": "DiagnosticReport",
+      "id": "149532",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/v2-0074",
+          "code": "CUS",
+          "display": "Cardiac Ultrasound"
+        } ],
+        "text": "Cardiology"
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "11524-6",
+          "display": "EKG study"
+        } ],
+        "text": "Electrocardiogram (EKG)"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "encounter": {
+        "reference": "Encounter/149517"
+      },
+      "effectiveDateTime": "2025-11-20",
+      "issued": "2025-11-20T00:00:00-05:00",
+      "performer": [ {
+        "reference": "Practitioner/149472",
+        "display": "Daniel R. Whitaker, MD"
+      } ],
+      "result": [ {
+        "reference": "Observation/149515",
+        "display": "EKG"
+      } ],
+      "conclusion": "No acute abnormalities. Reviewed as part of pre-operative workup completed within one week of evaluation on 2025-11-27."
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149533",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149533",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "social-history",
+          "display": "Social History"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "72166-2",
+          "display": "Tobacco smoking status"
+        } ],
+        "text": "Smoking status"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "encounter": {
+        "reference": "Encounter/149517"
+      },
+      "effectiveDateTime": "2025-11-27",
+      "performer": [ {
+        "reference": "Practitioner/149472"
+      } ],
+      "valueCodeableConcept": {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "266919005",
+          "display": "Never smoked tobacco"
+        } ],
+        "text": "Denies smoking"
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149534",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149534",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "social-history",
+          "display": "Social History"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "11331-6",
+          "display": "History of Alcohol use"
+        } ],
+        "text": "Alcohol use"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "encounter": {
+        "reference": "Encounter/149517"
+      },
+      "effectiveDateTime": "2025-11-27",
+      "performer": [ {
+        "reference": "Practitioner/149472"
+      } ],
+      "valueString": "Social use"
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Observation/149535",
+    "resource": {
+      "resourceType": "Observation",
+      "id": "149535",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "final",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+          "code": "social-history",
+          "display": "Social History"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "44255-8",
+          "display": "Drug use status"
+        } ],
+        "text": "Illicit drug use"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "encounter": {
+        "reference": "Encounter/149517"
+      },
+      "effectiveDateTime": "2025-11-27",
+      "performer": [ {
+        "reference": "Practitioner/149472"
+      } ],
+      "valueCodeableConcept": {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "228510007",
+          "display": "Never used illicit drugs"
+        } ],
+        "text": "Denies illicit drug use"
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Condition/149536",
+    "resource": {
+      "resourceType": "Condition",
+      "id": "149536",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "clinicalStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+          "code": "resolved"
+        } ]
+      },
+      "verificationStatus": {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+          "code": "confirmed"
+        } ]
+      },
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+          "code": "problem-list-item"
+        } ]
+      } ],
+      "code": {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "16056004",
+          "display": "Fracture of rib"
+        }, {
+          "system": "http://hl7.org/fhir/sid/icd-10-cm",
+          "code": "S22.3XXA",
+          "display": "Fracture of one rib, unspecified side, initial encounter for closed fracture"
+        } ],
+        "text": "Rib fracture"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "note": [ {
+        "text": "Sustained during a bar altercation. Chest X-ray ordered for this injury incidentally revealed a left lung mass, which was subsequently confirmed by CT scan. Specific rib and laterality not documented."
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/DocumentReference/149539",
+    "resource": {
+      "resourceType": "DocumentReference",
+      "id": "149539",
+      "meta": {
+        "versionId": "4",
+        "lastUpdated": "2026-04-02T21:32:31.357+00:00"
+      },
+      "status": "current",
+      "docStatus": "final",
+      "type": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "11506-3",
+          "display": "Progress note"
+        } ]
+      },
+      "category": [ {
+        "coding": [ {
+          "system": "http://hl7.org/fhir/ValueSet/document-reference-category",
+          "code": "clinical-note",
+          "display": "Clinical Note"
+        } ]
+      } ],
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "date": "2026-04-02T21:32:33.795Z",
+      "author": [ {
+        "display": "Current User"
+      } ],
+      "description": "History and physical note",
+      "content": [ {
+        "attachment": {
+          "contentType": "text/plain",
+          "data": "MjAyNS0xMS0yNwoKIyBDaGllZiBDb21wbGFpbnQKUHJlLW9wZXJhdGl2ZSBldmFsdWF0aW9uIHByaW9yIHRvIHN1cmdpY2FsIGV4Y2lzaW9uIG9mIGxlZnQgbHVuZyBtYXNzLgoKIyBIaXN0b3J5IG9mIFByZXNlbnQgSWxsbmVzcwpNaWNoYWVsIEFuZHJldyBDYXJ0ZXIgaXMgYSA0OS15ZWFyLW9sZCBtYWxlIHByZXNlbnRpbmcgZm9yIHByZS1vcGVyYXRpdmUgbWVkaWNhbCBldmFsdWF0aW9uIHByaW9yIHRvIHBsYW5uZWQgZXhjaXNpb24gb2YgYSBsZWZ0IGx1bmcgbWFzcyBzY2hlZHVsZWQgZm9yIDEyLzEyLzIwMjUgYXQgTWV0cm8gSGVhbHRoIENlbnRlci4gVGhlIGx1bmcgbWFzcyB3YXMgaW5jaWRlbnRhbGx5IGRpc2NvdmVyZWQgb24gY2hlc3QgWC1yYXkgcGVyZm9ybWVkIGFmdGVyIGV2YWx1YXRpb24gb2YgYSByaWIgZnJhY3R1cmUgc3VzdGFpbmVkIGR1cmluZyBhIGJhciBhbHRlcmNhdGlvbi4gQSBmb2xsb3ctdXAgQ1Qgc2NhbiBjb25maXJtZWQgdGhlIHByZXNlbmNlIG9mIGEgbGVmdCBsdW5nIG1hc3MuIFRoZSBwYXRpZW50IGRlbmllcyBjb3VnaCwgaGVtb3B0eXNpcywgZHlzcG5lYSwgY2hlc3QgcGFpbiwgZmV2ZXIsIG9yIHdlaWdodCBsb3NzLiBSZXBvcnRzIG9jY2FzaW9uYWwgYmxvYXRpbmcgYW5kIGhlYXJ0YnVybi4gUmVwb3J0cyBhbnhpZXR5IHJlZ2FyZGluZyB0aGUgdXBjb21pbmcgc3VyZ2ljYWwgcHJvY2VkdXJlLgoKIyBQYXN0IE1lZGljYWwgSGlzdG9yeQotIFR5cGUgMiBEaWFiZXRlcyBNZWxsaXR1cwotIEh5cGVydGVuc2lvbgotIENocm9uaWMgS2lkbmV5IERpc2Vhc2UgKHJlZHVjZWQgZUdGUikKLSBHRVJECi0gT3Bpb2lkIHVzZSBkaXNvcmRlcgoKIyBNZWRpY2F0aW9ucwotIFNlbWFnbHV0aWRlIC0gZGlhYmV0ZXMgbWFuYWdlbWVudAotIEF0ZW5vbG9sIC0gaHlwZXJ0ZW5zaW9uCi0gQWxwcmF6b2xhbSAoWGFuYXgpIDAuMjUgbWcgUE8gcThoIFBSTiBhbnhpZXR5CgojIEFsbGVyZ2llcwotIFBlbmljaWxsaW4KCiMgRmFtaWx5IEhpc3RvcnkKLSBCcm90aGVyOiBteW9jYXJkaWFsIGluZmFyY3Rpb24gYXQgYWdlIDQ1Ci0gRmF0aGVyOiBoeXBlcnRlbnNpb24KLSBNb3RoZXI6IGh5cGVydGVuc2lvbgoKIyBTb2NpYWwgSGlzdG9yeQpTbW9raW5nOiBEZW5pZXMKQWxjb2hvbDogU29jaWFsIHVzZQpJbGxpY2l0IERydWdzOiBEZW5pZXMKTWFyaXRhbCBTdGF0dXM6IE1hcnJpZWQKU2V4dWFsIEhpc3Rvcnk6IFNpbmdsZSBwYXJ0bmVyCgojIFJldmlldyBvZiBTeXN0ZW1zCkNvbXByZWhlbnNpdmUgcmV2aWV3IG9mIHN5c3RlbXMgcGVyZm9ybWVkIGFuZCBuZWdhdGl2ZSBleGNlcHQgYW54aWV0eSByZWdhcmRpbmcgc3VyZ2VyeS4KCiMgVml0YWwgU2lnbnMKQlA6IDEyOC83OCBtbUhnCkhSOiA3MiBicG0KUlI6IDE2L21pbgpUZW1wOiA5OC40IGRlZ3JlZXMgRgpTcE8yOiA5OCUgb24gcm9vbSBhaXIKCiMgUGh5c2ljYWwgRXhhbWluYXRpb24KR2VuZXJhbDogQWxlcnQsIG9yaWVudGVkLCBubyBhY3V0ZSBkaXN0cmVzcwpDYXJkaW92YXNjdWxhcjogUmVndWxhciByYXRlIGFuZCByaHl0aG0sIG5vIG11cm11cnMKUmVzcGlyYXRvcnk6IEx1bmdzIGNsZWFyIGJpbGF0ZXJhbGx5CkFiZG9tZW46IFNvZnQsIG5vbi10ZW5kZXIKRXh0cmVtaXRpZXM6IE5vIGVkZW1hLCBtaWxkIFIgY2FsZiB0ZW5kZXJuZXNzCk5ldXJvbG9naWM6IEdyb3NzbHkgaW50YWN0CgojIERpYWdub3N0aWNzIFJldmlld2VkCkVLRzogcmV2aWV3ZWQsIG5vIGFjdXRlIGFibm9ybWFsaXRpZXMKQ0JDOiB3aXRoaW4gYWNjZXB0YWJsZSBsaW1pdHMKQ01QOiByZXZpZXdlZDsgcmVkdWNlZCBlR0ZSIGNvbnNpc3RlbnQgd2l0aCBDS0QKQWxsIHN0dWRpZXMgY29tcGxldGVkIHdpdGhpbiBvbmUgd2VlayBvZiBldmFsdWF0aW9uLgoKIyBQcmUtT3BlcmF0aXZlIENhcmRpYWMgUmlzayBTdHJhdGlmaWNhdGlvbgpSZXZpc2VkIENhcmRpYWMgUmlzayBJbmRleCAoUkNSSSkgcGVyZm9ybWVkLiBObyBoaXN0b3J5IG9mIGlzY2hlbWljIGhlYXJ0IGRpc2Vhc2UsIGNvbmdlc3RpdmUgaGVhcnQgZmFpbHVyZSwgY2VyZWJyb3Zhc2N1bGFyIGRpc2Vhc2UsIG9yIGluc3VsaW4tZGVwZW5kZW50IGRpYWJldGVzLiBDcmVhdGluaW5lIG1pbGRseSBlbGV2YXRlZCBjb25zaXN0ZW50IHdpdGggQ0tEIGJ1dCBsZXNzIHRoYW4gMiBtZy9kTC4gUGxhbm5lZCBzdXJnZXJ5IGlzIGNvbnNpZGVyZWQgaW50ZXJtZWRpYXRlIHJpc2suClJDUkkgU2NvcmU6IDAKRXN0aW1hdGVkIHJpc2sgb2YgbWFqb3IgY2FyZGlhYyBjb21wbGljYXRpb246IGxlc3MgdGhhbiAxJSAobG93IHJpc2spCgojIEFTQSBQaHlzaWNhbCBTdGF0dXMgQ2xhc3NpZmljYXRpb24KQVNBIENsYXNzIElJSSAtIFBhdGllbnQgd2l0aCBzZXZlcmUgc3lzdGVtaWMgZGlzZWFzZSAoZGlhYmV0ZXMsIGh5cGVydGVuc2lvbiwgY2hyb25pYyBraWRuZXkgZGlzZWFzZSkgYnV0IG5vdCBsaWZlLXRocmVhdGVuaW5nLgoKIyBBc3Nlc3NtZW50CjEuIExlZnQgbHVuZyBtYXNzIC0gcGxhbm5lZCBzdXJnaWNhbCBleGNpc2lvbgoyLiBQcmUtb3BlcmF0aXZlIG1lZGljYWwgZXZhbHVhdGlvbgozLiBUeXBlIDIgZGlhYmV0ZXMgbWVsbGl0dXMgLSBzdGFibGUKNC4gSHlwZXJ0ZW5zaW9uIC0gY29udHJvbGxlZAo1LiBDaHJvbmljIGtpZG5leSBkaXNlYXNlCjYuIFByZS1vcGVyYXRpdmUgYW54aWV0eQoKIyBQbGFuClBhdGllbnQgaXMgbWVkaWNhbGx5IGNsZWFyZWQgZm9yIHN1cmdlcnkgc2NoZWR1bGVkIG9uIDEyLzEyLzIwMjUgYXQgTWV0cm8gSGVhbHRoIENlbnRlci4gQ29udGludWUgY3VycmVudCBtZWRpY2F0aW9ucy4gQWxwcmF6b2xhbSAwLjI1IG1nIFBPIHE4aCBQUk4gYW54aWV0eSBwcmVzY3JpYmVkLiBTdXJnaWNhbCBjbGVhcmFuY2UgZG9jdW1lbnRhdGlvbiwgbWVkaWNhdGlvbiBsaXN0LCBhbmQgYWxsZXJneSBpbmZvcm1hdGlvbiB3aWxsIGJlIGZheGVkIHRvIHRoZSBzdXJnZW9uIG9mZmljZS4gUGF0aWVudCBpbnN0cnVjdGVkIHJlZ2FyZGluZyBwZXJpLW9wZXJhdGl2ZSBtZWRpY2F0aW9uIG1hbmFnZW1lbnQgYW5kIGZhc3RpbmcgZ3VpZGVsaW5lcy4KCkVsZWN0cm9uaWNhbGx5IHNpZ25lZDogRGFuaWVsIFIuIFdoaXRha2VyLCBNRCAtIEludGVybmFsIE1lZGljaW5lIC0gTW9OIENyaXRpY2FsIEFjY2VzcyBIb3NwaXRhbApTaWduZWQ6IDIwMjUtMTEtMjcgMTQ6MzI=",
+          "title": "History and physical note",
+          "creation": "2026-04-02T21:32:33.795Z"
+        }
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/DocumentReference/149540",
+    "resource": {
+      "resourceType": "DocumentReference",
+      "id": "149540",
+      "meta": {
+        "versionId": "4",
+        "lastUpdated": "2026-03-13T21:53:41.590+00:00"
+      },
+      "status": "current",
+      "docStatus": "final",
+      "type": {
+        "coding": [ {
+          "system": "http://loinc.org",
+          "code": "11506-3",
+          "display": "Progress note"
+        } ]
+      },
+      "category": [ {
+        "coding": [ {
+          "system": "http://hl7.org/fhir/ValueSet/document-reference-category",
+          "code": "clinical-note",
+          "display": "Clinical Note"
+        } ]
+      } ],
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "date": "2026-03-13T21:53:41.516Z",
+      "author": [ {
+        "display": "Current User"
+      } ],
+      "description": "Telephone encounter note",
+      "content": [ {
+        "attachment": {
+          "contentType": "text/plain",
+          "data": "MjAyNS0xMi0xNAoKRW5jb3VudGVyIFR5cGUKVGVsZXBob25lIEVuY291bnRlciAvIEluY2lkZW50IERvY3VtZW50YXRpb24KClRlbGVwaG9uZSBjYWxsIHJlY2VpdmVkIGZyb20gcGF0aWVudCBNaWNoYWVsIEFuZHJldyBDYXJ0ZXIgYXQgMDk6MTggQU0uIFBhdGllbnQgY29udGFjdGVkIHRoZSBNb04gSG9zcGl0YWwgb3V0cGF0aWVudCBjbGluaWMgZXhwcmVzc2luZyBzaWduaWZpY2FudCBhbmdlciBhbmQgZGlzdHJlc3MgcmVnYXJkaW5nIGNhbmNlbGxhdGlvbiBvZiBoaXMgcHJldmlvdXNseSBzY2hlZHVsZWQgbHVuZyBtYXNzIGV4Y2lzaW9uIHN1cmdlcnkuCgpUaGUgc3VyZ2VyeSBoYWQgYmVlbiBzY2hlZHVsZWQgZm9yIDEyLzEyLzIwMjUgYXQgTWV0cm8gSGVhbHRoIENlbnRlci4gUGF0aWVudCBzdGF0ZWQgaGUgaGFkIHRha2VuIHRpbWUgb2ZmIGZyb20gd29yaywgYXJyaXZlZCBhdCBNZXRybyBIZWFsdGggQ2VudGVyIHdpdGggaGlzIHdpZmUgYW5kIGRhdWdodGVyLCBhbmQgd2FzIHRha2VuIHRvIHRoZSBzdXJnaWNhbCBhcmVhLiBUaGUgYW5lc3RoZXNpb2xvZ2lzdCBkZWNpZGVkIHRvIGNhbmNlbCB0aGUgc3VyZ2VyeSBzdGF0aW5nIHRoYXQgaGlzICJtZWRpY2F0aW9ucyB3ZXJlIG5vdCBjb3JyZWN0Ii4KCkR1cmluZyB0aGUgY2FsbCB0aGUgcGF0aWVudCBleHByZXNzZWQgc2V2ZXJlIGFueGlldHkgYWJvdXQgaGlzIGNvbmRpdGlvbiBhbmQgcmVwZWF0ZWRseSBzdGF0ZWQgaGUgd2FzIHdvcnJpZWQgaGlzIGNhbmNlciB3aWxsIHByb2dyZXNzIGJlY2F1c2Ugb2YgdGhlIGRlbGF5IGluIGhhdmluZyB0aGUgbWFzcyByZW1vdmVkLgoKUGF0aWVudCBzdGF0ZWQgaGUgd2FzIHBsYW5uaW5nIHRvIGNvbWUgdG8gTW9OIENyaXRpY2FsIEFjY2VzcyBIb3NwaXRhbCB0byBmaW5kIERyLiBEYW5pZWwgUi4gV2hpdGFrZXIgdG8gInRlYWNoIGhpbSBhIGxlc3NvbiIuIFBhdGllbnQgYWxzbyBzdGF0ZWQgdGhhdCAic29tZW9uZSBoYXMgdG8gcGF5IGZvciB0aGlzIG1lc3MiLiBQYXRpZW50J3MgdG9uZSBkdXJpbmcgdGhlIGNhbGwgd2FzIGFuZ3J5LCBhZ2l0YXRlZCwgdGhyZWF0ZW5pbmcsIGFuZCBlbW90aW9uYWxseSBkaXN0cmVzc2VkLgoKRHVlIHRvIHRoZSBwYXRpZW50IHN0YXRlbWVudHMgaW5kaWNhdGluZyBoZSBwbGFubmVkIHRvIGNvbWUgdG8gdGhlIGhvc3BpdGFsIHRvIGNvbmZyb250IHRoZSBwaHlzaWNpYW4sIGhvc3BpdGFsIGFkbWluaXN0cmF0aW9uIGFuZCBob3NwaXRhbCBzZWN1cml0eSB3ZXJlIG5vdGlmaWVkLgoKRG9jdW1lbnRlZCBieTogUmViZWNjYSBMLiBIYXJtb24sIFJOCkRhdGU6IDIwMjUtMTItMTQKVGltZTogMDk6MTggQU0KTG9jYXRpb246IE1vTiBDcml0aWNhbCBBY2Nlc3MgSG9zcGl0YWwgLSBPdXRwYXRpZW50IENsaW5pYw==",
+          "title": "Telephone encounter note",
+          "creation": "2026-03-13T21:53:41.516Z"
+        }
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Procedure/149541",
+    "resource": {
+      "resourceType": "Procedure",
+      "id": "149541",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T14:30:50.217+00:00"
+      },
+      "status": "not-done",
+      "statusReason": {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "397943006",
+          "display": "Procedure cancelled"
+        } ],
+        "text": "Anesthesiologist determined patient medications were not appropriate for surgery on day of procedure (2025-12-12)."
+      },
+      "code": {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "173171007",
+          "display": "Excision of lung"
+        } ],
+        "text": "Surgical excision of left lung mass"
+      },
+      "subject": {
+        "reference": "Patient/149471"
+      },
+      "performedDateTime": "2025-12-12",
+      "location": {
+        "reference": "Location/149525",
+        "display": "Metro Health Center"
+      },
+      "reasonReference": [ {
+        "reference": "Condition/149477",
+        "display": "Left lung mass"
+      } ],
+      "bodySite": [ {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "368209003",
+          "display": "Left lung structure"
+        } ]
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/MedicationRequest/243421",
+    "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "243421",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-04-06T22:15:14.961+00:00"
+      },
+      "status": "active",
+      "intent": "order",
+      "category": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+          "code": "outpatient",
+          "display": "Outpatient"
+        } ]
+      } ],
+      "medicationCodeableConcept": {
+        "coding": [ {
+          "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+          "code": "1049502",
+          "display": "Oxycodone Hydrochloride 5 MG Oral Tablet"
+        } ],
+        "text": "Oxycodone 5 mg oral tablet"
+      },
+      "subject": {
+        "reference": "Patient/149471",
+        "display": "Michael Andrew Carter"
+      },
+      "authoredOn": "2026-04-06",
+      "reasonCode": [ {
+        "coding": [ {
+          "system": "http://snomed.info/sct",
+          "code": "161891005",
+          "display": "Back pain"
+        } ],
+        "text": "Back pain"
+      } ],
+      "dosageInstruction": [ {
+        "text": "Take 5 mg by mouth every 6 hours as needed for back pain",
+        "timing": {
+          "repeat": {
+            "frequency": 1,
+            "period": 6,
+            "periodUnit": "h"
+          }
+        },
+        "asNeededCodeableConcept": {
+          "coding": [ {
+            "system": "http://snomed.info/sct",
+            "code": "161891005",
+            "display": "Back pain"
+          } ],
+          "text": "Back pain"
+        },
+        "route": {
+          "coding": [ {
+            "system": "http://snomed.info/sct",
+            "code": "26643006",
+            "display": "Oral route"
+          } ]
+        },
+        "doseAndRate": [ {
+          "type": {
+            "coding": [ {
+              "system": "http://terminology.hl7.org/CodeSystem/dose-rate-type",
+              "code": "ordered",
+              "display": "Ordered"
+            } ]
+          },
+          "doseQuantity": {
+            "value": 5,
+            "unit": "mg",
+            "system": "http://unitsofmeasure.org",
+            "code": "mg"
+          }
+        } ]
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Organization/149475",
+    "resource": {
+      "resourceType": "Organization",
+      "id": "149475",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "type": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/organization-type",
+          "code": "prov",
+          "display": "Healthcare Provider"
+        } ]
+      } ],
+      "name": "Metro Health Center"
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Practitioner/149473",
+    "resource": {
+      "resourceType": "Practitioner",
+      "id": "149473",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "name": [ {
+        "family": "Harmon",
+        "given": [ "Rebecca", "L." ],
+        "suffix": [ "RN" ]
+      } ],
+      "qualification": [ {
+        "code": {
+          "coding": [ {
+            "system": "http://terminology.hl7.org/CodeSystem/v2-0360",
+            "code": "RN",
+            "display": "Registered Nurse"
+          } ]
+        }
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Organization/149474",
+    "resource": {
+      "resourceType": "Organization",
+      "id": "149474",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "identifier": [ {
+        "type": {
+          "text": "CLIA"
+        },
+        "system": "urn:oid:2.16.840.1.113883.4.7",
+        "value": "21D1234567"
+      } ],
+      "type": [ {
+        "coding": [ {
+          "system": "http://terminology.hl7.org/CodeSystem/organization-type",
+          "code": "prov",
+          "display": "Healthcare Provider"
+        } ]
+      } ],
+      "name": "MoN Critical Access Hospital",
+      "telecom": [ {
+        "system": "phone",
+        "value": "(410) 555-2840"
+      }, {
+        "system": "fax",
+        "value": "(410) 555-2841"
+      } ],
+      "address": [ {
+        "line": [ "1234 Medical Center Drive" ],
+        "city": "MoN",
+        "state": "State",
+        "postalCode": "44521"
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Location/149525",
+    "resource": {
+      "resourceType": "Location",
+      "id": "149525",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "status": "active",
+      "name": "Metro Health Center",
+      "managingOrganization": {
+        "reference": "Organization/149475"
+      }
+    },
+    "search": {
+      "mode": "match"
+    }
+  }, {
+    "fullUrl": "https://wintehr.eastus2.cloudapp.azure.com/fhir/R4/Practitioner/149472",
+    "resource": {
+      "resourceType": "Practitioner",
+      "id": "149472",
+      "meta": {
+        "versionId": "1",
+        "lastUpdated": "2026-03-13T13:58:24.537+00:00"
+      },
+      "identifier": [ {
+        "system": "http://hl7.org/fhir/sid/us-npi",
+        "value": "WHITAKER-NPI"
+      } ],
+      "name": [ {
+        "family": "Whitaker",
+        "given": [ "Daniel", "R." ],
+        "suffix": [ "MD" ]
+      } ],
+      "qualification": [ {
+        "code": {
+          "coding": [ {
+            "system": "http://terminology.hl7.org/CodeSystem/v2-0360",
+            "code": "MD",
+            "display": "Doctor of Medicine"
+          } ]
+        }
+      } ]
+    },
+    "search": {
+      "mode": "match"
+    }
+  } ]
+}

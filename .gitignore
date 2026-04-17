@@ -211,6 +211,12 @@ synthea_backup_*/
 backup_*/
 old/*
 
+# Exception: preserved patient snapshots live in backups/ (synthetic data only,
+# used for restoring named reference patients across fresh deployments)
+!backups/
+!backups/*.json
+!backups/*.md
+
 
 .claude
 .claude_old
@@ -286,3 +292,4 @@ backend/api/cds_studio/IMPLEMENTATION_SUMMARY.md
 .kiro
 frontend/frontend-build.tar.gz
 .serena/project.yml
+test-cds-studio.mjs

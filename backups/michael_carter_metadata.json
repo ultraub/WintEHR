@@ -1,0 +1,25 @@
+{
+  "patient_id": "149471",
+  "patient_name": "Michael Andrew Carter",
+  "patient_dob": "1976-07-18",
+  "source_server": "wintehr.eastus2.cloudapp.azure.com",
+  "exported_resources": 68,
+  "exported_at": "2026-04-17T21:35:26.221630Z",
+  "resource_types": {
+    "Patient": 1,
+    "AllergyIntolerance": 1,
+    "Condition": 7,
+    "MedicationRequest": 5,
+    "Observation": 37,
+    "DiagnosticReport": 2,
+    "Encounter": 2,
+    "RiskAssessment": 1,
+    "FamilyMemberHistory": 3,
+    "Communication": 1,
+    "DocumentReference": 2,
+    "Procedure": 1,
+    "Organization": 2,
+    "Practitioner": 2,
+    "Location": 1
+  }
+}
