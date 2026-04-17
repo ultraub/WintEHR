@@ -21,5 +21,10 @@
     "Organization": 2,
     "Practitioner": 2,
     "Location": 1
-  }
+  },
+  "restored_at": "2026-04-17T22:33:30.207564Z",
+  "restored_to_server": "wintehr.eastus2.cloudapp.azure.com",
+  "restored_patient_id": "mc-149471",
+  "id_prefix_applied": "mc-",
+  "id_prefix_reason": "HAPI FHIR rejects pure-numeric client-assigned IDs (HAPI-0960). Prefix applied to all 68 resources; references rewritten accordingly."
 }
