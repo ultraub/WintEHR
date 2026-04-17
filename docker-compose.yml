@@ -78,11 +78,14 @@ x-hapi-fhir-common: &hapi-fhir-common
     hapi.fhir.cdshooks_enabled: true
     hapi.fhir.cr_enabled: true
     hapi.fhir.advanced_lucene_indexing: false
-    JAVA_TOOL_OPTIONS: "-Xmx1536m -Xms256m"
+    # JVM heap sized for the bulk Synthea bundle load (100 patients ≈ thousands
+    # of resources through HAPI's transaction processor at once). 1.5G was too
+    # tight — OOM-killed mid-load on a fresh deploy.
+    JAVA_TOOL_OPTIONS: "-Xmx3g -Xms512m"
   deploy:
     resources:
       limits:
-        memory: 2g
+        memory: 4g
   healthcheck:
     disable: true
 
