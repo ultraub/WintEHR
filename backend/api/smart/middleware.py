@@ -393,14 +393,28 @@ def setup_smart_middleware(app):
     from api.smart.middleware import setup_smart_middleware
     setup_smart_middleware(app)
     ```
+
+    Default behavior follows JWT_ENABLED:
+    - Training mode (JWT_ENABLED=false): SMART middleware off. The frontend's
+      FHIR writes (POST/PUT/DELETE on /fhir/R4/*) don't carry SMART bearer
+      tokens in training mode and would otherwise be blocked.
+    - Production mode (JWT_ENABLED=true): SMART middleware on. External
+      SMART apps must present valid bearer tokens.
+
+    Explicit SMART_ENABLED env var overrides the default either way.
     """
     from .router import get_token_service
 
-    enabled = os.getenv("SMART_ENABLED", "true").lower() == "true"
+    jwt_enabled = os.getenv("JWT_ENABLED", "false").lower() == "true"
+    smart_default = "true" if jwt_enabled else "false"
+    enabled = os.getenv("SMART_ENABLED", smart_default).lower() == "true"
     allow_demo = os.getenv("SMART_ALLOW_UNPROTECTED", "true").lower() == "true"
 
     if not enabled:
-        logger.info("SMART middleware disabled")
+        logger.info(
+            f"SMART middleware disabled (JWT_ENABLED={jwt_enabled}, "
+            f"SMART_ENABLED env not set to override)"
+        )
         return
 
     logger.info(
