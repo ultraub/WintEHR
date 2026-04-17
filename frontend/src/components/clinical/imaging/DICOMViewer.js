@@ -89,12 +89,16 @@ const DICOMViewer = ({ study, onClose }) => {
     };
   }, [isPlaying, instances.length, playSpeed]);
 
-  // Load current instance image
+  // Load current instance image. `instances` is read inside the effect so it
+  // MUST be in the deps — without it, this only fires when windowCenter/Width
+  // change, which happens coincidentally after loadStudyData only if the DICOM's
+  // window values differ from the defaults (128/256). Missing it = silent empty
+  // canvas for any study whose windowing happens to match the default.
   useEffect(() => {
     if (instances.length > 0 && currentInstanceIndex < instances.length && !error) {
       loadInstanceImage(instances[currentInstanceIndex]);
     }
-  }, [currentInstanceIndex, windowCenter, windowWidth, error]);
+  }, [instances, currentInstanceIndex, windowCenter, windowWidth, error]);
 
   // Render current image
   useEffect(() => {
