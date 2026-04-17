@@ -374,6 +374,37 @@ echo "                         Starting Deployment"
 echo "=============================================================================="
 echo ""
 
+# Step 0: Ensure bind-mount directories are writable by the non-root container
+# user (UID 1000 / emruser). Without this, the backend entrypoint fails on
+# pre-existing host files owned by root from earlier deployments.
+EMRUSER_UID=1000
+BIND_MOUNTS=("data" "logs" "backend/data/generated_dicoms")
+NEEDS_CHOWN=false
+for d in "${BIND_MOUNTS[@]}"; do
+    if [ -e "$d" ]; then
+        OWNER=$(stat -c '%u' "$d" 2>/dev/null || stat -f '%u' "$d" 2>/dev/null)
+        if [ "$OWNER" != "$EMRUSER_UID" ]; then
+            NEEDS_CHOWN=true
+            break
+        fi
+    fi
+done
+if [ "$NEEDS_CHOWN" = true ]; then
+    echo -e "${BLUE}🔐 Aligning bind-mount ownership to container UID ${EMRUSER_UID}...${NC}"
+    for d in "${BIND_MOUNTS[@]}"; do
+        mkdir -p "$d"
+        if [ "$(id -u)" -eq 0 ]; then
+            chown -R "${EMRUSER_UID}:${EMRUSER_UID}" "$d"
+        else
+            sudo -n chown -R "${EMRUSER_UID}:${EMRUSER_UID}" "$d" 2>/dev/null || \
+                chown -R "${EMRUSER_UID}:${EMRUSER_UID}" "$d" 2>/dev/null || \
+                echo -e "${YELLOW}   ⚠️  Could not chown $d (non-root sudo unavailable)${NC}"
+        fi
+    done
+    echo -e "${GREEN}✅ Bind-mount ownership aligned${NC}"
+    echo ""
+fi
+
 # Step 1: Build images (if not skipped)
 if [ "$SKIP_BUILD" = false ]; then
     echo -e "${BLUE}🔨 Building Docker images for profile: $PROFILE...${NC}"

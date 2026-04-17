@@ -88,12 +88,13 @@ fi
 # FHIR relationship management now handled by HAPI FHIR server
 echo "ℹ️ FHIR resource management handled by HAPI FHIR server"
 
-# Create necessary directories
+# Create necessary directories. These may be bind-mounted from the host in
+# production; if so, `mkdir -p` no-ops on existing dirs. We deliberately do
+# NOT try to chmod/chown — the container runs as non-root (UID 1000) and
+# cannot modify host-owned files. Operators must ensure bind-mount dirs are
+# owned by UID 1000 on the host (see deploy.sh prerequisites).
 echo "Creating directories..."
-mkdir -p /app/data/generated_dicoms /app/data/dicom_uploads /app/logs /app/synthea/build/libs /app/synthea/output
-
-# Set permissions
-chmod -R 755 /app/data
+mkdir -p /app/data/generated_dicoms /app/data/dicom_uploads /app/logs /app/synthea/build/libs /app/synthea/output 2>/dev/null || true
 
 # Ensure Synthea JAR exists (may be missing if volume mount overwrites /app).
 # Pinned version + SHA256 matches the Dockerfile build args; any drift between
