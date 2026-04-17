@@ -50,11 +50,11 @@ logs:
 
 # Shell access
 shell:
-	docker-compose exec backend bash
+	docker exec -it emr-backend bash
 
 # Run tests
 test:
-	docker-compose exec backend pytest tests/ -v
+	docker exec emr-backend pytest tests/ -v
 
 # Clean everything
 clean:
@@ -69,7 +69,7 @@ fresh: clean build up
 	@echo "Waiting for database initialization..."
 	@sleep 15
 	@echo "Generating $(PATIENT_COUNT) patients..."
-	docker-compose exec backend python scripts/synthea_master.py full \
+	docker exec emr-backend python scripts/synthea_master.py full \
 		--count $(PATIENT_COUNT) \
 		--include-dicom \
 		--clean-names \
@@ -78,21 +78,22 @@ fresh: clean build up
 
 # Initialize data only
 init-data:
-	docker-compose exec backend python scripts/synthea_master.py full \
+	docker exec emr-backend python scripts/synthea_master.py full \
 		--count $(PATIENT_COUNT) \
 		--include-dicom \
 		--clean-names \
 		--validation-mode transform_only
 
-# Database operations
+# Database operations — use container names so these work under either profile
+# (dev maps postgres-dev → emr-postgres; prod maps postgres-prod → emr-postgres).
 db-backup:
-	docker-compose exec postgres pg_dump -U emr_user emr_db | gzip > backup_$$(date +%Y%m%d_%H%M%S).sql.gz
+	docker exec emr-postgres pg_dump -U emr_user emr_db | gzip > backup_$$(date +%Y%m%d_%H%M%S).sql.gz
 	@echo "Database backed up to backup_$$(date +%Y%m%d_%H%M%S).sql.gz"
 
 db-restore:
 	@echo "Usage: make db-restore FILE=backup_20240101_120000.sql.gz"
 	@test -n "$(FILE)" || (echo "ERROR: Please specify FILE=backup_file.sql.gz" && exit 1)
-	gunzip -c $(FILE) | docker-compose exec -T postgres psql -U emr_user emr_db
+	gunzip -c $(FILE) | docker exec -i emr-postgres psql -U emr_user emr_db
 
 # Development helpers
 dev-backend:

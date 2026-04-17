@@ -423,20 +423,24 @@ echo ""
 # Step 3: Wait for services to be healthy
 echo -e "${BLUE}⏳ Waiting for services to be healthy...${NC}"
 
-# Use port variables from .env or defaults
+# Use port variables from .env or defaults (these only apply in the dev
+# profile — prod doesn't publish these ports externally).
 HAPI_PORT="${HAPI_FHIR_PORT:-8888}"
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 
-# Wait for HAPI FHIR (takes 5-6 minutes on first startup)
-echo "   Waiting for HAPI FHIR on port $HAPI_PORT (this may take several minutes on first startup)..."
+# Health checks work under both profiles. The HAPI FHIR image is minimal Java
+# (no curl), so we probe it through the backend container which is on the same
+# Docker network and has curl installed. Backend's own health probe goes to
+# its local port 8000 inside its own container.
+echo "   Waiting for HAPI FHIR (this may take several minutes on first startup)..."
 for i in {1..180}; do
-    if curl -sf "http://localhost:${HAPI_PORT}/fhir/metadata" > /dev/null 2>&1; then
+    if docker exec emr-backend curl -sf "http://hapi-fhir:8080/fhir/metadata" > /dev/null 2>&1; then
         echo -e "   ${GREEN}✓ HAPI FHIR is ready${NC}"
         break
     fi
     if [ $i -eq 180 ]; then
         echo -e "   ${RED}✗ HAPI FHIR failed to start after 9 minutes${NC}"
-        echo "   Check logs: docker compose logs hapi-fhir"
+        echo "   Check logs: docker compose logs hapi-fhir-${PROFILE}"
         exit 1
     fi
     # Show progress every 30 seconds
@@ -447,9 +451,9 @@ for i in {1..180}; do
 done
 
 # Wait for backend
-echo "   Waiting for backend on port $BACKEND_PORT..."
+echo "   Waiting for backend..."
 for i in {1..30}; do
-    if curl -sf "http://localhost:${BACKEND_PORT}/health" > /dev/null 2>&1; then
+    if docker exec emr-backend curl -sf "http://localhost:8000/health" > /dev/null 2>&1; then
         echo -e "   ${GREEN}✓ Backend is ready${NC}"
         break
     fi

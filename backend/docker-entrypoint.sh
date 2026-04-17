@@ -95,17 +95,23 @@ mkdir -p /app/data/generated_dicoms /app/data/dicom_uploads /app/logs /app/synth
 # Set permissions
 chmod -R 755 /app/data
 
-# Ensure Synthea JAR exists (may be missing if volume mount overwrites /app)
+# Ensure Synthea JAR exists (may be missing if volume mount overwrites /app).
+# Pinned version + SHA256 matches the Dockerfile build args; any drift between
+# the two should be treated as a security issue.
+SYNTHEA_VERSION="${SYNTHEA_VERSION:-3.3.0}"
+SYNTHEA_SHA256="${SYNTHEA_SHA256:-8ba04f7d73abadd5a377e41edf24c5c83935a1cb07c6d982cd5db731ef1cf445}"
 SYNTHEA_JAR="/app/synthea/build/libs/synthea-with-dependencies.jar"
 if [ ! -f "$SYNTHEA_JAR" ]; then
-    echo "📦 Synthea JAR not found, downloading..."
+    echo "📦 Synthea JAR not found, downloading v${SYNTHEA_VERSION}..."
     curl -fL --progress-bar --retry 3 --retry-delay 5 \
-        https://github.com/synthetichealth/synthea/releases/download/v3.3.0/synthea-with-dependencies.jar \
+        "https://github.com/synthetichealth/synthea/releases/download/v${SYNTHEA_VERSION}/synthea-with-dependencies.jar" \
         -o "$SYNTHEA_JAR"
-    if [ -f "$SYNTHEA_JAR" ] && [ -s "$SYNTHEA_JAR" ]; then
-        echo "✅ Synthea JAR downloaded successfully"
+    if echo "${SYNTHEA_SHA256}  ${SYNTHEA_JAR}" | sha256sum -c - > /dev/null 2>&1; then
+        echo "✅ Synthea JAR downloaded and integrity verified"
     else
-        echo "⚠️ Failed to download Synthea JAR - patient generation may not work"
+        echo "❌ Synthea JAR SHA256 mismatch — refusing to run with untrusted artifact"
+        rm -f "$SYNTHEA_JAR"
+        exit 1
     fi
 else
     echo "✅ Synthea JAR found"

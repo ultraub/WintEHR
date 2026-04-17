@@ -1,65 +1,52 @@
 FROM python:3.12-slim
 
+ARG SYNTHEA_VERSION=3.3.0
+ARG SYNTHEA_SHA256=8ba04f7d73abadd5a377e41edf24c5c83935a1cb07c6d982cd5db731ef1cf445
+
 WORKDIR /app
 
-# Install system dependencies including DICOM image libraries and Java for Synthea
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     git \
     curl \
-    # Java for Synthea - using default-jdk which is available
-    default-jdk \
-    # Libraries for DICOM image processing
+    ca-certificates \
+    default-jre-headless \
     libjpeg-dev \
     libopenjp2-7-dev \
     libpng-dev \
     libtiff-dev \
-    # PostgreSQL client for health checks
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir asyncpg psycopg2-binary watchfiles uvicorn[standard]
 
-# Install additional async PostgreSQL support and development tools
-RUN pip install --no-cache-dir asyncpg psycopg2-binary watchfiles
+# Non-root runtime user with fixed UID/GID that matches the typical host user,
+# so bind-mounted source has usable ownership in dev.
+RUN groupadd --gid 1000 emruser && \
+    useradd --uid 1000 --gid emruser --shell /bin/bash --create-home emruser
 
-# Install development tools for hot reload
-RUN pip install --no-cache-dir uvicorn[standard]
+RUN mkdir -p /app/data /app/logs /app/synthea/build/libs /app/synthea/output /app/uploads/dicom && \
+    chown -R emruser:emruser /app
 
-# Create necessary directories including DICOM storage
-RUN mkdir -p /app/data /app/logs /app/synthea/output /app/uploads/dicom
-
-# Download Synthea JAR for patient data generation
-# Using version 3.3.0 (latest stable as of configuration)
-RUN set -e && \
-    mkdir -p /app/synthea/build/libs && \
-    echo "Downloading Synthea JAR v3.3.0..." && \
-    curl -f -L --progress-bar --retry 3 --retry-delay 5 \
-        https://github.com/synthetichealth/synthea/releases/download/v3.3.0/synthea-with-dependencies.jar \
+RUN set -eu && \
+    curl -fL --retry 3 --retry-delay 5 \
+        "https://github.com/synthetichealth/synthea/releases/download/v${SYNTHEA_VERSION}/synthea-with-dependencies.jar" \
         -o /app/synthea/build/libs/synthea-with-dependencies.jar && \
-    echo "Verifying Synthea JAR download..." && \
-    test -f /app/synthea/build/libs/synthea-with-dependencies.jar && \
-    test -s /app/synthea/build/libs/synthea-with-dependencies.jar && \
-    chmod +r /app/synthea/build/libs/synthea-with-dependencies.jar && \
-    ls -lh /app/synthea/build/libs/synthea-with-dependencies.jar && \
-    echo "Synthea JAR successfully downloaded and verified!"
+    echo "${SYNTHEA_SHA256}  /app/synthea/build/libs/synthea-with-dependencies.jar" | sha256sum -c - && \
+    chown emruser:emruser /app/synthea/build/libs/synthea-with-dependencies.jar
 
-# Copy and make entrypoint executable
-COPY docker-entrypoint.sh ./
+COPY --chown=emruser:emruser docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
-# Expose port
+USER emruser
+
 EXPOSE 8000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
 
-# Set entrypoint for initialization (Synthea check, DB verification, etc.)
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-
-# Development command with hot reload
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app"]
