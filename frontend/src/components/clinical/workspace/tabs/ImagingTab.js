@@ -528,14 +528,17 @@ const ImagingTab = ({
         _count: 100
       });
 
-      // Separate ImagingStudy and Endpoint resources from the bundle
-      const entries = response?.entry || [];
-      const imagingStudies = entries
-        .filter(e => e.resource?.resourceType === 'ImagingStudy')
-        .map(e => e.resource);
-      const endpoints = entries
-        .filter(e => e.resource?.resourceType === 'Endpoint')
-        .map(e => e.resource);
+      // fhirClient.search returns a SearchResult wrapper ({ resources, bundle, total }),
+      // not a raw Bundle — the raw Bundle.entry lives at response.bundle.entry. Fall
+      // back to response.entry for any caller that's already handing us a Bundle.
+      const allResources =
+        response?.bundle?.entry?.map(e => e.resource).filter(Boolean) ||
+        response?.resources ||
+        response?.entry?.map(e => e.resource).filter(Boolean) ||
+        [];
+
+      const imagingStudies = allResources.filter(r => r?.resourceType === 'ImagingStudy');
+      const endpoints = allResources.filter(r => r?.resourceType === 'Endpoint');
 
       // Create lookup map for Endpoint resources
       const endpointMap = new Map();
