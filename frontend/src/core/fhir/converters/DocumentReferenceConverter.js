@@ -3,6 +3,7 @@
  * Extends AbstractFHIRConverter to provide DocumentReference-specific conversion logic
  * Fixes FHIR structure inconsistencies and content encoding issues
  */
+import DOMPurify from 'dompurify';
 import { AbstractFHIRConverter } from './AbstractFHIRConverter.js';
 import { DocumentContentValidator } from '../../documents/documentContentValidator.js';
 
@@ -446,14 +447,15 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
       
       // Check narrative text (FHIR R4 standard)
       if (docRef.text?.div) {
-        // Strip HTML tags and decode entities for plain text
-        const cleanContent = docRef.text.div
-          .replace(/<[^>]*>/g, '')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&amp;/g, '&')
-          .trim();
+        // Use DOMPurify to strip all HTML tags and decode entities safely.
+        // Naive regex-based stripping can be bypassed with nested tags like
+        // `<<b>>script>` which would leave rendered HTML after one pass.
+        // ALLOWED_TAGS:[] + ALLOWED_ATTR:[] means "keep only text content".
+        const cleanContent = DOMPurify.sanitize(docRef.text.div, {
+          ALLOWED_TAGS: [],
+          ALLOWED_ATTR: [],
+          KEEP_CONTENT: true,
+        }).trim();
         
         return {
           type: 'text',

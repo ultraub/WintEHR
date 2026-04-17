@@ -354,7 +354,8 @@ async def rollback_service(
             "message": f"Rolled back to version {request.target_version}"
         }
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        logger.warning("Rollback rejected for service %s: %s", service_id, e)
+        raise HTTPException(status_code=400, detail="Invalid rollback request")
     except HTTPException:
         raise
     except Exception as e:

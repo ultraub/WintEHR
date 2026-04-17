@@ -3,12 +3,16 @@ FHIR Schema API Router
 Provides endpoints for accessing FHIR R4 resource schemas and definitions
 """
 
+import logging
+
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Dict, Any, Optional
 import json
 import os
 from pathlib import Path
 from ..schemas.definitions import FHIR_R4_SCHEMAS, get_schema, get_all_resource_types
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/fhir-schemas", tags=["fhir-schemas"])
 
@@ -19,21 +23,32 @@ RESOURCE_DEFINITIONS_PATH = Path(__file__).parent.parent.parent.parent / "fhir" 
 _schema_cache: Dict[str, Dict[str, Any]] = {}
 
 def load_resource_schema(resource_type: str) -> Dict[str, Any]:
-    """Load a FHIR resource schema from disk with caching"""
+    """Load a FHIR resource schema from disk with caching.
+
+    resource_type flows from a URL path parameter into a filesystem path, so we
+    validate it against a closed allowlist (known FHIR R4 types + files present
+    on disk) before touching the filesystem. FastAPI routing already blocks '/'
+    in a single path segment, but this defense-in-depth closes any path-injection
+    surface a future routing change might open.
+    """
     if resource_type in _schema_cache:
         return _schema_cache[resource_type]
-    
+
+    if resource_type not in get_available_resources():
+        raise HTTPException(status_code=404, detail=f"Schema for resource type '{resource_type}' not found")
+
     schema_file = RESOURCE_DEFINITIONS_PATH / f"{resource_type}.json"
     if not schema_file.exists():
         raise HTTPException(status_code=404, detail=f"Schema for resource type '{resource_type}' not found")
-    
+
     try:
         with open(schema_file, 'r') as f:
             schema = json.load(f)
         _schema_cache[resource_type] = schema
         return schema
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error loading schema: {str(e)}")
+    except Exception:
+        logger.exception("Error loading schema for %s", resource_type)
+        raise HTTPException(status_code=500, detail="Error loading schema")
 
 def get_available_resources() -> List[str]:
     """Get list of all available FHIR resource types"""

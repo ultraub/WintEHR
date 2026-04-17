@@ -1078,11 +1078,13 @@ async def health_check(db: AsyncSession = Depends(get_db_session)):
         db_hooks = await load_hooks_from_database(db)
         db_status = "connected"
         db_hooks_count = len(db_hooks)
-    except DatabaseQueryError as e:
-        db_status = f"database error: {e.message}"
+    except DatabaseQueryError:
+        logger.exception("CDS Hooks health check: database error")
+        db_status = "database error"
         db_hooks_count = 0
-    except (ValueError, TypeError, KeyError, AttributeError) as e:
-        db_status = f"data error: {str(e)}"
+    except (ValueError, TypeError, KeyError, AttributeError):
+        logger.exception("CDS Hooks health check: data error")
+        db_status = "data error"
         db_hooks_count = 0
 
     # Get service registry information

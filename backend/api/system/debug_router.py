@@ -1,9 +1,14 @@
 """Debug router for troubleshooting patient access issues."""
 
+import logging
+import os
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from database import get_db_session
+
+logger = logging.getLogger(__name__)
 
 debug_router = APIRouter(prefix="/api/debug", tags=["debug"])
 
@@ -101,7 +106,10 @@ async def test_fhir_client(
     """Test HAPI FHIR client connectivity."""
     from services.hapi_fhir_client import HAPIFHIRClient
 
-    # Try to read the patient using async HAPIFHIRClient
+    # Try to read the patient using async HAPIFHIRClient.
+    # This is a debug endpoint — exception details are deliberately surfaced
+    # to the caller to aid troubleshooting, but only in non-production
+    # environments. Production deployments must not have this router registered.
     try:
         hapi_client = HAPIFHIRClient()
         resource = await hapi_client.read("Patient", patient_id)
@@ -110,6 +118,12 @@ async def test_fhir_client(
             "resource": resource if resource else None
         }
     except Exception as e:
+        logger.exception("Debug FHIR client read failed for patient %s", patient_id)
+        if os.getenv("ENVIRONMENT", "development").lower() == "production":
+            return {
+                "fhir_client_result": "Error",
+                "error": "Internal error — see server logs",
+            }
         return {
             "fhir_client_result": "Error",
             "error": str(e),

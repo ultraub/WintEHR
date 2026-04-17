@@ -171,9 +171,29 @@ async def authorize(
         session_id, error = auth_server.start_authorization(request, launch)
 
         if error:
-            # Redirect back to app with error
-            error_redirect = f"{redirect_uri}?error={error.error}&error_description={error.error_description}&state={state}"
-            return RedirectResponse(url=error_redirect, status_code=302)
+            # OAuth2 error-redirect flow only permits redirecting back to a
+            # redirect_uri that's registered for the requesting client. If the
+            # client is unknown, or the provided redirect_uri isn't in the
+            # registered list, we MUST NOT redirect to it — that would be an
+            # open redirect usable for phishing (attacker registers nothing,
+            # supplies any client_id + attacker-controlled redirect_uri, and we
+            # bounce the user to their site with tokens/state in the fragment).
+            app = auth_server.get_app(client_id)
+            if app and redirect_uri in app.redirect_uris:
+                error_redirect = (
+                    f"{redirect_uri}?error={error.error}"
+                    f"&error_description={error.error_description}&state={state}"
+                )
+                return RedirectResponse(url=error_redirect, status_code=302)
+
+            logger.warning(
+                "Refusing error redirect to unregistered redirect_uri for client_id=%s",
+                client_id,
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"{error.error}: {error.error_description}",
+            )
 
         # In a real implementation, redirect to consent screen
         # For now, redirect to our consent endpoint
@@ -328,9 +348,13 @@ async def token(
         return response
 
     except ValueError as e:
+        # OAuth2 error responses must not leak internal details (stack info,
+        # internal identifiers). Log for operators, return spec-conformant
+        # generic description to the client.
+        logger.warning("Token exchange rejected for client_id=%s: %s", client_id, e)
         return JSONResponse(
             status_code=400,
-            content={"error": "invalid_request", "error_description": str(e)}
+            content={"error": "invalid_request", "error_description": "Invalid token request"}
         )
 
 

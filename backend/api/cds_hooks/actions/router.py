@@ -171,11 +171,12 @@ async def validate_action(
                     "message": f"Patient {patient_id} not found",
                     "errors": ["Patient not found"]
                 }
-        except Exception as e:
+        except Exception:
+            logger.exception("Patient validation failed")
             return {
                 "valid": False,
-                "message": f"Could not validate patient: {str(e)}",
-                "errors": [str(e)]
+                "message": "Could not validate patient",
+                "errors": ["Validation failed"],
             }
 
         # In a production system, you would also validate:
