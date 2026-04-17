@@ -545,14 +545,21 @@ if [ "$SKIP_DATA" = false ]; then
         echo "   Imaging studies will be available without DICOM files"
     fi
 
-    # Create DICOM Endpoint resources and link to ImagingStudy resources
+    # Create DICOM Endpoint resources and link to ImagingStudy resources.
+    # The FHIR Endpoint.address must be an absolute URL that the browser can
+    # resolve — not the container-internal http://localhost:8000. Derive from
+    # $BASE_URL if set, otherwise from $DOMAIN (prod) or fall back to the dev
+    # localhost default used by the script.
     echo -e "${BLUE}🔗 Creating DICOM Endpoint resources...${NC}"
 
-    # Build DICOM endpoint creation command with optional base URL
     DICOM_ENDPOINT_CMD="python scripts/active/create_dicom_endpoints.py"
-    if [ -n "$BASE_URL" ]; then
-        DICOM_ENDPOINT_CMD="$DICOM_ENDPOINT_CMD --base-url $BASE_URL"
-        echo "   Using base URL: $BASE_URL"
+    EFFECTIVE_BASE_URL="$BASE_URL"
+    if [ -z "$EFFECTIVE_BASE_URL" ] && [ "$PROFILE" = "prod" ] && [ -n "$DOMAIN" ] && [ "$DOMAIN" != "localhost" ]; then
+        EFFECTIVE_BASE_URL="https://$DOMAIN"
+    fi
+    if [ -n "$EFFECTIVE_BASE_URL" ]; then
+        DICOM_ENDPOINT_CMD="$DICOM_ENDPOINT_CMD --base-url $EFFECTIVE_BASE_URL"
+        echo "   Using base URL: $EFFECTIVE_BASE_URL"
     fi
 
     if docker exec emr-backend $DICOM_ENDPOINT_CMD; then
