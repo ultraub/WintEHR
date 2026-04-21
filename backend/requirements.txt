@@ -60,7 +60,7 @@ pylibjpeg-libjpeg==2.0.0
 
 # AI and utilities
 anthropic==0.25.0
-python-dotenv==1.0.0
+python-dotenv==1.2.2
 # LLM Providers
 openai>=1.0.0
 google-generativeai>=0.3.0
