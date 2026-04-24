@@ -100,11 +100,14 @@ class HAPICDSIntegrator:
         Returns:
             CDSService object
         """
-        # Extract service ID from extensions or use PlanDefinition ID
-        service_id = extract_extension_value(
-            plan_def,
-            ExtensionURLs.SERVICE_ID,
-            plan_def.get("id")
+        # Extract service ID from extensions or use PlanDefinition ID.
+        # Writers inconsistently use either HOOK_SERVICE_ID (visual-builder,
+        # external_services) or SERVICE_ID (legacy migrate_cds script). Check
+        # both so any existing PlanDefinition surfaces its correct service_id.
+        service_id = (
+            extract_extension_value(plan_def, ExtensionURLs.HOOK_SERVICE_ID)
+            or extract_extension_value(plan_def, ExtensionURLs.SERVICE_ID)
+            or plan_def.get("id")
         )
 
         # Extract hook type from extensions
@@ -250,7 +253,10 @@ class HAPICDSIntegrator:
             PlanDefinition resource or None
         """
         try:
-            # Search for PlanDefinition with matching service ID extension
+            # Search for PlanDefinition with matching service ID extension.
+            # Check both HOOK_SERVICE_ID (what visual-builder + external_services
+            # actually write) and SERVICE_ID (legacy migration script) — pick
+            # whichever one the PlanDefinition happens to carry.
             bundle = await self.hapi_client.search("PlanDefinition", {
                 "status": "active",
                 "_count": 100
@@ -259,9 +265,9 @@ class HAPICDSIntegrator:
             # Find matching service
             for entry in bundle.get("entry", []):
                 plan_def = entry.get("resource", {})
-                plan_def_service_id = extract_extension_value(
-                    plan_def,
-                    ExtensionURLs.SERVICE_ID
+                plan_def_service_id = (
+                    extract_extension_value(plan_def, ExtensionURLs.HOOK_SERVICE_ID)
+                    or extract_extension_value(plan_def, ExtensionURLs.SERVICE_ID)
                 )
 
                 if plan_def_service_id == service_id:
