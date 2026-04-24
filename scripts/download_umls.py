@@ -69,17 +69,30 @@ logger = logging.getLogger("download_umls")
 UTS_DOWNLOAD_ENDPOINT = "https://uts-ws.nlm.nih.gov/download"
 UMLS_BASE_URL = "https://download.nlm.nih.gov/umls/kss"
 
-# Generate candidate release tags in reverse-chronological order, to try when
-# --release is not specified. We go back 3 years because NLM keeps older
-# releases accessible.
+# Generate candidate release tags in order most-likely-to-exist first.
+# UMLS convention: <year>AA = spring release, <year>AB = fall release.
+# AA typically lands late April/early May; AB in early November.
+# Current year's AB is only available after November — so try prior-year AB
+# before current-year AB. Keep candidates short (last 3 releases).
 def _candidate_releases() -> Iterable[str]:
-    now = datetime.utcnow()
+    now = datetime.now()
     year = now.year
-    # UMLS convention: 2024AA = spring 2024, 2024AB = fall 2024
-    # Try current year AB, current year AA, previous year AB, etc.
-    for y in range(year, year - 4, -1):
-        for release in ("ab", "aa"):
-            yield f"{y}{release.upper()}"
+    month = now.month
+    # Heuristic: current year AA is in circulation after ~April 15.
+    # Current year AB is in circulation after ~November 1.
+    seq = []
+    if month >= 11:
+        seq.append(f"{year}AB")
+    if month >= 4:
+        seq.append(f"{year}AA")
+    # Previous year releases
+    seq.append(f"{year - 1}AB")
+    seq.append(f"{year - 1}AA")
+    # Older fallback
+    seq.append(f"{year - 2}AB")
+    seq.append(f"{year - 2}AA")
+    for tag in seq:
+        yield tag
 
 
 def _mrconso_url(release: str) -> str:
@@ -117,6 +130,16 @@ def _download_once(
                                resp.status_code, target_url)
                 return False
 
+            # Reject HTML-fake-200 responses. NLM's download service sometimes
+            # serves a 200 OK with an HTML "file not found" page when the
+            # requested release doesn't exist yet (e.g. asking for a future
+            # release tag). Fail fast so we can try the next candidate.
+            ctype = resp.headers.get("content-type", "").lower()
+            if "html" in ctype or "text/" in ctype:
+                logger.info("Got %s (not a zip) for %s — treating as not-available",
+                            ctype, target_url)
+                return False
+
             total = int(resp.headers.get("content-length") or 0)
             downloaded = 0
             last_report = time.time()
@@ -132,6 +155,19 @@ def _download_once(
                                     downloaded / 1e9,
                                     total / 1e9 if total else 0)
                         last_report = now
+
+            # Sanity check: MRCONSO zips are >500 MB. If we got under 100 MB,
+            # something's off (empty response, HTML 200 that slipped the
+            # content-type check, whatever). Don't trust it.
+            if downloaded < 100 * 1024 * 1024:
+                logger.warning("Downloaded file is too small (%.1f MB) — "
+                               "likely not a real release. Deleting and skipping.",
+                               downloaded / 1e6)
+                try:
+                    dest_path.unlink()
+                except OSError:
+                    pass
+                return False
 
             logger.info("Download complete: %.1f GB saved to %s",
                         downloaded / 1e9, dest_path)
