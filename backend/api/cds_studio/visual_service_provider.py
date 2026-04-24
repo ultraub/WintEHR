@@ -262,7 +262,13 @@ class VisualServiceProvider:
         self, bundle: Dict[str, Any], code_paths: List[str]
     ) -> Set[str]:
         """
-        Extract human-readable display names from FHIR bundle entries.
+        Extract identifying values from FHIR bundle entries, returning a set
+        that includes BOTH coding.code AND coding.display (and CodeableConcept
+        text). This lets visual-builder conditions match whether the user
+        picked a terminology code (e.g. SNOMED "315268008") or a free-text
+        display ("Suspected prostate cancer"). The visual-builder catalog
+        stores the code as the condition `value`, so code-matching is the
+        common path; display-matching is kept for backwards compat.
 
         Args:
             bundle: FHIR Bundle response
@@ -276,12 +282,15 @@ class VisualServiceProvider:
                 cc = resource
                 for segment in path.split("."):
                     cc = cc.get(segment, {}) if isinstance(cc, dict) else {}
-                # CodeableConcept → text or coding[0].display
+                # CodeableConcept → text, coding[*].code, coding[*].display
                 if isinstance(cc, dict):
                     text = cc.get("text")
                     if text:
                         names.add(text)
                     for coding in cc.get("coding", []):
+                        code = coding.get("code")
+                        if code:
+                            names.add(code)
                         display = coding.get("display")
                         if display:
                             names.add(display)
