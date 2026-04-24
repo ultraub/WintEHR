@@ -217,6 +217,19 @@ old/*
 !backups/*.json
 !backups/*.md
 
+# UMLS-derived terminology artifacts — NEVER commit.
+# Distribution restrictions under the UMLS Metathesaurus License Agreement and
+# SNOMED International Affiliate License forbid public redistribution of
+# derived terminology content via a public git repo. Use a private Azure Blob
+# / S3 bucket or per-instance Athena bootstrap instead. See docs/TERMINOLOGY_SETUP.md.
+fhir_vocabularies/
+athena_vocab/
+CONCEPT.csv
+CONCEPT_*.csv
+VOCABULARY.csv
+DOMAIN.csv
+CONCEPT_CLASS.csv
+
 
 .claude
 .claude_old
