@@ -611,25 +611,40 @@ if [ "$HAPI_CS_COUNT" != "0" ]; then
 elif [ -d "$HOME/fhir_vocabularies/terminology" ] && \
      [ -n "$(ls -A $HOME/fhir_vocabularies/terminology/*.json 2>/dev/null)" ]; then
     echo -e "${BLUE}   Found pre-extracted JSON at ~/fhir_vocabularies/terminology/${NC}"
-    echo -e "${BLUE}   Loading in background — tail terminology_load.log for progress${NC}"
-    nohup python3 scripts/load_terminology.py "$HOME/fhir_vocabularies" \
-        --hapi-url http://localhost:8080/fhir \
-        --timeout 600 \
-        > terminology_load.log 2>&1 &
-    LOAD_PID=$!
-    echo "   PID $LOAD_PID, logging to ./terminology_load.log"
+    echo -e "${BLUE}   Loading in background — tail ./data/terminology_load.log for progress${NC}"
+    # HAPI's port 8080 is NOT exposed on the host (security hardening).
+    # Load must run inside the backend container where hapi-fhir:8080 resolves.
+    # Copy scripts + JSONs into the container, then exec load detached.
+    docker cp scripts/load_terminology.py emr-backend:/tmp/load_terminology.py
+    docker cp scripts/ucum.json emr-backend:/tmp/ucum.json
+    docker exec emr-backend mkdir -p /tmp/fhir_vocabularies
+    docker cp "$HOME/fhir_vocabularies/terminology" emr-backend:/tmp/fhir_vocabularies/
+    docker exec -d emr-backend bash -c "
+        python3 /tmp/load_terminology.py /tmp/fhir_vocabularies \
+            --hapi-url http://hapi-fhir:8080/fhir \
+            --timeout 600 \
+            > /app/data/terminology_load.log 2>&1
+    "
+    echo "   Running in backend container; log at ./data/terminology_load.log"
 elif [ -n "$UMLS_API_KEY" ]; then
-    echo -e "${BLUE}   Found UMLS_API_KEY — downloading and loading in background${NC}"
-    echo -e "${BLUE}   Full pipeline (~3 hours); tail terminology_load.log for progress${NC}"
+    echo -e "${BLUE}   Found UMLS_API_KEY — downloading, extracting, loading in background${NC}"
+    echo -e "${BLUE}   Full pipeline (~1-3 hours); progress in ./data/terminology_load.log${NC}"
+    # Download + extract on host (need outbound internet + local Python + httpx).
+    # Then copy + load inside container. Entire chain in one detached nohup.
     nohup bash -c "
         set -e
-        python3 scripts/download_umls.py \$HOME/umls_source && \\
-        python3 scripts/extract_vocabularies.py \$HOME/umls_source \$HOME/fhir_vocabularies && \\
-        python3 scripts/load_terminology.py \$HOME/fhir_vocabularies \\
-            --hapi-url http://localhost:8080/fhir --timeout 600
+        source ~/terminology_venv/bin/activate 2>/dev/null || true
+        python3 scripts/download_umls.py \$HOME/umls_source
+        python3 scripts/extract_vocabularies.py \$HOME/umls_source \$HOME/fhir_vocabularies
+        docker cp scripts/load_terminology.py emr-backend:/tmp/load_terminology.py
+        docker cp scripts/ucum.json emr-backend:/tmp/ucum.json
+        docker exec emr-backend mkdir -p /tmp/fhir_vocabularies
+        docker cp \$HOME/fhir_vocabularies/terminology emr-backend:/tmp/fhir_vocabularies/
+        docker exec emr-backend python3 /tmp/load_terminology.py /tmp/fhir_vocabularies \
+            --hapi-url http://hapi-fhir:8080/fhir --timeout 600
     " > terminology_load.log 2>&1 &
     LOAD_PID=$!
-    echo "   PID $LOAD_PID, logging to ./terminology_load.log"
+    echo "   PID $LOAD_PID, logging to ./terminology_load.log (host) and /app/data/terminology_load.log (container)"
 else
     echo -e "${YELLOW}   No pre-extracted JSON and no UMLS_API_KEY set — skipping terminology load${NC}"
     echo "   To enable: set UMLS_API_KEY in .env (see docs/TERMINOLOGY_SETUP.md)"
