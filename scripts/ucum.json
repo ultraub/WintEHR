@@ -1,0 +1,83 @@
+{
+  "url": "http://unitsofmeasure.org",
+  "name": "UCUM",
+  "version": "common-clinical-v1",
+  "description": "Curated subset of ~60 commonly-used clinical UCUM units. Full UCUM is ~300 units; this covers mass, volume, concentration, time, length, pressure, percentage, temperature, and vital-sign rates — sufficient for almost all FHIR Observation.valueQuantity and MedicationRequest.dispenseRequest.quantity needs. Bundled because UCUM isn't distributed by UMLS.",
+  "count": 63,
+  "concept": [
+    {"code": "mg", "display": "milligram"},
+    {"code": "g", "display": "gram"},
+    {"code": "kg", "display": "kilogram"},
+    {"code": "ug", "display": "microgram"},
+    {"code": "ng", "display": "nanogram"},
+    {"code": "pg", "display": "picogram"},
+
+    {"code": "mL", "display": "milliliter"},
+    {"code": "L", "display": "liter"},
+    {"code": "dL", "display": "deciliter"},
+    {"code": "uL", "display": "microliter"},
+
+    {"code": "mg/dL", "display": "milligram per deciliter"},
+    {"code": "g/dL", "display": "gram per deciliter"},
+    {"code": "mg/L", "display": "milligram per liter"},
+    {"code": "g/L", "display": "gram per liter"},
+    {"code": "mmol/L", "display": "millimole per liter"},
+    {"code": "umol/L", "display": "micromole per liter"},
+    {"code": "nmol/L", "display": "nanomole per liter"},
+    {"code": "mEq/L", "display": "milliequivalent per liter"},
+    {"code": "ng/mL", "display": "nanogram per milliliter"},
+    {"code": "pg/mL", "display": "picogram per milliliter"},
+    {"code": "ug/mL", "display": "microgram per milliliter"},
+    {"code": "mg/mL", "display": "milligram per milliliter"},
+    {"code": "U/L", "display": "units per liter"},
+    {"code": "IU/mL", "display": "international units per milliliter"},
+    {"code": "[IU]/L", "display": "international units per liter"},
+
+    {"code": "s", "display": "second"},
+    {"code": "min", "display": "minute"},
+    {"code": "h", "display": "hour"},
+    {"code": "d", "display": "day"},
+    {"code": "wk", "display": "week"},
+    {"code": "mo", "display": "month"},
+    {"code": "a", "display": "year"},
+
+    {"code": "mm", "display": "millimeter"},
+    {"code": "cm", "display": "centimeter"},
+    {"code": "m", "display": "meter"},
+    {"code": "[in_i]", "display": "inch"},
+    {"code": "[ft_i]", "display": "foot"},
+
+    {"code": "mm[Hg]", "display": "millimeter of mercury"},
+    {"code": "cm[H2O]", "display": "centimeter of water"},
+    {"code": "kPa", "display": "kilopascal"},
+
+    {"code": "%", "display": "percent"},
+    {"code": "[pH]", "display": "pH"},
+    {"code": "Cel", "display": "degree Celsius"},
+    {"code": "[degF]", "display": "degree Fahrenheit"},
+    {"code": "K", "display": "Kelvin"},
+
+    {"code": "/min", "display": "per minute"},
+    {"code": "/h", "display": "per hour"},
+    {"code": "/d", "display": "per day"},
+    {"code": "/wk", "display": "per week"},
+    {"code": "1/min", "display": "per minute (unitless rate)"},
+
+    {"code": "mL/min", "display": "milliliter per minute"},
+    {"code": "mL/min/{1.73_m2}", "display": "milliliter per minute per 1.73 square meter (eGFR)"},
+    {"code": "L/min", "display": "liter per minute"},
+
+    {"code": "{breaths}/min", "display": "breaths per minute"},
+    {"code": "{beats}/min", "display": "beats per minute"},
+    {"code": "{copies}/mL", "display": "copies per milliliter"},
+    {"code": "{cells}/uL", "display": "cells per microliter"},
+
+    {"code": "10*3/uL", "display": "thousand per microliter"},
+    {"code": "10*6/uL", "display": "million per microliter"},
+    {"code": "10*9/L", "display": "billion per liter"},
+    {"code": "10*12/L", "display": "trillion per liter"},
+
+    {"code": "mosm/kg", "display": "milliosmole per kilogram"},
+    {"code": "kg/m2", "display": "kilogram per square meter (BMI)"}
+  ]
+}

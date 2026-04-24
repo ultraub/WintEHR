@@ -585,6 +585,57 @@ else
     echo ""
 fi
 
+# ============================================================================
+# Terminology loading (optional)
+# ============================================================================
+# If HAPI has no CodeSystems yet, try to populate it from one of three sources,
+# in order of preference. All paths run in background — the load itself takes
+# 1-4 hours and we don't want deploy.sh to block. Progress is in ./terminology_load.log.
+#
+#   1. Pre-extracted JSON at ~/fhir_vocabularies/terminology/*.json exists
+#      → load directly (fastest, no download)
+#   2. UMLS_API_KEY is set in .env
+#      → download UMLS MRCONSO → extract → load
+#   3. Neither → skip silently; operator runs manually when ready
+echo -e "${BLUE}📚 Checking terminology state...${NC}"
+HAPI_CS_COUNT=$(docker exec emr-backend curl -sf \
+    "http://hapi-fhir:8080/fhir/CodeSystem?url=http://www.nlm.nih.gov/research/umls/rxnorm&_summary=count" \
+    2>/dev/null | python3 -c "import json,sys
+try:
+    print(json.load(sys.stdin).get('total', 0))
+except Exception:
+    print(0)" 2>/dev/null || echo 0)
+
+if [ "$HAPI_CS_COUNT" != "0" ]; then
+    echo -e "${GREEN}✓ Terminology already loaded (RxNorm CodeSystem present in HAPI)${NC}"
+elif [ -d "$HOME/fhir_vocabularies/terminology" ] && \
+     [ -n "$(ls -A $HOME/fhir_vocabularies/terminology/*.json 2>/dev/null)" ]; then
+    echo -e "${BLUE}   Found pre-extracted JSON at ~/fhir_vocabularies/terminology/${NC}"
+    echo -e "${BLUE}   Loading in background — tail terminology_load.log for progress${NC}"
+    nohup python3 scripts/load_terminology.py "$HOME/fhir_vocabularies" \
+        --hapi-url http://localhost:8080/fhir \
+        --timeout 600 \
+        > terminology_load.log 2>&1 &
+    LOAD_PID=$!
+    echo "   PID $LOAD_PID, logging to ./terminology_load.log"
+elif [ -n "$UMLS_API_KEY" ]; then
+    echo -e "${BLUE}   Found UMLS_API_KEY — downloading and loading in background${NC}"
+    echo -e "${BLUE}   Full pipeline (~3 hours); tail terminology_load.log for progress${NC}"
+    nohup bash -c "
+        set -e
+        python3 scripts/download_umls.py \$HOME/umls_source && \\
+        python3 scripts/extract_vocabularies.py \$HOME/umls_source \$HOME/fhir_vocabularies && \\
+        python3 scripts/load_terminology.py \$HOME/fhir_vocabularies \\
+            --hapi-url http://localhost:8080/fhir --timeout 600
+    " > terminology_load.log 2>&1 &
+    LOAD_PID=$!
+    echo "   PID $LOAD_PID, logging to ./terminology_load.log"
+else
+    echo -e "${YELLOW}   No pre-extracted JSON and no UMLS_API_KEY set — skipping terminology load${NC}"
+    echo "   To enable: set UMLS_API_KEY in .env (see docs/TERMINOLOGY_SETUP.md)"
+fi
+echo ""
+
 # Step 5: Configure Azure NSG (if Azure deployment and prod profile)
 AZURE_RESOURCE_GROUP="${WINTEHR_AZURE_RESOURCE_GROUP:-${AZURE_RESOURCE_GROUP:-}}"
 if [ -n "$AZURE_RESOURCE_GROUP" ] && [ "$PROFILE" = "prod" ]; then

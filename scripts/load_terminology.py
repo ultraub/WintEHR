@@ -187,6 +187,16 @@ def load_code_systems(client: httpx.Client, vocab_dir: Path, timeout: float,
         return
 
     files = sorted(term_dir.glob("*.json"))
+
+    # UCUM isn't distributed via UMLS or OMOP. Ship a curated ~60-unit subset
+    # alongside the load script and always include it. The extractors do not
+    # produce ucum.json; if a user has somehow written one into term_dir
+    # it wins (their list, their rules).
+    bundled_ucum = Path(__file__).resolve().parent / "ucum.json"
+    if bundled_ucum.is_file() and not (term_dir / "ucum.json").exists():
+        files = list(files) + [bundled_ucum]
+        print(f"  (including bundled UCUM from {bundled_ucum.name})")
+
     print(f"\n  Found {len(files)} vocabulary files")
 
     for filepath in files:
@@ -268,6 +278,14 @@ def load_code_systems(client: httpx.Client, vocab_dir: Path, timeout: float,
 # Phase 2: Load ValueSet Resources (aligned with catalog domains)
 # ============================================================
 
+# NB: Filter design evolved with the move to UMLS as the primary input.
+# OMOP/Athena provided domain/conceptClass/standardConcept properties; UMLS
+# does not. Filters below use properties that either mode can emit:
+#   - Medication ingredient split uses UMLS TTY=IN (OMOP mode won't match;
+#     OMOP users who need this distinction should keep the Athena path)
+#   - SNOMED Condition/Procedure domain split is DROPPED — UMLS has no
+#     equivalent property. Both ValueSets return all SNOMED concepts;
+#     autocomplete search still works, just across the full set.
 VALUESETS = [
     {
         "id": "wintehr-medications",
@@ -289,8 +307,11 @@ VALUESETS = [
             "include": [
                 {
                     "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                    # UMLS TTY=IN (Ingredient). For OMOP input, the equivalent
+                    # conceptClass=Ingredient isn't emitted as a TTY property,
+                    # so this filter returns empty for OMOP-only deploys.
                     "filter": [
-                        {"property": "conceptClass", "op": "=", "value": "Ingredient"}
+                        {"property": "TTY", "op": "=", "value": "IN"}
                     ],
                 },
             ]
@@ -300,15 +321,15 @@ VALUESETS = [
         "id": "wintehr-conditions-snomed",
         "name": "WinTEHR Conditions (SNOMED)",
         "title": "WinTEHR SNOMED CT Conditions",
-        "description": "SNOMED CT condition concepts for problem list entry",
+        # Previously filtered by OMOP domain=Condition. UMLS has no such
+        # property, so this ValueSet now returns all SNOMED CT concepts
+        # (findings, procedures, anatomy, situations — everything). Users
+        # relying on autocomplete search for specific conditions still get
+        # good matches; browsing without a search shows a mixed list.
+        "description": "SNOMED CT concepts for problem list entry (full terminology)",
         "compose": {
             "include": [
-                {
-                    "system": "http://snomed.info/sct",
-                    "filter": [
-                        {"property": "domain", "op": "=", "value": "Condition"}
-                    ],
-                },
+                {"system": "http://snomed.info/sct"},
             ]
         },
     },
@@ -338,15 +359,12 @@ VALUESETS = [
         "id": "wintehr-procedures-snomed",
         "name": "WinTEHR Procedures (SNOMED)",
         "title": "WinTEHR SNOMED CT Procedures",
-        "description": "SNOMED CT procedure concepts",
+        # Previously filtered by OMOP domain=Procedure. Same caveat as
+        # wintehr-conditions-snomed — returns all SNOMED CT.
+        "description": "SNOMED CT concepts for procedure entry (full terminology)",
         "compose": {
             "include": [
-                {
-                    "system": "http://snomed.info/sct",
-                    "filter": [
-                        {"property": "domain", "op": "=", "value": "Procedure"}
-                    ],
-                },
+                {"system": "http://snomed.info/sct"},
             ]
         },
     },

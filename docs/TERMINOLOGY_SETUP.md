@@ -1,33 +1,36 @@
-# Terminology Setup (Optional)
+# Terminology Setup
 
-**Audience**: Operators deploying WintEHR to a client VPC or any environment
-where the clinical catalog in the CDS visual builder should go beyond the
-codes that happen to appear in the loaded Synthea patient data.
+**Audience**: Operators deploying WintEHR to any environment where the clinical
+catalog (medications, conditions, lab tests, procedures, vaccines, units) should
+include codes beyond what happens to appear in the loaded Synthea patient data.
 
-**Effort**: 1–3 hours active work (account creation, download, extraction) plus
-2–6 hours unattended load time.
+**Effort**: ~30 minutes of setup + 1–4 hours of unattended download/load time.
 
-**Skip this if**: you're running the default educational demo — the catalog
-works without terminology ingestion, it just only shows codes present in the
-~100 Synthea patients.
+**Skip this if**: you're running the default educational demo and are fine with the
+catalog showing only codes present in the ~100 Synthea patients (~88 conditions,
+~50 medications, etc.).
 
 ---
 
 ## What this does
 
-By default, the CDS visual builder's catalog (medications, conditions,
-procedures, lab tests, etc.) is built from codes extracted from the
-loaded patient data. That's ~88 conditions, ~50 procedures — whatever
-Synthea happened to generate. Not a comprehensive ontology.
+By default, the CDS visual builder's catalog is derived from codes the Synthea
+synthetic patients happen to carry. That's useful for a demo but nothing like
+a real terminology system.
 
-This setup loads full terminology ValueSets (RxNorm, LOINC, ICD-10-CM, CVX,
-HCPCS, UCUM, ATC, optionally SNOMED) into HAPI FHIR. After loading, the
-catalog backs autocomplete searches against the full vocabulary — tens to
-hundreds of thousands of codes per domain.
+This setup pulls full clinical terminology from **UMLS** (the NLM-curated
+unified medical language system) and loads it into HAPI FHIR as CodeSystem +
+ValueSet resources. Autocomplete in the visual builder then searches the full
+vocabulary instead of just patient-derived codes — hundreds of thousands of
+clinical concepts instead of hundreds.
 
 ---
 
-## License matters before you start
+## License overview
+
+WintEHR's setup downloads the permissively-licensed UMLS source vocabularies
+by default. SNOMED CT is **opt-in** because its Affiliate License restricts
+public redistribution.
 
 | Vocabulary | Default | License | Public-web safe? |
 |------------|---------|---------|------------------|
@@ -36,182 +39,195 @@ hundreds of thousands of codes per domain.
 | LOINC | ✓ on | Permissive (Regenstrief) | Yes |
 | CVX | ✓ on | Public domain (CDC) | Yes |
 | HCPCS | ✓ on | Public domain (CMS) | Yes |
-| UCUM | ✓ on | Permissive (Regenstrief) | Yes |
-| ATC | ✓ on | WHO; tolerated for lookup | Usually |
-| **SNOMED CT** | ✗ opt-in | **UMLS + SNOMED Affiliate** | **No** — license restricts public redistribution |
-| CPT-4 | ✗ never | AMA commercial | No |
-| ICD-10 (WHO) | ✗ never | WHO commercial | No |
+| ATC | ✓ on | WHO; tolerated for code lookup | Usually |
+| UCUM | ✓ bundled static | Permissive (Regenstrief) | Yes |
+| **SNOMED CT** | ✗ opt-in | **UMLS + SNOMED Affiliate License** | **No** — public redistribution forbidden |
 
-**Bottom line**: if your deployment will be reachable from the open
-internet by unauthenticated users, don't pass `--include-snomed`. For
-client VPCs where the client organization holds a UMLS license (most
-hospitals do for their EHR), SNOMED is fine.
+**Bottom line**: if your deployment will be reachable from the open internet
+by unauthenticated users, do NOT pass `--include-snomed`. For client VPC
+deployments where the client organization holds a UMLS license (most hospitals
+do for their EHR), SNOMED is appropriate.
 
-**This is not legal advice**. Read the UMLS Metathesaurus License and
-SNOMED International Affiliate terms before redistributing either.
+*This is not legal advice.* Read the UMLS Metathesaurus License Agreement
+(https://www.nlm.nih.gov/databases/umls.html) and the SNOMED Affiliate terms
+before redistributing either in any form.
 
 ---
 
-## One-time setup
+## One-time setup (per deployment)
 
 ### 1. Register for UMLS
 
 - Go to https://uts.nlm.nih.gov/uts/signup-login
-- Create an account (free, NLM verifies; takes up to 1 business day)
+- Create an account (free; NLM verifies in up to 1 business day)
 - Agree to the UMLS Metathesaurus License Agreement
 
-### 2. Register for Athena (OHDSI's vocabulary distribution)
+### 2. Generate an API key
 
-- Go to https://athena.ohdsi.org/
-- Create account (uses UMLS credentials)
-- Navigate to **Download** → **Vocabularies**
-- Select the vocabularies you want. Recommended for client VPC:
-  - RxNorm
-  - RxNorm Extension (merged into rxnorm.json in output)
-  - SNOMED (if licensed)
-  - ICD10CM
-  - LOINC
-  - CVX
-  - HCPCS
-  - UCUM
-  - ATC
-- Submit the request. Athena prepares a bundle — typically 5–15 minutes
-- Download the zip (~1–3 GB; larger with SNOMED included)
-- Unzip somewhere on your workstation:
-  ```
-  unzip vocabulary_download_v5_*.zip -d ~/athena_vocab/
-  ls ~/athena_vocab/
-  # Expected: CONCEPT.csv, VOCABULARY.csv, CONCEPT_RELATIONSHIP.csv, etc.
-  ```
+After sign-up:
+- Sign in at https://uts.nlm.nih.gov/uts/
+- Click your profile → **Edit Profile** → **Generate API Key**
+- Copy the key. Treat it as a secret — it authorizes downloads under your
+  UMLS license.
 
-### 3. Extract the CSVs to FHIR JSON
+### 3. Put the API key in the server's `.env`
+
+SSH to the server and add (or edit) the `UMLS_API_KEY` line in the
+`WintEHR/.env` file:
 
 ```bash
-# Public-safe default (no SNOMED)
-python3 scripts/extract_vocabularies.py ~/athena_vocab/ ~/fhir_vocabularies/
+ssh azureuser@wintehr.eastus2.cloudapp.azure.com
+cd WintEHR
+# Edit .env and add the line (don't commit it)
+grep -v '^UMLS_API_KEY=' .env > .env.tmp && \
+    echo "UMLS_API_KEY=<your-key-here>" >> .env.tmp && \
+    mv .env.tmp .env
+chmod 600 .env
+```
 
-# With SNOMED (verify license first)
-python3 scripts/extract_vocabularies.py ~/athena_vocab/ ~/fhir_vocabularies/ \
+`.env` is gitignored, so it never leaves the server.
+
+### 4. Trigger the load — two paths
+
+**Path A — On next `./deploy.sh` run (automatic):**
+
+Add the API key to `.env`, then run a fresh deploy. After HAPI is healthy,
+`deploy.sh` detects:
+- HAPI has no CodeSystems loaded (empty state), AND
+- `UMLS_API_KEY` is set
+
+…and launches the full pipeline (download → extract → load) in the background.
+`deploy.sh` returns to you within a couple minutes; the background job keeps
+going. Tail `./terminology_load.log` for progress:
+
+```bash
+tail -f terminology_load.log
+```
+
+**Path B — Manually, right now, without touching deploy:**
+
+```bash
+cd ~/WintEHR
+
+# Download UMLS MRCONSO (~2 GB zipped, ~8 GB extracted)
+python3 scripts/download_umls.py ~/umls_source
+
+# Extract to FHIR-compatible JSON (~100 MB)
+python3 scripts/extract_vocabularies.py ~/umls_source ~/fhir_vocabularies
+
+# Load into HAPI (2-4 hours, run in tmux so SSH can drop)
+tmux new-session -s tload
+python3 scripts/load_terminology.py ~/fhir_vocabularies \
+    --hapi-url http://localhost:8080/fhir \
+    --timeout 600 \
+    2>&1 | tee terminology_load.log
+# Ctrl-B, d to detach; tmux attach -t tload to reattach
+```
+
+### 5. With SNOMED (for licensed client VPC deployments)
+
+Pass `--include-snomed` to the extractor. Everything else identical:
+
+```bash
+python3 scripts/extract_vocabularies.py ~/umls_source ~/fhir_vocabularies \
     --include-snomed
+python3 scripts/load_terminology.py ~/fhir_vocabularies \
+    --hapi-url http://localhost:8080/fhir --timeout 600
 ```
 
-Expected output on stdout:
-```
-Extracting:  atc, cvx, hcpcs, icd10cm, loinc, rxnorm, ucum
-Skipping:    cpt4, icd10, snomed
-  Read 500,000 rows in 2.1s (X kept across Y vocabs)
-  ...
-  wrote rxnorm.json: 281,234 concepts (45.2 MB)
-  wrote icd10cm.json: 93,421 concepts (18.6 MB)
-  ...
+### 6. Verify
 
-Summary:
-  rxnorm        281,234 concepts
-  icd10cm        93,421 concepts
-  loinc          97,834 concepts
-  cvx               324 concepts
-  hcpcs          29,112 concepts
-  ucum              298 concepts
-  atc               891 concepts
-  TOTAL         503,114 concepts
-```
-
-Runtime on a modern laptop: ~1 minute without SNOMED, ~3 minutes with
-SNOMED added (~450k more concepts).
-
-### 4. Load to HAPI FHIR
+Once the log shows it finished loading (or after 2-4 hours):
 
 ```bash
-python3 scripts/load_terminology.py ~/fhir_vocabularies/ \
-    --hapi-url https://your-deployment.example.com/fhir
+# Should show non-zero total
+curl -sf "https://wintehr.eastus2.cloudapp.azure.com/fhir/ValueSet/wintehr-medications/\$expand?filter=aspirin&count=5" \
+    | python3 -c "import json,sys; b=json.load(sys.stdin); print(len(b.get('expansion',{}).get('contains',[])), 'hits for aspirin')"
 ```
 
-This POSTs CodeSystem resources to HAPI, chunked at 10,000 concepts per
-upload with a 2s gap between chunks (to let HAPI GC). Expected runtime:
-**2–6 hours unattended** for the full set. Run in tmux/screen.
-
-Monitor progress by tailing the script's output — it prints per-chunk
-status. Failures surface as `FAILED` markers; usually indicates HAPI OOM
-(bump its heap) or a timeout (pass `--timeout 600`).
-
-### 5. Verify
-
-```bash
-curl "https://your-deployment.example.com/fhir/ValueSet?_summary=count"
-# Expected: total ≥ 10 (one per wintehr-* ValueSet that load_terminology built)
-
-curl "https://your-deployment.example.com/fhir/ValueSet/wintehr-medications/\$expand?filter=aspirin&count=5"
-# Expected: expansion bundle with 5 RxNorm aspirin entries
-```
-
-The CDS visual builder's catalog autocomplete in the UI should now return
-results from the full vocabulary, not just patient-derived codes.
+And in the UI: open the CDS visual builder, pick any condition/medication
+dropdown, start typing — the autocomplete should show results from the full
+terminology, not just the Synthea subset.
 
 ---
 
-## Server sizing when loading
+## Expected vocabulary sizes (UMLS 2024AA release, default flags)
 
-The terminology data lands in HAPI's PostgreSQL terminology indices.
-Budget for:
+| Vocabulary | Concept count |
+|------------|---------------|
+| RxNorm (medications) | ~280k |
+| ICD-10-CM (conditions) | ~90k |
+| LOINC (lab tests) | ~100k |
+| CVX (vaccines) | ~325 |
+| HCPCS (procedures) | ~30k |
+| ATC (drug classes) | ~1k |
+| UCUM (units, bundled static) | ~60 |
+| **Total** | **~500k concepts** |
 
-- **Disk**: +15–30 GB on the HAPI database volume (+60 GB with SNOMED)
-- **HAPI heap**: 4–6 GB during bulk load (increase temporarily if needed)
-- **Load duration**: 2–6 hours, longer with SNOMED
+With `--include-snomed`: +450k SNOMED CT concepts.
 
-`docker-compose.yml` currently sets HAPI heap to `-Xmx3g`. For large
-terminology loads, bump to `-Xmx6g` (and container memory limit to `8g`)
-during the load, then optionally back down:
+---
+
+## Server resources during load
+
+The terminology data lands in HAPI's PostgreSQL terminology indices. Budget for:
+
+- **Disk**: +15–30 GB on the HAPI database volume (+40–60 GB with SNOMED)
+- **HAPI heap**: 4–6 GB during bulk load (we run 3 GB by default; consider bumping
+  temporarily if you hit OOM during load)
+- **Load duration**: 1–4 hours, longer with SNOMED
+
+The `docker-compose.yml` anchor `x-hapi-fhir-common` sets heap to `-Xmx3g` and
+container memory limit to `4g`. For very large loads (SNOMED included), bump
+to 6g/8g:
 
 ```yaml
-x-hapi-fhir-common: &hapi-fhir-common
-  environment:
-    JAVA_TOOL_OPTIONS: "-Xmx6g -Xms1g"
-  deploy:
-    resources:
-      limits:
-        memory: 8g
+JAVA_TOOL_OPTIONS: "-Xmx6g -Xms1g"
+deploy:
+  resources:
+    limits:
+      memory: 8g
 ```
 
-After the load, `$expand` queries are cheap (indexed lookups). You can
-drop back to `-Xmx3g`.
+Restart HAPI to pick up the change, then re-run the load. After load completes,
+you can drop back to 3g/4g — `$expand` queries are cheap once indexed.
 
 ---
 
-## Re-loading for a newer vocabulary release
+## Alternative: OMOP Athena input
 
-Athena publishes quarterly. To refresh:
-
-1. Download the newer bundle from Athena.
-2. Re-run `extract_vocabularies.py` (writes over the old JSON files).
-3. Re-run `load_terminology.py` — it uses FHIR PUT semantics, so existing
-   CodeSystems are updated in place.
+If you have an OMOP CDM vocabulary dump from [Athena](https://athena.ohdsi.org/)
+(e.g., a hospital using OHDSI tooling already), `extract_vocabularies.py`
+auto-detects OMOP CSV format and processes the same way. Benefits:
+OMOP-curated semantic properties (`domain_id`, `concept_class_id`,
+`standardConcept`) give finer-grained ValueSet filtering. See the Athena path
+in the script's docstring.
 
 ---
 
 ## Troubleshooting
 
-**`Could not find CONCEPT.csv`**
-Athena sometimes zips with a nested path. Unzip once, then `find ~/athena_vocab -name CONCEPT.csv` to locate the actual path and pass that directory.
+**`UMLS rejected the API key (HTTP 401)`**
+Regenerate at https://uts.nlm.nih.gov/uts/edit-profile. Old keys expire if the
+UMLS license lapses (annual re-acceptance required).
 
-**`No vocabularies selected`**
-You passed `--only` with stems that are all outside the active set. For example `--only snomed` without `--include-snomed` yields nothing. Either drop `--only` or add the corresponding flag.
+**Download hangs at 0%**
+Azure NSG or corporate firewall is blocking `uts-ws.nlm.nih.gov` /
+`download.nlm.nih.gov`. Allow outbound HTTPS to both.
 
-**Extraction OOMs**
-The full vocabulary bundle is held in memory during extraction (~1–2 GB
-for everything including SNOMED). If your machine has <8 GB RAM, extract
-subsets with `--only rxnorm` then `--only icd10cm` etc., running once per
-vocabulary.
+**`Release not found at https://...2024AA...`**
+The default release tag is stale. Check https://www.nlm.nih.gov/research/umls/
+licensedcontent/downloads.html for current release (e.g., 2024AB), pass
+`--release 2024AB` explicitly.
 
-**HAPI upload OOM / 500 errors**
-HAPI's heap is too small for the load. Bump `JAVA_TOOL_OPTIONS` to
-`-Xmx6g` temporarily, and increase the compose `deploy.resources.limits.memory`
-to `8g`. Restart HAPI, then resume the load (re-runs are idempotent).
+**HAPI OOM during load (500 errors in log)**
+Bump `JAVA_TOOL_OPTIONS` heap (see above), restart HAPI, re-run load —
+`load_terminology.py` uses PUT semantics and is idempotent.
 
-**Upload timeout**
-Pass `--timeout 600` to `load_terminology.py` to give each chunk 10
-minutes. Default 300s can be tight for very large chunks.
+**`$expand` returns empty after load completes**
+Wait 1–5 minutes — HAPI indexes terminology asynchronously. If still empty
+after 5 minutes, check HAPI logs for indexing errors.
 
-**Expand returns empty after load**
-Wait 1–2 minutes after load completion — HAPI indexes terminology
-asynchronously. If still empty after 5 minutes, check HAPI logs for
-indexing errors (often heap-related).
+**Load interrupted, want to resume**
+`load_terminology.py --skip-existing` skips CodeSystems already in HAPI. Safe
+to re-run after partial failure.
