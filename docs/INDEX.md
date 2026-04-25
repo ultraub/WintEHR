@@ -9,21 +9,21 @@ Complete guide to WintEHR platform documentation.
 ## Quick Links
 
 ### Getting Started
-- **[Project README](../README.md)** - Project overview and quick start
-- **[Quick Start Guide](../QUICKSTART.md)** - Fast deployment (5-20 minutes)
-- **[Deployment Guide](DEPLOYMENT.md)** - Comprehensive deployment documentation
-- **[Configuration Guide](CONFIGURATION.md)** - Complete configuration reference
+- **[Project README](../README.md)** – Project overview and quick start
+- **[Quick Start Guide](../QUICKSTART.md)** – Fast deployment (5-20 minutes)
+- **[Deployment Guide](DEPLOYMENT.md)** – Generic deployment reference (dev + prod)
+- **[Configuration Guide](CONFIGURATION.md)** – Complete `.env` reference
 
-### Core Documentation
-- **[README](../README.md)** - Comprehensive project overview
-- **[DEPLOYMENT](DEPLOYMENT.md)** - All deployment options (local, Azure, AWS, GCP)
-- **[CONFIGURATION](CONFIGURATION.md)** - Configuration management system
-- **[AZURE_DEPLOYMENT](AZURE_DEPLOYMENT.md)** - Azure-specific deployment details
+### Client Deployment
+- **[Client Deployment Playbook](CLIENT_DEPLOYMENT.md)** – End-to-end guide for installing into a client VPC, with day-2 ops, upgrade path, and troubleshooting
+- **[Security Posture](SECURITY.md)** – What's hardened by default, what each deployer owns, audit checklist for InfoSec review
+- **[Terminology Setup](TERMINOLOGY_SETUP.md)** – Optional UMLS-based vocabulary load (RxNorm, ICD-10-CM, LOINC, CVX, HCPCS, ATC, optionally SNOMED)
+- **[Azure Deployment](AZURE_DEPLOYMENT.md)** – Azure-specific notes
 
 ### Advanced Features
-- **[CDS Studio Documentation](#cds-hooks--clinical-decision-support)** - Clinical Decision Support
-- **[Code Graph MCP](CODE_GRAPH_MCP.md)** - Code Graph MCP integration
-- **[External Services Integration](EXTERNAL_SERVICES_INTEGRATION.md)** - Third-party integrations
+- **[CDS Studio Documentation](#cds-hooks--clinical-decision-support)** – Clinical Decision Support
+- **[Code Graph MCP](CODE_GRAPH_MCP.md)** – Code Graph MCP integration
+- **[External Services Integration](EXTERNAL_SERVICES_INTEGRATION.md)** – Third-party integrations
 
 ---
 

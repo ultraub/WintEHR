@@ -113,10 +113,22 @@ The system generates realistic patient data using [Synthea](https://synthea.mitr
 
 Detailed documentation is available in the `docs/` directory:
 
-- [Deployment Guide](docs/DEPLOYMENT.md) - Detailed setup and configuration
-- [Configuration Reference](docs/CONFIGURATION.md) - All configuration options
-- [Azure Deployment](docs/AZURE_DEPLOYMENT.md) - Cloud deployment guide
-- [CDS Studio Guide](docs/CDS_STUDIO_QUICK_REFERENCE.md) - Building clinical decision support
+**Deploying**
+- [Deployment Guide](docs/DEPLOYMENT.md) – Generic setup reference (dev + prod)
+- [Client Deployment Playbook](docs/CLIENT_DEPLOYMENT.md) – Step-by-step for installing into a client VPC, with day-2 ops
+- [Azure Deployment](docs/AZURE_DEPLOYMENT.md) – Azure-specific notes
+- [Configuration Reference](docs/CONFIGURATION.md) – All `.env` options
+- [Terminology Setup](docs/TERMINOLOGY_SETUP.md) – Optional UMLS-based vocabulary load (RxNorm, ICD-10-CM, LOINC, etc.)
+
+**Operating & securing**
+- [Security Posture](docs/SECURITY.md) – What's hardened by default, what each deployer owns, audit checklist
+- [System Architecture](docs/SYSTEM_ARCHITECTURE.md) – Component layout
+
+**Building on top**
+- [CDS Studio Guide](docs/CDS_STUDIO_QUICK_REFERENCE.md) – Visual CDS Hooks builder
+- [External Services Integration](docs/EXTERNAL_SERVICES_INTEGRATION.md) – Plugging in third-party CDS
+
+For developer-oriented context (architecture decisions, module ownership), each major directory has a `CLAUDE.md` that describes patterns and constraints local to that area.
 
 ## For Educators
 
