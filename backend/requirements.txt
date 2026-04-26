@@ -46,7 +46,7 @@ fhir.resources==7.1.0
 fhirclient==4.2.1  # SMART on FHIR Python client for HAPI FHIR integration
 
 # Synthea integration
-GitPython==3.1.40
+GitPython==3.1.47
 
 # Medical imaging
 pydicom==3.0.2
