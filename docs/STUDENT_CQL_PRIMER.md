@@ -268,12 +268,12 @@ that's the signal.
 
 ### Edits aren't reflected when I re-test
 
-You're seeing the cached compile from a previous version of the same
-library. The platform handles this for drafts (every save uses a fresh
-content-hashed library identifier so the cache misses). For deployed
-services, every redeploy bumps the library version into the URL itself, so
-this shouldn't happen. If it does, the simplest workaround is to bump the
-service version and redeploy — that always produces a fresh identifier.
+The platform handles this automatically. Every ValueSet write and every
+service save flushes HAPI's CQL/ValueSet caches via the overlay's
+`/admin/cr/flush-caches` endpoint, so the next test sees the new content.
+Drafts also use content-hashed library identifiers, so each save lands at
+a fresh URL. If you ever see truly stale results, save the service or
+ValueSet again — the flush will fire on save.
 
 ---
 
