@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import ca.uhn.fhir.jpa.term.api.ITermReadSvc;
+import org.hl7.fhir.common.hapi.validation.support.ValidationSupportChain;
 import org.opencds.cqf.fhir.cql.EvaluationSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,12 +59,16 @@ public class CrCacheAdminController {
 
     private final EvaluationSettings evaluationSettings;
     private final ITermReadSvc termReadSvc;
+    private final ValidationSupportChain validationSupportChain;
 
     @Autowired
     public CrCacheAdminController(
-            EvaluationSettings evaluationSettings, ITermReadSvc termReadSvc) {
+            EvaluationSettings evaluationSettings,
+            ITermReadSvc termReadSvc,
+            ValidationSupportChain validationSupportChain) {
         this.evaluationSettings = evaluationSettings;
         this.termReadSvc = termReadSvc;
+        this.validationSupportChain = validationSupportChain;
     }
 
     /**
@@ -113,6 +118,19 @@ public class CrCacheAdminController {
             // cqf caches are already cleared, which covers some scenarios.
             body.put("termReadSvcInvalidated", false);
             body.put("termReadSvcError", e.getMessage());
+        }
+
+        // The ValidationSupportChain holds a Caffeine cache of expanded
+        // ValueSets used by code system / value set lookup paths that
+        // bypass TermReadSvc (notably the validation support chain wired
+        // into the CR engine's IRepository). Without busting this layer,
+        // a ValueSet edit isn't visible to the next $apply.
+        try {
+            validationSupportChain.invalidateCaches();
+            body.put("validationSupportInvalidated", true);
+        } catch (Exception e) {
+            body.put("validationSupportInvalidated", false);
+            body.put("validationSupportError", e.getMessage());
         }
 
         return ResponseEntity.ok(body);
