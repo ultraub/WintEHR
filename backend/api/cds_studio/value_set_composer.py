@@ -46,6 +46,7 @@ from api.auth.service import get_current_user_or_demo
 from database import get_db_session
 from services.terminology_service import TerminologyService, get_terminology_service
 
+from .hapi_admin import flush_cr_caches
 from .visual_service_config import VisualValueSet
 
 logger = logging.getLogger(__name__)
@@ -212,6 +213,9 @@ async def put_value_set_to_hapi(
             )
             raise
 
+    # Bust HAPI's CR caches so the new compose is visible to the next $apply.
+    await flush_cr_caches()
+
     return resource["url"]
 
 
@@ -227,6 +231,7 @@ async def delete_value_set_from_hapi(
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
         response = await client.delete(url)
         if response.status_code in (200, 204, 404):
+            await flush_cr_caches()
             return
         try:
             response.raise_for_status()
@@ -236,6 +241,7 @@ async def delete_value_set_from_hapi(
                 vs_id, exc.response.status_code, exc.response.text[:200],
             )
             raise
+    await flush_cr_caches()
 
 
 # ---------------------------------------------------------------------------

@@ -57,7 +57,17 @@ x-postgres-common: &postgres-common
     start_period: 30s
 
 x-hapi-fhir-common: &hapi-fhir-common
-  image: hapiproject/hapi:v8.6.0-1
+  # Custom HAPI build that adds POST /admin/cr/flush-caches for clearing
+  # the cqf-fhir-cr in-memory caches when a student edits a ValueSet.
+  # See deploy/hapi-overlay/ for the Dockerfile + Java source. The base
+  # is hapiproject/hapi:v8.6.0-1 — we pin the same upstream tag via
+  # the HAPI_VERSION build arg so behavior matches the official image
+  # except for our admin endpoint.
+  build:
+    context: ./deploy/hapi-overlay
+    args:
+      HAPI_VERSION: image/v8.6.0-1
+  image: wintehr-hapi-fhir:overlay-v8.6.0-1
   container_name: emr-hapi-fhir
   restart: ${RESTART_POLICY:-no}
   environment:
@@ -78,6 +88,11 @@ x-hapi-fhir-common: &hapi-fhir-common
     hapi.fhir.cdshooks.enabled: true
     hapi.fhir.cr.enabled: true
     hapi.fhir.advanced_lucene_indexing: false
+    # Token for the /admin/cr/* endpoints exposed by our overlay. The
+    # composer (in the FastAPI backend) calls those endpoints with this
+    # token to flush CR caches after a ValueSet edit so the change is
+    # immediately reflected without waiting for a HAPI restart.
+    HAPI_ADMIN_TOKEN: ${HAPI_ADMIN_TOKEN:-}
     # JVM heap sized for the bulk Synthea bundle load (100 patients ≈ thousands
     # of resources through HAPI's transaction processor at once). 1.5G was too
     # tight — OOM-killed mid-load on a fresh deploy.
@@ -192,6 +207,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - USE_REDIS_CACHE=true
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
+      - HAPI_ADMIN_TOKEN=${HAPI_ADMIN_TOKEN:-}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - SMART_BASE_URL=${SMART_BASE_URL:-http://localhost:8000}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
@@ -230,6 +246,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - USE_REDIS_CACHE=true
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
+      - HAPI_ADMIN_TOKEN=${HAPI_ADMIN_TOKEN:-}
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DOMAIN=${DOMAIN:-localhost}
       - FRONTEND_URL=${FRONTEND_URL:-}

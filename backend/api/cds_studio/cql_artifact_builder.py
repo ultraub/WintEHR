@@ -42,6 +42,7 @@ from api.cds_hooks.cql_dev_helper import (
     rewrite_cql_library_directive,
     upload_dev_library,
 )
+from .hapi_admin import flush_cr_caches
 
 logger = logging.getLogger(__name__)
 
@@ -391,6 +392,11 @@ async def materialize_cql_service(
         "Materialized PlanDefinition for service=%s url=%s",
         service_id, plan_definition_canonical_url,
     )
+
+    # Bust the compiled-ELM/library/model caches so the next $apply picks up
+    # this Library version (especially important on stable redeploys where
+    # the canonical URL is reused across versions).
+    await flush_cr_caches()
 
     return MaterializedArtifacts(
         library_canonical_url=library_canonical_url,
