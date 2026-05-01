@@ -45,20 +45,35 @@ import {
 import ConditionBuilder from '../builders/ConditionBuilder';
 import CardDesigner from '../builders/CardDesigner';
 import DisplayConfigPanel from '../builders/DisplayConfigPanel';
+import CQLEditor from '../builders/CQLEditor';
+import PrefetchEditor from '../builders/PrefetchEditor';
 import CardPreviewPanel from '../preview/CardPreviewPanel';
 import ServiceTester from '../testing/ServiceTester';
 import { SERVICE_TYPES } from '../../types/serviceTypes';
+import cdsStudioApi from '../../services/cdsStudioApi';
 import { useAuth } from '../../../../contexts/AuthContext';
 import axios from 'axios';
 
+const CQL_SERVICE_TYPE = 'cql-based';
+
+// Step 1 label varies by service type — `renderConditionBuilder` renders
+// either ConditionBuilder (visual) or CQLEditor (CQL). The step list itself
+// uses a single neutral label so the stepper looks the same for both paths.
 const steps = [
   'Service Configuration',
-  'Build Conditions',
+  'Build Logic',
   'Design Card',
   'Configure Display',
+  'Prefetch',
   'Test Service',
   'Review & Deploy'
 ];
+
+// Step indices — referenced by validateCurrentStep, renderStepContent, and
+// the auto-save trigger in handleNext.
+const STEP_PREFETCH = 4;
+const STEP_TEST = 5;
+const STEP_REVIEW = 6;
 
 /**
  * Visual Builder Wizard Component
@@ -85,6 +100,9 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
         conditions: []
       }
     ],
+    // CQL services store their logic here instead of in `conditions`. The
+    // backend dispatcher reads `service_type` to decide which path runs.
+    cql_source: '',
     card: {
       summary: '',
       detail: '',
@@ -105,6 +123,7 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
   });
 
   const [savedServiceId, setSavedServiceId] = useState(null);
+  const isCQLService = serviceConfig.service_type === CQL_SERVICE_TYPE;
 
   /**
    * Format error messages for display
@@ -143,8 +162,11 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
 
     setError(null);
 
-    // Save draft before moving to testing/review steps
-    if (activeStep === 3 && !savedServiceId) {
+    // Save draft before moving to test/review. We save right BEFORE the
+    // test step so the testing UI has a real backend service to invoke,
+    // and so the FHIR-preview tab in the CQL editor can fetch the
+    // generated Library + PlanDefinition.
+    if (activeStep === STEP_PREFETCH && !savedServiceId) {
       await handleSaveDraft();
     }
 
@@ -167,8 +189,18 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
         }
         break;
 
-      case 1: // Conditions
-        if (serviceConfig.conditions.length === 0) {
+      case 1: // Build Logic — fork on service type
+        if (isCQLService) {
+          if (!serviceConfig.cql_source || !serviceConfig.cql_source.trim()) {
+            return { valid: false, error: 'CQL is required for cql-based services' };
+          }
+          if (!/define\s+Applicability\s*:/m.test(serviceConfig.cql_source)) {
+            return {
+              valid: false,
+              error: 'Your CQL must define Applicability — a Boolean expression that decides when the card fires.',
+            };
+          }
+        } else if (serviceConfig.conditions.length === 0) {
           return { valid: false, error: 'At least one condition is required' };
         }
         break;
@@ -183,11 +215,15 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
         // Display config has defaults, always valid
         break;
 
-      case 4: // Testing
+      case 4: // Prefetch
+        // Optional — empty prefetch is valid (services that only need patient context)
+        break;
+
+      case 5: // Testing
         // Testing is optional but recommended
         break;
 
-      case 5: // Review
+      case 6: // Review
         // Final validation before deployment
         break;
 
@@ -260,6 +296,7 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
       category: 'preventive-care',
       hook_type: 'patient-view',
       conditions: [],
+      cql_source: '',
       card: {
         summary: '',
         detail: '',
@@ -295,14 +332,26 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
         return renderCardDesigner();
       case 3:
         return renderDisplayConfiguration();
-      case 4:
+      case STEP_PREFETCH:
+        return renderPrefetch();
+      case STEP_TEST:
         return renderServiceTesting();
-      case 5:
+      case STEP_REVIEW:
         return renderReviewAndDeploy();
       default:
         return null;
     }
   };
+
+  const renderPrefetch = () => (
+    <PrefetchEditor
+      value={serviceConfig.prefetch || {}}
+      onChange={(prefetch) => setServiceConfig({ ...serviceConfig, prefetch })}
+      // Pass cqlSource only for CQL services so the "Re-derive" button
+      // appears; visual services don't have it.
+      cqlSource={isCQLService ? serviceConfig.cql_source : undefined}
+    />
+  );
 
   const renderServiceConfiguration = () => (
     <Box>
@@ -357,9 +406,14 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
               onChange={(e) => setServiceConfig({ ...serviceConfig, service_type: e.target.value })}
               label="Service Type"
             >
-              {Object.keys(SERVICE_TYPES).map(type => (
-                <MenuItem key={type} value={type}>
-                  {SERVICE_TYPES[type].label}
+              {/* Use the service type's `id` (kebab-case) as the value so it
+                  matches what the backend expects. The previous code used the
+                  JS object key (UPPER_SNAKE_CASE), which the backend silently
+                  accepted but mis-routed dispatch. */}
+              {Object.keys(SERVICE_TYPES).map(typeKey => (
+                <MenuItem key={typeKey} value={SERVICE_TYPES[typeKey].id}>
+                  {SERVICE_TYPES[typeKey].icon ? `${SERVICE_TYPES[typeKey].icon} ` : ''}
+                  {SERVICE_TYPES[typeKey].label}
                 </MenuItem>
               ))}
             </Select>
@@ -401,22 +455,51 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
     </Box>
   );
 
-  const renderConditionBuilder = () => (
-    <Box>
-      <Typography variant="h6" gutterBottom>
-        Build Conditions
-      </Typography>
-      <Typography variant="body2" color="text.secondary" paragraph>
-        Define when this CDS service should trigger
-      </Typography>
+  const renderConditionBuilder = () => {
+    if (isCQLService) {
+      return (
+        <Box>
+          <Typography variant="h6" gutterBottom>
+            Write CQL
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            Author your rule in Clinical Quality Language. The bridge generates
+            a FHIR Library and PlanDefinition behind the scenes; HAPI evaluates
+            them via the <code>$apply</code> operation when the hook fires.
+          </Typography>
 
-      <ConditionBuilder
-        serviceType={serviceConfig.service_type}
-        conditions={serviceConfig.conditions}
-        onChange={(conditions) => setServiceConfig({ ...serviceConfig, conditions })}
-      />
-    </Box>
-  );
+          <CQLEditor
+            value={serviceConfig.cql_source}
+            onChange={(cql) => setServiceConfig({ ...serviceConfig, cql_source: cql })}
+            // The editor renders its own ValueSet Composer modal when
+            // `onOpenValueSetComposer` isn't provided. Override here only
+            // if a different host wants to control the modal externally.
+            onLoadFHIRPreview={async () => {
+              if (!savedServiceId) return null;
+              return cdsStudioApi.getServiceFHIRPreview(serviceConfig.service_id);
+            }}
+          />
+        </Box>
+      );
+    }
+
+    return (
+      <Box>
+        <Typography variant="h6" gutterBottom>
+          Build Conditions
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          Define when this CDS service should trigger
+        </Typography>
+
+        <ConditionBuilder
+          serviceType={serviceConfig.service_type}
+          conditions={serviceConfig.conditions}
+          onChange={(conditions) => setServiceConfig({ ...serviceConfig, conditions })}
+        />
+      </Box>
+    );
+  };
 
   const renderCardDesigner = () => (
     <Box>
@@ -531,15 +614,30 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
           </Grid>
           <Grid item xs={12} sm={4}>
             <Typography variant="caption" color="text.secondary">Service Type</Typography>
-            <Typography variant="body2">{SERVICE_TYPES[serviceConfig.service_type]?.label}</Typography>
+            {/* SERVICE_TYPES is keyed by UPPER_SNAKE_CASE; serviceConfig.service_type
+                is kebab-case ids — find the matching entry by id. */}
+            <Typography variant="body2">
+              {Object.values(SERVICE_TYPES).find((t) => t.id === serviceConfig.service_type)?.label
+                || serviceConfig.service_type}
+            </Typography>
           </Grid>
           <Grid item xs={12} sm={4}>
             <Typography variant="caption" color="text.secondary">Hook Type</Typography>
             <Typography variant="body2">{serviceConfig.hook_type}</Typography>
           </Grid>
           <Grid item xs={12} sm={4}>
-            <Typography variant="caption" color="text.secondary">Conditions</Typography>
-            <Typography variant="body2">{serviceConfig.conditions.length} condition(s)</Typography>
+            <Typography variant="caption" color="text.secondary">Logic</Typography>
+            <Typography variant="body2">
+              {isCQLService
+                ? `CQL (${(serviceConfig.cql_source || '').split('\n').length} lines)`
+                : `${serviceConfig.conditions.length} condition(s)`}
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <Typography variant="caption" color="text.secondary">Prefetch</Typography>
+            <Typography variant="body2">
+              {Object.keys(serviceConfig.prefetch || {}).length} template(s)
+            </Typography>
           </Grid>
         </Grid>
       </Paper>

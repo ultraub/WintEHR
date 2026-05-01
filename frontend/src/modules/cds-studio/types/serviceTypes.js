@@ -301,6 +301,32 @@ export const SERVICE_TYPES = {
       'Create follow-up task for abnormal result',
       'Generate discharge instructions'
     ]
+  },
+
+  CQL_BASED: {
+    id: 'cql-based',
+    label: 'Custom CQL Rule',
+    description: 'Author rules in Clinical Quality Language; HAPI evaluates via $apply',
+    icon: '📝',
+    hookTypes: ['patient-view', 'medication-prescribe', 'order-select', 'encounter-start'],
+    defaultHook: 'patient-view',
+
+    // CQL services don't use the visual condition tree — logic lives in the
+    // CQL `Applicability` define (gates whether the card fires) plus optional
+    // `CardSummary` / `CardDetail` defines (substituted into card text via
+    // PlanDefinition.action.dynamicValue at runtime).
+    schema: {
+      cqlAuthoring: true,
+      requiredDefines: ['Applicability'],
+      optionalDefines: ['CardSummary', 'CardDetail'],
+      recommendedDataSources: [] // CQL declares its own data needs
+    },
+
+    examples: [
+      'Use student-composed ValueSets for screening logic',
+      'Date arithmetic and temporal conditions',
+      'Reusable defines shared across rules'
+    ]
   }
 };
 
@@ -385,6 +411,14 @@ export function getDefaultCardTemplate(typeId) {
       summary: 'Workflow action recommended',
       detail: '',
       indicator: 'info',
+      suggestions: [],
+      links: []
+    },
+    'cql-based': {
+      summary: 'CDS recommendation',
+      detail: '(Personalized text comes from the `CardSummary` / `CardDetail` CQL defines if present)',
+      indicator: 'info',
+      source: { label: 'Custom CQL Rule' },
       suggestions: [],
       links: []
     }

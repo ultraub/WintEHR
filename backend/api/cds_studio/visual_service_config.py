@@ -35,6 +35,11 @@ class ServiceType(str, Enum):
 
     Note: This enum is for documentation only. The actual database field
     is VARCHAR(100) and accepts any string value for flexibility.
+
+    `cql-based` services are authored as CQL text + ValueSet references and
+    executed via HAPI's PlanDefinition/$apply (see api.cds_hooks.cql_bridge);
+    all other types use the JSON condition tree interpreted by
+    api.cds_studio.visual_service_provider.VisualServiceProvider.
     """
     CONDITION_BASED = "condition-based"
     MEDICATION_BASED = "medication-based"
@@ -43,6 +48,17 @@ class ServiceType(str, Enum):
     RISK_ASSESSMENT = "risk-assessment"
     WORKFLOW_AUTOMATION = "workflow-automation"
     GENERAL = "general"
+    CQL_BASED = "cql-based"
+
+
+# Service types that store their logic as CQL rather than a condition tree.
+# Centralized so we don't sprinkle string literals across the dispatch + save paths.
+CQL_SERVICE_TYPES: frozenset[str] = frozenset({ServiceType.CQL_BASED.value})
+
+
+def is_cql_service_type(service_type: Optional[str]) -> bool:
+    """Return True iff the given service_type uses CQL execution."""
+    return service_type in CQL_SERVICE_TYPES
 
 
 class VisualServiceConfig(Base):
@@ -84,6 +100,14 @@ class VisualServiceConfig(Base):
     display_config = Column(JSON, nullable=False, server_default='{}')  # Display behavior settings
     prefetch_config = Column(JSON, nullable=True, server_default='{}', name='prefetch_config')  # DB column: prefetch_config
 
+    # CQL authoring path (service_type='cql-based').
+    # cql_source holds the student-authored CQL text. On save it is uploaded to
+    # HAPI as a Library via the dev helper (content-hash naming during draft,
+    # stable canonical URL on deploy) paired with a wrapper PlanDefinition.
+    cql_source = Column(Text, nullable=True)
+    library_canonical_url = Column(String(500), nullable=True)
+    plan_definition_canonical_url = Column(String(500), nullable=True)
+
     # Generated code
     generated_code = Column(Text, nullable=True)
     code_hash = Column(String(64), nullable=True)
@@ -110,6 +134,39 @@ class VisualServiceConfig(Base):
 
     def __repr__(self):
         return f"<VisualServiceConfig(id={self.id}, service_id={self.service_id}, status={self.status})>"
+
+
+class VisualValueSet(Base):
+    """Database model for student-authored ValueSets.
+
+    Each row mirrors a real FHIR ValueSet stored in HAPI; we keep metadata
+    locally for fast list/search and to know which ValueSets are
+    student-authored vs. system terminology (the `wintehr-*` set loaded by
+    `scripts/load_terminology.py`).
+
+    Maps to cds_visual_builder.value_sets — see postgres-init/06_cds_visual_builder.sql.
+    """
+    __tablename__ = "value_sets"
+    __table_args__ = {'schema': 'cds_visual_builder'}
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    vs_id = Column(String(255), unique=True, nullable=False, index=True)
+    name = Column(String(500), nullable=False)
+    title = Column(String(500), nullable=True)
+    description = Column(Text, nullable=True)
+
+    hapi_canonical_url = Column(String(500), nullable=False)
+
+    # Cached code list: [{system, code, display}]
+    codes = Column(JSON, nullable=False, server_default='[]')
+
+    created_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default='now()', nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default='now()', nullable=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<VisualValueSet(id={self.id}, vs_id={self.vs_id}, codes={len(self.codes or [])})>"
 
 
 # Pydantic models for API validation
@@ -187,7 +244,16 @@ class DisplayConfiguration(BaseModel):
 
 
 class VisualServiceConfigCreate(BaseModel):
-    """Request model for creating a visual service configuration"""
+    """Request model for creating a visual service configuration
+
+    For ``service_type == 'cql-based'`` services, ``cql_source`` is required
+    and ``conditions`` may be an empty list (the visual condition tree is not
+    used). The CQL must declare a ``define`` named ``Applicability`` returning
+    a Boolean — that's the gate the bridge wires into PlanDefinition.action.condition.
+    Optional defines ``CardSummary`` and ``CardDetail`` (returning strings) are
+    auto-detected and bound to action.title / action.description via
+    ``dynamicValue`` so cards can be personalized.
+    """
     service_id: str = Field(..., description="Unique service identifier")
     name: str = Field(..., description="Human-readable service name", max_length=500)
     description: Optional[str] = Field(None, description="Service description")
@@ -196,10 +262,17 @@ class VisualServiceConfigCreate(BaseModel):
     # Note: template_id removed - not in database schema
     hook_type: str = Field(..., description="CDS Hook type", max_length=100)
 
-    conditions: List[ConditionGroup] = Field(..., description="Service conditions")
+    conditions: List[ConditionGroup] = Field(
+        default_factory=list,
+        description="Service conditions (empty for cql-based services)",
+    )
     card_config: CardConfiguration = Field(..., description="Card configuration", alias="card")  # Renamed to match DB
     display_config: DisplayConfiguration = Field(..., description="Display configuration")
     prefetch_config: Optional[Dict[str, str]] = Field(None, description="FHIR prefetch templates", alias="prefetch")  # Renamed to match DB
+
+    # CQL authoring fields. cql_source is required for service_type='cql-based';
+    # the create endpoint enforces this and rejects requests that mix paths.
+    cql_source: Optional[str] = Field(None, description="CQL text (required for cql-based)")
 
     created_by: Optional[str] = Field(None, description="User who created this", max_length=255)  # Made optional
 
@@ -219,6 +292,9 @@ class VisualServiceConfigUpdate(BaseModel):
     card_config: Optional[CardConfiguration] = Field(None, alias="card")  # Renamed to match DB
     display_config: Optional[DisplayConfiguration] = None
     prefetch_config: Optional[Dict[str, str]] = Field(None, alias="prefetch")  # Renamed to match DB
+
+    # CQL update — when present, the save flow re-uploads the Library to HAPI.
+    cql_source: Optional[str] = None
 
     status: Optional[str] = Field(None, max_length=50)  # Changed from enum to str
 
@@ -244,6 +320,11 @@ class VisualServiceConfigResponse(BaseModel):
     card_config: Dict[str, Any]  # Matches DB column name
     display_config: Dict[str, Any]
     prefetch_config: Optional[Dict[str, str]]  # Matches DB column name
+
+    # CQL fields — populated for service_type='cql-based'
+    cql_source: Optional[str] = None
+    library_canonical_url: Optional[str] = None
+    plan_definition_canonical_url: Optional[str] = None
 
     generated_code: Optional[str]
     code_hash: Optional[str]

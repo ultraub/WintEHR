@@ -12,11 +12,13 @@ Architecture:
 """
 
 from .base_provider import BaseServiceProvider
+from .cql_backed_provider import CQLBackedServiceProvider
 from .local_provider import LocalServiceProvider
 from .remote_provider import RemoteServiceProvider
 
 __all__ = [
     "BaseServiceProvider",
+    "CQLBackedServiceProvider",
     "LocalServiceProvider",
-    "RemoteServiceProvider"
+    "RemoteServiceProvider",
 ]

@@ -517,7 +517,11 @@ async def execute_service(
                 cards = response.cards
 
             elif service_origin == "visual-builder":
-                # Use VisualServiceProvider for visual builder services
+                # Visual-builder services come in two flavors:
+                #   - service_type='cql-based'   → CQLBackedServiceProvider ($apply)
+                #   - everything else (condition-based, …) → VisualServiceProvider
+                # The discriminator is on the VisualServiceConfig row, not the
+                # PlanDefinition extensions, so we always load it first.
                 visual_service_id = _extract_extension_value(
                     plan_definition,
                     "http://wintehr.local/fhir/StructureDefinition/visual-service-id"
@@ -527,7 +531,7 @@ async def execute_service(
                     logger.error(f"Visual service {service_id} missing visual-service-id extension")
                     raise HTTPException(status_code=500, detail="Invalid visual service configuration")
 
-                from api.cds_studio.visual_service_config import VisualServiceConfig
+                from api.cds_studio.visual_service_config import VisualServiceConfig, is_cql_service_type
                 from sqlalchemy import select
 
                 query = select(VisualServiceConfig).where(
@@ -540,14 +544,29 @@ async def execute_service(
                     logger.error(f"Visual service configuration not found: {visual_service_id}")
                     raise HTTPException(status_code=500, detail="Visual service not configured")
 
-                from api.cds_studio.visual_service_provider import VisualServiceProvider
-                provider = VisualServiceProvider(db)
-                response = await provider.execute(
-                    visual_config,
-                    request,
-                    plan_definition
-                )
-                cards = response.cards
+                if is_cql_service_type(visual_config.service_type):
+                    # CQL-based: hand off to the bridge.
+                    from .providers import CQLBackedServiceProvider
+                    provider = CQLBackedServiceProvider(db)
+                    response = await provider.execute(
+                        plan_definition,
+                        request,
+                        service_metadata={
+                            "name": visual_config.name,
+                            "service_id": visual_config.service_id,
+                            "id": visual_config.id,
+                        },
+                    )
+                    cards = response.cards
+                else:
+                    from api.cds_studio.visual_service_provider import VisualServiceProvider
+                    provider = VisualServiceProvider(db)
+                    response = await provider.execute(
+                        visual_config,
+                        request,
+                        plan_definition
+                    )
+                    cards = response.cards
 
             else:
                 # For built-in services found in HAPI but not in registry (legacy)

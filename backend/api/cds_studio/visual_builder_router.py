@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func, text
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+from pydantic import BaseModel, Field
 import logging
 import uuid
 import json
@@ -36,8 +37,16 @@ from .visual_service_config import (
     ServiceTestRequest,
     ServiceTestResponse,
     ServiceAnalytics,
-    validate_condition_structure
+    is_cql_service_type,
+    validate_condition_structure,
 )
+from .cql_artifact_builder import (
+    APPLICABILITY_DEFINE,
+    build_plan_definition,
+    detect_cql_defines,
+    materialize_cql_service,
+)
+from api.cds_hooks.cql_bridge import CQLBridge, get_cql_bridge
 from api.cds_hooks.external_service_models import (
     ExternalServiceRegistration,
     ExternalServiceResponse
@@ -77,35 +86,57 @@ async def create_visual_service(
     - Returns created configuration
     """
     try:
-        # Validate condition structure
-        # Convert Pydantic models to dicts for validation
+        cql_mode = is_cql_service_type(config.service_type)
         conditions_as_dicts = [c.dict() if hasattr(c, 'dict') else c for c in config.conditions]
-        is_valid, errors = validate_condition_structure(conditions_as_dicts)
-        if not is_valid:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid condition structure: {', '.join(errors)}"
+
+        if cql_mode:
+            # CQL path: cql_source is required, condition tree must be empty.
+            if not config.cql_source or not config.cql_source.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="cql_source is required when service_type is 'cql-based'",
+                )
+            detected = detect_cql_defines(config.cql_source)
+            if APPLICABILITY_DEFINE not in detected:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"CQL is missing a `define {APPLICABILITY_DEFINE}:` "
+                        "boolean expression. Every CQL service needs an "
+                        "applicability gate that decides when to fire."
+                    ),
+                )
+            # No condition-tree validation, no Python codegen for CQL services.
+            generated_code = None
+            code_hash = None
+        else:
+            # Visual path: validate the condition tree and generate the Python
+            # reference implementation.
+            is_valid, errors = validate_condition_structure(conditions_as_dicts)
+            if not is_valid:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid condition structure: {', '.join(errors)}"
+                )
+
+            service_config_dict = {
+                "service_type": config.service_type,
+                "hook_type": config.hook_type,
+                "name": config.name,
+                "description": config.description,
+                "conditions": conditions_as_dicts,
+                "card": config.card_config.dict() if hasattr(config.card_config, 'dict') else config.card_config,
+                "display_config": config.display_config.dict() if hasattr(config.display_config, 'dict') else config.display_config,
+                "prefetch": config.prefetch_config or {}
+            }
+
+            generated_code = generator.generate_service_code(
+                config.service_id,
+                service_config_dict
             )
+            code_hash = generator.generate_code_hash(generated_code)
 
-        # Generate Python code from visual configuration
-        service_config_dict = {
-            "service_type": config.service_type,
-            "hook_type": config.hook_type,
-            "name": config.name,
-            "description": config.description,
-            "conditions": [c.dict() if hasattr(c, 'dict') else c for c in config.conditions],
-            "card": config.card_config.dict() if hasattr(config.card_config, 'dict') else config.card_config,
-            "display_config": config.display_config.dict() if hasattr(config.display_config, 'dict') else config.display_config,
-            "prefetch": config.prefetch_config or {}
-        }
-
-        generated_code = generator.generate_service_code(
-            config.service_id,
-            service_config_dict
-        )
-        code_hash = generator.generate_code_hash(generated_code)
-
-        # Create database record
+        # Create database record (CQL fields filled in below after HAPI upload)
         visual_service = VisualServiceConfig(
             service_id=config.service_id,
             name=config.name,
@@ -113,10 +144,11 @@ async def create_visual_service(
             service_type=config.service_type,
             category=config.category,
             hook_type=config.hook_type,
-            conditions=[c.dict() if hasattr(c, 'dict') else c for c in config.conditions],
+            conditions=conditions_as_dicts,
             card_config=config.card_config.dict() if hasattr(config.card_config, 'dict') else config.card_config,
             display_config=config.display_config.dict() if hasattr(config.display_config, 'dict') else config.display_config,
             prefetch_config=config.prefetch_config,
+            cql_source=config.cql_source if cql_mode else None,
             generated_code=generated_code,
             code_hash=code_hash,
             status='DRAFT',
@@ -126,6 +158,36 @@ async def create_visual_service(
         db.add(visual_service)
         await db.commit()
         await db.refresh(visual_service)
+
+        # For CQL services, materialize FHIR Library + PlanDefinition in HAPI
+        # so the runtime dispatcher can call $apply against them. Failures here
+        # surface to the user — the service config is rolled back so we never
+        # leave behind a CQL row without the corresponding HAPI artifacts.
+        if cql_mode:
+            try:
+                artifacts = await materialize_cql_service(
+                    service_id=config.service_id,
+                    name=config.name,
+                    description=config.description,
+                    hook_type=config.hook_type,
+                    cql_source=config.cql_source,
+                    card_config=visual_service.card_config,
+                    prefetch_config=config.prefetch_config,
+                    visual_service_db_id=visual_service.id,
+                )
+            except Exception as exc:
+                # Roll back the DB row so the user can retry without orphaning.
+                await db.delete(visual_service)
+                await db.commit()
+                logger.error("CQL materialization failed for %s: %s", config.service_id, exc)
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Failed to upload CQL artifacts to HAPI: {exc}",
+                )
+            visual_service.library_canonical_url = artifacts.library_canonical_url
+            visual_service.plan_definition_canonical_url = artifacts.plan_definition_canonical_url
+            await db.commit()
+            await db.refresh(visual_service)
 
         logger.info(f"Created visual service: {config.service_id} by {config.created_by}")
 
@@ -263,19 +325,23 @@ async def update_visual_service(
                 detail=f"Visual service '{service_id}' not found"
             )
 
-        # Track if code regeneration is needed
+        # Track whether we need to regenerate the Python code (visual path) or
+        # re-materialize the FHIR Library + PlanDefinition (CQL path).
         needs_code_regen = False
+        needs_cql_rematerialize = False
 
-        # Apply updates
         if update.name is not None:
             service.name = update.name
+            needs_cql_rematerialize = True  # PlanDefinition.title
 
         if update.description is not None:
             service.description = update.description
+            needs_cql_rematerialize = True
 
         if update.service_type is not None:
             service.service_type = update.service_type
             needs_code_regen = True
+            needs_cql_rematerialize = True
 
         if update.category is not None:
             service.category = update.category
@@ -283,9 +349,10 @@ async def update_visual_service(
         if update.hook_type is not None:
             service.hook_type = update.hook_type
             needs_code_regen = True
+            needs_cql_rematerialize = True  # PlanDefinition.action.trigger
 
-        if update.conditions is not None:
-            # Validate new conditions (convert to dicts first)
+        if update.conditions is not None and not is_cql_service_type(service.service_type):
+            # Visual path only — CQL services don't use the condition tree.
             conditions_as_dicts = [c.dict() if hasattr(c, 'dict') else c for c in update.conditions]
             is_valid, errors = validate_condition_structure(conditions_as_dicts)
             if not is_valid:
@@ -299,6 +366,7 @@ async def update_visual_service(
         if update.card_config is not None:
             service.card_config = update.card_config.dict() if hasattr(update.card_config, 'dict') else update.card_config
             needs_code_regen = True
+            needs_cql_rematerialize = True  # action.title / description / priority
 
         if update.display_config is not None:
             service.display_config = update.display_config.dict() if hasattr(update.display_config, 'dict') else update.display_config
@@ -306,12 +374,31 @@ async def update_visual_service(
         if update.prefetch_config is not None:
             service.prefetch_config = update.prefetch_config
             needs_code_regen = True
+            needs_cql_rematerialize = True  # prefetch extension on PlanDefinition
+
+        if update.cql_source is not None:
+            if not is_cql_service_type(service.service_type):
+                raise HTTPException(
+                    status_code=400,
+                    detail="cql_source can only be set on cql-based services",
+                )
+            detected = detect_cql_defines(update.cql_source)
+            if APPLICABILITY_DEFINE not in detected:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"CQL is missing a `define {APPLICABILITY_DEFINE}:` "
+                        "boolean expression."
+                    ),
+                )
+            service.cql_source = update.cql_source
+            needs_cql_rematerialize = True
 
         if update.status is not None:
             service.status = update.status
 
-        # Regenerate code if needed
-        if needs_code_regen:
+        # Regenerate Python code (visual path) — skipped for CQL since it has none.
+        if needs_code_regen and not is_cql_service_type(service.service_type):
             service_config_dict = {
                 "service_type": service.service_type,
                 "hook_type": service.hook_type,
@@ -332,13 +419,35 @@ async def update_visual_service(
             service.generated_code = generated_code
             service.code_hash = code_hash
 
+        # Re-upload Library + re-PUT PlanDefinition for CQL services.
+        if needs_cql_rematerialize and is_cql_service_type(service.service_type) and service.cql_source:
+            try:
+                artifacts = await materialize_cql_service(
+                    service_id=service.service_id,
+                    name=service.name,
+                    description=service.description,
+                    hook_type=service.hook_type,
+                    cql_source=service.cql_source,
+                    card_config=service.card_config,
+                    prefetch_config=service.prefetch_config,
+                    visual_service_db_id=service.id,
+                )
+            except Exception as exc:
+                logger.error("CQL re-materialization failed for %s: %s", service_id, exc)
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Failed to update CQL artifacts in HAPI: {exc}",
+                )
+            service.library_canonical_url = artifacts.library_canonical_url
+            service.plan_definition_canonical_url = artifacts.plan_definition_canonical_url
+
         # Update metadata (updated_at is automatically set by database)
         service.updated_at = datetime.utcnow()
 
         await db.commit()
         await db.refresh(service)
 
-        logger.info(f"Updated visual service: {service_id} by {update.updated_by}")
+        logger.info("Updated visual service: %s", service_id)
 
         return service
 
@@ -585,22 +694,51 @@ async def test_visual_service(
         cards = []
 
         try:
-            # Execute via VisualServiceProvider (evaluates conditions against real FHIR data)
-            from .visual_service_provider import VisualServiceProvider
+            if is_cql_service_type(service.service_type):
+                # CQL services run through the bridge — same path the dispatcher uses.
+                if not service.plan_definition_canonical_url:
+                    raise RuntimeError(
+                        "CQL service has no PlanDefinition URL — re-save the draft to materialize it."
+                    )
+                bridge = CQLBridge()
+                # The bridge's apply() takes a PlanDefinition id, not URL —
+                # extract the id from the canonical URL we stored on save.
+                pd_id = service.plan_definition_canonical_url.rsplit("/", 1)[-1]
+                apply_result = await bridge.apply(
+                    pd_id,
+                    subject_ref=f"Patient/{test_request.patient_id}",
+                    source_label=service.name or service.service_id,
+                )
+                for card in apply_result.cards:
+                    cards.append(card.dict() if hasattr(card, "dict") else card)
+                # Surface OperationOutcome warnings to the test panel — useful
+                # for catching "Could not resolve identifier X" errors that
+                # don't fail $apply but indicate broken dynamicValue refs.
+                for issue in apply_result.warnings:
+                    if issue.severity in ("fatal", "error"):
+                        errors.append(f"[{issue.severity}] {issue.diagnostics}")
+                    else:
+                        warnings.append(f"[{issue.severity}] {issue.diagnostics}")
+                if not apply_result.cards and not errors:
+                    warnings.append(
+                        "$apply returned no cards — Applicability evaluated false for this patient."
+                    )
+            else:
+                # Visual condition tree — existing path.
+                from .visual_service_provider import VisualServiceProvider
 
-            provider = VisualServiceProvider(db)
-            response = await provider.execute(
-                visual_config=service,
-                request=cds_request,
-                plan_definition={}  # Not needed for direct test execution
-            )
+                provider = VisualServiceProvider(db)
+                response = await provider.execute(
+                    visual_config=service,
+                    request=cds_request,
+                    plan_definition={}  # Not needed for direct test execution
+                )
 
-            # Convert Card pydantic models to dicts for ServiceTestResponse
-            for card in response.cards:
-                cards.append(card.dict() if hasattr(card, 'dict') else card)
+                for card in response.cards:
+                    cards.append(card.dict() if hasattr(card, 'dict') else card)
 
-            if not response.cards:
-                warnings.append("No cards generated - conditions may not be met for this patient")
+                if not response.cards:
+                    warnings.append("No cards generated - conditions may not be met for this patient")
 
         except Exception as e:
             errors.append(f"Execution error: {str(e)}")
@@ -675,54 +813,77 @@ async def deploy_visual_service(
                 detail=f"Visual service '{service_id}' not found"
             )
 
-        # Validate service is ready for deployment
-        if not service.generated_code:
+        cql_mode = is_cql_service_type(service.service_type)
+
+        # Validate service is ready for deployment.
+        # CQL services don't have generated_code (Python is never generated for
+        # them); their HAPI artifacts were created on save and we re-materialize
+        # at a stable canonical URL below.
+        if not cql_mode and not service.generated_code:
             raise HTTPException(
                 status_code=400,
                 detail="Service has no generated code"
             )
 
-        # Create PlanDefinition in HAPI FHIR for service registry integration
-        from services.hapi_fhir_client import HAPIFHIRClient
-        hapi_client = HAPIFHIRClient()
+        if cql_mode:
+            # Re-materialize at a stable canonical URL. Library version uses
+            # the service config's `version` (auto-incremented by the trigger
+            # on every meaningful edit) so HAPI's CR cache invalidates between
+            # deploys — no more cache-stickiness like during draft authoring.
+            library_version = f"1.0.{service.version or 0}"
+            try:
+                artifacts = await materialize_cql_service(
+                    service_id=service.service_id,
+                    name=service.name,
+                    description=service.description,
+                    hook_type=service.hook_type,
+                    cql_source=service.cql_source or "",
+                    card_config=service.card_config or {},
+                    prefetch_config=service.prefetch_config,
+                    visual_service_db_id=service.id,
+                    stable=True,
+                    library_version=library_version,
+                )
+            except Exception as exc:
+                logger.error("CQL deploy materialization failed for %s: %s", service_id, exc)
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Failed to publish CQL artifacts to HAPI: {exc}",
+                )
+            service.library_canonical_url = artifacts.library_canonical_url
+            service.plan_definition_canonical_url = artifacts.plan_definition_canonical_url
+            logger.info(
+                "Deployed CQL service %s — Library at %s (v%s)",
+                service.service_id, artifacts.library_canonical_url, library_version,
+            )
+        else:
+            # Visual condition tree — existing flow: create a metadata-only
+            # PlanDefinition in HAPI for discovery. The runtime VisualServiceProvider
+            # interprets the JSON config directly, so this PlanDefinition is just
+            # a registry entry.
+            from services.hapi_fhir_client import HAPIFHIRClient
+            hapi_client = HAPIFHIRClient()
 
-        # Build PlanDefinition resource
-        plan_definition = {
-            "resourceType": "PlanDefinition",
-            "status": "active",
-            "title": service.name,
-            "description": service.description,
-            "extension": [
-                {
-                    "url": "http://wintehr.local/fhir/StructureDefinition/service-origin",
-                    "valueString": "visual-builder"
-                },
-                {
-                    "url": "http://wintehr.local/fhir/StructureDefinition/hook-type",
-                    "valueString": service.hook_type
-                },
-                {
-                    "url": "http://wintehr.local/fhir/StructureDefinition/hook-service-id",
-                    "valueString": service.service_id
-                },
-                {
-                    "url": "http://wintehr.local/fhir/StructureDefinition/visual-service-id",
-                    "valueInteger": service.id
-                },
-                {
-                    "url": "http://wintehr.local/fhir/StructureDefinition/version",
-                    "valueString": str(service.version)
-                }
-            ]
-        }
+            plan_definition = {
+                "resourceType": "PlanDefinition",
+                "status": "active",
+                "title": service.name,
+                "description": service.description,
+                "extension": [
+                    {"url": "http://wintehr.local/fhir/StructureDefinition/service-origin", "valueString": "visual-builder"},
+                    {"url": "http://wintehr.local/fhir/StructureDefinition/hook-type", "valueString": service.hook_type},
+                    {"url": "http://wintehr.local/fhir/StructureDefinition/hook-service-id", "valueString": service.service_id},
+                    {"url": "http://wintehr.local/fhir/StructureDefinition/visual-service-id", "valueInteger": service.id},
+                    {"url": "http://wintehr.local/fhir/StructureDefinition/version", "valueString": str(service.version)},
+                ],
+            }
 
-        # Create or update PlanDefinition in HAPI FHIR
-        try:
-            created_plan = await hapi_client.create("PlanDefinition", plan_definition)
-            logger.info(f"Created PlanDefinition {created_plan.get('id')} for visual service {service.service_id}")
-        except Exception as e:
-            logger.error(f"Failed to create PlanDefinition: {e}")
-            # Continue deployment even if HAPI FHIR creation fails
+            try:
+                created_plan = await hapi_client.create("PlanDefinition", plan_definition)
+                logger.info(f"Created PlanDefinition {created_plan.get('id')} for visual service {service.service_id}")
+            except Exception as e:
+                logger.error(f"Failed to create PlanDefinition: {e}")
+                # Continue deployment even if HAPI FHIR creation fails
 
         # Update deployment status
         service.status = 'ACTIVE'
@@ -992,3 +1153,211 @@ async def register_external_service(
         await db.rollback()
         logger.error(f"Error registering external service: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to register external service: {str(e)}")
+
+
+# =============================================================================
+# CQL Authoring Endpoints (Phase 1 of student CQL feature)
+# =============================================================================
+# Three small endpoints used by the CQL editor in CDS Studio:
+#  - /cql/validate          → live syntax + reference validation via HAPI's $cql
+#  - /cql/data-requirements → derive prefetch templates from CQL via $data-requirements
+#  - /services/{id}/fhir-preview → show generated Library + PlanDefinition JSON
+
+
+class _CQLValidateRequest(BaseModel):
+    cql: str = Field(..., description="CQL expression or library text to validate")
+    subject_ref: Optional[str] = Field(
+        None,
+        description="Optional Patient/{id} reference. If omitted, syntax-only check.",
+    )
+
+
+class _CQLValidateIssue(BaseModel):
+    severity: str
+    diagnostics: Optional[str]
+
+
+class _CQLValidateResponse(BaseModel):
+    ok: bool
+    issues: List[_CQLValidateIssue]
+
+
+@router.post("/cql/validate", response_model=_CQLValidateResponse)
+async def validate_cql_text(
+    body: _CQLValidateRequest,
+    bridge: CQLBridge = Depends(get_cql_bridge),
+    current_user: User = Depends(get_current_user_or_demo),
+):
+    """Run student CQL through HAPI's `$cql` to surface compile/runtime errors.
+
+    Used by the editor to mark errors in real time. Pass `subject_ref` if the
+    CQL touches FHIR retrieves; otherwise the validator only catches purely
+    syntactic problems.
+    """
+    result = await bridge.validate_cql(body.cql, subject_ref=body.subject_ref)
+    return _CQLValidateResponse(
+        ok=result.ok,
+        issues=[
+            _CQLValidateIssue(severity=i.severity, diagnostics=i.diagnostics)
+            for i in result.issues
+        ],
+    )
+
+
+class _CQLDataReqRequest(BaseModel):
+    cql: str = Field(..., description="Full CQL library text")
+
+
+class _CQLDataReqResponse(BaseModel):
+    prefetch: Dict[str, str] = Field(
+        ..., description="CDS Hooks prefetch template, keyed by suggested name"
+    )
+    raw_data_requirements: List[Dict[str, Any]] = Field(
+        ..., description="Raw FHIR DataRequirement[] returned by HAPI"
+    )
+
+
+def _data_requirements_to_prefetch(reqs: List[Dict[str, Any]]) -> Dict[str, str]:
+    """Translate FHIR DataRequirement[] into CDS Hooks prefetch templates.
+
+    Heuristic: one entry per resource type, keyed by lowercased plural type
+    name. Code filters become `&code=<system>|<code>` clauses. We deliberately
+    keep this conservative — students can edit the result before saving.
+    """
+    out: Dict[str, str] = {}
+    if any((r.get("type") == "Patient") for r in reqs):
+        out["patient"] = "Patient/{{context.patientId}}"
+
+    plural = {
+        "Condition": "conditions",
+        "MedicationRequest": "medications",
+        "MedicationStatement": "medicationStatements",
+        "Observation": "observations",
+        "Procedure": "procedures",
+        "Encounter": "encounters",
+        "AllergyIntolerance": "allergies",
+        "Immunization": "immunizations",
+        "DiagnosticReport": "diagnosticReports",
+        "ServiceRequest": "serviceRequests",
+        "CarePlan": "carePlans",
+        "Goal": "goals",
+    }
+
+    for req in reqs:
+        rtype = req.get("type")
+        if not rtype or rtype == "Patient":
+            continue
+        key = plural.get(rtype, rtype[0].lower() + rtype[1:] + "s")
+        if key in out:
+            continue  # one prefetch per resource type, first wins
+        query = f"{rtype}?patient={{{{context.patientId}}}}"
+        # Append code filter clauses if present (best-effort; real syntax is
+        # rich and we intentionally only handle the common shape).
+        for cf in req.get("codeFilter", []) or []:
+            for coding in (cf.get("code") or []):
+                system = coding.get("system")
+                code = coding.get("code")
+                if system and code:
+                    query += f"&code={system}|{code}"
+        out[key] = query
+    return out
+
+
+@router.post("/cql/data-requirements", response_model=_CQLDataReqResponse)
+async def derive_prefetch_from_cql(
+    body: _CQLDataReqRequest,
+    bridge: CQLBridge = Depends(get_cql_bridge),
+    current_user: User = Depends(get_current_user_or_demo),
+):
+    """Upload student CQL as an ephemeral library, ask HAPI for its data needs,
+    and translate the result into CDS Hooks prefetch templates.
+
+    The ephemeral library uses content-hashed naming so repeated calls don't
+    pollute HAPI; the dev-library cleanup script ($expunge_dev_libraries.py)
+    sweeps these eventually.
+    """
+    from api.cds_hooks.cql_dev_helper import upload_dev_library
+
+    try:
+        library_id, _ = await upload_dev_library(body.cql, base_name="DataReqProbe")
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not upload CQL for analysis: {exc}",
+        )
+
+    try:
+        reqs = await bridge.derive_data_requirements(library_id)
+    except Exception as exc:
+        logger.warning("data-requirements call failed for %s: %s", library_id, exc)
+        raise HTTPException(
+            status_code=502,
+            detail=f"HAPI could not derive data requirements: {exc}",
+        )
+
+    return _CQLDataReqResponse(
+        prefetch=_data_requirements_to_prefetch(reqs),
+        raw_data_requirements=reqs,
+    )
+
+
+class _FHIRPreviewResponse(BaseModel):
+    library: Optional[Dict[str, Any]]
+    plan_definition: Dict[str, Any]
+
+
+@router.get("/services/{service_id}/fhir-preview", response_model=_FHIRPreviewResponse)
+async def get_service_fhir_preview(
+    service_id: str,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user_or_demo),
+):
+    """Show what the generated FHIR Library + PlanDefinition look like.
+
+    Used by the "Advanced" tab in the CQL editor. Computed from the stored
+    config — does not call HAPI. For visual-only services we skip the Library
+    and only return the PlanDefinition shape.
+    """
+    query = select(VisualServiceConfig).where(VisualServiceConfig.service_id == service_id)
+    result = await db.execute(query)
+    service = result.scalar_one_or_none()
+
+    if not service:
+        raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
+
+    if not is_cql_service_type(service.service_type):
+        raise HTTPException(
+            status_code=400,
+            detail="FHIR preview is only available for cql-based services",
+        )
+
+    cql = service.cql_source or ""
+    detected = detect_cql_defines(cql)
+
+    library_resource: Optional[Dict[str, Any]] = None
+    if cql:
+        from api.cds_hooks.cql_dev_helper import build_dev_library_resource
+        library_resource = build_dev_library_resource(
+            cql, base_name=f"Draft{service_id.replace('-', '_').title().replace('_', '')}"
+        )
+
+    library_canonical_url = service.library_canonical_url or (
+        library_resource["url"] if library_resource else ""
+    )
+
+    plan_definition = build_plan_definition(
+        service_id=service.service_id,
+        name=service.name,
+        description=service.description,
+        hook_type=service.hook_type,
+        library_canonical_url=library_canonical_url,
+        card_config=service.card_config or {},
+        prefetch_config=service.prefetch_config,
+        detected_defines=detected,
+        visual_service_db_id=service.id,
+    )
+
+    return _FHIRPreviewResponse(
+        library=library_resource,
+        plan_definition=plan_definition,
+    )
