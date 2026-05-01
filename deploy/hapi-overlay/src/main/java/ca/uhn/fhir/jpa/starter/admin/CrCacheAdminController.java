@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import ca.uhn.fhir.jpa.api.svc.ITermReadSvc;
 import org.opencds.cqf.fhir.cql.EvaluationSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,15 +24,24 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 /**
  * Tiny admin surface for the cqf-fhir-cr in-memory caches.
  *
- * <p>cqf-fhir-cr-hapi caches compiled CQL ELM and ValueSet expansions in
- * JVM memory keyed by Library/ValueSet identifier (see {@link
- * EvaluationSettings#getValueSetCache()}, {@code getLibraryCache()}, {@code
- * getModelCache()}). The {@code CodeCacheResourceChangeListener} that
- * cqframework added in clinical-reasoning v3.28.0 is supposed to invalidate
- * these on PUT, but in our deployment the listener bean does not register
- * (no startup log line, no invalidation traces) for reasons we couldn't
- * pinpoint from outside the JVM. As a consequence, student edits to a
- * ValueSet weren't reflected in CQL retrieves until a full HAPI restart.
+ * <p>The CR engine reads ValueSet expansions through two layers, both of
+ * which we have to clear:
+ * <ol>
+ * <li>cqf-fhir-cr's in-memory caches on {@link EvaluationSettings} —
+ *     compiled CQL ELM, ValueSet expansion, model cache.</li>
+ * <li>HAPI's own {@link ITermReadSvc} Caffeine cache — used by the
+ *     terminology operations and {@code code:in=<canonical>} search
+ *     resolution that the engine emits for retrieves like
+ *     {@code [Condition: "Targeted"]}.</li>
+ * </ol>
+ *
+ * <p>The {@code CodeCacheResourceChangeListener} that cqframework added
+ * in clinical-reasoning v3.28.0 is supposed to invalidate (1) on PUT, but
+ * in our deployment that listener bean does not register (no startup log
+ * line, no invalidation traces) for reasons we couldn't pinpoint from
+ * outside the JVM. (2) is independent of cqf and isn't touched by that
+ * listener at all. Student edits to a ValueSet weren't reflected in CQL
+ * retrieves until a full HAPI restart.
  *
  * <p>This controller exposes the same {@code .clear()} call the
  * out-of-process listener would have triggered, gated by a bearer token so
@@ -47,10 +57,13 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class CrCacheAdminController {
 
     private final EvaluationSettings evaluationSettings;
+    private final ITermReadSvc termReadSvc;
 
     @Autowired
-    public CrCacheAdminController(EvaluationSettings evaluationSettings) {
+    public CrCacheAdminController(
+            EvaluationSettings evaluationSettings, ITermReadSvc termReadSvc) {
         this.evaluationSettings = evaluationSettings;
+        this.termReadSvc = termReadSvc;
     }
 
     /**
@@ -85,6 +98,22 @@ public class CrCacheAdminController {
         evaluationSettings.getValueSetCache().clear();
         evaluationSettings.getLibraryCache().clear();
         evaluationSettings.getModelCache().clear();
+
+        // HAPI's terminology service caches ValueSet expansions in its own
+        // Caffeine cache (separate from cqf-fhir-cr's caches above), and the
+        // CR engine reads `code:in=<canonical>` searches through that path.
+        // Without this invalidation, a ValueSet edit doesn't affect what
+        // $apply sees on the next call — empirically confirmed by the
+        // round-trip integration test.
+        try {
+            termReadSvc.invalidateCaches();
+            body.put("termReadSvcInvalidated", true);
+        } catch (Exception e) {
+            // Don't fail the whole flush if the term svc call throws — the
+            // cqf caches are already cleared, which covers some scenarios.
+            body.put("termReadSvcInvalidated", false);
+            body.put("termReadSvcError", e.getMessage());
+        }
 
         return ResponseEntity.ok(body);
     }
