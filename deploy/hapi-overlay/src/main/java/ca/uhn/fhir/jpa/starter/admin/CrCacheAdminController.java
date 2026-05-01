@@ -8,7 +8,7 @@ import java.util.Map;
 import org.opencds.cqf.fhir.cql.EvaluationSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -43,7 +43,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  */
 @RestController
 @RequestMapping("/admin/cr")
-@ConditionalOnBean(EvaluationSettings.class)
+@ConditionalOnProperty(name = "hapi.fhir.cr.enabled", havingValue = "true")
 public class CrCacheAdminController {
 
     private final EvaluationSettings evaluationSettings;
