@@ -45,6 +45,9 @@ import {
   PlaylistAdd as ValueSetIcon,
   Code as AdvancedIcon,
   Edit as EditIcon,
+  CheckCircle as CheckIcon,
+  Error as ErrorIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material';
 import Editor from '@monaco-editor/react';
 
@@ -71,6 +74,31 @@ function severityChipColor(severity) {
   if (severity === 'error' || severity === 'fatal') return 'error';
   if (severity === 'warning') return 'warning';
   return 'info';
+}
+
+/** One-line status summary for the toolbar chip. Returns null when no validation has run yet. */
+function summarizeIssues(issues) {
+  if (issues === null) return null;
+  if (issues.length === 0) {
+    return { color: 'success', icon: <CheckIcon fontSize="small" />, label: 'Valid' };
+  }
+  const errorCount = issues.filter((i) => i.severity === 'error' || i.severity === 'fatal').length;
+  const warnCount = issues.filter((i) => i.severity === 'warning').length;
+  if (errorCount > 0) {
+    return {
+      color: 'error',
+      icon: <ErrorIcon fontSize="small" />,
+      label: `${errorCount} error${errorCount === 1 ? '' : 's'}`,
+    };
+  }
+  if (warnCount > 0) {
+    return {
+      color: 'warning',
+      icon: <WarningIcon fontSize="small" />,
+      label: `${warnCount} warning${warnCount === 1 ? '' : 's'}`,
+    };
+  }
+  return { color: 'info', icon: null, label: `${issues.length} note${issues.length === 1 ? '' : 's'}` };
 }
 
 /**
@@ -240,6 +268,9 @@ const CQLEditor = ({
     [onLoadFHIRPreview, fhirPreview, previewLoading],
   );
 
+  /** Compact status indicator that lives next to the Validate button. */
+  const statusBadge = useMemo(() => summarizeIssues(issues), [issues]);
+
   /** Render summary + per-line issue rows. */
   const issuePanel = useMemo(() => {
     if (issues === null) return null;
@@ -333,7 +364,7 @@ const CQLEditor = ({
       {activeTab === TAB_EDITOR && (
         <>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-            <Tooltip title="Validate CQL against HAPI's $cql operation">
+            <Tooltip title="Validate CQL against HAPI's compiler">
               <span>
                 <Button
                   size="small"
@@ -346,6 +377,20 @@ const CQLEditor = ({
                 </Button>
               </span>
             </Tooltip>
+
+            {/* Live status pill — most students miss the Alert further down,
+                so put the validation outcome right next to the button that
+                produced it. Disappears when the buffer changes (handleChange
+                resets `issues` to null). */}
+            {statusBadge && (
+              <Chip
+                size="small"
+                color={statusBadge.color}
+                icon={statusBadge.icon || undefined}
+                label={statusBadge.label}
+                sx={{ fontWeight: 600 }}
+              />
+            )}
 
             <ButtonGroup size="small" variant="outlined">
               <Button
