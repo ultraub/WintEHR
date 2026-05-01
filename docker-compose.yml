@@ -75,8 +75,8 @@ x-hapi-fhir-common: &hapi-fhir-common
     hapi.fhir.reuse_cached_search_results_millis: 60000
     hapi.fhir.default_page_size: 20
     hapi.fhir.max_page_size: 500
-    hapi.fhir.cdshooks_enabled: true
-    hapi.fhir.cr_enabled: true
+    hapi.fhir.cdshooks.enabled: true
+    hapi.fhir.cr.enabled: true
     hapi.fhir.advanced_lucene_indexing: false
     # JVM heap sized for the bulk Synthea bundle load (100 patients ≈ thousands
     # of resources through HAPI's transaction processor at once). 1.5G was too
