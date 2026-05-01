@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 import uuid as _uuid
 from dataclasses import dataclass, field
@@ -46,6 +47,27 @@ from .models import (
     Source,
     Suggestion,
 )
+
+# CQL libraries start with `library NAME version 'V'`. Anything matching this
+# at the top of the input (after stripping leading whitespace and comments)
+# is treated as a full library by validate_cql() — the $cql operation can't
+# handle library-level constructs and produces confusing parser errors when
+# given them, so we route library inputs through Library/$data-requirements
+# instead (which forces a compile and surfaces the real diagnostics).
+_LIBRARY_DIRECTIVE_RE = re.compile(r"\s*library\s+[A-Za-z][A-Za-z0-9_]*\s+version\s+'")
+_COMMENT_STRIP_RE = re.compile(r"//[^\n]*\n|/\*.*?\*/", flags=re.DOTALL)
+
+
+def _looks_like_full_library(cql_text: str) -> bool:
+    """True if the input starts with a `library X version 'V'` directive.
+
+    Robust to leading comments and whitespace — students often paste with
+    a banner comment at the top.
+    """
+    if not cql_text:
+        return False
+    cleaned = _COMMENT_STRIP_RE.sub("", cql_text)
+    return bool(_LIBRARY_DIRECTIVE_RE.match(cleaned))
 
 logger = logging.getLogger(__name__)
 
@@ -104,14 +126,31 @@ class CQLBridge:
 
     async def validate_cql(
         self,
-        cql_expression: str,
+        cql_text: str,
         subject_ref: Optional[str] = None,
     ) -> ValidationResult:
-        """Run a CQL expression through HAPI's `$cql` to surface compile/runtime errors.
+        """Validate CQL — auto-routes by input shape.
 
-        `subject_ref` is optional. If provided ("Patient/{id}"), HAPI evaluates the
-        expression against that patient. If omitted, syntax-only check via inline eval.
+        - **Full library** (starts with ``library X version 'V'``): upload as
+          a draft library and call ``Library/{id}/$data-requirements`` to
+          force a compile. Compile diagnostics come back as OperationOutcome
+          issues.
+        - **Single expression** (``exists [Patient]``, etc.): forward to the
+          server-level ``$cql`` operation as before.
+
+        ``subject_ref`` is honored by the expression path; libraries don't
+        need a subject for compile-time validation.
         """
+        if _looks_like_full_library(cql_text):
+            return await self._validate_library(cql_text)
+        return await self._validate_expression(cql_text, subject_ref)
+
+    async def _validate_expression(
+        self,
+        cql_expression: str,
+        subject_ref: Optional[str],
+    ) -> ValidationResult:
+        """Run a CQL expression through HAPI's server-level ``$cql``."""
         params: Dict[str, Any] = {
             "resourceType": "Parameters",
             "parameter": [{"name": "expression", "valueString": cql_expression}],
@@ -136,6 +175,83 @@ class CQLBridge:
 
         # `$cql` returns Parameters. Errors arrive either as a top-level
         # OperationOutcome resource or as a `return` parameter holding one.
+        issues = self._collect_outcome_issues(response)
+        ok = not any(i.severity in ("fatal", "error") for i in issues)
+        return ValidationResult(ok=ok, issues=issues)
+
+    async def _validate_library(self, cql_text: str) -> ValidationResult:
+        """Compile-validate a full CQL library via ``$data-requirements``.
+
+        The dev-helper upload is content-hashed, so repeated validations of
+        the same text are idempotent in HAPI (no resource churn). The
+        ``$data-requirements`` call is the simplest operation that forces
+        HAPI's CR engine to actually compile the library — compile errors
+        come back as OperationOutcome issues nested in the response.
+
+        Imported lazily so the bridge doesn't have a circular dependency on
+        cql_dev_helper.
+        """
+        from .cql_dev_helper import upload_dev_library
+
+        # Phase 1: upload. Syntax errors that prevent the resource from being
+        # accepted at all surface here.
+        try:
+            library_id, _ = await upload_dev_library(
+                cql_text,
+                base_name="ValidateProbe",
+                hapi_base_url=self.base_url,
+            )
+        except httpx.HTTPStatusError as exc:
+            issues = self._collect_outcome_issues(self._safe_json(exc.response))
+            if not issues:
+                issues = [ValidationIssue(
+                    severity="error",
+                    diagnostics=(
+                        f"HAPI rejected the library on upload "
+                        f"({exc.response.status_code}). The CQL probably has a "
+                        f"top-level syntax error (check the `library`/`using`/"
+                        f"`include` directives)."
+                    ),
+                )]
+            return ValidationResult(ok=False, issues=issues)
+        except httpx.RequestError as exc:
+            return ValidationResult(
+                ok=False,
+                issues=[ValidationIssue(severity="error", diagnostics=str(exc))],
+            )
+        except ValueError as exc:
+            # rewrite_cql_library_directive() raises ValueError if the input
+            # doesn't have a recognizable `library` directive — students should
+            # never hit this since _looks_like_full_library() already gated us
+            # in, but defensively map it to a validation issue.
+            return ValidationResult(
+                ok=False,
+                issues=[ValidationIssue(severity="error", diagnostics=str(exc))],
+            )
+
+        # Phase 2: force a compile via $data-requirements. This is the
+        # cheapest operation that actually triggers the CR engine to compile
+        # the CQL — `$evaluate` would also compile but requires a subject.
+        path = f"/Library/{library_id}/$data-requirements"
+        try:
+            response = await self._post_operation(
+                path,
+                {"resourceType": "Parameters", "parameter": []},
+            )
+        except httpx.HTTPStatusError as exc:
+            issues = self._collect_outcome_issues(self._safe_json(exc.response))
+            if not issues:
+                issues = [ValidationIssue(
+                    severity="error",
+                    diagnostics=f"$data-requirements returned {exc.response.status_code}",
+                )]
+            return ValidationResult(ok=False, issues=issues)
+        except httpx.RequestError as exc:
+            return ValidationResult(
+                ok=False,
+                issues=[ValidationIssue(severity="error", diagnostics=str(exc))],
+            )
+
         issues = self._collect_outcome_issues(response)
         ok = not any(i.severity in ("fatal", "error") for i in issues)
         return ValidationResult(ok=ok, issues=issues)

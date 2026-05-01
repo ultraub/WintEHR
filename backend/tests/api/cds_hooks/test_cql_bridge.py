@@ -18,6 +18,7 @@ from api.cds_hooks.cql_bridge import (
     PRIORITY_TO_INDICATOR,
     SUMMARY_MAX_LENGTH,
     ValidationIssue,
+    _looks_like_full_library,
 )
 from api.cds_hooks.models import (
     CDSHookRequest,
@@ -340,6 +341,116 @@ class TestValidateCQL:
         assert called_path == "/$cql"
         names = {p["name"] for p in called_body["parameter"]}
         assert names == {"expression", "subject"}
+
+
+class TestLooksLikeFullLibrary:
+
+    def test_simple_library_directive(self):
+        assert _looks_like_full_library("library MyRule version '0.1.0'\ndefine X: 1")
+
+    def test_library_with_leading_comments(self):
+        cql = "// banner comment\n/* multiline */\nlibrary MyRule version '0.1.0'\ndefine X: 1"
+        assert _looks_like_full_library(cql) is True
+
+    def test_library_with_leading_whitespace(self):
+        assert _looks_like_full_library("\n\n  library MyRule version '0.1.0'") is True
+
+    def test_pure_expression_not_a_library(self):
+        assert _looks_like_full_library("exists [Patient]") is False
+        assert _looks_like_full_library("Patient.gender") is False
+
+    def test_define_only_not_a_library(self):
+        # No `library X version 'V'` directive — must be an expression for $cql
+        assert _looks_like_full_library("define X: 1") is False
+
+    def test_empty_or_none(self):
+        assert _looks_like_full_library("") is False
+        assert _looks_like_full_library(None) is False
+
+
+class TestValidateCQLAutoRouting:
+    """validate_cql should detect library vs expression and route accordingly."""
+
+    @pytest.mark.asyncio
+    async def test_full_library_routes_through_data_requirements(self):
+        """Library form should NOT hit /$cql — it should upload + call $data-requirements."""
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        cql = "library MyRule version '0.1.0'\nusing FHIR version '4.0.1'\ncontext Patient\ndefine Applicability: true"
+
+        with patch("api.cds_hooks.cql_dev_helper.upload_dev_library", new=AsyncMock()) as mock_upload:
+            mock_upload.return_value = ("ValidateProbeABC", "http://x/Library/ValidateProbeABC")
+            with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked_post:
+                # $data-requirements returns a Library wrapper with no errors
+                mocked_post.return_value = {"resourceType": "Library", "dataRequirement": []}
+                result = await bridge.validate_cql(cql)
+
+        assert result.ok is True
+        # Assert we hit $data-requirements, NOT /$cql
+        called_path = mocked_post.call_args[0][0]
+        assert called_path == "/Library/ValidateProbeABC/$data-requirements"
+        # Upload was called with the full library text
+        assert mock_upload.call_args.kwargs["base_name"] == "ValidateProbe"
+
+    @pytest.mark.asyncio
+    async def test_compile_error_in_library_surfaces(self):
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        cql = "library Bad version '0.1.0'\nusing FHIR version '4.0.1'\ncontext Patient\ndefine X: NoSuchIdentifier"
+
+        with patch("api.cds_hooks.cql_dev_helper.upload_dev_library", new=AsyncMock()) as mock_upload:
+            mock_upload.return_value = ("ValidateProbeXYZ", "http://x/Library/ValidateProbeXYZ")
+            with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked_post:
+                mocked_post.return_value = {
+                    "resourceType": "Library",
+                    "contained": [{
+                        "resourceType": "OperationOutcome",
+                        "issue": [{
+                            "severity": "error",
+                            "diagnostics": "Could not resolve identifier NoSuchIdentifier",
+                        }],
+                    }],
+                }
+                result = await bridge.validate_cql(cql)
+
+        assert result.ok is False
+        assert any("NoSuchIdentifier" in (i.diagnostics or "") for i in result.issues)
+
+    @pytest.mark.asyncio
+    async def test_expression_input_still_uses_inline_cql_path(self):
+        """A bare expression must NOT trigger an upload."""
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+
+        with patch("api.cds_hooks.cql_dev_helper.upload_dev_library", new=AsyncMock()) as mock_upload:
+            with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked_post:
+                mocked_post.return_value = {"resourceType": "Parameters", "parameter": []}
+                await bridge.validate_cql("exists [Patient]")
+
+        # No upload happened — pure expression goes straight to /$cql
+        mock_upload.assert_not_called()
+        called_path = mocked_post.call_args[0][0]
+        assert called_path == "/$cql"
+
+    @pytest.mark.asyncio
+    async def test_upload_failure_returns_validation_failure(self):
+        """If the dev-helper upload itself fails, surface that as a validation error."""
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        cql = "library Broken version '0.1.0'\ngarbage that won't parse"
+
+        bad_response = MagicMock(spec=httpx.Response)
+        bad_response.status_code = 400
+        bad_response.text = "{}"
+        bad_response.json.return_value = {
+            "resourceType": "OperationOutcome",
+            "issue": [{"severity": "error", "diagnostics": "Syntax error at line 2"}],
+        }
+
+        with patch("api.cds_hooks.cql_dev_helper.upload_dev_library", new=AsyncMock()) as mock_upload:
+            mock_upload.side_effect = httpx.HTTPStatusError(
+                "400", request=MagicMock(), response=bad_response,
+            )
+            result = await bridge.validate_cql(cql)
+
+        assert result.ok is False
+        assert any("Syntax error" in (i.diagnostics or "") for i in result.issues)
 
 
 # ---------------------------------------------------------------------------
