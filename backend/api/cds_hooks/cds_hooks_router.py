@@ -806,12 +806,24 @@ async def provide_feedback(
 ):
     """Provide feedback on CDS service recommendations - CDS Hooks v2.0 compliant"""
     try:
-        # Verify the service exists
+        # We don't 404 on unknown service_id here. The legacy lookup only
+        # consulted `cds_hooks.hook_configurations` + SAMPLE_HOOKS, which
+        # misses visual-builder and CQL-based services entirely (those
+        # live in cds_visual_builder.service_configs and the in-memory
+        # registry). Rejecting their feedback was a false negative: the
+        # service produced the card the user just acknowledged. Log a
+        # warning if the id is unknown to the legacy stores, but accept
+        # the feedback regardless — it carries the analytics + (for
+        # accepted suggestions) the actions to execute.
         manager = await get_persistence_manager(db)
         hook_config = await manager.get_hook(service_id)
         if not hook_config and service_id not in SAMPLE_HOOKS:
-            raise HTTPException(status_code=404, detail=f"Service '{service_id}' not found")
-        
+            logger.info(
+                "Feedback for service '%s' not found in legacy stores — accepting "
+                "anyway (likely a visual-builder or CQL-based service)",
+                service_id,
+            )
+
         # Process and store the feedback
         # The feedback request contains an array of feedback items
         if not feedback.feedback or len(feedback.feedback) == 0:
