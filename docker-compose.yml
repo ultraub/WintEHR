@@ -93,7 +93,14 @@ x-hapi-fhir-common: &hapi-fhir-common
     hapi.fhir.max_page_size: 500
     hapi.fhir.cdshooks.enabled: true
     hapi.fhir.cr.enabled: true
-    hapi.fhir.advanced_lucene_indexing: false
+    # Enables Hibernate Search / Lucene indexing. Required because the CR
+    # engine emits `code:in=<vs-canonical>` searches for CQL retrieves with
+    # ValueSet filters, and HAPI's :in modifier resolution falls back to
+    # Lucene for some resource types (Immunization.vaccine-code, etc.). On
+    # first startup HAPI builds the Lucene index from existing rows; for our
+    # ~116k Observations + few thousand other resources that takes a couple
+    # of minutes once.
+    hapi.fhir.advanced_lucene_indexing: true
     # Token for the /admin/cr/* endpoints exposed by our overlay. The
     # composer (in the FastAPI backend) calls those endpoints with this
     # token to flush CR caches after a ValueSet edit so the change is
