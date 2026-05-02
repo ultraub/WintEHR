@@ -752,13 +752,26 @@ async def _execute_accepted_suggestion_actions(
                     action,
                 )
                 if result.success:
-                    resources_created.extend(result.created_resources)
+                    # Different action types report what they wrote either via
+                    # `created_resources` (a list) or via the scalar
+                    # `resource_id`/`resource_type`. Merge both into one list
+                    # and dedup on (resourceType, id) so callers see each
+                    # resource once.
+                    seen = {(r.get("resourceType"), r.get("id"))
+                            for r in resources_created}
+                    for r in result.created_resources:
+                        key = (r.get("resourceType"), r.get("id"))
+                        if key not in seen:
+                            resources_created.append(r)
+                            seen.add(key)
                     if result.resource_id and result.resource_type:
-                        # Some action types report only via resource_id/type.
-                        resources_created.append({
-                            "resourceType": result.resource_type,
-                            "id": result.resource_id,
-                        })
+                        key = (result.resource_type, result.resource_id)
+                        if key not in seen:
+                            resources_created.append({
+                                "resourceType": result.resource_type,
+                                "id": result.resource_id,
+                            })
+                            seen.add(key)
                 else:
                     action_errors.extend(result.errors or ["unknown failure"])
             except Exception as exc:  # noqa: BLE001 — log + continue
