@@ -91,20 +91,40 @@ const CDSCard = ({
       setSubmittingFeedback(true);
       setAcceptedSuggestionId(suggestion.uuid || suggestion.label);
 
-      // Call parent handler to apply the suggestion
-      if (onAcceptSuggestion) {
-        await onAcceptSuggestion(suggestion);
-      }
-
-      // Send feedback to CDS service
-      await cdsHooksClient.sendFeedback(serviceId, {
+      // Send feedback to CDS service. We include the suggestion's full
+      // actions[] alongside its uuid (a backwards-compatible extension
+      // beyond the spec's `{id}`-only shape). The backend's feedback
+      // handler reads `actions` and executes them — create/update/delete
+      // the FHIR resources the suggestion proposed — keyed for idempotency
+      // by (hookInstance, suggestion.uuid). Without this, an Accept click
+      // only records analytics; the proposed resource never lands.
+      const feedbackResponse = await cdsHooksClient.sendFeedback(serviceId, {
         feedback: [{
           card: card.uuid,
           outcome: 'accepted',
           outcomeTimestamp: new Date().toISOString(),
-          acceptedSuggestions: [{ id: suggestion.uuid }]
+          acceptedSuggestions: [{
+            id: suggestion.uuid,
+            actions: suggestion.actions || []
+          }]
         }]
       });
+
+      // Notify the parent AFTER the FHIR write succeeded, passing any
+      // resources the backend actually created so callers can refresh
+      // affected lists (orders, medications, etc.). `executedActions`
+      // is a WintEHR extension on the feedback response (see
+      // cds_hooks_router.py::_execute_accepted_suggestion_actions).
+      const executed = feedbackResponse?.executedActions || [];
+      if (onAcceptSuggestion) {
+        try {
+          await onAcceptSuggestion(suggestion, { executed });
+        } catch (cbErr) {
+          // Parent callback errors shouldn't undo a successful write —
+          // the resources are already in HAPI. Log and continue.
+          console.error('onAcceptSuggestion callback failed:', cbErr);
+        }
+      }
 
       setFeedbackSubmitted(true);
     } catch (error) {

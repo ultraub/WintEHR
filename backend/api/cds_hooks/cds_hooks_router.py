@@ -76,6 +76,7 @@ from .models import (
 from .hooks import medication_prescribe_hooks
 from services.hapi_fhir_client import HAPIFHIRClient
 from .hapi_cds_integration import get_hapi_cds_integrator
+from .actions.executor import ActionExecutor, ActionExecutionRequest
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -628,6 +629,174 @@ async def execute_service(
         return CDSHookResponse(cards=[])
 
 
+async def _execute_accepted_suggestion_actions(
+    db: AsyncSession,
+    *,
+    service_id: str,
+    feedback_item_data: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    """Execute the FHIR-mutating actions of an accepted CDS suggestion.
+
+    Idempotent on (hookInstance, suggestion_uuid): a UNIQUE constraint on
+    cds_hooks.executed_actions claims the lock via INSERT ... ON CONFLICT
+    DO NOTHING. If another request already inserted the row, this call
+    returns the previous result (read-after-write). The first writer wins;
+    subsequent writers (retries, double-clicks, dup feedback) become no-ops.
+
+    Returns a list of "what was executed" summaries — one per accepted
+    suggestion that had actions[].
+    """
+    if feedback_item_data.get("outcome") != "accepted":
+        return []
+
+    suggestions = feedback_item_data.get("acceptedSuggestions") or []
+    if not suggestions:
+        return []
+
+    hook_instance = feedback_item_data.get("hookInstance") or ""
+    if not hook_instance:
+        # Without a hookInstance we have no idempotency key — bail out
+        # rather than risk creating duplicate FHIR resources on retry.
+        logger.warning(
+            "Skipping action execution for service %s: feedback has no hookInstance",
+            service_id,
+        )
+        return []
+
+    patient_id = feedback_item_data.get("patientId") or ""
+    user_id = feedback_item_data.get("userId") or ""
+    encounter_id = feedback_item_data.get("encounterId")
+    card_uuid = feedback_item_data.get("card") or ""
+
+    executor = ActionExecutor(db)
+    summaries: List[Dict[str, Any]] = []
+
+    for suggestion in suggestions:
+        # Frontend sends acceptedSuggestions as either:
+        #   {id: "<uuid>"} (CDS Hooks 2.0 spec — actions unknown to backend)
+        #   {id: "<uuid>", actions: [...]} (our extension — see CDSCard.js)
+        if not isinstance(suggestion, dict):
+            continue
+        suggestion_uuid = suggestion.get("id") or suggestion.get("uuid") or ""
+        actions = suggestion.get("actions") or []
+        if not suggestion_uuid or not actions:
+            continue
+
+        # Claim the idempotency lock. If another process already executed
+        # this (hookInstance, suggestion) pair, ON CONFLICT skips and
+        # returns 0 rows — we then read the prior result.
+        claim = await db.execute(
+            text("""
+                INSERT INTO cds_hooks.executed_actions (
+                    hook_instance_id, suggestion_uuid, service_id, card_uuid,
+                    patient_id, user_id, actions_count, success
+                ) VALUES (
+                    :hook_instance_id, :suggestion_uuid, :service_id, :card_uuid,
+                    :patient_id, :user_id, :actions_count, FALSE
+                )
+                ON CONFLICT (hook_instance_id, suggestion_uuid) DO NOTHING
+                RETURNING id
+            """),
+            {
+                "hook_instance_id": hook_instance,
+                "suggestion_uuid": suggestion_uuid,
+                "service_id": service_id,
+                "card_uuid": card_uuid,
+                "patient_id": patient_id,
+                "user_id": user_id,
+                "actions_count": len(actions),
+            },
+        )
+        row_id = claim.scalar()
+        if row_id is None:
+            # Already executed previously — read prior outcome and skip.
+            prior = await db.execute(
+                text("""
+                    SELECT id, success, resources_created, error_message
+                    FROM cds_hooks.executed_actions
+                    WHERE hook_instance_id = :hi AND suggestion_uuid = :su
+                """),
+                {"hi": hook_instance, "su": suggestion_uuid},
+            )
+            row = prior.first()
+            if row:
+                summaries.append({
+                    "suggestionUuid": suggestion_uuid,
+                    "alreadyExecuted": True,
+                    "success": bool(row.success),
+                    "resourcesCreated": row.resources_created or [],
+                    "errorMessage": row.error_message,
+                })
+            await db.commit()
+            continue
+
+        # We own the lock — execute each action, then update the row.
+        resources_created: List[Dict[str, str]] = []
+        action_errors: List[str] = []
+        for action in actions:
+            if not isinstance(action, dict):
+                continue
+            action_uuid = action.get("uuid") or str(uuid.uuid4())
+            try:
+                result = await executor.execute_action(
+                    ActionExecutionRequest(
+                        hook_instance=hook_instance,
+                        service_id=service_id,
+                        card_uuid=card_uuid,
+                        suggestion_uuid=suggestion_uuid,
+                        action_uuid=action_uuid,
+                        patient_id=patient_id,
+                        user_id=user_id,
+                        encounter_id=encounter_id,
+                    ),
+                    action,
+                )
+                if result.success:
+                    resources_created.extend(result.created_resources)
+                    if result.resource_id and result.resource_type:
+                        # Some action types report only via resource_id/type.
+                        resources_created.append({
+                            "resourceType": result.resource_type,
+                            "id": result.resource_id,
+                        })
+                else:
+                    action_errors.extend(result.errors or ["unknown failure"])
+            except Exception as exc:  # noqa: BLE001 — log + continue
+                logger.exception(
+                    "Action execution failed for suggestion %s of service %s",
+                    suggestion_uuid, service_id,
+                )
+                action_errors.append(str(exc))
+
+        success = not action_errors
+        await db.execute(
+            text("""
+                UPDATE cds_hooks.executed_actions
+                SET success = :success,
+                    resources_created = :resources_created,
+                    error_message = :error_message
+                WHERE id = :id
+            """),
+            {
+                "id": row_id,
+                "success": success,
+                "resources_created": json.dumps(resources_created),
+                "error_message": "; ".join(action_errors) if action_errors else None,
+            },
+        )
+        await db.commit()
+
+        summaries.append({
+            "suggestionUuid": suggestion_uuid,
+            "alreadyExecuted": False,
+            "success": success,
+            "resourcesCreated": resources_created,
+            "errorMessage": "; ".join(action_errors) if action_errors else None,
+        })
+
+    return summaries
+
+
 # CDS Service Feedback Endpoint
 @router.post("/cds-services/{service_id}/feedback")
 async def provide_feedback(
@@ -650,6 +819,7 @@ async def provide_feedback(
         
         # Process each feedback item
         feedback_ids = []
+        executed_actions: List[Dict[str, Any]] = []
         for feedback_item in feedback.feedback:
             feedback_data = {
                 'hookInstance': getattr(feedback_item, 'hookInstance', None),
@@ -665,16 +835,33 @@ async def provide_feedback(
                 'context': getattr(feedback, 'context', None),
                 'outcomeTimestamp': getattr(feedback_item, 'outcomeTimestamp', None)
             }
-            
+
             feedback_id = await process_cds_feedback(db, feedback_data)
             feedback_ids.append(feedback_id)
-            
+
             logger.info(f"Stored feedback {feedback_id} for service {service_id}: outcome={feedback_item.outcome}")
-        
-        # Return success response per CDS Hooks specification
+
+            # If the user accepted a suggestion that carries actions[], execute
+            # those actions now. Idempotent on (hookInstance, suggestion uuid).
+            try:
+                summaries = await _execute_accepted_suggestion_actions(
+                    db, service_id=service_id, feedback_item_data=feedback_data,
+                )
+                executed_actions.extend(summaries)
+            except Exception as exec_err:  # noqa: BLE001 — surface but don't fail feedback
+                logger.exception(
+                    "Failed to execute accepted-suggestion actions for service %s: %s",
+                    service_id, exec_err,
+                )
+
+        # Return success response per CDS Hooks specification, plus a
+        # WintEHR-specific `executedActions` field summarizing any FHIR
+        # writes the accepted suggestions triggered (so the UI can refresh
+        # the affected resource lists immediately).
         return {
             "status": "success",
             "feedbackIds": feedback_ids,
+            "executedActions": executed_actions,
             "message": f"Feedback received and stored successfully ({len(feedback_ids)} items)"
         }
         
