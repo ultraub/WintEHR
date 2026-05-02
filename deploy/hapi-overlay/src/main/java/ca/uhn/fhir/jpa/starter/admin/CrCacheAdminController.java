@@ -1,12 +1,14 @@
 package ca.uhn.fhir.jpa.starter.admin;
 
+import ca.uhn.fhir.context.support.IValidationSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import ca.uhn.fhir.jpa.term.api.ITermReadSvc;
-import org.hl7.fhir.common.hapi.validation.support.ValidationSupportChain;
 import org.opencds.cqf.fhir.cql.EvaluationSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -59,16 +61,16 @@ public class CrCacheAdminController {
 
     private final EvaluationSettings evaluationSettings;
     private final ITermReadSvc termReadSvc;
-    private final ValidationSupportChain validationSupportChain;
+    private final List<IValidationSupport> validationSupports;
 
     @Autowired
     public CrCacheAdminController(
             EvaluationSettings evaluationSettings,
             ITermReadSvc termReadSvc,
-            ValidationSupportChain validationSupportChain) {
+            List<IValidationSupport> validationSupports) {
         this.evaluationSettings = evaluationSettings;
         this.termReadSvc = termReadSvc;
-        this.validationSupportChain = validationSupportChain;
+        this.validationSupports = validationSupports;
     }
 
     /**
@@ -120,17 +122,30 @@ public class CrCacheAdminController {
             body.put("termReadSvcError", e.getMessage());
         }
 
-        // The ValidationSupportChain holds a Caffeine cache of expanded
-        // ValueSets used by code system / value set lookup paths that
-        // bypass TermReadSvc (notably the validation support chain wired
-        // into the CR engine's IRepository). Without busting this layer,
-        // a ValueSet edit isn't visible to the next $apply.
-        try {
-            validationSupportChain.invalidateCaches();
-            body.put("validationSupportInvalidated", true);
-        } catch (Exception e) {
-            body.put("validationSupportInvalidated", false);
-            body.put("validationSupportError", e.getMessage());
+        // Every IValidationSupport bean has its own caches (the chain has
+        // a top-level Caffeine cache, individual chain members may have
+        // their own). The bean injected into TokenPredicateBuilder for
+        // `code:in=<canonical>` resolution might be a different IVS
+        // instance than the chain root, so we iterate all of them and
+        // call invalidateCaches() on each. Records each bean class for
+        // diagnostics.
+        List<String> invalidated = new ArrayList<>();
+        List<Map<String, String>> failed = new ArrayList<>();
+        for (IValidationSupport vs : validationSupports) {
+            String className = vs.getClass().getName();
+            try {
+                vs.invalidateCaches();
+                invalidated.add(className);
+            } catch (Exception e) {
+                Map<String, String> err = new LinkedHashMap<>();
+                err.put("class", className);
+                err.put("error", e.getMessage());
+                failed.add(err);
+            }
+        }
+        body.put("validationSupportsInvalidated", invalidated);
+        if (!failed.isEmpty()) {
+            body.put("validationSupportsFailed", failed);
         }
 
         return ResponseEntity.ok(body);
