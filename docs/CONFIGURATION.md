@@ -383,6 +383,29 @@ services:
 
 **Note**: Synthea data is pre-validated, so `NEVER` is safe.
 
+#### hapi.fhir.reuse_cached_search_results_millis
+
+**Type**: Integer (milliseconds)
+**Default in this deployment**: `0` (disabled)
+**HAPI default**: `60000` (60 seconds)
+
+**Description**: How long HAPI returns a cached search-result Bundle for an
+identical query before re-running it. We set this to `0` so any edit a
+student makes (ValueSets in the CDS Studio, Conditions and Medications in
+the chart, etc.) is visible on the next read with no stale-cache surprise.
+
+**Trade-off**: ~100–300 ms extra per chart load (the patient summary
+fires 10–20 parallel searches that all re-traverse Postgres instead of
+hitting the cache). Acceptable for an educational platform; reconsider
+if you scale up to high-traffic production. The alternative would be to
+keep the cache enabled and add targeted eviction inside the overlay's
+`/admin/cr/flush-caches` endpoint.
+
+**Background**: this property gated the round-trip "edit a ValueSet →
+next `$apply` sees the new codes" contract — see
+`backend/tests/integration/test_cr_cache_flush.py` and the `feat(hapi)`
+commits around the overlay for the full investigation.
+
 ### Synthea Configuration
 
 #### synthea.state
