@@ -82,7 +82,13 @@ x-hapi-fhir-common: &hapi-fhir-common
     hapi.fhir.allow_multiple_delete: true
     hapi.fhir.allow_cascading_deletes: true
     hapi.fhir.cors.allowed_origin: "*"
-    hapi.fhir.reuse_cached_search_results_millis: 60000
+    # Disabled: HAPI normally caches search-result Bundles for 60s and serves
+    # repeat queries from cache. For our CR use case that breaks the
+    # ValueSet edit → next $apply round trip — the second search is a
+    # cache hit on the pre-edit expansion. Educational traffic is low
+    # enough that the cache hit isn't worth the staleness; correctness
+    # wins. (See backend/tests/integration/test_cr_cache_flush.py.)
+    hapi.fhir.reuse_cached_search_results_millis: 0
     hapi.fhir.default_page_size: 20
     hapi.fhir.max_page_size: 500
     hapi.fhir.cdshooks.enabled: true

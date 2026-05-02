@@ -287,27 +287,8 @@ class TestComposerEditFlushesCache:
 
     Each test creates an ephemeral ValueSet + Library + PlanDefinition,
     runs the round trip, and cleans up in `finally`.
-
-    The round-trip test is currently marked ``xfail`` — see the docstring
-    on the test method for the open work.
     """
 
-    @pytest.mark.xfail(
-        strict=False,
-        reason=(
-            "Known incomplete: the overlay's flush clears cqf-fhir-cr's "
-            "EvaluationSettings caches plus HAPI's ITermReadSvc + "
-            "ValidationSupportChain caches, but $apply's `code:in=<vs-url>` "
-            "search still resolves through some other cache layer that we "
-            "haven't isolated yet (pre-expansion, search builder cache, or "
-            "an internal Caffeine cache deeper in the validation chain). "
-            "Verified: TermValueSet rows in postgres update on PUT and "
-            "ValidationSupportChain.invalidateCaches() returns success. "
-            "Workaround for students: changing a ValueSet's vs_id (i.e. "
-            "creating a new ValueSet) produces a fresh canonical URL and "
-            "always reflects the new codes."
-        ),
-    )
     def test_value_set_edit_via_composer_invalidates_apply(
         self,
         http: httpx.Client,
