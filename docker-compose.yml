@@ -119,10 +119,14 @@ x-hapi-fhir-common: &hapi-fhir-common
     # token to flush CR caches after a ValueSet edit so the change is
     # immediately reflected without waiting for a HAPI restart.
     HAPI_ADMIN_TOKEN: ${HAPI_ADMIN_TOKEN:-}
-    # JVM heap sized for the bulk Synthea bundle load (100 patients ≈ thousands
-    # of resources through HAPI's transaction processor at once). 1.5G was too
-    # tight — OOM-killed mid-load on a fresh deploy.
-    JAVA_TOOL_OPTIONS: "-Xmx3g -Xms512m"
+    # JVM heap. Two pressures:
+    #   1. Bulk Synthea bundle load (100 patients ≈ thousands of resources
+    #      through HAPI's transaction processor at once)
+    #   2. Hibernate Search Lucene reindex over the loaded UMLS terminology
+    #      (175k LOINC + 98k ICD-10 + ~280k other concepts, plus 116k
+    #      Observations + remaining patient data). 3g OOM-killed during
+    #      this; 8g leaves headroom for both heap + Lucene file caching.
+    JAVA_TOOL_OPTIONS: "-Xmx8g -Xms1g"
   deploy:
     resources:
       limits:
