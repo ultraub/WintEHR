@@ -833,13 +833,28 @@ async def provide_feedback(
         feedback_ids = []
         executed_actions: List[Dict[str, Any]] = []
         for feedback_item in feedback.feedback:
+            # Coerce Pydantic models to dicts so downstream JSON
+            # serialization (in persistence.store_feedback and our
+            # action-execution helper) works on plain data.
+            raw_accepted = getattr(feedback_item, 'acceptedSuggestions', None)
+            accepted_suggestions = (
+                [s.dict() if hasattr(s, 'dict') else s for s in raw_accepted]
+                if raw_accepted else None
+            )
+            raw_override = (
+                getattr(feedback_item, 'overrideReason', None)
+                or getattr(feedback_item, 'overrideReasons', None)
+            )
+            override_reason = (
+                raw_override.dict() if hasattr(raw_override, 'dict') else raw_override
+            )
             feedback_data = {
                 'hookInstance': getattr(feedback_item, 'hookInstance', None),
                 'service': service_id,
                 'card': feedback_item.card,
                 'outcome': feedback_item.outcome,
-                'overrideReason': getattr(feedback_item, 'overrideReason', None) or getattr(feedback_item, 'overrideReasons', None),
-                'acceptedSuggestions': getattr(feedback_item, 'acceptedSuggestions', None),
+                'overrideReason': override_reason,
+                'acceptedSuggestions': accepted_suggestions,
                 # Extract additional context if available from the request
                 'userId': getattr(feedback, 'userId', None),
                 'patientId': getattr(feedback, 'patientId', None),

@@ -309,13 +309,37 @@ class FeedbackOverrideReason(BaseModel):
 
 
 class AcceptedSuggestion(BaseModel):
-    """Accepted suggestion in feedback"""
+    """Accepted suggestion in feedback.
+
+    Per CDS Hooks 2.0 the spec only requires `id`. We extend the shape with
+    `actions` so the client can hand the backend the full action list it
+    just asked the user to confirm — the feedback handler executes those
+    actions (create/update/delete FHIR resources) keyed for idempotency by
+    `(hookInstance, id)`. Without this extension, an Accept click only
+    records analytics; the proposed resource never lands.
+    """
     id: str = Field(..., description="Suggestion UUID")
+    actions: Optional[List[Action]] = Field(
+        None,
+        description=(
+            "WintEHR extension: the suggestion's action list, sent so the "
+            "backend can execute the proposed FHIR mutations. Optional — "
+            "if absent, only the feedback analytics row is recorded."
+        ),
+    )
 
 
 class FeedbackItem(BaseModel):
     """Individual feedback item - CDS Hooks 2.0"""
     card: str = Field(..., description="Card UUID")
+    # The spec hangs hookInstance off the original hook *request*, but for
+    # feedback we need to know which invocation this item refers to so we
+    # can dedup action execution by (hookInstance, suggestion.id). Allow
+    # the client to echo it back here.
+    hookInstance: Optional[str] = Field(
+        None,
+        description="Hook invocation ID; used for idempotency on accepted-action execution",
+    )
     outcome: FeedbackOutcome = Field(..., description="Outcome (accepted or overridden)")
     outcomeTimestamp: datetime = Field(..., description="ISO timestamp in UTC")
     acceptedSuggestions: Optional[List[AcceptedSuggestion]] = Field(None, description="Accepted suggestions (when outcome is accepted)")
