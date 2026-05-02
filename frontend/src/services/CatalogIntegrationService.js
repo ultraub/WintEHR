@@ -149,6 +149,50 @@ class CatalogIntegrationService {
   }
 
   /**
+   * Search a HAPI-loaded terminology ValueSet via $expand.
+   *
+   * Used by ValueSetComposer to support code-system-specific search panels
+   * (Vaccines/CVX, etc.) without curating a static list — the terminology
+   * pipeline already loaded the canonical ValueSets into HAPI.
+   *
+   * `valueSetId` must be one of the wintehr-* ValueSets shipped by
+   * `scripts/load_terminology.py`. Returns `[{system, code, display}]`
+   * with `system` always populated.
+   */
+  async expandTerminologyValueSet(valueSetId, searchTerm = '', limit = 50) {
+    const cacheKey = `vs-expand:${valueSetId}:${searchTerm}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) return cached;
+
+    const params = new URLSearchParams();
+    if (searchTerm) params.set('filter', searchTerm);
+    params.set('count', String(limit));
+
+    try {
+      const res = await fetch(`/fhir/ValueSet/${valueSetId}/$expand?${params}`);
+      if (!res.ok) {
+        console.warn(`ValueSet/${valueSetId}/$expand returned ${res.status}`);
+        return [];
+      }
+      const data = await res.json();
+      const concepts = data?.expansion?.contains || [];
+      const normalized = concepts
+        .filter(c => c.system && c.code)
+        .map(c => ({
+          id: `${c.system}|${c.code}`,
+          system: c.system,
+          code: c.code,
+          display: c.display || c.code,
+        }));
+      this.setCache(cacheKey, normalized);
+      return normalized;
+    } catch (error) {
+      console.warn(`Failed to expand ValueSet/${valueSetId}:`, error);
+      return [];
+    }
+  }
+
+  /**
    * Search across all catalogs simultaneously
    * Returns categorized results for universal search
    */

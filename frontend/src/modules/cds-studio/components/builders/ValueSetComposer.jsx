@@ -57,12 +57,14 @@ import catalogService from '../../../../services/CatalogIntegrationService';
 import cdsStudioApi from '../../services/cdsStudioApi';
 
 // Catalog domains exposed by CatalogIntegrationService; each entry maps to a
-// fetch function on the singleton service.
+// fetch function on the singleton service. Domains pointing at a wintehr-*
+// terminology ValueSet expand it via HAPI's $expand operation.
 const DOMAINS = [
   { id: 'conditions', label: 'Conditions', fetch: (q, n) => catalogService.getConditions(q, null, n) },
   { id: 'medications', label: 'Medications', fetch: (q, n) => catalogService.getMedications(q, n) },
   { id: 'labs', label: 'Lab Tests', fetch: (q, n) => catalogService.getLabTests(q, null, n) },
   { id: 'vitals', label: 'Vital Signs', fetch: () => catalogService.getVitalSigns?.() ?? [] },
+  { id: 'vaccines', label: 'Vaccines (CVX)', fetch: (q, n) => catalogService.expandTerminologyValueSet('wintehr-vaccines', q, n) },
 ];
 
 // Known terminology system URIs used to validate manual-entry tuples and to
@@ -165,6 +167,16 @@ const ValueSetComposer = ({ open, onClose, onSave, suggestedName = '' }) => {
 
   const toggleResult = useCallback(
     (result) => {
+      // A catalog result with no system is a bug in the source catalog —
+      // a code without a system is unmatchable in FHIR (different systems
+      // can reuse the same code value), and silently dropping the system
+      // here causes round-trip failures (e.g. a vaccine code in the VS
+      // never matching Immunization.vaccineCode at $apply time). Reject
+      // it loudly so the catalog gets fixed instead.
+      if (!result.system || !result.code) {
+        console.warn('Catalog result missing system or code, refusing to add:', result);
+        return;
+      }
       const code = {
         system: result.system,
         code: result.code,
