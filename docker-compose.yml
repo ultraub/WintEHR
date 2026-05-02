@@ -130,7 +130,11 @@ x-hapi-fhir-common: &hapi-fhir-common
   deploy:
     resources:
       limits:
-        memory: 4g
+        # Must comfortably exceed JAVA_TOOL_OPTIONS Xmx; if the container
+        # cap is below the JVM heap the kernel OOM-kills HAPI before the
+        # JVM has a chance to throw. Sized for the Hibernate Search
+        # reindex over UMLS terminology (~280k concepts).
+        memory: 10g
   healthcheck:
     disable: true
 
