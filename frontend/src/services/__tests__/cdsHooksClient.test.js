@@ -20,6 +20,7 @@ describe('CDSHooksClient', () => {
     cdsHooksClient.servicesCacheTime = null;
     cdsHooksClient.requestCache.clear();
     cdsHooksClient.inFlightRequests.clear();
+    cdsHooksClient.failedServices.clear();
   });
 
   afterAll(() => {
@@ -158,7 +159,7 @@ describe('CDSHooksClient', () => {
 
     test('should handle hook execution errors', async () => {
       const hookId = 'test-service';
-      
+
       mock.onPost(`/cds-services/${hookId}`).reply(500);
 
       const result = await cdsHooksClient.executeHook(hookId, {
@@ -167,6 +168,51 @@ describe('CDSHooksClient', () => {
       });
 
       expect(result).toEqual({ cards: [] });
+    });
+
+    test('should suppress further calls after a 5xx response', async () => {
+      const hookId = 'broken-service';
+      const context = { patientId: 'patient-1' };
+
+      mock.onPost(`/cds-services/${hookId}`).reply(503);
+
+      // First call fires and fails — that 503 hits the network.
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const first = await cdsHooksClient.executeHook(hookId, { hook: 'patient-view', context });
+      expect(first).toEqual({ cards: [] });
+      expect(mock.history.post).toHaveLength(1);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+
+      // Second call short-circuits — no new HTTP call. Use a different
+      // context to bypass the request cache so we're definitely testing
+      // the suppression path, not the cache path.
+      const second = await cdsHooksClient.executeHook(hookId, {
+        hook: 'patient-view',
+        context: { patientId: 'patient-2' },
+      });
+      expect(second).toEqual({ cards: [] });
+      expect(mock.history.post).toHaveLength(1);
+      expect(warnSpy).toHaveBeenCalledTimes(1); // logged once, not on every call
+      warnSpy.mockRestore();
+    });
+
+    test('should not suppress on a 400 (transient client error)', async () => {
+      const hookId = 'misconfigured-call';
+      const context = { patientId: 'patient-1' };
+
+      mock.onPost(`/cds-services/${hookId}`).reply(400);
+
+      await cdsHooksClient.executeHook(hookId, { hook: 'patient-view', context });
+      // Different context to dodge the request cache
+      await cdsHooksClient.executeHook(hookId, {
+        hook: 'patient-view',
+        context: { patientId: 'patient-2' },
+      });
+
+      // Both calls go over the wire — 4xx is the caller's fault, not the
+      // service's, so we don't sticky-fail it.
+      expect(mock.history.post).toHaveLength(2);
+      expect(cdsHooksClient.failedServices.has(hookId)).toBe(false);
     });
   });
 

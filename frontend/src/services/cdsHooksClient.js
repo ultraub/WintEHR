@@ -32,7 +32,17 @@ class CDSHooksClient {
     this.requestCache = new Map();
     this.requestCacheTimeout = 30 * 1000; // 30 seconds cache for individual requests
     this.lastFailureLogged = null;
-    
+
+    // Services that have failed hard (5xx, 404, network error). Once a service
+    // is in this set we short-circuit subsequent executeHook calls for it and
+    // return empty cards without going over the wire. Otherwise a broken
+    // deployed service drops a failed XHR every render and clutters the
+    // network tab forever. The Map value is the ms timestamp of the failure
+    // so we can retry after `failedServiceCooldownMs` in case the service
+    // comes back.
+    this.failedServices = new Map();
+    this.failedServiceCooldownMs = 5 * 60 * 1000; // 5 minutes
+
     // Promise deduplication for in-flight requests
     this.inFlightRequests = new Map();
     
@@ -98,7 +108,18 @@ class CDSHooksClient {
     // Create cache key from hookId and context
     const cacheKey = `${hookId}-${JSON.stringify(context)}`;
     const now = Date.now();
-    
+
+    // Short-circuit services that have already failed hard in this session.
+    // After the cooldown elapses we drop the entry and try once more — the
+    // service may have been redeployed.
+    const failedAt = this.failedServices.get(hookId);
+    if (failedAt !== undefined) {
+      if (now - failedAt < this.failedServiceCooldownMs) {
+        return { cards: [] };
+      }
+      this.failedServices.delete(hookId);
+    }
+
     // Check cache
     const cached = this.requestCache.get(cacheKey);
     if (cached && (now - cached.time < this.requestCacheTimeout)) {
@@ -145,13 +166,30 @@ class CDSHooksClient {
         return response.data;
       } catch (error) {
         // Failed to execute CDS hook - error handled gracefully with fallback
-        
+
+        // Mark the service as failed so we stop hammering it for the rest of
+        // the cooldown window. 5xx / 404 / network errors all qualify;
+        // we only suppress when the failure is structural rather than a
+        // transient network blip. The first occurrence logs once so a
+        // student running locally still notices something is wrong.
+        const status = error.response?.status;
+        const shouldSuppress = !status || status >= 500 || status === 404;
+        if (shouldSuppress && !this.failedServices.has(hookId)) {
+          this.failedServices.set(hookId, Date.now());
+          console.warn(
+            `[CDSHooksClient] Suppressing further calls to "${hookId}" for `
+            + `${this.failedServiceCooldownMs / 1000}s after `
+            + (status ? `HTTP ${status}` : 'network error')
+            + '. Check the service deployment if this persists.'
+          );
+        }
+
         // Check if we have cached data for this request
         const cached = this.requestCache.get(cacheKey);
         if (cached) {
           return cached.data;
         }
-        
+
         return { cards: [] };
       } finally {
         // Clean up the in-flight request
