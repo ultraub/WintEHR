@@ -155,14 +155,19 @@ x-hapi-fhir-common: &hapi-fhir-common
     # token to flush CR caches after a ValueSet edit so the change is
     # immediately reflected without waiting for a HAPI restart.
     HAPI_ADMIN_TOKEN: ${HAPI_ADMIN_TOKEN:-}
-    # JVM heap sized for the bulk Synthea bundle load (100 patients ≈
-    # thousands of resources through HAPI's transaction processor at once).
-    # 1.5G was too tight — OOM-killed mid-load on a fresh deploy.
-    JAVA_TOOL_OPTIONS: "-Xmx3g -Xms512m"
+    # JVM heap. Two pressures:
+    #   1. Bulk Synthea bundle load (100 patients ≈ thousands of resources
+    #      through HAPI's transaction processor at once)
+    #   2. Reindex against the ES backend — ES handles index storage in
+    #      its own JVM, but HAPI still buffers chunks of resources +
+    #      maintains JPA caches during the run. 3g caps tight enough
+    #      that batch processing OOMs at ~100k records into a reindex.
+    # 4g heap with 5g container leaves room for batch processing + GC.
+    JAVA_TOOL_OPTIONS: "-Xmx4g -Xms1g"
   deploy:
     resources:
       limits:
-        memory: 4g
+        memory: 5g
   healthcheck:
     disable: true
 
