@@ -530,3 +530,83 @@ class TestExecutionLogging:
             call_kwargs = mock_log.call_args.kwargs
             assert "execution_time_ms" in call_kwargs
             assert call_kwargs["execution_time_ms"] >= 0
+
+
+class TestCDSDebugEndpoint:
+    """Tests for the /cds-debug/{service_id} read-only triage endpoint."""
+
+    @pytest.fixture
+    def app(self):
+        app = FastAPI()
+        app.include_router(router)
+        return app
+
+    @pytest.fixture
+    def client(self, app):
+        return TestClient(app)
+
+    def test_diagnose_service_not_found_anywhere(self, client):
+        """Empty registry + empty HAPI → diagnosis says service is missing."""
+        empty_bundle = {
+            "resourceType": "Bundle",
+            "type": "searchset",
+            "entry": [],
+        }
+        with patch('services.hapi_fhir_client.HAPIFHIRClient') as mock_hapi:
+            mock_client = AsyncMock()
+            mock_client.read.side_effect = Exception("not found")
+            mock_client.search.return_value = empty_bundle
+            mock_hapi.return_value = mock_client
+
+            response = client.get("/cds-debug/totally-fake-service")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["service_id"] == "totally-fake-service"
+        assert data["checks"]["registry"]["found"] is False
+        assert data["checks"]["hapi_plan_definition"]["found"] is False
+        assert "not found" in data["diagnosis"].lower()
+
+    def test_diagnose_service_reports_duplicates(self, client):
+        """Three PlanDefinitions sharing one hook-service-id → duplicates count + warning."""
+        def vb_pd(plan_def_id, last_updated):
+            return {
+                "resourceType": "PlanDefinition",
+                "id": plan_def_id,
+                "meta": {"lastUpdated": last_updated},
+                "extension": [
+                    {
+                        "url": "http://wintehr.local/fhir/StructureDefinition/service-origin",
+                        "valueString": "visual-builder",
+                    },
+                    {
+                        "url": "http://wintehr.local/fhir/StructureDefinition/hook-service-id",
+                        "valueString": "stacked-service",
+                    },
+                ],
+            }
+
+        bundle = {
+            "resourceType": "Bundle",
+            "type": "searchset",
+            "entry": [
+                {"resource": vb_pd("old-1", "2026-01-01T00:00:00Z")},
+                {"resource": vb_pd("old-2", "2026-02-01T00:00:00Z")},
+                {"resource": vb_pd("vb-stacked-service", "2026-05-01T00:00:00Z")},
+            ],
+        }
+
+        with patch('services.hapi_fhir_client.HAPIFHIRClient') as mock_hapi:
+            mock_client = AsyncMock()
+            mock_client.read.side_effect = Exception("not found")
+            mock_client.search.return_value = bundle
+            mock_hapi.return_value = mock_client
+
+            response = client.get("/cds-debug/stacked-service")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["checks"]["duplicates"]["count"] == 3
+        # The freshest one wins as the primary report.
+        assert data["checks"]["hapi_plan_definition"]["id"] == "vb-stacked-service"
+        assert "share" in data["diagnosis"]  # "N PlanDefinitions share this hook-service-id"
