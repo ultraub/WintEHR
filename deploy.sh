@@ -619,10 +619,26 @@ elif [ -d "$HOME/fhir_vocabularies/terminology" ] && \
     docker cp scripts/ucum.json emr-backend:/tmp/ucum.json
     docker exec emr-backend mkdir -p /tmp/fhir_vocabularies
     docker cp "$HOME/fhir_vocabularies/terminology" emr-backend:/tmp/fhir_vocabularies/
+
+    # WINTEHR_TERMINOLOGY_PROFILE controls how much UMLS we load. The
+    # `lite` profile skips LOINC (~175k concepts) and ICD-10-CM (~98k)
+    # because Synthea barely uses them and Hibernate Search reindexing
+    # over them on a small VM is brutal. Stick with `full` for instances
+    # that need them (e.g., real lab-coding workflows).
+    PROFILE="${WINTEHR_TERMINOLOGY_PROFILE:-lite}"
+    if [ "$PROFILE" = "lite" ]; then
+        ONLY_FLAG="--only rxnorm cvx hcpcs atc ucum snomed"
+        echo -e "${BLUE}   Profile: lite (skipping LOINC + ICD-10-CM; set WINTEHR_TERMINOLOGY_PROFILE=full to load everything)${NC}"
+    else
+        ONLY_FLAG=""
+        echo -e "${BLUE}   Profile: full${NC}"
+    fi
+
     docker exec -d emr-backend bash -c "
         python3 /tmp/load_terminology.py /tmp/fhir_vocabularies \
             --hapi-url http://hapi-fhir:8080/fhir \
             --timeout 600 \
+            $ONLY_FLAG \
             > /app/data/terminology_load.log 2>&1
     "
     echo "   Running in backend container; log at ./data/terminology_load.log"
@@ -695,6 +711,44 @@ if [ "$PROFILE" = "prod" ] && [ "$SSL_DOMAIN" != "localhost" ]; then
             echo -e "${YELLOW}⚠️  SSL setup script not found${NC}"
             echo "   Run: ./deploy/init-ssl.sh $SSL_DOMAIN"
         fi
+    fi
+    echo ""
+fi
+
+# Step 7a: HAPI Lucene reindex (Hibernate Search). Run once after a fresh
+# deploy or after enabling Hibernate Search. The persistent volume at
+# /var/lib/hapi-lucene means this is a one-time cost — subsequent
+# restarts skip it. Safe to re-run; it's idempotent.
+#
+# Skipped if WINTEHR_SKIP_REINDEX=1, or if the index already has content
+# (small heuristic: directory size > 1 MB suggests a previous reindex
+# completed). Set WINTEHR_FORCE_REINDEX=1 to override the heuristic.
+if [ "${WINTEHR_SKIP_REINDEX:-0}" != "1" ]; then
+    echo -e "${BLUE}🔍 Checking HAPI Lucene index state...${NC}"
+    INDEX_BYTES=$(docker exec emr-hapi-fhir du -sb /var/lib/hapi-lucene 2>/dev/null | awk '{print $1}' || echo 0)
+    if [ "${WINTEHR_FORCE_REINDEX:-0}" = "1" ] || [ "${INDEX_BYTES:-0}" -lt 1048576 ]; then
+        echo -e "${BLUE}   Lucene index is empty or small (${INDEX_BYTES} bytes); triggering one-shot reindex.${NC}"
+        # First, clear out any orphan terminology cleanup jobs from prior
+        # runs that would deadlock the new reindex. Safe even on a fresh
+        # install (no-op if there's nothing to cancel).
+        docker exec emr-postgres psql -U "${POSTGRES_USER:-emr_user}" -d "${POSTGRES_DB:-emr_db}" \
+            -c "UPDATE bt2_job_instance SET stat='CANCELLED', end_time=NOW()
+                WHERE stat IN ('QUEUED','IN_PROGRESS');
+                UPDATE bt2_work_chunk SET stat='FAILED', end_time=NOW()
+                WHERE stat NOT IN ('COMPLETED','FAILED','CANCELLED');" \
+            > /dev/null 2>&1 || true
+
+        docker exec emr-backend curl -sS -X POST \
+            "http://hapi-fhir:8080/fhir/\$reindex" \
+            -H "Content-Type: application/fhir+json" \
+            -d '{"resourceType":"Parameters"}' > /dev/null 2>&1 || true
+        echo -e "${BLUE}   Reindex queued. Watch progress in HAPI logs:${NC}"
+        echo -e "${BLUE}     docker compose logs -f hapi-fhir${NC} (look for 'records processed')"
+        echo -e "${BLUE}   First-run completes in ~5-10 min on the lite terminology profile;${NC}"
+        echo -e "${BLUE}   the deploy continues; queries against unindexed resources will fail${NC}"
+        echo -e "${BLUE}   until reindex finishes.${NC}"
+    else
+        echo -e "${GREEN}   Lucene index present (${INDEX_BYTES} bytes); skipping reindex.${NC}"
     fi
     echo ""
 fi

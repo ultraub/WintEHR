@@ -93,29 +93,62 @@ x-hapi-fhir-common: &hapi-fhir-common
     hapi.fhir.max_page_size: 500
     hapi.fhir.cdshooks.enabled: true
     hapi.fhir.cr.enabled: true
-    # Hibernate Search / Lucene is left disabled. We tried enabling it so
-    # cqf-fhir-cr's `code:in=<vs-canonical>` search resolution would work
-    # for resource types whose token SP indexing requires it (notably
-    # Immunization.vaccine-code), but the reindex over our loaded UMLS
-    # terminology (~280k concepts) was too memory-hungry to be practical
-    # on the educational platform. Instead, the CDS Studio's CQL artifact
-    # builder rewrites `valueset` declarations into inline concept lists
-    # at save time so the compiled Library never issues runtime `:in`
-    # queries. See `backend/api/cds_studio/cql_artifact_builder.py`.
-    hapi.fhir.advanced_lucene_indexing: false
+    # Hibernate Search enabled so cqf-fhir-cr's `code:in=<vs-canonical>`
+    # search resolution works natively for all FHIR resource types.
+    # Earlier we worked around this with a CQL inline-rewrite at save
+    # time, but that doesn't scale to complex retrieves or imported
+    # third-party CQL libraries. The rewrite is being phased out (see
+    # plan: ~/.claude/plans/we-want-students-to-sharded-pond.md).
+    #
+    # Three things have to line up — same as before, plus a persistent
+    # Lucene volume so the reindex isn't redone on every container
+    # restart, and a trimmed terminology load so the index is small
+    # enough for ~5g heap:
+    #   1. HAPI-level flag (advanced_lucene_indexing) — exposes indexing
+    #      hooks in the storage layer.
+    #   2. spring.jpa.properties.hibernate.search.* — bootstraps the
+    #      Hibernate Search subsystem at the JPA level.
+    #   3. Lucene local-filesystem backend pointed at the persistent
+    #      volume mounted at /var/lib/hapi-lucene.
+    #
+    # The $$ in the configurer class name escapes the literal $ that
+    # docker-compose would otherwise interpret as a variable reference;
+    # the JVM sees the inner-class form `Configurers$Configurer`.
+    hapi.fhir.advanced_lucene_indexing: true
+    spring.jpa.properties.hibernate.search.enabled: true
+    spring.jpa.properties.hibernate.search.backend.type: lucene
+    spring.jpa.properties.hibernate.search.backend.analysis.configurer: "ca.uhn.fhir.jpa.search.HapiHSearchAnalysisConfigurers$$HapiLuceneAnalysisConfigurer"
+    spring.jpa.properties.hibernate.search.backend.directory.type: local-filesystem
+    spring.jpa.properties.hibernate.search.backend.directory.root: /var/lib/hapi-lucene
+    spring.jpa.properties.hibernate.search.backend.lucene_version: lucene_current
     # Token for the /admin/cr/* endpoints exposed by our overlay. The
     # composer (in the FastAPI backend) calls those endpoints with this
     # token to flush CR caches after a ValueSet edit so the change is
     # immediately reflected without waiting for a HAPI restart.
     HAPI_ADMIN_TOKEN: ${HAPI_ADMIN_TOKEN:-}
-    # JVM heap sized for the bulk Synthea bundle load (100 patients ≈
-    # thousands of resources through HAPI's transaction processor at once).
-    # 1.5G was too tight — OOM-killed mid-load on a fresh deploy.
-    JAVA_TOOL_OPTIONS: "-Xmx3g -Xms512m"
+    # JVM heap. Two pressures:
+    #   1. Bulk Synthea bundle load (100 patients ≈ thousands of resources
+    #      through HAPI's transaction processor at once)
+    #   2. Hibernate Search reindex over loaded resources + trimmed
+    #      terminology (~30-50k records on the educational deploy).
+    # 5g leaves headroom for both heap and Lucene's file-system cache;
+    # the 6g container cap below stays well under the 9-10g GC-overhead
+    # ceiling we hit when this was sized too tight.
+    JAVA_TOOL_OPTIONS: "-Xmx5g -Xms1g"
+  volumes:
+    # Persistent Lucene index — survives container recreates so the
+    # reindex (~5-10 min) is a one-time cost on first deploy. Wipe and
+    # re-create the volume + run \$reindex if the index ever corrupts;
+    # nothing in Lucene is unique-source-of-truth (postgres has all
+    # resources).
+    - hapi_lucene_data:/var/lib/hapi-lucene
   deploy:
     resources:
       limits:
-        memory: 4g
+        # Must comfortably exceed JAVA_TOOL_OPTIONS Xmx; if the container
+        # cap is below the JVM heap the kernel OOM-kills HAPI before the
+        # JVM has a chance to throw.
+        memory: 6g
   healthcheck:
     disable: true
 
@@ -368,3 +401,4 @@ networks:
 
 volumes:
   postgres_data:
+  hapi_lucene_data:
