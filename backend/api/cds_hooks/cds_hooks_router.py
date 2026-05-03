@@ -1029,6 +1029,292 @@ async def analyze_prefetch_patterns(
         raise HTTPException(status_code=500, detail="Failed to analyze prefetch patterns")
 
 
+# Debug / Diagnostic Endpoint
+@router.get("/cds-debug/{service_id}")
+async def diagnose_service(
+    service_id: str,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Read-only triage for a CDS service that isn't producing cards.
+
+    Walks the same path execute_service walks and reports what was found
+    at each stage. Always returns 200 — the response body is the report,
+    not the result of executing the service. Safe to call on prod since
+    no PHI is touched and no resource is mutated.
+
+    Stages reported:
+      - registry          v3.0 ServiceRegistry hit?
+      - hapi_plan_definition  Direct read by id, then extension search
+      - duplicates        Count of PlanDefinitions sharing this hook-service-id
+      - external_service  metadata row in external_services.services (when origin=external)
+      - visual_config     VisualServiceConfig row (when origin=visual-builder)
+      - cql_libraries     For cql-based: each library reference is resolved
+                          against HAPI to see if it still exists
+      - diagnosis         Human-readable summary
+    """
+    from services.hapi_fhir_client import HAPIFHIRClient
+    from sqlalchemy import select
+
+    report: Dict[str, Any] = {
+        "service_id": service_id,
+        "checks": {
+            "registry": {"found": False, "title": None},
+            "hapi_plan_definition": {
+                "found": False,
+                "id": None,
+                "method": None,  # "direct_read" | "extension_search"
+                "service_origin": None,
+                "hook_type": None,
+                "library_refs": [],
+            },
+            "duplicates": {"count": 0, "ids": []},
+            "external_service": None,
+            "visual_config": None,
+            "cql_libraries": None,
+        },
+        "diagnosis": None,
+    }
+    diagnosis_parts: List[str] = []
+
+    # 1. Registry lookup
+    registry = get_registry()
+    registered = registry.get(service_id)
+    if registered is not None:
+        report["checks"]["registry"]["found"] = True
+        report["checks"]["registry"]["title"] = getattr(registered, "title", None)
+
+    # 2. HAPI lookup (direct read first, then extension search) +
+    #    duplicate count.
+    hapi_client = HAPIFHIRClient()
+    plan_definition: Optional[Dict[str, Any]] = None
+
+    try:
+        plan_definition = await hapi_client.read("PlanDefinition", service_id)
+        report["checks"]["hapi_plan_definition"]["method"] = "direct_read"
+    except Exception:
+        # 404 / other read errors fall through to the search path.
+        pass
+
+    # Extension search runs unconditionally so we can also count duplicates.
+    try:
+        bundle = await hapi_client.search(
+            "PlanDefinition", {"status": "active", "_count": 200}
+        )
+        matches: List[Dict[str, Any]] = []
+        for entry in bundle.get("entry", []) or []:
+            resource = entry.get("resource") or {}
+            ext_id = _extract_extension_value(
+                resource,
+                "http://wintehr.local/fhir/StructureDefinition/hook-service-id",
+            )
+            if ext_id == service_id:
+                matches.append(resource)
+
+        if matches:
+            # Sort by lastUpdated descending so the freshest one wins for the
+            # primary report (matches what discover_services dedup picks).
+            matches.sort(
+                key=lambda r: (r.get("meta") or {}).get("lastUpdated") or "",
+                reverse=True,
+            )
+            if plan_definition is None:
+                plan_definition = matches[0]
+                report["checks"]["hapi_plan_definition"]["method"] = "extension_search"
+            report["checks"]["duplicates"]["count"] = len(matches)
+            report["checks"]["duplicates"]["ids"] = [r.get("id") for r in matches]
+    except Exception as exc:
+        diagnosis_parts.append(f"HAPI extension search failed: {exc}")
+
+    if plan_definition is not None:
+        report["checks"]["hapi_plan_definition"]["found"] = True
+        report["checks"]["hapi_plan_definition"]["id"] = plan_definition.get("id")
+        report["checks"]["hapi_plan_definition"]["service_origin"] = (
+            _extract_extension_value(
+                plan_definition,
+                "http://wintehr.local/fhir/StructureDefinition/service-origin",
+            )
+        )
+        report["checks"]["hapi_plan_definition"]["hook_type"] = (
+            _extract_extension_value(
+                plan_definition,
+                "http://wintehr.local/fhir/StructureDefinition/hook-type",
+            )
+        )
+        report["checks"]["hapi_plan_definition"]["library_refs"] = list(
+            plan_definition.get("library") or []
+        )
+
+    # 3. Origin-specific deeper checks. Mirror execute_service's routing.
+    origin = report["checks"]["hapi_plan_definition"]["service_origin"]
+
+    if origin == "external" and plan_definition is not None:
+        external_service_id = _extract_extension_value(
+            plan_definition,
+            "http://wintehr.local/fhir/StructureDefinition/external-service-id",
+        )
+        report["checks"]["external_service"] = {
+            "external_service_id": external_service_id,
+            "metadata_row_found": False,
+            "auto_disabled": None,
+            "consecutive_failures": None,
+            "last_error_message": None,
+        }
+        if external_service_id:
+            try:
+                row = (
+                    await db.execute(
+                        text(
+                            "SELECT auto_disabled, consecutive_failures, "
+                            "last_error_message "
+                            "FROM external_services.services "
+                            "WHERE id = :id LIMIT 1"
+                        ),
+                        {"id": external_service_id},
+                    )
+                ).mappings().first()
+                if row:
+                    report["checks"]["external_service"]["metadata_row_found"] = True
+                    report["checks"]["external_service"]["auto_disabled"] = row[
+                        "auto_disabled"
+                    ]
+                    report["checks"]["external_service"]["consecutive_failures"] = row[
+                        "consecutive_failures"
+                    ]
+                    report["checks"]["external_service"]["last_error_message"] = row[
+                        "last_error_message"
+                    ]
+                else:
+                    diagnosis_parts.append(
+                        "External service has no metadata row "
+                        "(external_services.services). Likely deleted."
+                    )
+            except Exception as exc:
+                diagnosis_parts.append(f"Could not read external service row: {exc}")
+        else:
+            diagnosis_parts.append(
+                "PlanDefinition is tagged service-origin=external but missing "
+                "the external-service-id extension."
+            )
+
+    elif origin == "visual-builder" and plan_definition is not None:
+        from api.cds_studio.visual_service_config import (
+            VisualServiceConfig,
+            is_cql_service_type,
+        )
+
+        visual_service_id = _extract_extension_value(
+            plan_definition,
+            "http://wintehr.local/fhir/StructureDefinition/visual-service-id",
+        )
+        vc_report: Dict[str, Any] = {
+            "visual_service_id": visual_service_id,
+            "config_row_found": False,
+            "service_type": None,
+            "is_cql": False,
+        }
+        if visual_service_id:
+            try:
+                config = (
+                    await db.execute(
+                        select(VisualServiceConfig).where(
+                            VisualServiceConfig.id == int(visual_service_id)
+                        )
+                    )
+                ).scalar_one_or_none()
+                if config is not None:
+                    vc_report["config_row_found"] = True
+                    vc_report["service_type"] = config.service_type
+                    vc_report["is_cql"] = is_cql_service_type(config.service_type)
+                else:
+                    diagnosis_parts.append(
+                        f"VisualServiceConfig row {visual_service_id} not found "
+                        "— execute_service would 500 with 'Visual service not configured'."
+                    )
+            except Exception as exc:
+                diagnosis_parts.append(
+                    f"Could not read VisualServiceConfig row: {exc}"
+                )
+        else:
+            diagnosis_parts.append(
+                "PlanDefinition is tagged service-origin=visual-builder but "
+                "missing the visual-service-id extension."
+            )
+        report["checks"]["visual_config"] = vc_report
+
+        # CQL-specific: check that each library reference resolves.
+        if vc_report["is_cql"]:
+            library_refs = report["checks"]["hapi_plan_definition"]["library_refs"]
+            cql_report: List[Dict[str, Any]] = []
+            if not library_refs:
+                diagnosis_parts.append(
+                    "CQL service but PlanDefinition.library[] is empty — "
+                    "$apply will return no actions."
+                )
+            for ref in library_refs:
+                # The reference is a canonical URL. The Library.id is the last
+                # path segment. Try to read it directly; fall back to a url
+                # search if the canonical doesn't match the id.
+                tail = ref.rsplit("/", 1)[-1] if isinstance(ref, str) else None
+                resolution: Dict[str, Any] = {
+                    "reference": ref,
+                    "exists_in_hapi": False,
+                    "resolved_id": None,
+                }
+                if tail:
+                    try:
+                        lib = await hapi_client.read("Library", tail)
+                        if lib:
+                            resolution["exists_in_hapi"] = True
+                            resolution["resolved_id"] = lib.get("id")
+                    except Exception:
+                        pass
+                if not resolution["exists_in_hapi"] and isinstance(ref, str):
+                    try:
+                        b = await hapi_client.search("Library", {"url": ref})
+                        for e in b.get("entry", []) or []:
+                            r = e.get("resource") or {}
+                            if r.get("resourceType") == "Library":
+                                resolution["exists_in_hapi"] = True
+                                resolution["resolved_id"] = r.get("id")
+                                break
+                    except Exception:
+                        pass
+                if not resolution["exists_in_hapi"]:
+                    diagnosis_parts.append(
+                        f"PlanDefinition references Library {ref!r} which does "
+                        "not exist in HAPI. $apply will fail; runtime returns "
+                        "empty cards via the catch-all."
+                    )
+                cql_report.append(resolution)
+            report["checks"]["cql_libraries"] = cql_report
+
+    elif plan_definition is None and not report["checks"]["registry"]["found"]:
+        diagnosis_parts.append(
+            "Service not found in either the registry or HAPI. "
+            "Discovery would return it as nonexistent; execute returns 404."
+        )
+
+    # 4. Pre-PR-79 duplicate stacking warning.
+    if report["checks"]["duplicates"]["count"] > 1:
+        diagnosis_parts.append(
+            f"{report['checks']['duplicates']['count']} PlanDefinitions share "
+            "this hook-service-id. Discovery dedupes on read (since "
+            "PR #79) but the orphans should be reclaimed via "
+            "expunge_orphan_visual_plan_definitions.py --apply."
+        )
+
+    if not diagnosis_parts:
+        diagnosis_parts.append(
+            "No structural problem detected. If the service is still not "
+            "producing cards, the issue is in the runtime path — check "
+            "backend logs for $apply errors or condition-tree evaluation "
+            "warnings during a real hook fire."
+        )
+
+    report["diagnosis"] = " ".join(diagnosis_parts)
+    return report
+
+
 # Service Management Endpoints (for CRUD operations)
 @router.get("/services", response_model=List[HookConfiguration])
 async def list_services(
