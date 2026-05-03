@@ -37,6 +37,41 @@ x-redis-common: &redis-common
     start_period: 5s
   command: redis-server --maxmemory ${REDIS_MAXMEMORY:-256mb} --maxmemory-policy allkeys-lru
 
+x-elasticsearch-common: &elasticsearch-common
+  # ES 8.x for HAPI's Hibernate Search backend. The CDS Studio CQL
+  # services depend on `code:in=<vs-canonical>` resolution, which HAPI
+  # routes through Hibernate Search; with ES as the backend the bulk
+  # CodeSystem indexing that broke local-Lucene happens out-of-process
+  # and doesn't compete with HAPI's heap or transactions.
+  #
+  # Single-node mode is fine for the educational deployment — high
+  # availability isn't a goal and ES's clustering overhead would just
+  # bloat the VM. Security is disabled for the same reason: ES is only
+  # reachable inside the docker network, never published to the host.
+  image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+  container_name: emr-elasticsearch
+  restart: ${RESTART_POLICY:-no}
+  environment:
+    - discovery.type=single-node
+    - xpack.security.enabled=false
+    - xpack.security.http.ssl.enabled=false
+    - cluster.name=wintehr
+    # 1g heap covers our scale (128 patients + ~280k terminology
+    # concepts). Bump if you load larger CodeSystems.
+    - ES_JAVA_OPTS=-Xms1g -Xmx1g
+  volumes:
+    - elasticsearch_data:/usr/share/elasticsearch/data
+  healthcheck:
+    test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qE 'green|yellow'"]
+    interval: 10s
+    timeout: 5s
+    retries: 30
+    start_period: 60s
+  deploy:
+    resources:
+      limits:
+        memory: 2g
+
 x-postgres-common: &postgres-common
   image: postgres:15-alpine
   container_name: emr-postgres
@@ -93,17 +128,28 @@ x-hapi-fhir-common: &hapi-fhir-common
     hapi.fhir.max_page_size: 500
     hapi.fhir.cdshooks.enabled: true
     hapi.fhir.cr.enabled: true
-    # Hibernate Search left disabled. Attempted Lucene-backed indexing in
-    # an earlier session — hit too many infrastructure problems (OOMs at
-    # 5g heap, transaction rollbacks indexing the bulk-loaded UMLS
-    # CodeSystems, pre-expansion daemon refusing to populate
-    # trm_valueset_concept) to be ready for production. Until that's
-    # cracked, the CDS Studio's CQL artifact builder rewrites valueset
-    # retrieves into inline concept-list filtering at save time, so the
-    # compiled Library never issues runtime `code:in=<canonical>` queries.
-    # See `backend/api/cds_studio/cql_artifact_builder.py` and the plan
-    # at ~/.claude/plans/we-want-students-to-sharded-pond.md.
-    hapi.fhir.advanced_lucene_indexing: false
+    # Hibernate Search backed by Elasticsearch. HAPI's CR engine routes
+    # `code:in=<vs-canonical>` resolution through Hibernate Search, and
+    # several token search params (Immunization.vaccine-code in
+    # particular) require the search backend initialized. We tried
+    # local-Lucene first — it OOM'd on bulk CodeSystem indexing and the
+    # pre-expansion daemon never recovered. ES runs out-of-process so
+    # those failures don't cascade into HAPI's heap or transactions.
+    #
+    # The CDS Studio's CQL artifact builder still inline-rewrites
+    # valueset retrieves at materialization time as a belt-and-braces
+    # safeguard while we validate ES end-to-end. Once a fresh reindex
+    # against ES proves the demo + integration test work without the
+    # rewrite, that rewrite is removed (see plan at
+    # ~/.claude/plans/we-want-students-to-sharded-pond.md).
+    hapi.fhir.advanced_lucene_indexing: true
+    hapi.fhir.elasticsearch.rest_url: "http://elasticsearch:9200"
+    hapi.fhir.elasticsearch.protocol: "http"
+    # ES schema management — CREATE means HAPI creates the index on
+    # startup if missing. Other options (NONE, VALIDATE, UPDATE) are for
+    # tighter control of upgrades; CREATE is fine for a single-instance
+    # educational deployment.
+    hapi.fhir.elasticsearch.schema_management_strategy: CREATE
     # Token for the /admin/cr/* endpoints exposed by our overlay. The
     # composer (in the FastAPI backend) calls those endpoints with this
     # token to flush CR caches after a ValueSet edit so the change is
@@ -166,6 +212,25 @@ services:
         aliases:
           - postgres
 
+  # Elasticsearch — HAPI's Hibernate Search backend.
+  # Same instance for both profiles; alias `elasticsearch` is what HAPI's
+  # `hapi.fhir.elasticsearch.rest_url` resolves against.
+  elasticsearch-dev:
+    <<: *elasticsearch-common
+    profiles: ["dev"]
+    networks:
+      emr-network:
+        aliases:
+          - elasticsearch
+
+  elasticsearch-prod:
+    <<: *elasticsearch-common
+    profiles: ["prod"]
+    networks:
+      emr-network:
+        aliases:
+          - elasticsearch
+
   # ============================================================
   # HAPI FHIR SERVER
   # ============================================================
@@ -184,6 +249,8 @@ services:
     depends_on:
       postgres-dev:
         condition: service_healthy
+      elasticsearch-dev:
+        condition: service_healthy
 
   hapi-fhir-prod:
     <<: *hapi-fhir-common
@@ -194,6 +261,8 @@ services:
           - hapi-fhir
     depends_on:
       postgres-prod:
+        condition: service_healthy
+      elasticsearch-prod:
         condition: service_healthy
 
   # ============================================================
@@ -369,3 +438,4 @@ networks:
 
 volumes:
   postgres_data:
+  elasticsearch_data:
