@@ -76,10 +76,10 @@ describe('actionToRuntimeShape', () => {
     });
   });
 
-  it('builds an add-problem Condition with SNOMED code', () => {
+  it('builds an add-problem Condition with SNOMED code when present', () => {
     const result = actionToRuntimeShape({
       templateId: 'add-problem',
-      codeItem: { code: '44054006', display: 'Type 2 diabetes' },
+      codeItem: { snomed_code: '44054006', display_name: 'Type 2 diabetes' },
       description: 'Add T2DM'
     });
     expect(result.resource.resourceType).toBe('Condition');
@@ -88,6 +88,19 @@ describe('actionToRuntimeShape', () => {
       system: 'http://snomed.info/sct',
       code: '44054006',
       display: 'Type 2 diabetes'
+    });
+  });
+
+  it('builds an add-problem Condition with ICD-10 when SNOMED is absent', () => {
+    const result = actionToRuntimeShape({
+      templateId: 'add-problem',
+      codeItem: { icd10_code: 'E11.9', display_name: 'Type 2 diabetes mellitus without complications' },
+      description: 'Add T2DM'
+    });
+    expect(result.resource.code.coding[0]).toEqual({
+      system: 'http://hl7.org/fhir/sid/icd-10-cm',
+      code: 'E11.9',
+      display: 'Type 2 diabetes mellitus without complications'
     });
   });
 
@@ -136,17 +149,30 @@ describe('runtimeToBuilderState', () => {
     expect(recovered.codeItem.generic_name).toBe('Metformin');
   });
 
-  it('round-trips a problem', () => {
+  it('round-trips a SNOMED-coded problem', () => {
     const builder = {
       templateId: 'add-problem',
-      codeItem: { code: '44054006', display: 'Type 2 diabetes' },
+      codeItem: { snomed_code: '44054006', display_name: 'Type 2 diabetes' },
       description: 'Add T2DM'
     };
     const runtime = actionToRuntimeShape(builder);
     const recovered = runtimeToBuilderState(runtime);
     expect(recovered.templateId).toBe('add-problem');
-    expect(recovered.codeItem.code).toBe('44054006');
-    expect(recovered.codeItem.display).toBe('Type 2 diabetes');
+    expect(recovered.codeItem.snomed_code).toBe('44054006');
+    expect(recovered.codeItem.display_name).toBe('Type 2 diabetes');
+  });
+
+  it('round-trips an ICD-10-coded problem', () => {
+    const builder = {
+      templateId: 'add-problem',
+      codeItem: { icd10_code: 'E11.9', display_name: 'T2DM without complications' },
+      description: 'Add T2DM'
+    };
+    const runtime = actionToRuntimeShape(builder);
+    const recovered = runtimeToBuilderState(runtime);
+    expect(recovered.templateId).toBe('add-problem');
+    expect(recovered.codeItem.icd10_code).toBe('E11.9');
+    expect(recovered.codeItem.display_name).toBe('T2DM without complications');
   });
 
   it('discriminates referral vs lab on category code', () => {

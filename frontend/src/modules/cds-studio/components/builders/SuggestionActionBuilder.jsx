@@ -109,32 +109,42 @@ const ACTION_TEMPLATES = {
     codeLabel: 'Problem',
     placeholder: 'e.g. Hypertension, Type 2 diabetes',
     fetchCodes: (search) => cdsClinicalDataService.getDynamicConditionCatalog(search || null, 25),
-    // Conditions catalog returns SNOMED concepts as { code, display, ... }.
-    getCodeKey: (item) => item.code || item.snomed_code || item.id,
-    getCodeDisplay: (item) => item.display || item.code,
-    buildResource: (codeItem) => ({
-      resourceType: 'Condition',
-      clinicalStatus: {
-        coding: [{
-          system: 'http://terminology.hl7.org/CodeSystem/condition-clinical',
-          code: 'active'
-        }]
-      },
-      verificationStatus: {
-        coding: [{
-          system: 'http://terminology.hl7.org/CodeSystem/condition-ver-status',
-          code: 'confirmed'
-        }]
-      },
-      code: {
-        coding: [{
-          system: 'http://snomed.info/sct',
-          code: codeItem.code || codeItem.snomed_code,
-          display: codeItem.display
-        }],
-        text: codeItem.display
-      }
-    })
+    // Catalog response: { id, display_name, icd10_code, snomed_code, ... }.
+    // SNOMED may be null on the deployed Synthea data; ICD-10 is reliable.
+    getCodeKey: (item) => item.snomed_code || item.icd10_code || item.id,
+    getCodeDisplay: (item) => item.display_name || item.display || item.icd10_code || item.id,
+    buildResource: (codeItem) => {
+      // Prefer SNOMED when present (matches the runtime EMR's preferred
+      // problem-list system); fall back to ICD-10 otherwise.
+      const useSnomed = Boolean(codeItem.snomed_code);
+      const display = codeItem.display_name || codeItem.display
+        || codeItem.icd10_code || codeItem.id;
+      return {
+        resourceType: 'Condition',
+        clinicalStatus: {
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/condition-clinical',
+            code: 'active'
+          }]
+        },
+        verificationStatus: {
+          coding: [{
+            system: 'http://terminology.hl7.org/CodeSystem/condition-ver-status',
+            code: 'confirmed'
+          }]
+        },
+        code: {
+          coding: [{
+            system: useSnomed
+              ? 'http://snomed.info/sct'
+              : 'http://hl7.org/fhir/sid/icd-10-cm',
+            code: useSnomed ? codeItem.snomed_code : (codeItem.icd10_code || codeItem.id),
+            display
+          }],
+          text: display
+        }
+      };
+    }
   },
 
   'refer': {
@@ -417,10 +427,13 @@ export function runtimeToBuilderState(runtimeAction) {
       generic_name: coding.display || text
     };
   } else if (templateId === 'add-problem') {
-    codeItem = {
-      code: coding.code,
-      display: coding.display || text
-    };
+    // Synthesize the catalog-shape fields the picker reads. Discriminate
+    // by system so a saved ICD-10 problem reloads to the same template
+    // and re-encodes the same way on edit.
+    const isIcd10 = coding.system === 'http://hl7.org/fhir/sid/icd-10-cm';
+    codeItem = isIcd10
+      ? { icd10_code: coding.code, display_name: coding.display || text }
+      : { snomed_code: coding.code, display_name: coding.display || text };
   } else {
     codeItem = { display: text || '' };
   }
