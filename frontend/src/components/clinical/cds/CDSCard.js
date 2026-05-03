@@ -64,6 +64,15 @@ const CDSCard = ({
   card,
   serviceId,
   hookInstance,
+  // Patient context for the feedback POST. Required to execute a
+  // suggestion's actions[].resource server-side — without it the runtime
+  // executor has no patient and HAPI rejects the create. Previews
+  // (CardPreviewPanel, CardDesigner preview, ServiceTester) pass nothing,
+  // and this component skips the feedback round-trip when patientId is
+  // absent rather than firing a doomed call.
+  patientId = null,
+  userId = null,
+  encounterId = null,
   onAcceptSuggestion,
   onDismiss,
   compact = false
@@ -91,6 +100,22 @@ const CDSCard = ({
       setSubmittingFeedback(true);
       setAcceptedSuggestionId(suggestion.uuid || suggestion.label);
 
+      // Preview short-circuit: previews (in the studio) render this
+      // component to demo card UX and don't pass patientId. Without a
+      // patient the executor would try to create on `Patient/` (empty)
+      // and fail noisily. Acknowledge in the UI and bail out.
+      if (!patientId) {
+        setFeedbackSubmitted(true);
+        if (onAcceptSuggestion) {
+          try {
+            await onAcceptSuggestion(suggestion, { executed: [] });
+          } catch (cbErr) {
+            console.error('onAcceptSuggestion callback failed:', cbErr);
+          }
+        }
+        return;
+      }
+
       // Send feedback to CDS service. We include the suggestion's full
       // actions[] alongside its uuid (a backwards-compatible extension
       // beyond the spec's `{id}`-only shape). The backend's feedback
@@ -98,16 +123,25 @@ const CDSCard = ({
       // the FHIR resources the suggestion proposed — keyed for idempotency
       // by (hookInstance, suggestion.uuid). Without this, an Accept click
       // only records analytics; the proposed resource never lands.
+      //
+      // patientId/userId/encounterId/hookInstance carry the context the
+      // executor needs to fill in subject/requester/encounter and to
+      // dedupe by (hookInstance, suggestion.uuid). The backend
+      // FeedbackRequest model accepts these as a WintEHR extension.
       const feedbackResponse = await cdsHooksClient.sendFeedback(serviceId, {
         feedback: [{
           card: card.uuid,
+          hookInstance: hookInstance || undefined,
           outcome: 'accepted',
           outcomeTimestamp: new Date().toISOString(),
           acceptedSuggestions: [{
             id: suggestion.uuid,
             actions: suggestion.actions || []
           }]
-        }]
+        }],
+        patientId,
+        userId: userId || undefined,
+        encounterId: encounterId || undefined
       });
 
       // Notify the parent AFTER the FHIR write succeeded, passing any
@@ -132,7 +166,7 @@ const CDSCard = ({
     } finally {
       setSubmittingFeedback(false);
     }
-  }, [card.uuid, card.selectionBehavior, serviceId, onAcceptSuggestion, acceptedSuggestionId]);
+  }, [card.uuid, card.selectionBehavior, serviceId, hookInstance, patientId, userId, encounterId, onAcceptSuggestion, acceptedSuggestionId]);
 
   // Handle dismissing the card
   const handleDismiss = useCallback(async () => {
@@ -154,9 +188,13 @@ const CDSCard = ({
     try {
       setSubmittingFeedback(true);
 
-      // Send feedback to CDS service
+      // Send feedback to CDS service. Include hookInstance + patient
+      // context so the backend can correlate the override with the
+      // original hook fire (used for analytics; no resource is created
+      // on overridden outcomes).
       const feedbackItem = {
         card: card.uuid,
+        hookInstance: hookInstance || undefined,
         outcome: 'overridden',
         outcomeTimestamp: new Date().toISOString()
       };
@@ -168,9 +206,15 @@ const CDSCard = ({
         };
       }
 
-      await cdsHooksClient.sendFeedback(serviceId, {
-        feedback: [feedbackItem]
-      });
+      // Skip the network round-trip in previews (no patient context).
+      if (patientId) {
+        await cdsHooksClient.sendFeedback(serviceId, {
+          feedback: [feedbackItem],
+          patientId,
+          userId: userId || undefined,
+          encounterId: encounterId || undefined
+        });
+      }
 
       // Call parent handler
       if (onDismiss) {
@@ -184,7 +228,7 @@ const CDSCard = ({
     } finally {
       setSubmittingFeedback(false);
     }
-  }, [card, serviceId, onDismiss]);
+  }, [card, serviceId, hookInstance, patientId, userId, encounterId, onDismiss]);
 
   // Handle override dialog submission
   const handleOverrideSubmit = () => {

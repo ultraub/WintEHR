@@ -361,8 +361,33 @@ class FeedbackItem(BaseModel):
 
 
 class FeedbackRequest(BaseModel):
-    """Feedback request - CDS Hooks 2.0"""
+    """Feedback request - CDS Hooks 2.0.
+
+    The CDS Hooks 2.0 spec defines only ``feedback: FeedbackItem[]``. We
+    extend the request with optional ``patientId`` / ``userId`` /
+    ``encounterId`` fields because the WintEHR-extension feedback path
+    can execute the suggestion's ``actions[].resource`` server-side
+    (creating MedicationRequest/ServiceRequest/Condition on the patient).
+    Without these fields the executor has no patient context, the auto-
+    injected ``subject`` reference becomes ``Patient/`` (empty), and HAPI
+    rejects the create with HAPI-0508.
+
+    The router already reads these via ``getattr(feedback, ..., None)``;
+    declaring them here just stops Pydantic from stripping them.
+    """
     feedback: List[FeedbackItem] = Field(..., description="Feedback items")
+    patientId: Optional[str] = Field(
+        None,
+        description="FHIR Patient ID for action execution (WintEHR extension).",
+    )
+    userId: Optional[str] = Field(
+        None,
+        description="FHIR Practitioner ID for action requester (WintEHR extension).",
+    )
+    encounterId: Optional[str] = Field(
+        None,
+        description="FHIR Encounter ID for action context (WintEHR extension).",
+    )
 
 
 # Hook Configuration Models (for internal use)
