@@ -93,48 +93,29 @@ x-hapi-fhir-common: &hapi-fhir-common
     hapi.fhir.max_page_size: 500
     hapi.fhir.cdshooks.enabled: true
     hapi.fhir.cr.enabled: true
-    # Enables Hibernate Search / Lucene indexing. Required because the CR
-    # engine emits `code:in=<vs-canonical>` searches for CQL retrieves with
-    # ValueSet filters, and HAPI's :in modifier resolution falls back to
-    # Lucene for some resource types (Immunization.vaccine-code, etc.).
-    # Also required for ValueSet/$expand against the wintehr-* terminology
-    # ValueSets the composer's catalog search uses.
-    #
-    # Three layers have to line up:
-    #   1. HAPI-level flag (advanced_lucene_indexing) — exposes the indexing
-    #      hooks in HAPI's storage layer
-    #   2. Hibernate Search — needs to be enabled at the JPA level
-    #   3. Lucene backend config — directory/analyzer/version
-    hapi.fhir.advanced_lucene_indexing: true
-    spring.jpa.properties.hibernate.search.enabled: true
-    spring.jpa.properties.hibernate.search.backend.type: lucene
-    # Note: $$ escapes the literal $ in docker-compose env interpolation;
-    # the JVM sees the inner-class form with a single $.
-    spring.jpa.properties.hibernate.search.backend.analysis.configurer: "ca.uhn.fhir.jpa.search.HapiHSearchAnalysisConfigurers$$HapiLuceneAnalysisConfigurer"
-    spring.jpa.properties.hibernate.search.backend.directory.type: local-filesystem
-    spring.jpa.properties.hibernate.search.backend.directory.root: /tmp/lucenefiles
-    spring.jpa.properties.hibernate.search.backend.lucene_version: lucene_current
+    # Hibernate Search / Lucene is left disabled. We tried enabling it so
+    # cqf-fhir-cr's `code:in=<vs-canonical>` search resolution would work
+    # for resource types whose token SP indexing requires it (notably
+    # Immunization.vaccine-code), but the reindex over our loaded UMLS
+    # terminology (~280k concepts) was too memory-hungry to be practical
+    # on the educational platform. Instead, the CDS Studio's CQL artifact
+    # builder rewrites `valueset` declarations into inline concept lists
+    # at save time so the compiled Library never issues runtime `:in`
+    # queries. See `backend/api/cds_studio/cql_artifact_builder.py`.
+    hapi.fhir.advanced_lucene_indexing: false
     # Token for the /admin/cr/* endpoints exposed by our overlay. The
     # composer (in the FastAPI backend) calls those endpoints with this
     # token to flush CR caches after a ValueSet edit so the change is
     # immediately reflected without waiting for a HAPI restart.
     HAPI_ADMIN_TOKEN: ${HAPI_ADMIN_TOKEN:-}
-    # JVM heap. Two pressures:
-    #   1. Bulk Synthea bundle load (100 patients ≈ thousands of resources
-    #      through HAPI's transaction processor at once)
-    #   2. Hibernate Search Lucene reindex over the loaded UMLS terminology
-    #      (175k LOINC + 98k ICD-10 + ~280k other concepts, plus 116k
-    #      Observations + remaining patient data). 3g OOM-killed during
-    #      this; 8g leaves headroom for both heap + Lucene file caching.
-    JAVA_TOOL_OPTIONS: "-Xmx8g -Xms1g"
+    # JVM heap sized for the bulk Synthea bundle load (100 patients ≈
+    # thousands of resources through HAPI's transaction processor at once).
+    # 1.5G was too tight — OOM-killed mid-load on a fresh deploy.
+    JAVA_TOOL_OPTIONS: "-Xmx3g -Xms512m"
   deploy:
     resources:
       limits:
-        # Must comfortably exceed JAVA_TOOL_OPTIONS Xmx; if the container
-        # cap is below the JVM heap the kernel OOM-kills HAPI before the
-        # JVM has a chance to throw. Sized for the Hibernate Search
-        # reindex over UMLS terminology (~280k concepts).
-        memory: 10g
+        memory: 4g
   healthcheck:
     disable: true
 
