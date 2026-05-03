@@ -322,21 +322,45 @@ const ClinicalWorkspaceEnhanced = ({
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* CDS Alerts - Show as dialog once per patient, dismissed on close */}
-      {cdsAlerts && cdsAlerts.length > 0 && !cdsDialogDismissed && (
-        <CDSPresentation
-          alerts={cdsAlerts}
-          mode={PRESENTATION_MODES.POPUP}
-          patientId={patientId}
-          allowInteraction={true}
-          onAlertAction={(alertId, action, data) => {
-            if (action === 'dismiss' || action === 'close') {
-              setCdsDialogDismissed(true);
-            }
-          }}
-          onClose={() => setCdsDialogDismissed(true)}
-        />
-      )}
+      {/* CDS Alerts — group by each alert's configured presentation mode
+          and render one CDSPresentation per mode. Previously this was
+          hardcoded to POPUP, which silently ignored every service's
+          displayBehavior config and made the wizard's Display Mode picker
+          a no-op. Each alert's `displayBehavior.presentationMode` comes
+          from CDSContext (set when the alert is created from the hook
+          response, based on hookConfigurations). Falls back to POPUP for
+          alerts that didn't get a mode assigned. */}
+      {cdsAlerts && cdsAlerts.length > 0 && !cdsDialogDismissed && (() => {
+        const alertsByMode = {};
+        cdsAlerts.forEach(alert => {
+          const mode = alert.displayBehavior?.presentationMode || PRESENTATION_MODES.POPUP;
+          if (!alertsByMode[mode]) alertsByMode[mode] = [];
+          alertsByMode[mode].push(alert);
+        });
+        return Object.entries(alertsByMode).map(([mode, alerts]) => (
+          <CDSPresentation
+            key={mode}
+            alerts={alerts}
+            mode={mode}
+            patientId={patientId}
+            allowInteraction={true}
+            onAlertAction={(alertId, action, data) => {
+              if (action === 'dismiss' || action === 'close') {
+                // Close the popup-style host once user dismisses; other
+                // modes (sidebar/banner/toast) stay independent.
+                if (mode === PRESENTATION_MODES.POPUP || mode === PRESENTATION_MODES.MODAL) {
+                  setCdsDialogDismissed(true);
+                }
+              }
+            }}
+            onClose={() => {
+              if (mode === PRESENTATION_MODES.POPUP || mode === PRESENTATION_MODES.MODAL) {
+                setCdsDialogDismissed(true);
+              }
+            }}
+          />
+        ));
+      })()}
       
       {/* Tab Content - no extra spacing */}
       <Box 
