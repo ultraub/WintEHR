@@ -1,10 +1,34 @@
 /**
  * CDS Action Executor Service
- * Handles execution of CDS suggestion actions (create, update, delete FHIR resources)
+ *
+ * Handles execution of CDS suggestion actions (create, update, delete FHIR
+ * resources) on the **client side**. This is a parallel implementation to
+ * the backend executor at
+ * `backend/api/cds_hooks/actions/executor.py::_execute_create_action`.
+ * Both must agree on which fields get auto-injected from the hook context
+ * (subject, requester, encounter) so the wizard can produce the same
+ * `actions[].resource` shape and have it work through either path.
+ *
+ * Resource types that require a subject (MedicationRequest, ServiceRequest,
+ * Observation, Condition, AllergyIntolerance, CarePlan, Goal, Task) get
+ * `subject` auto-filled here when the caller passes a `patientId` in the
+ * execution context, exactly mirroring the backend's behavior.
  */
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { cdsLogger } from '../config/logging';
 import { cdsFeedbackService } from './cdsFeedbackService';
+
+// Resource types that the runtime auto-fills `subject` on when missing.
+// Source: backend/api/cds_hooks/actions/executor.py:_execute_create_action.
+const SUBJECT_REQUIRED_TYPES = new Set([
+  'MedicationRequest', 'ServiceRequest', 'Observation', 'Condition',
+  'AllergyIntolerance', 'CarePlan', 'Goal', 'Task'
+]);
+
+// Resource types that get `requester` auto-filled (subset of above).
+const REQUESTER_REQUIRED_TYPES = new Set([
+  'MedicationRequest', 'ServiceRequest', 'Task'
+]);
 
 class CDSActionExecutor {
   constructor() {
@@ -19,9 +43,18 @@ class CDSActionExecutor {
    * Execute a CDS suggestion
    * @param {Object} alert - CDS alert/card
    * @param {Object} suggestion - Suggestion to execute
+   * @param {Object} [context] - Hook context. Pass at least `patientId` so
+   *   subject/requester/encounter can be auto-injected before validation.
+   *   Without this, resources whose type requires a subject (Condition,
+   *   ServiceRequest, MedicationRequest, etc.) will fail validation —
+   *   the wizard generates them without a subject by design, expecting
+   *   the executor to fill it in from context.
+   * @param {string} [context.patientId] - FHIR Patient ID
+   * @param {string} [context.userId] - FHIR Practitioner ID (for requester)
+   * @param {string} [context.encounterId] - FHIR Encounter ID
    * @returns {Promise<Object>} Execution result
    */
-  async executeSuggestion(alert, suggestion) {
+  async executeSuggestion(alert, suggestion, context = {}) {
     try {
       cdsLogger.info('Executing CDS suggestion', {
         alertId: alert.uuid,
@@ -41,7 +74,7 @@ class CDSActionExecutor {
       // Process actions in the suggestion
       if (suggestion.actions && Array.isArray(suggestion.actions)) {
         for (const action of suggestion.actions) {
-          const actionResult = await this.executeAction(action);
+          const actionResult = await this.executeAction(action, context);
           
           if (actionResult.success) {
             results.executedActions.push(actionResult);
@@ -96,12 +129,14 @@ class CDSActionExecutor {
   /**
    * Execute a single action
    * @param {Object} action - Action to execute
+   * @param {Object} [context] - Hook context for subject/requester/encounter
+   *   injection. See `executeSuggestion` for the shape.
    * @returns {Promise<Object>} Action result
    */
-  async executeAction(action) {
+  async executeAction(action, context = {}) {
     try {
       const { type, description, resource } = action;
-      
+
       if (!type) {
         throw new Error('Action type is required');
       }
@@ -111,7 +146,7 @@ class CDSActionExecutor {
         throw new Error(`Unknown action type: ${type}`);
       }
 
-      const result = await handler(resource, description);
+      const result = await handler(resource, description, context);
       
       return {
         success: true,
@@ -136,30 +171,60 @@ class CDSActionExecutor {
   }
 
   /**
+   * Inject subject/requester/encounter from the hook context into a
+   * partial resource before validation, mirroring the backend executor
+   * (`_execute_create_action` in actions/executor.py). Returns a new
+   * resource — does not mutate the input.
+   */
+  _injectContext(resource, context = {}) {
+    if (!resource || !resource.resourceType) return resource;
+    const { patientId, userId, encounterId } = context;
+    const result = { ...resource };
+
+    if (patientId
+        && SUBJECT_REQUIRED_TYPES.has(result.resourceType)
+        && !result.subject) {
+      result.subject = { reference: `Patient/${patientId}` };
+    }
+    if (userId
+        && REQUESTER_REQUIRED_TYPES.has(result.resourceType)
+        && !result.requester) {
+      result.requester = { reference: `Practitioner/${userId}` };
+    }
+    if (encounterId && !result.encounter) {
+      result.encounter = { reference: `Encounter/${encounterId}` };
+    }
+    return result;
+  }
+
+  /**
    * Handle create action
    * @param {Object} resource - FHIR resource to create
    * @param {string} description - Action description
+   * @param {Object} [context] - Hook context for subject/requester/encounter
    * @returns {Promise<Object>} Creation result
    */
-  async handleCreateAction(resource, description) {
+  async handleCreateAction(resource, description, context = {}) {
     if (!resource || !resource.resourceType) {
       throw new Error('Invalid resource for create action');
     }
 
-    // Validate resource before creation
-    this.validateResource(resource);
+    const enriched = this._injectContext(resource, context);
+
+    // Validate resource (with injected context) before creation
+    this.validateResource(enriched);
 
     // Create the resource
-    const createdResource = await fhirClient.create(resource);
+    const createdResource = await fhirClient.create(enriched);
 
     cdsLogger.info('Created FHIR resource', {
-      resourceType: resource.resourceType,
+      resourceType: enriched.resourceType,
       id: createdResource.id,
       description
     });
 
     return {
-      resourceType: resource.resourceType,
+      resourceType: enriched.resourceType,
       resourceId: createdResource.id,
       resource: createdResource
     };
@@ -169,28 +234,33 @@ class CDSActionExecutor {
    * Handle update action
    * @param {Object} resource - FHIR resource to update
    * @param {string} description - Action description
+   * @param {Object} [context] - Hook context (typically not needed for
+   *   updates since the resource already has subject etc., but accepted
+   *   for symmetry with create)
    * @returns {Promise<Object>} Update result
    */
-  async handleUpdateAction(resource, description) {
+  async handleUpdateAction(resource, description, context = {}) {
     if (!resource || !resource.resourceType || !resource.id) {
       throw new Error('Invalid resource for update action - must include resourceType and id');
     }
 
-    // Validate resource before update
-    this.validateResource(resource);
+    const enriched = this._injectContext(resource, context);
+
+    // Validate resource (with injected context) before update
+    this.validateResource(enriched);
 
     // Update the resource
-    const updatedResource = await fhirClient.update(resource);
+    const updatedResource = await fhirClient.update(enriched);
 
     cdsLogger.info('Updated FHIR resource', {
-      resourceType: resource.resourceType,
-      id: resource.id,
+      resourceType: enriched.resourceType,
+      id: enriched.id,
       description
     });
 
     return {
-      resourceType: resource.resourceType,
-      resourceId: resource.id,
+      resourceType: enriched.resourceType,
+      resourceId: enriched.id,
       resource: updatedResource
     };
   }
@@ -330,9 +400,12 @@ class CDSActionExecutor {
   /**
    * Dry run a suggestion to preview what would happen
    * @param {Object} suggestion - Suggestion to dry run
+   * @param {Object} [context] - Hook context, same shape as
+   *   `executeSuggestion`. Forwarded to `_injectContext` so the dry-run
+   *   validation matches what the live execute path would see.
    * @returns {Object} Dry run result
    */
-  async dryRunSuggestion(suggestion) {
+  async dryRunSuggestion(suggestion, context = {}) {
     const result = {
       wouldCreate: [],
       wouldUpdate: [],
@@ -344,7 +417,8 @@ class CDSActionExecutor {
       for (const action of suggestion.actions) {
         try {
           if (action.resource) {
-            this.validateResource(action.resource);
+            const enriched = this._injectContext(action.resource, context);
+            this.validateResource(enriched);
           }
 
           switch (action.type) {

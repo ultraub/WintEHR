@@ -116,7 +116,12 @@ const CDSPresentation = ({
   hideDelay = 5000,
   maxAlerts = 5,
   allowInteraction = true,
-  patientId = null
+  patientId = null,
+  // userId / encounterId are forwarded to cdsActionExecutor so it can
+  // auto-fill MedicationRequest.requester / *.encounter on accepted
+  // suggestions. Optional — patientId alone is enough for `subject`.
+  userId = null,
+  encounterId = null
 }) => {
   const [open, setOpen] = useState(true);
 
@@ -390,8 +395,18 @@ const CDSPresentation = ({
       }
     } else if (action === 'accept' && suggestion) {
       try {
-        // Execute the suggestion actions
-        const executionResult = await cdsActionExecutor.executeSuggestion(alert, suggestion);
+        // Execute the suggestion actions. Pass the hook context so the
+        // executor can auto-inject subject/requester/encounter on
+        // resources that need them — the wizard generates partial
+        // resources without a subject by design (mirroring how the
+        // backend executor would fill it in for the OrderSigningDialog
+        // path). Without this context, ServiceRequest/Condition/etc.
+        // would fail validation here for missing subject.
+        const executionResult = await cdsActionExecutor.executeSuggestion(
+          alert,
+          suggestion,
+          { patientId, userId, encounterId }
+        );
         
         if (executionResult.success) {
           // Show success notification if available
