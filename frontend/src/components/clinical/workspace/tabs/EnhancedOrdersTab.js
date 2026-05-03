@@ -66,6 +66,7 @@ import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/expo
 import { getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import { useOrderSelectHook } from '../../../../hooks/useCDSHooks';
+import CDSCard from '../../cds/CDSCard';
 import { getStatusColor, getSeverityColor } from '../../../../themes/clinicalThemeUtils';
 import websocketService from '../../../../services/websocket';
 
@@ -520,12 +521,19 @@ const EnhancedOrdersTab = ({
     return entries.filter(order => selectedOrders.has(order.id));
   }, [selectedOrders, entries]);
 
-  // Trigger order-select CDS hooks when orders are selected
-  useOrderSelectHook(
+  // Trigger order-select CDS hooks when orders are selected. The hook
+  // returns the same shape as useCDSHooks() — `cards` is the CDS Hooks
+  // 2.0 response, populated when one or more services configured for
+  // `order-select` returned cards. Rendered below the header so the
+  // clinician sees the alert next to their selection.
+  const {
+    cards: orderSelectCards = [],
+    loading: orderSelectLoading
+  } = useOrderSelectHook(
     patientId || currentPatient?.id,
     user?.id || user?.username || 'unknown',
     selectedOrdersArray
-  );
+  ) || {};
 
   // FHIR resources for providers, locations, and organizations
   const [availableProviders, setAvailableProviders] = useState([]);
@@ -1074,6 +1082,45 @@ const EnhancedOrdersTab = ({
           </Stack>
         </Stack>
       </Box>
+
+      {/* CDS Hooks: order-select alerts. Fired by useOrderSelectHook
+          above whenever the clinician's selection changes. Render the
+          cards as a compact list so the user sees them next to the
+          selection. Cards land here for any service configured for the
+          `order-select` hook in the visual builder. */}
+      {(orderSelectLoading || orderSelectCards.length > 0) && (
+        <Box sx={{ mx: 1, mb: 1 }}>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+            <Typography variant="subtitle2" color="text.secondary">
+              Clinical Decision Support
+            </Typography>
+            {orderSelectLoading && <CircularProgress size={14} />}
+            {orderSelectCards.length > 0 && (
+              <Chip
+                label={`${orderSelectCards.length} alert${orderSelectCards.length > 1 ? 's' : ''}`}
+                size="small"
+                color="warning"
+                sx={{ borderRadius: 0, height: 20 }}
+              />
+            )}
+          </Stack>
+          <Stack spacing={1}>
+            {orderSelectCards.map((card) => (
+              <CDSCard
+                key={card.uuid}
+                card={card}
+                serviceId={card.serviceId}
+                hookInstance={card.hookInstance}
+                patientId={patientId || currentPatient?.id}
+                userId={user?.id || user?.username}
+                compact={true}
+                onAcceptSuggestion={() => {}}
+                onDismiss={() => {}}
+              />
+            ))}
+          </Stack>
+        </Box>
+      )}
 
       {/* Alerts */}
       {urgentOrdersCount > 0 && (
