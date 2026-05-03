@@ -391,6 +391,8 @@ const CDSHookManager = forwardRef(({
         onAlertAction={handleAlertAction}
         allowInteraction={true}
         patientId={patientId}
+        userId={userId}
+        encounterId={encounterId}
       />
     ));
   };

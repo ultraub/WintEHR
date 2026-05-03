@@ -116,7 +116,12 @@ const CDSPresentation = ({
   hideDelay = 5000,
   maxAlerts = 5,
   allowInteraction = true,
-  patientId = null
+  patientId = null,
+  // userId / encounterId are forwarded to cdsActionExecutor so it can
+  // auto-fill MedicationRequest.requester / *.encounter on accepted
+  // suggestions. Optional — patientId alone is enough for `subject`.
+  userId = null,
+  encounterId = null
 }) => {
   const [open, setOpen] = useState(true);
 
@@ -378,7 +383,15 @@ const CDSPresentation = ({
         }
         return newSet;
       });
-      
+
+      // Persist via cdsAlertPersistence so the dismissal survives
+      // navigation. The component's initial state hydrates from this
+      // store (line 130-133), so without this call the alert would
+      // re-fire on every patient view despite being dismissed.
+      if (patientId) {
+        cdsAlertPersistence.dismissAlert(patientId, alertKey, 'clinical-judgment', false);
+      }
+
       // Send override feedback for dismissals
       if (alert.serviceId && alert.uuid) {
         await cdsFeedbackService.sendOverrideFeedback(
@@ -390,8 +403,18 @@ const CDSPresentation = ({
       }
     } else if (action === 'accept' && suggestion) {
       try {
-        // Execute the suggestion actions
-        const executionResult = await cdsActionExecutor.executeSuggestion(alert, suggestion);
+        // Execute the suggestion actions. Pass the hook context so the
+        // executor can auto-inject subject/requester/encounter on
+        // resources that need them — the wizard generates partial
+        // resources without a subject by design (mirroring how the
+        // backend executor would fill it in for the OrderSigningDialog
+        // path). Without this context, ServiceRequest/Condition/etc.
+        // would fail validation here for missing subject.
+        const executionResult = await cdsActionExecutor.executeSuggestion(
+          alert,
+          suggestion,
+          { patientId, userId, encounterId }
+        );
         
         if (executionResult.success) {
           // Show success notification if available
@@ -412,6 +435,12 @@ const CDSPresentation = ({
             }
             return newSet;
           });
+          // Persist via cdsAlertPersistence so the dismissal survives
+          // navigation. Otherwise the same alert re-fires on every
+          // patient view despite the user having accepted the suggestion.
+          if (patientId) {
+            cdsAlertPersistence.dismissAlert(patientId, alertKey, 'accepted', false);
+          }
         } else {
           // Show error notification if available
           if (window.showNotification) {
@@ -698,6 +727,174 @@ const CDSPresentation = ({
         <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 240)}>4 hours</MenuItem>
         <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 1440)}>24 hours</MenuItem>
       </Menu>
+      {/* Suggestion Detail Dialog — confirms a suggestion before executing
+          its actions[]. Must render here for POPUP mode; previously it was
+          only declared in the inline-mode return so clicking a suggestion
+          button in the popup did nothing. */}
+      {selectedAlert && (
+        <Dialog
+          open={!!selectedAlert}
+          onClose={() => setSelectedAlert(null)}
+          maxWidth="sm"
+          fullWidth
+          sx={{ zIndex: 1500 }}
+        >
+          <DialogTitle>{selectedAlert.suggestion.label}</DialogTitle>
+          <DialogContent>
+            <Typography variant="body1">
+              {selectedAlert.suggestion.description || 'No description available'}
+            </Typography>
+            {selectedAlert.suggestion.actions?.map((action, index) => (
+              <Typography
+                key={`action-${action.description?.substring(0, 20) || ''}-${index}`}
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 1 }}
+              >
+                {action.description}
+              </Typography>
+            ))}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => handleAlertAction(selectedAlert.alert, 'reject', selectedAlert.suggestion)}>
+              Reject
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => handleAlertAction(selectedAlert.alert, 'accept', selectedAlert.suggestion)}
+            >
+              Accept
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+      {/* Override Reason Dialog — same story; required when the alert
+          declares acknowledgmentRequired or reasonRequired so the user
+          can supply a reason without losing the rest of the popup. */}
+      {showOverrideDialog && currentOverride && (
+        <Dialog
+          open={showOverrideDialog}
+          onClose={() => setShowOverrideDialog(false)}
+          maxWidth="sm"
+          fullWidth
+          sx={{ zIndex: 1500 }}
+        >
+          <DialogTitle>
+            {currentOverride.requiresReason ? 'Override Clinical Alert' : 'Acknowledge Alert'}
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body1" gutterBottom>
+              {currentOverride.requiresReason
+                ? `You are overriding a ${currentOverride.alert.indicator} alert. Please provide a reason:`
+                : `Please acknowledge this ${currentOverride.alert.indicator} alert before continuing.`}
+            </Typography>
+            <Alert severity={getSeverityColor(currentOverride.alert.indicator)} sx={{ my: 2 }}>
+              <Typography variant="subtitle2">{currentOverride.alert.summary}</Typography>
+              {currentOverride.alert.detail && (
+                <Typography variant="body2">{currentOverride.alert.detail}</Typography>
+              )}
+            </Alert>
+            {currentOverride.requiresReason && (
+              <>
+                <FormControl fullWidth sx={{ mt: 2 }}>
+                  <InputLabel>Override Reason</InputLabel>
+                  <Select
+                    value={overrideReasonCode}
+                    onChange={(e) => setOverrideReasonCode(e.target.value)}
+                    label="Override Reason"
+                  >
+                    {Object.entries(OVERRIDE_REASONS).map(([key, reason]) => (
+                      <MenuItem key={key} value={reason.code}>
+                        {reason.display}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  value={overrideUserComment}
+                  onChange={(e) => setOverrideUserComment(e.target.value)}
+                  placeholder="Additional comments (optional, required for 'Other' reason)..."
+                  label="Comments"
+                  variant="outlined"
+                  sx={{ mt: 2 }}
+                />
+              </>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => {
+              setShowOverrideDialog(false);
+              setCurrentOverride(null);
+              setOverrideReasonCode('');
+              setOverrideUserComment('');
+            }}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={async () => {
+                const alert = currentOverride.alert;
+                if (currentOverride.requiresReason) {
+                  if (!overrideReasonCode || (overrideReasonCode === 'other' && !overrideUserComment.trim())) {
+                    return;
+                  }
+                  if (alert.serviceId && alert.uuid) {
+                    await cdsFeedbackService.sendFeedback({
+                      serviceId: alert.serviceId,
+                      cardUuid: alert.uuid,
+                      outcome: 'overridden',
+                      overrideReason: OVERRIDE_REASONS[Object.keys(OVERRIDE_REASONS).find(key =>
+                        OVERRIDE_REASONS[key].code === overrideReasonCode
+                      )],
+                      userComment: overrideUserComment || undefined
+                    });
+                  }
+                } else if (alert.serviceId && alert.uuid) {
+                  await cdsFeedbackService.sendFeedback({
+                    serviceId: alert.serviceId,
+                    cardUuid: alert.uuid,
+                    outcome: 'acknowledged'
+                  });
+                }
+                // Mark as dismissed so the popup re-renders with the
+                // remaining cards. Persist via cdsAlertPersistence so the
+                // dismissal survives navigation.
+                const alertKey = `${alert.serviceId}-${alert.summary}`;
+                setDismissedAlerts(prev => {
+                  const newSet = new Set([...prev, alertKey]);
+                  if (patientId) {
+                    try {
+                      sessionStorage.setItem(
+                        `cds-dismissed-alerts-${patientId}`,
+                        JSON.stringify([...newSet])
+                      );
+                    } catch (e) { /* ignore storage errors */ }
+                  }
+                  return newSet;
+                });
+                if (patientId) {
+                  cdsAlertPersistence.dismissAlert(
+                    patientId,
+                    alertKey,
+                    currentOverride.requiresReason ? 'override' : 'acknowledged',
+                    false
+                  );
+                }
+                setShowOverrideDialog(false);
+                setCurrentOverride(null);
+                setOverrideReasonCode('');
+                setOverrideUserComment('');
+              }}
+            >
+              {currentOverride.requiresReason ? 'Override Alert' : 'Acknowledge'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
       {/* Snooze dialog for POPUP mode — must be outside the main Dialog */}
       {showSnoozeDialog && alertToSnooze && (
         <Dialog open={showSnoozeDialog} onClose={() => setShowSnoozeDialog(false)} maxWidth="xs" fullWidth sx={{ zIndex: 1400 }}>
