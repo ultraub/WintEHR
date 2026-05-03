@@ -431,6 +431,37 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
             </Select>
           </FormControl>
         </Grid>
+
+        <Grid item xs={12} md={6}>
+          <FormControl fullWidth>
+            <InputLabel>Display Mode</InputLabel>
+            <Select
+              value={serviceConfig.display_config?.presentationMode || 'popup'}
+              onChange={(e) => setServiceConfig({
+                ...serviceConfig,
+                display_config: {
+                  ...(serviceConfig.display_config || {}),
+                  presentationMode: e.target.value
+                }
+              })}
+              label="Display Mode"
+            >
+              {/* Values match PRESENTATION_MODES in CDSPresentation.js. The
+                  backend stores this on display_config; the listing
+                  endpoint maps it to displayBehavior.defaultMode and
+                  CDSHookManager picks the rendering mode from there. */}
+              <MenuItem value="popup">Popup — modal dialog (default)</MenuItem>
+              <MenuItem value="inline">Inline — within page flow</MenuItem>
+              <MenuItem value="modal">Modal — hard-stop, requires acknowledgment</MenuItem>
+              <MenuItem value="banner">Banner — sticky bar at top</MenuItem>
+              <MenuItem value="sidebar">Sidebar — fixed right-side panel</MenuItem>
+              <MenuItem value="drawer">Drawer — slide-out from right</MenuItem>
+              <MenuItem value="toast">Toast — corner notification</MenuItem>
+              <MenuItem value="card">Card — rich card display</MenuItem>
+              <MenuItem value="compact">Compact — icon with badge</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
       </Grid>
     </Box>
   );

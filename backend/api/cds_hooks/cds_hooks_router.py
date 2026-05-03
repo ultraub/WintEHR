@@ -1036,28 +1036,92 @@ async def list_services(
     enabled_only: bool = True,
     db: AsyncSession = Depends(get_db_session)
 ):
-    """List all CDS services"""
+    """List all CDS services.
+
+    Combines two sources:
+
+    1. Hooks stored in `cds_hooks.hook_configurations` (built-in / external
+       services managed via the legacy hook persistence layer).
+    2. Visual-builder services from `cds_hooks.visual_builder_services` —
+       these aren't in the legacy table, so without this merge they were
+       absent from the list and the EMR's `CDSHookManager` could never
+       look up their `displayBehavior`. That's why every wizard-built
+       service rendered as POPUP regardless of its `display_config`.
+
+    For the visual-builder rows we project `display_config.presentationMode`
+    onto `HookConfiguration.displayBehavior.defaultMode` so the existing
+    frontend mode-picker code path (CDSHookManager.js:222-234) just works.
+    """
     try:
         manager = await get_persistence_manager(db)
-        return await manager.list_hooks(hook_type=hook_type, enabled_only=enabled_only)
+        legacy_hooks = await manager.list_hooks(
+            hook_type=hook_type, enabled_only=enabled_only
+        )
     except DatabaseQueryError as e:
         logger.error(f"Database error listing hooks: {e.message}")
-        # Fallback to sample hooks
-        hooks = list(SAMPLE_HOOKS.values())
+        legacy_hooks = list(SAMPLE_HOOKS.values())
         if hook_type:
-            hooks = [h for h in hooks if h.hook.value == hook_type]
+            legacy_hooks = [h for h in legacy_hooks if h.hook.value == hook_type]
         if enabled_only:
-            hooks = [h for h in hooks if h.enabled]
-        return hooks
+            legacy_hooks = [h for h in legacy_hooks if h.enabled]
     except (ValueError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Data error listing hooks: {e}")
-        # Fallback to sample hooks
-        hooks = list(SAMPLE_HOOKS.values())
+        legacy_hooks = list(SAMPLE_HOOKS.values())
         if hook_type:
-            hooks = [h for h in hooks if h.hook.value == hook_type]
+            legacy_hooks = [h for h in legacy_hooks if h.hook.value == hook_type]
         if enabled_only:
-            hooks = [h for h in hooks if h.enabled]
-        return hooks
+            legacy_hooks = [h for h in legacy_hooks if h.enabled]
+
+    # Merge in visual-builder services with displayBehavior derived from
+    # their wizard-set `display_config`.
+    visual_hooks: List[HookConfiguration] = []
+    try:
+        from sqlalchemy import select as _select
+        from api.cds_studio.visual_service_config import VisualServiceConfig
+
+        vquery = _select(VisualServiceConfig)
+        if hook_type:
+            vquery = vquery.where(VisualServiceConfig.hook_type == hook_type)
+        if enabled_only:
+            vquery = vquery.where(VisualServiceConfig.status == "ACTIVE")
+
+        vresult = await db.execute(vquery)
+        for v in vresult.scalars().all():
+            display_cfg = v.display_config or {}
+            presentation = (display_cfg.get("presentationMode")
+                            if isinstance(display_cfg, dict) else None)
+            display_behavior = (
+                {"defaultMode": presentation} if presentation else None
+            )
+            try:
+                hook_enum = HookType(v.hook_type)
+            except ValueError:
+                # Unknown hook types are skipped — same as the legacy path.
+                continue
+            visual_hooks.append(HookConfiguration(
+                id=v.service_id,
+                hook=hook_enum,
+                title=v.name,
+                description=v.description or "",
+                enabled=(v.status == "ACTIVE"),
+                conditions=[],
+                actions=[],
+                prefetch=v.prefetch_config or None,
+                usageRequirements=None,
+                displayBehavior=display_behavior,
+                created_at=v.created_at,
+                updated_at=v.updated_at,
+            ))
+    except Exception as exc:  # noqa: BLE001 — non-fatal: legacy hooks still list
+        logger.warning(
+            "Failed to merge visual-builder services into hook list: %s", exc
+        )
+
+    # De-dupe in case both sources have a row for the same service_id.
+    # Visual-builder is the source of truth for display behavior.
+    seen = {h.id for h in visual_hooks}
+    merged = visual_hooks + [h for h in legacy_hooks if h.id not in seen]
+    return merged
 
 # Alias endpoint for CDS Builder compatibility
 @router.get("/cds-services/services", response_model=List[HookConfiguration])
