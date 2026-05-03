@@ -95,6 +95,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useCDS } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../../contexts/AuthContext';
+import CDSCard from '../../cds/CDSCard';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
 
@@ -1005,24 +1006,32 @@ const MedicationDialogEnhanced = ({
         return (
           <Fade in timeout={300}>
             <Box>
-              {/* CDS Alerts */}
+              {/* CDS Alerts — render as full CDSCards so suggestions
+                  surface their action buttons and Accept executes the
+                  proposed FHIR resource on the patient. Cards come from
+                  the medication-prescribe firing in handleNext above
+                  (`executeCDSHooks('medication-prescribe', …)`); each
+                  one already has uuid + serviceId attached by
+                  CDSContext. patientId/userId are forwarded so the
+                  feedback POST carries enough context for the runtime
+                  executor (cds_hooks_router::_execute_accepted_suggestion_actions). */}
               {cdsAlerts && cdsAlerts.length > 0 && (
                 <Box sx={{ mb: 3 }}>
-                  {cdsAlerts.map((alert, index) => (
-                    <Alert
-                      key={index}
-                      severity={alert.indicator}
-                      icon={<SmartIcon />}
-                      sx={{ mb: 1 }}
-                    >
-                      <Typography variant="body2">{alert.summary}</Typography>
-                      {alert.detail && (
-                        <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
-                          {alert.detail}
-                        </Typography>
-                      )}
-                    </Alert>
-                  ))}
+                  <Stack spacing={1}>
+                    {cdsAlerts.map((card) => (
+                      <CDSCard
+                        key={card.uuid}
+                        card={card}
+                        serviceId={card.serviceId}
+                        hookInstance={card.hookInstance}
+                        patientId={patientId}
+                        userId={user?.id || user?.username}
+                        compact={true}
+                        onAcceptSuggestion={() => {}}
+                        onDismiss={() => {}}
+                      />
+                    ))}
+                  </Stack>
                 </Box>
               )}
 
