@@ -187,6 +187,7 @@ const OrderSigningDialog = ({
                       card={card}
                       serviceId={card.serviceId}
                       hookInstance={card.hookInstance}
+                      patientId={effectivePatientId}
                       onAcceptSuggestion={(suggestion) => {
                         // Handle accepting suggestion (e.g., modify order)
                       }}
