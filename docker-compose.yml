@@ -118,9 +118,13 @@ x-hapi-fhir-common: &hapi-fhir-common
     # token to flush CR caches after a ValueSet edit so the change is
     # immediately reflected without waiting for a HAPI restart.
     HAPI_ADMIN_TOKEN: ${HAPI_ADMIN_TOKEN:-}
-    # JVM heap. 4g/5g sized for both the bulk Synthea load and the
-    # Hibernate Search reindex burst over loaded resources + terminology.
-    JAVA_TOOL_OPTIONS: "-Xmx4g -Xms1g"
+    # JVM heap. 6g/8g sized for the Hibernate Search reindex burst on
+    # v8.8.0-1 over loaded resources + terminology. The earlier 4g/5g
+    # OOM-killed at ~220k records into the reindex; v8.8 reindex is
+    # cleaner (no transaction rollbacks) but still memory-hungry.
+    # Steady-state HAPI uses ~2-3g; the bigger cap is for indexing
+    # bursts only.
+    JAVA_TOOL_OPTIONS: "-Xmx6g -Xms1g"
   volumes:
     # Persistent Lucene index — survives container recreates so the
     # reindex (~5-10 min) is a one-time cost on first deploy. Wipe and
@@ -131,7 +135,7 @@ x-hapi-fhir-common: &hapi-fhir-common
   deploy:
     resources:
       limits:
-        memory: 5g
+        memory: 8g
   healthcheck:
     disable: true
 
