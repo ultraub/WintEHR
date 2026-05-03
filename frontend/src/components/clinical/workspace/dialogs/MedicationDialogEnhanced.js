@@ -92,9 +92,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useCDS } from '../../../../contexts/CDSContext';
+import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../../contexts/AuthContext';
+import CDSCard from '../../cds/CDSCard';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
 
@@ -351,7 +352,14 @@ const MedicationDialogEnhanced = ({
   const theme = useTheme();
   const { user } = useAuth();
   const { currentPatient } = useFHIRResource();
-  const { executeCDSHooks } = useCDS();
+  const { executeCDSHooks, getAlerts } = useCDS();
+  // Pull medication-prescribe alerts directly from the CDS context.
+  // executeCDSHooks doesn't return its result (it has internal duplicate
+  // detection that early-returns), so the previous local-state pattern
+  // —`setCdsAlerts(await executeCDSHooks(…))` — was always recording
+  // []. getAlerts reads from the same context.alerts state that
+  // executeCDSHooks writes to.
+  const cdsAlerts = getAlerts(CDS_HOOK_TYPES.MEDICATION_PRESCRIBE) || [];
   const { publish } = useClinicalWorkflow();
   
   // State
@@ -360,7 +368,6 @@ const MedicationDialogEnhanced = ({
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMedication, setSelectedMedication] = useState(null);
-  const [cdsAlerts, setCdsAlerts] = useState([]);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   
   // Use consistent dialog helpers
@@ -608,17 +615,24 @@ const MedicationDialogEnhanced = ({
         medicationDisplay: selectedMedication.display || selectedMedication.label || 'Unknown Medication'
       }));
       
-      // Evaluate CDS for drug interactions
+      // Evaluate CDS for drug interactions. Use the CDS Hooks 2.0
+      // medication-prescribe context shape: `patientId` + `userId` +
+      // `medications` (array). The previous shape (`patient` /
+      // `medication` / `context: 'prescribe'`) was non-spec — built-in
+      // services tolerated it, but visual-builder services that
+      // reference patient.age etc. couldn't read patientId from it
+      // and returned empty cards.
+      //
+      // Result lives in the CDSContext alerts map; we read it via
+      // getAlerts(MEDICATION_PRESCRIBE) above, no local state needed.
       try {
-        const alerts = await executeCDSHooks('medication-prescribe', {
-          patient: patientId,
-          medication: selectedMedication,
-          context: 'prescribe'
+        await executeCDSHooks('medication-prescribe', {
+          patientId,
+          userId: user?.id || user?.username || 'unknown',
+          medications: [selectedMedication]
         });
-        setCdsAlerts(alerts || []);
       } catch (error) {
         console.error('CDS evaluation error:', error);
-        setCdsAlerts([]);
       }
     }
     
@@ -822,7 +836,7 @@ const MedicationDialogEnhanced = ({
       note: ''
     });
     setErrors({});
-    setCdsAlerts([]);
+    // cdsAlerts is now derived from context (getAlerts), no local state to clear.
     setShowAdvancedOptions(false);
     onClose();
   };
@@ -1005,24 +1019,32 @@ const MedicationDialogEnhanced = ({
         return (
           <Fade in timeout={300}>
             <Box>
-              {/* CDS Alerts */}
+              {/* CDS Alerts — render as full CDSCards so suggestions
+                  surface their action buttons and Accept executes the
+                  proposed FHIR resource on the patient. Cards come from
+                  the medication-prescribe firing in handleNext above
+                  (`executeCDSHooks('medication-prescribe', …)`); each
+                  one already has uuid + serviceId attached by
+                  CDSContext. patientId/userId are forwarded so the
+                  feedback POST carries enough context for the runtime
+                  executor (cds_hooks_router::_execute_accepted_suggestion_actions). */}
               {cdsAlerts && cdsAlerts.length > 0 && (
                 <Box sx={{ mb: 3 }}>
-                  {cdsAlerts.map((alert, index) => (
-                    <Alert
-                      key={index}
-                      severity={alert.indicator}
-                      icon={<SmartIcon />}
-                      sx={{ mb: 1 }}
-                    >
-                      <Typography variant="body2">{alert.summary}</Typography>
-                      {alert.detail && (
-                        <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
-                          {alert.detail}
-                        </Typography>
-                      )}
-                    </Alert>
-                  ))}
+                  <Stack spacing={1}>
+                    {cdsAlerts.map((card) => (
+                      <CDSCard
+                        key={card.uuid}
+                        card={card}
+                        serviceId={card.serviceId}
+                        hookInstance={card.hookInstance}
+                        patientId={patientId}
+                        userId={user?.id || user?.username}
+                        compact={true}
+                        onAcceptSuggestion={() => {}}
+                        onDismiss={() => {}}
+                      />
+                    ))}
+                  </Stack>
                 </Box>
               )}
 
