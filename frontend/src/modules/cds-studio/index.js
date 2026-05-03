@@ -37,9 +37,11 @@ export { default as DiscoveryImportDialog } from './components/DiscoveryImportDi
 // Visual Builder Components
 export { default as ConditionBuilder } from './components/builders/ConditionBuilder';
 export { default as CardDesigner } from './components/builders/CardDesigner';
+export { default as SuggestionActionBuilder } from './components/builders/SuggestionActionBuilder';
+// DisplayConfigPanel is still consumed by TemplateServiceBuilder; the visual
+// wizard no longer uses it. PresentationModeSelector was orphaned and removed.
 export { default as DisplayConfigPanel } from './components/builders/DisplayConfigPanel';
 export { default as ServiceTemplateGallery } from './components/templates/ServiceTemplateGallery';
-export { default as PresentationModeSelector } from './components/builders/PresentationModeSelector';
 
 // Testing & Preview
 export { default as ServiceTester } from './components/testing/ServiceTester';

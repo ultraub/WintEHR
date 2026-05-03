@@ -20,34 +20,23 @@ import {
   Stack,
   Divider,
   Alert,
-  Chip,
   Grid,
-  Card,
-  CardContent,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   ToggleButtonGroup,
   ToggleButton
 } from '@mui/material';
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
-  ExpandMore as ExpandIcon,
   Visibility as PreviewIcon,
   Edit as EditIcon,
   Link as LinkIcon,
-  CheckCircle as CheckIcon,
   Warning as WarningIcon,
   Error as ErrorIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
 
 import CDSCard from '../../../../components/clinical/cds/CDSCard';
+import SuggestionActionBuilder from './SuggestionActionBuilder';
 
 /**
  * Card indicator options
@@ -59,20 +48,12 @@ const CARD_INDICATORS = {
 };
 
 /**
- * Suggestion action types from CDS Hooks spec
- */
-const ACTION_TYPES = {
-  create: 'Create Resource',
-  update: 'Update Resource',
-  delete: 'Delete Resource'
-};
-
-/**
- * Suggestion Builder Dialog/Section
+ * Suggestion editor — label + isRecommended + templated FHIR actions.
+ * Actions are persisted in CDS Hooks 2.0 runtime shape (`{type, description,
+ * resource}`); the action builder owns the catalog UI and the runtime↔builder
+ * conversion.
  */
 const SuggestionBuilder = ({ suggestion, onChange, onDelete }) => {
-  const [actions, setActions] = useState(suggestion.actions || []);
-
   const handleLabelChange = (label) => {
     onChange({ ...suggestion, label });
   };
@@ -81,34 +62,13 @@ const SuggestionBuilder = ({ suggestion, onChange, onDelete }) => {
     onChange({ ...suggestion, isRecommended });
   };
 
-  const handleAddAction = () => {
-    const newAction = {
-      type: 'create',
-      description: '',
-      resource: null
-    };
-    const updatedActions = [...actions, newAction];
-    setActions(updatedActions);
-    onChange({ ...suggestion, actions: updatedActions });
-  };
-
-  const handleActionChange = (index, updatedAction) => {
-    const updatedActions = [...actions];
-    updatedActions[index] = updatedAction;
-    setActions(updatedActions);
-    onChange({ ...suggestion, actions: updatedActions });
-  };
-
-  const handleDeleteAction = (index) => {
-    const updatedActions = actions.filter((_, i) => i !== index);
-    setActions(updatedActions);
-    onChange({ ...suggestion, actions: updatedActions });
+  const handleActionsChange = (actions) => {
+    onChange({ ...suggestion, actions });
   };
 
   return (
     <Paper elevation={1} sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'divider' }}>
       <Stack spacing={2}>
-        {/* Suggestion Label */}
         <TextField
           fullWidth
           label="Suggestion Label"
@@ -118,7 +78,6 @@ const SuggestionBuilder = ({ suggestion, onChange, onDelete }) => {
           helperText="User-facing text for this suggestion"
         />
 
-        {/* Is Recommended */}
         <FormControl fullWidth>
           <Stack direction="row" spacing={1} alignItems="center">
             <Typography variant="body2">Mark as Recommended:</Typography>
@@ -134,78 +93,11 @@ const SuggestionBuilder = ({ suggestion, onChange, onDelete }) => {
           </Stack>
         </FormControl>
 
-        {/* Actions */}
-        <Box>
-          <Stack direction="row" spacing={2} alignItems="center" mb={1}>
-            <Typography variant="subtitle2">Actions</Typography>
-            <Button
-              size="small"
-              startIcon={<AddIcon />}
-              onClick={handleAddAction}
-              variant="outlined"
-            >
-              Add Action
-            </Button>
-          </Stack>
+        <SuggestionActionBuilder
+          actions={suggestion.actions || []}
+          onChange={handleActionsChange}
+        />
 
-          {actions.map((action, idx) => (
-            <Paper key={idx} elevation={0} sx={{ p: 1.5, mb: 1, backgroundColor: 'grey.50' }}>
-              <Stack spacing={1}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <FormControl size="small" sx={{ minWidth: 150 }}>
-                    <InputLabel>Action Type</InputLabel>
-                    <Select
-                      value={action.type || 'create'}
-                      label="Action Type"
-                      onChange={(e) => handleActionChange(idx, { ...action, type: e.target.value })}
-                    >
-                      {Object.entries(ACTION_TYPES).map(([value, label]) => (
-                        <MenuItem key={value} value={value}>
-                          {label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-
-                  <TextField
-                    size="small"
-                    label="Description"
-                    value={action.description || ''}
-                    onChange={(e) => handleActionChange(idx, { ...action, description: e.target.value })}
-                    sx={{ flex: 1 }}
-                    placeholder="Describe what this action does"
-                  />
-
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={() => handleDeleteAction(idx)}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Stack>
-
-                {/* Resource Configuration (simplified) */}
-                <TextField
-                  size="small"
-                  label="Resource ID (optional)"
-                  value={action.resourceId || ''}
-                  onChange={(e) => handleActionChange(idx, { ...action, resourceId: e.target.value })}
-                  placeholder="e.g., MedicationRequest/123"
-                  helperText="For update/delete actions"
-                />
-              </Stack>
-            </Paper>
-          ))}
-
-          {actions.length === 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-              No actions defined. Add actions to make this suggestion actionable.
-            </Typography>
-          )}
-        </Box>
-
-        {/* Delete Suggestion */}
         <Button
           size="small"
           color="error"
@@ -445,8 +337,8 @@ const CardDesigner = ({
             }}
             serviceId="preview-service"
             hookInstance="preview"
-            onAcceptSuggestion={() => console.log('Preview: Suggestion accepted')}
-            onDismiss={() => console.log('Preview: Card dismissed')}
+            onAcceptSuggestion={() => {}}
+            onDismiss={() => {}}
           />
         </Box>
       ) : (

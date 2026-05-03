@@ -4,11 +4,16 @@
  * Step-by-step wizard for creating CDS services visually.
  * Guides users through:
  * 1. Service Configuration (type, name, description)
- * 2. Condition Building (visual drag-and-drop)
- * 3. Card Design (WYSIWYG editor)
- * 4. Display Configuration (presentation modes)
- * 5. Testing (with synthetic patients)
- * 6. Review & Deploy
+ * 2. Build Logic (visual condition tree OR CQL)
+ * 3. Card Design (WYSIWYG editor + suggestion action templates)
+ * 4. Prefetch (auto-derived for CQL)
+ * 5. Test & Deploy (run against synthetic patients, then deploy)
+ *
+ * The earlier "Configure Display" step was removed: its data path was broken
+ * (prop-name mismatch + no runtime that consumed `display_config`), so it
+ * stored values that never affected behavior. The Test and Review steps
+ * were also merged — they share the same saved-draft service and the
+ * review summary fits naturally above the deploy button.
  */
 
 import React, { useState } from 'react';
@@ -37,14 +42,11 @@ import {
 import {
   ArrowBack as BackIcon,
   ArrowForward as ForwardIcon,
-  Save as SaveIcon,
-  PlayArrow as TestIcon,
   CheckCircle as DeployIcon
 } from '@mui/icons-material';
 
 import ConditionBuilder from '../builders/ConditionBuilder';
 import CardDesigner from '../builders/CardDesigner';
-import DisplayConfigPanel from '../builders/DisplayConfigPanel';
 import CQLEditor from '../builders/CQLEditor';
 import PrefetchEditor from '../builders/PrefetchEditor';
 import CardPreviewPanel from '../preview/CardPreviewPanel';
@@ -63,17 +65,14 @@ const steps = [
   'Service Configuration',
   'Build Logic',
   'Design Card',
-  'Configure Display',
   'Prefetch',
-  'Test Service',
-  'Review & Deploy'
+  'Test & Deploy'
 ];
 
 // Step indices — referenced by validateCurrentStep, renderStepContent, and
 // the auto-save trigger in handleNext.
-const STEP_PREFETCH = 4;
-const STEP_TEST = 5;
-const STEP_REVIEW = 6;
+const STEP_PREFETCH = 3;
+const STEP_TEST_DEPLOY = 4;
 
 /**
  * Visual Builder Wizard Component
@@ -111,13 +110,13 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
       suggestions: [],
       links: []
     },
-    display_config: {
-      presentationMode: 'inline',
-      priority: 'medium',
-      autoShow: true,
-      dismissible: true,
-      persistent: false
-    },
+    // Backend Pydantic model (`DisplayConfiguration`) requires
+    // `presentationMode`. We send the spec-default `'inline'` so saves
+    // succeed; the wizard no longer surfaces display behavior because the
+    // EMR runtime reads `card.displayBehavior` / `card.overrideReasons`,
+    // not `service.display_config`. If someone wires per-service display
+    // behavior into the runtime later, re-add the panel.
+    display_config: { presentationMode: 'inline' },
     prefetch: {},
     created_by: user?.username || 'unknown'
   });
@@ -162,10 +161,9 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
 
     setError(null);
 
-    // Save draft before moving to test/review. We save right BEFORE the
-    // test step so the testing UI has a real backend service to invoke,
-    // and so the FHIR-preview tab in the CQL editor can fetch the
-    // generated Library + PlanDefinition.
+    // Save draft before moving into Test & Deploy. The testing UI needs a
+    // real backend service to invoke, and the FHIR-preview tab in the CQL
+    // editor needs to fetch the generated Library + PlanDefinition.
     if (activeStep === STEP_PREFETCH && !savedServiceId) {
       await handleSaveDraft();
     }
@@ -211,20 +209,12 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
         }
         break;
 
-      case 3: // Display Config
-        // Display config has defaults, always valid
-        break;
-
-      case 4: // Prefetch
+      case 3: // Prefetch
         // Optional — empty prefetch is valid (services that only need patient context)
         break;
 
-      case 5: // Testing
-        // Testing is optional but recommended
-        break;
-
-      case 6: // Review
-        // Final validation before deployment
+      case 4: // Test & Deploy
+        // Test panel is optional but recommended; final validation happens at deploy time
         break;
 
       default:
@@ -305,13 +295,7 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
         suggestions: [],
         links: []
       },
-      display_config: {
-        presentationMode: 'inline',
-        priority: 'medium',
-        autoShow: true,
-        dismissible: true,
-        persistent: false
-      },
+      display_config: { presentationMode: 'inline' },
       prefetch: {},
       created_by: user?.username || 'unknown'
     });
@@ -330,14 +314,10 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
         return renderConditionBuilder();
       case 2:
         return renderCardDesigner();
-      case 3:
-        return renderDisplayConfiguration();
       case STEP_PREFETCH:
         return renderPrefetch();
-      case STEP_TEST:
-        return renderServiceTesting();
-      case STEP_REVIEW:
-        return renderReviewAndDeploy();
+      case STEP_TEST_DEPLOY:
+        return renderTestAndDeploy();
       default:
         return null;
     }
@@ -513,7 +493,7 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
       <Grid container spacing={3}>
         <Grid item xs={12} md={7}>
           <CardDesigner
-            value={serviceConfig.card}
+            card={serviceConfig.card}
             onChange={(card) => setServiceConfig({ ...serviceConfig, card })}
           />
         </Grid>
@@ -535,59 +515,41 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
     </Box>
   );
 
-  const renderDisplayConfiguration = () => (
+  const renderTestAndDeploy = () => (
     <Box>
       <Typography variant="h6" gutterBottom>
-        Configure Display Behavior
+        Test & Deploy
       </Typography>
       <Typography variant="body2" color="text.secondary" paragraph>
-        Control how the card is presented in the EMR
-      </Typography>
-
-      <DisplayConfigPanel
-        value={serviceConfig.display_config}
-        onChange={(display_config) => setServiceConfig({ ...serviceConfig, display_config })}
-      />
-    </Box>
-  );
-
-  const renderServiceTesting = () => (
-    <Box>
-      <Typography variant="h6" gutterBottom>
-        Test Your Service
-      </Typography>
-      <Typography variant="body2" color="text.secondary" paragraph>
-        Test with synthetic patient data before deploying
+        Run the saved draft against synthetic patients, then deploy when ready.
       </Typography>
 
       {savedServiceId ? (
-        <ServiceTester
-          serviceId={savedServiceId}
-          serviceName={serviceConfig.name}
-          serviceConfig={serviceConfig}
-        />
+        <Box sx={{ mb: 3 }}>
+          <ServiceTester
+            serviceId={savedServiceId}
+            serviceName={serviceConfig.name}
+            serviceConfig={serviceConfig}
+          />
+        </Box>
       ) : (
-        <Alert severity="info">
-          Service will be saved as draft before testing
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Service will be saved as draft before testing.
         </Alert>
       )}
-    </Box>
-  );
 
-  const renderReviewAndDeploy = () => (
-    <Box>
-      <Typography variant="h6" gutterBottom>
-        Review & Deploy
-      </Typography>
-      <Typography variant="body2" color="text.secondary" paragraph>
-        Review your service configuration and deploy
-      </Typography>
+      {testResults && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          Service tested successfully with {testResults.cards?.length || 0} card(s) generated
+        </Alert>
+      )}
 
+      {/* Review summary — combines what used to be a separate Review step */}
       <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
         <Grid container spacing={2}>
           <Grid item xs={12}>
             <Typography variant="subtitle2" color="primary">
-              Service Information
+              Service Summary
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -597,20 +559,6 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
           <Grid item xs={12} sm={6}>
             <Typography variant="caption" color="text.secondary">Name</Typography>
             <Typography variant="body2">{serviceConfig.name}</Typography>
-          </Grid>
-          <Grid item xs={12}>
-            <Typography variant="caption" color="text.secondary">Description</Typography>
-            <Typography variant="body2">{serviceConfig.description || 'N/A'}</Typography>
-          </Grid>
-        </Grid>
-      </Paper>
-
-      <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
-        <Grid container spacing={2}>
-          <Grid item xs={12}>
-            <Typography variant="subtitle2" color="primary">
-              Configuration
-            </Typography>
           </Grid>
           <Grid item xs={12} sm={4}>
             <Typography variant="caption" color="text.secondary">Service Type</Typography>
@@ -639,6 +587,12 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
               {Object.keys(serviceConfig.prefetch || {}).length} template(s)
             </Typography>
           </Grid>
+          <Grid item xs={12} sm={4}>
+            <Typography variant="caption" color="text.secondary">Suggestions</Typography>
+            <Typography variant="body2">
+              {(serviceConfig.card.suggestions || []).length}
+            </Typography>
+          </Grid>
         </Grid>
       </Paper>
 
@@ -648,20 +602,13 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
         </Typography>
         <CardPreviewPanel
           card={serviceConfig.card}
-          displayConfig={serviceConfig.display_config}
           serviceId={serviceConfig.service_id}
         />
       </Paper>
 
-      {testResults && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          Service tested successfully with {testResults.cards?.length || 0} card(s) generated
-        </Alert>
-      )}
-
       <Alert severity="warning">
         <Typography variant="body2">
-          <strong>Ready to deploy?</strong> This will activate the service and make it available in production.
+          <strong>Ready to deploy?</strong> Click <em>Deploy Service</em> to activate this service.
         </Typography>
       </Alert>
     </Box>
