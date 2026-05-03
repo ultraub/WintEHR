@@ -861,11 +861,22 @@ async def deploy_visual_service(
             # PlanDefinition in HAPI for discovery. The runtime VisualServiceProvider
             # interprets the JSON config directly, so this PlanDefinition is just
             # a registry entry.
+            #
+            # Use PUT to a stable id derived from service_id so each deploy
+            # replaces in place rather than creating a new PlanDefinition.
+            # The previous `create` path stacked one PlanDefinition per
+            # deploy in HAPI, and discovery returned all of them — that's
+            # why services appeared 3× on the patient chart after a few
+            # redeploys. FHIR resource ids accept [A-Za-z0-9-.]{1,64}; a
+            # `vb-` prefix keeps these distinct from PlanDefinitions
+            # registered through other paths.
             from services.hapi_fhir_client import HAPIFHIRClient
             hapi_client = HAPIFHIRClient()
 
+            plan_def_id = f"vb-{service.service_id}"
             plan_definition = {
                 "resourceType": "PlanDefinition",
+                "id": plan_def_id,
                 "status": "active",
                 "title": service.name,
                 "description": service.description,
@@ -879,10 +890,16 @@ async def deploy_visual_service(
             }
 
             try:
-                created_plan = await hapi_client.create("PlanDefinition", plan_definition)
-                logger.info(f"Created PlanDefinition {created_plan.get('id')} for visual service {service.service_id}")
+                # HAPI's PUT to a known id is upsert: creates if absent,
+                # replaces if present. Same pattern as the CQL deploy path
+                # uses for its stable-identifier Library names.
+                upserted = await hapi_client.update("PlanDefinition", plan_def_id, plan_definition)
+                logger.info(
+                    "Upserted PlanDefinition %s for visual service %s",
+                    upserted.get('id', plan_def_id), service.service_id,
+                )
             except Exception as e:
-                logger.error(f"Failed to create PlanDefinition: {e}")
+                logger.error(f"Failed to upsert PlanDefinition: {e}")
                 # Continue deployment even if HAPI FHIR creation fails
 
         # Update deployment status

@@ -294,24 +294,55 @@ async def discover_services(
             # Query HAPI FHIR for all PlanDefinitions
             bundle = await hapi_client.search("PlanDefinition", search_params)
 
-            hapi_count = 0
+            # Defensive dedup by hook-service-id, keeping the most recently
+            # updated PlanDefinition. The deploy path now upserts to a stable
+            # id (vb-{service_id}) so future redeploys replace in place, but
+            # HAPI may still contain orphan PlanDefinitions from before that
+            # fix — without this, the same service shows up Nx in the discovery
+            # response and Nx in the CDS alert column on the patient chart.
+            # FHIR meta.lastUpdated is ISO 8601, so lexicographic compare works.
+            latest_by_service_id: Dict[str, Dict[str, Any]] = {}
+            duplicates_dropped = 0
             for entry in bundle.get("entry", []):
                 plan_def = entry.get("resource", {})
 
-                # Extract service-origin extension
                 origin = _extract_extension_value(
                     plan_def,
                     "http://wintehr.local/fhir/StructureDefinition/service-origin"
                 )
+                if origin not in ("external", "visual-builder"):
+                    continue
 
-                # Include external and visual-builder services from HAPI
-                # (built-in services are already in the registry above)
-                if origin in ("external", "visual-builder"):
-                    service = _plan_definition_to_cds_service(plan_def)
-                    if service:
-                        services.append(service)
-                        hapi_count += 1
+                service_id = _extract_extension_value(
+                    plan_def,
+                    "http://wintehr.local/fhir/StructureDefinition/hook-service-id",
+                    plan_def.get("id")
+                )
+                if not service_id:
+                    continue
 
+                last_updated = (plan_def.get("meta") or {}).get("lastUpdated") or ""
+                existing = latest_by_service_id.get(service_id)
+                if existing is None or last_updated > (existing.get("meta") or {}).get("lastUpdated", ""):
+                    if existing is not None:
+                        duplicates_dropped += 1
+                    latest_by_service_id[service_id] = plan_def
+                else:
+                    duplicates_dropped += 1
+
+            hapi_count = 0
+            for plan_def in latest_by_service_id.values():
+                service = _plan_definition_to_cds_service(plan_def)
+                if service:
+                    services.append(service)
+                    hapi_count += 1
+
+            if duplicates_dropped:
+                logger.warning(
+                    "Discovery dedup dropped %d duplicate PlanDefinition(s); "
+                    "consider running expunge_orphan_visual_plan_definitions.py",
+                    duplicates_dropped,
+                )
             logger.info(f"Discovered {hapi_count} external/visual-builder services from HAPI FHIR")
 
         except httpx.HTTPStatusError as e:

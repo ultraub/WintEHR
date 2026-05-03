@@ -159,6 +159,62 @@ class TestCDSHooksDiscovery:
             data = response.json()
             assert data["services"] == []
 
+    def test_discover_services_dedupes_visual_builder_duplicates(self, client):
+        """Discovery dedupes by hook-service-id, keeping the latest by lastUpdated.
+
+        Before the deploy path was switched to upsert against a stable id, each
+        Deploy of a visual-builder service stacked a new PlanDefinition in HAPI.
+        Discovery now defensively dedupes so the same service doesn't appear
+        Nx in the response (and Nx as cards on the patient chart).
+        """
+        def _vb_plan_def(plan_def_id: str, last_updated: str, title: str):
+            return {
+                "resourceType": "PlanDefinition",
+                "id": plan_def_id,
+                "status": "active",
+                "title": title,
+                "meta": {"lastUpdated": last_updated},
+                "extension": [
+                    {
+                        "url": "http://wintehr.local/fhir/StructureDefinition/service-origin",
+                        "valueString": "visual-builder",
+                    },
+                    {
+                        "url": "http://wintehr.local/fhir/StructureDefinition/hook-type",
+                        "valueCode": "patient-view",
+                    },
+                    {
+                        "url": "http://wintehr.local/fhir/StructureDefinition/hook-service-id",
+                        "valueString": "duplicated-service",
+                    },
+                ],
+            }
+
+        mock_bundle = {
+            "resourceType": "Bundle",
+            "type": "searchset",
+            "entry": [
+                {"resource": _vb_plan_def("old-1", "2026-01-01T00:00:00Z", "old title")},
+                {"resource": _vb_plan_def("old-2", "2026-02-01T00:00:00Z", "older middle")},
+                {"resource": _vb_plan_def("vb-duplicated-service", "2026-05-01T00:00:00Z", "current title")},
+            ],
+        }
+
+        with patch('services.hapi_fhir_client.HAPIFHIRClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.search.return_value = mock_bundle
+            mock_client_class.return_value = mock_client
+
+            response = client.get("/cds-services?service_origin=external")
+
+            assert response.status_code == 200
+            data = response.json()
+            # Three PlanDefinitions for the same service_id collapse to one entry,
+            # and that entry is the most recently updated.
+            assert len(data["services"]) == 1
+            assert data["services"][0]["id"] == "duplicated-service"
+            assert data["services"][0]["title"] == "current title"
+
 
 class TestCDSHooksExecution:
     """Test suite for CDS service execution endpoint"""
