@@ -92,7 +92,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useCDS } from '../../../../contexts/CDSContext';
+import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import CDSCard from '../../cds/CDSCard';
@@ -352,7 +352,14 @@ const MedicationDialogEnhanced = ({
   const theme = useTheme();
   const { user } = useAuth();
   const { currentPatient } = useFHIRResource();
-  const { executeCDSHooks } = useCDS();
+  const { executeCDSHooks, getAlerts } = useCDS();
+  // Pull medication-prescribe alerts directly from the CDS context.
+  // executeCDSHooks doesn't return its result (it has internal duplicate
+  // detection that early-returns), so the previous local-state pattern
+  // —`setCdsAlerts(await executeCDSHooks(…))` — was always recording
+  // []. getAlerts reads from the same context.alerts state that
+  // executeCDSHooks writes to.
+  const cdsAlerts = getAlerts(CDS_HOOK_TYPES.MEDICATION_PRESCRIBE) || [];
   const { publish } = useClinicalWorkflow();
   
   // State
@@ -361,7 +368,6 @@ const MedicationDialogEnhanced = ({
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMedication, setSelectedMedication] = useState(null);
-  const [cdsAlerts, setCdsAlerts] = useState([]);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   
   // Use consistent dialog helpers
@@ -614,18 +620,19 @@ const MedicationDialogEnhanced = ({
       // `medications` (array). The previous shape (`patient` /
       // `medication` / `context: 'prescribe'`) was non-spec — built-in
       // services tolerated it, but visual-builder services that
-      // reference patient.age etc. couldn't read patientId from it and
-      // returned empty cards.
+      // reference patient.age etc. couldn't read patientId from it
+      // and returned empty cards.
+      //
+      // Result lives in the CDSContext alerts map; we read it via
+      // getAlerts(MEDICATION_PRESCRIBE) above, no local state needed.
       try {
-        const alerts = await executeCDSHooks('medication-prescribe', {
+        await executeCDSHooks('medication-prescribe', {
           patientId,
           userId: user?.id || user?.username || 'unknown',
           medications: [selectedMedication]
         });
-        setCdsAlerts(alerts || []);
       } catch (error) {
         console.error('CDS evaluation error:', error);
-        setCdsAlerts([]);
       }
     }
     
