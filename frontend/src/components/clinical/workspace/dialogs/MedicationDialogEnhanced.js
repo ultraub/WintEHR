@@ -836,7 +836,7 @@ const MedicationDialogEnhanced = ({
       note: ''
     });
     setErrors({});
-    setCdsAlerts([]);
+    // cdsAlerts is now derived from context (getAlerts), no local state to clear.
     setShowAdvancedOptions(false);
     onClose();
   };
