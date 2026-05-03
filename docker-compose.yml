@@ -93,49 +93,36 @@ x-hapi-fhir-common: &hapi-fhir-common
     hapi.fhir.max_page_size: 500
     hapi.fhir.cdshooks.enabled: true
     hapi.fhir.cr.enabled: true
-    # Hibernate Search backed by local-filesystem Lucene. We tried this
-    # on v8.6.0-1 and hit HSEARCH800001 due to upstream version drift
-    # between starter (HAPI 8.6.0/8.6.1) and clinical-reasoning. With
-    # v8.8.0-1 the starter and CR both pin HAPI 8.8.0 — the smoking-gun
-    # bug in starter #915/PR #918 is resolved. Re-enabling to test
-    # whether `:in` resolution and TermReadSvc pre-expansion now work
-    # natively.
+    # Hibernate Search left disabled. We upgraded the overlay to
+    # v8.8.0-1 (from v8.6.0-1) which fixes HSEARCH800001 — the
+    # version drift between starter and clinical-reasoning that broke
+    # `:in` resolution on v8.6 is resolved here (both pin HAPI 8.8.0).
+    # However hapi-fhir #7739 is still open and it bites us in a new
+    # place: even with HSearch bootstrapped cleanly, CodeSystem URL
+    # search returns 0 results post-reindex, so ValueSet pre-expansion
+    # can't validate `system=http://hl7.org/fhir/sid/cvx` and saves 0
+    # concepts. Without pre-expansion, `:in` returns no codes.
     #
-    # Persistent volume mounted at /var/lib/hapi-lucene so the reindex
-    # is a one-time cost on first deploy. cql_artifact_builder still
-    # inline-rewrites valueset retrieves as a belt-and-braces safeguard
-    # while we validate; once the demo + integration test pass without
-    # the rewrite, that path comes out (see plan file).
-    hapi.fhir.advanced_lucene_indexing: true
-    spring.jpa.properties.hibernate.search.enabled: true
-    spring.jpa.properties.hibernate.search.backend.type: lucene
-    spring.jpa.properties.hibernate.search.backend.analysis.configurer: "ca.uhn.fhir.jpa.search.HapiHSearchAnalysisConfigurers$$HapiLuceneAnalysisConfigurer"
-    spring.jpa.properties.hibernate.search.backend.directory.type: local-filesystem
-    spring.jpa.properties.hibernate.search.backend.directory.root: /var/lib/hapi-lucene
-    spring.jpa.properties.hibernate.search.backend.lucene_version: lucene_current
+    # Until #7739 is closed, the inline CQL rewrite in
+    # cql_artifact_builder.py remains the chosen path. Re-enable
+    # HSearch when:
+    #   1. starter v8.8.0-1+ ✅ (we're on it)
+    #   2. CR/HAPI version alignment ✅ (resolved on v8.8)
+    #   3. hapi-fhir #7739 closed ❌ (still open)
+    hapi.fhir.advanced_lucene_indexing: false
     # Token for the /admin/cr/* endpoints exposed by our overlay. The
     # composer (in the FastAPI backend) calls those endpoints with this
     # token to flush CR caches after a ValueSet edit so the change is
     # immediately reflected without waiting for a HAPI restart.
     HAPI_ADMIN_TOKEN: ${HAPI_ADMIN_TOKEN:-}
-    # JVM heap. 6g/8g sized for the Hibernate Search reindex burst on
-    # v8.8.0-1 over loaded resources + terminology. The earlier 4g/5g
-    # OOM-killed at ~220k records into the reindex; v8.8 reindex is
-    # cleaner (no transaction rollbacks) but still memory-hungry.
-    # Steady-state HAPI uses ~2-3g; the bigger cap is for indexing
-    # bursts only.
-    JAVA_TOOL_OPTIONS: "-Xmx6g -Xms1g"
-  volumes:
-    # Persistent Lucene index — survives container recreates so the
-    # reindex (~5-10 min) is a one-time cost on first deploy. Wipe and
-    # re-create the volume + run \$reindex if the index ever corrupts;
-    # nothing in Lucene is unique-source-of-truth (postgres has all
-    # resources).
-    - hapi_lucene_data:/var/lib/hapi-lucene
+    # JVM heap sized for the bulk Synthea bundle load (100 patients ≈
+    # thousands of resources through HAPI's transaction processor at once).
+    # 1.5G was too tight — OOM-killed mid-load on a fresh deploy.
+    JAVA_TOOL_OPTIONS: "-Xmx3g -Xms512m"
   deploy:
     resources:
       limits:
-        memory: 8g
+        memory: 4g
   healthcheck:
     disable: true
 
@@ -388,4 +375,3 @@ networks:
 
 volumes:
   postgres_data:
-  hapi_lucene_data:
