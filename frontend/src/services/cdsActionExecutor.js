@@ -214,8 +214,10 @@ class CDSActionExecutor {
     // Validate resource (with injected context) before creation
     this.validateResource(enriched);
 
-    // Create the resource
-    const createdResource = await fhirClient.create(enriched);
+    // Create the resource. fhirClient.create takes (resourceType, body)
+    // — the previous single-arg form sent the resource type as
+    // [object Object] in the URL and HAPI returned 400.
+    const createdResource = await fhirClient.create(enriched.resourceType, enriched);
 
     cdsLogger.info('Created FHIR resource', {
       resourceType: enriched.resourceType,
@@ -249,8 +251,9 @@ class CDSActionExecutor {
     // Validate resource (with injected context) before update
     this.validateResource(enriched);
 
-    // Update the resource
-    const updatedResource = await fhirClient.update(enriched);
+    // fhirClient.update takes (resourceType, id, body); same shape mismatch
+    // as create that we fix here for symmetry.
+    const updatedResource = await fhirClient.update(enriched.resourceType, enriched.id, enriched);
 
     cdsLogger.info('Updated FHIR resource', {
       resourceType: enriched.resourceType,
