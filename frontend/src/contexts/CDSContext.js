@@ -223,7 +223,10 @@ export const CDSProvider = ({ children }) => {
                 cdsLogger.debug(`CDSContext: Display behavior for ${service.id}`, displayBehavior);
                 
                 if (displayBehavior) {
-                  // Map display behavior to presentation modes
+                  // Map display behavior values to presentation modes.
+                  // Includes the modes the wizard now exposes (card,
+                  // compact, drawer) — missing entries fall back to POPUP
+                  // via the lookup default below.
                   const modeMapping = {
                     'hard-stop': PRESENTATION_MODES.MODAL,
                     'modal': PRESENTATION_MODES.MODAL,
@@ -231,7 +234,10 @@ export const CDSProvider = ({ children }) => {
                     'sidebar': PRESENTATION_MODES.SIDEBAR,
                     'inline': PRESENTATION_MODES.INLINE,
                     'banner': PRESENTATION_MODES.BANNER,
-                    'toast': PRESENTATION_MODES.TOAST
+                    'toast': PRESENTATION_MODES.TOAST,
+                    'card': PRESENTATION_MODES.CARD,
+                    'compact': PRESENTATION_MODES.COMPACT,
+                    'drawer': PRESENTATION_MODES.DRAWER
                   };
                   
                   // Check for indicator-based overrides

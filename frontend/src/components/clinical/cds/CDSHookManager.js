@@ -87,9 +87,17 @@ const CDSHookManager = forwardRef(({
   // Load hook configurations with display behavior
   const loadHookConfigurations = useCallback(async () => {
     try {
-      const hooks = await cdsHooksService.listCustomHooks();
+      // listCustomHooks (→ listCustomServices) returns `{success, data}`;
+      // earlier code did `hooks.forEach(...)` directly on that object,
+      // which silently fell into the catch and left configMap empty.
+      // Result: every service got the 'popup' fallback regardless of
+      // its configured displayBehavior. Unwrap the array here.
+      const response = await cdsHooksService.listCustomHooks();
+      const hooks = Array.isArray(response)
+        ? response
+        : (response?.data || []);
       const configMap = {};
-      
+
       hooks.forEach(hook => {
         configMap[hook.id] = hook;
       });
@@ -218,12 +226,22 @@ const CDSHookManager = forwardRef(({
           const displayBehavior = hookConfig.displayBehavior;
           
           if (displayBehavior) {
-            // Map display behavior to presentation modes
+            // Map display behavior values to presentation modes. The
+            // wizard saves `display_config.presentationMode` using the
+            // PRESENTATION_MODES values directly (banner/toast/popup/etc.);
+            // the legacy hook config also accepts `'hard-stop'` as a
+            // synonym for modal. Cover both.
             const modeMapping = {
               'hard-stop': PRESENTATION_MODES.MODAL,
+              'modal': PRESENTATION_MODES.MODAL,
               'popup': PRESENTATION_MODES.POPUP,
               'sidebar': PRESENTATION_MODES.SIDEBAR,
-              'inline': PRESENTATION_MODES.INLINE
+              'inline': PRESENTATION_MODES.INLINE,
+              'banner': PRESENTATION_MODES.BANNER,
+              'toast': PRESENTATION_MODES.TOAST,
+              'card': PRESENTATION_MODES.CARD,
+              'compact': PRESENTATION_MODES.COMPACT,
+              'drawer': PRESENTATION_MODES.DRAWER
             };
             
             // Check for indicator-based overrides
