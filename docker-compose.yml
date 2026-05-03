@@ -126,15 +126,17 @@ x-hapi-fhir-common: &hapi-fhir-common
     # token to flush CR caches after a ValueSet edit so the change is
     # immediately reflected without waiting for a HAPI restart.
     HAPI_ADMIN_TOKEN: ${HAPI_ADMIN_TOKEN:-}
-    # JVM heap. Two pressures:
+    # JVM heap. Pressures during reindex:
     #   1. Bulk Synthea bundle load (100 patients ≈ thousands of resources
     #      through HAPI's transaction processor at once)
-    #   2. Hibernate Search reindex over loaded resources + trimmed
-    #      terminology (~30-50k records on the educational deploy).
-    # 5g leaves headroom for both heap and Lucene's file-system cache;
-    # the 6g container cap below stays well under the 9-10g GC-overhead
-    # ceiling we hit when this was sized too tight.
-    JAVA_TOOL_OPTIONS: "-Xmx5g -Xms1g"
+    #   2. Hibernate Search reindex over loaded resources + terminology
+    #      (~280k records on existing deployments where load_terminology
+    #      already loaded LOINC + ICD-10; trimmed deploys are smaller).
+    # 6g heap with 8g container leaves room for Lucene's write buffers
+    # and file cache. We tried 5g/6g first; the 6g cap was tight enough
+    # that Lucene indexing burst memory triggered OOM-kill mid-reindex.
+    # 8g/15g VM RAM still leaves ~7g for postgres/backend/frontend.
+    JAVA_TOOL_OPTIONS: "-Xmx6g -Xms1g"
   volumes:
     # Persistent Lucene index — survives container recreates so the
     # reindex (~5-10 min) is a one-time cost on first deploy. Wipe and
@@ -145,10 +147,10 @@ x-hapi-fhir-common: &hapi-fhir-common
   deploy:
     resources:
       limits:
-        # Must comfortably exceed JAVA_TOOL_OPTIONS Xmx; if the container
-        # cap is below the JVM heap the kernel OOM-kills HAPI before the
-        # JVM has a chance to throw.
-        memory: 6g
+        # Must comfortably exceed JAVA_TOOL_OPTIONS Xmx + Lucene write
+        # buffers + JPA caches; if the container cap is below peak
+        # working set the kernel OOM-kills HAPI before the JVM throws.
+        memory: 8g
   healthcheck:
     disable: true
 
