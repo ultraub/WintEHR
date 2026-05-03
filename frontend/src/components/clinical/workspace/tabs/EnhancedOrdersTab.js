@@ -515,10 +515,17 @@ const EnhancedOrdersTab = ({
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
 
   // CDS Hooks: order-select integration
-  // Convert selected order IDs Set to array of order objects for CDS hooks
+  // Convert selected order IDs Set to array of order objects for CDS hooks.
+  // `entries` here is an array of FHIR Bundle entries (`{resource: ...}`),
+  // not flat resources — `selectedOrders` tracks `resource.id`. The earlier
+  // `entries.filter(o => selectedOrders.has(o.id))` always returned []
+  // because Bundle entries don't have a top-level `id`, so the order-select
+  // hook never fired. Project to resources first.
   const selectedOrdersArray = useMemo(() => {
     if (selectedOrders.size === 0) return [];
-    return entries.filter(order => selectedOrders.has(order.id));
+    return entries
+      .map(entry => entry.resource || entry)
+      .filter(resource => resource && selectedOrders.has(resource.id));
   }, [selectedOrders, entries]);
 
   // Trigger order-select CDS hooks when orders are selected. The hook
