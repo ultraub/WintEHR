@@ -609,12 +609,18 @@ const MedicationDialogEnhanced = ({
         medicationDisplay: selectedMedication.display || selectedMedication.label || 'Unknown Medication'
       }));
       
-      // Evaluate CDS for drug interactions
+      // Evaluate CDS for drug interactions. Use the CDS Hooks 2.0
+      // medication-prescribe context shape: `patientId` + `userId` +
+      // `medications` (array). The previous shape (`patient` /
+      // `medication` / `context: 'prescribe'`) was non-spec — built-in
+      // services tolerated it, but visual-builder services that
+      // reference patient.age etc. couldn't read patientId from it and
+      // returned empty cards.
       try {
         const alerts = await executeCDSHooks('medication-prescribe', {
-          patient: patientId,
-          medication: selectedMedication,
-          context: 'prescribe'
+          patientId,
+          userId: user?.id || user?.username || 'unknown',
+          medications: [selectedMedication]
         });
         setCdsAlerts(alerts || []);
       } catch (error) {
