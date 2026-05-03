@@ -93,64 +93,30 @@ x-hapi-fhir-common: &hapi-fhir-common
     hapi.fhir.max_page_size: 500
     hapi.fhir.cdshooks.enabled: true
     hapi.fhir.cr.enabled: true
-    # Hibernate Search enabled so cqf-fhir-cr's `code:in=<vs-canonical>`
-    # search resolution works natively for all FHIR resource types.
-    # Earlier we worked around this with a CQL inline-rewrite at save
-    # time, but that doesn't scale to complex retrieves or imported
-    # third-party CQL libraries. The rewrite is being phased out (see
-    # plan: ~/.claude/plans/we-want-students-to-sharded-pond.md).
-    #
-    # Three things have to line up — same as before, plus a persistent
-    # Lucene volume so the reindex isn't redone on every container
-    # restart, and a trimmed terminology load so the index is small
-    # enough for ~5g heap:
-    #   1. HAPI-level flag (advanced_lucene_indexing) — exposes indexing
-    #      hooks in the storage layer.
-    #   2. spring.jpa.properties.hibernate.search.* — bootstraps the
-    #      Hibernate Search subsystem at the JPA level.
-    #   3. Lucene local-filesystem backend pointed at the persistent
-    #      volume mounted at /var/lib/hapi-lucene.
-    #
-    # The $$ in the configurer class name escapes the literal $ that
-    # docker-compose would otherwise interpret as a variable reference;
-    # the JVM sees the inner-class form `Configurers$Configurer`.
-    hapi.fhir.advanced_lucene_indexing: true
-    spring.jpa.properties.hibernate.search.enabled: true
-    spring.jpa.properties.hibernate.search.backend.type: lucene
-    spring.jpa.properties.hibernate.search.backend.analysis.configurer: "ca.uhn.fhir.jpa.search.HapiHSearchAnalysisConfigurers$$HapiLuceneAnalysisConfigurer"
-    spring.jpa.properties.hibernate.search.backend.directory.type: local-filesystem
-    spring.jpa.properties.hibernate.search.backend.directory.root: /var/lib/hapi-lucene
-    spring.jpa.properties.hibernate.search.backend.lucene_version: lucene_current
+    # Hibernate Search left disabled. Attempted Lucene-backed indexing in
+    # an earlier session — hit too many infrastructure problems (OOMs at
+    # 5g heap, transaction rollbacks indexing the bulk-loaded UMLS
+    # CodeSystems, pre-expansion daemon refusing to populate
+    # trm_valueset_concept) to be ready for production. Until that's
+    # cracked, the CDS Studio's CQL artifact builder rewrites valueset
+    # retrieves into inline concept-list filtering at save time, so the
+    # compiled Library never issues runtime `code:in=<canonical>` queries.
+    # See `backend/api/cds_studio/cql_artifact_builder.py` and the plan
+    # at ~/.claude/plans/we-want-students-to-sharded-pond.md.
+    hapi.fhir.advanced_lucene_indexing: false
     # Token for the /admin/cr/* endpoints exposed by our overlay. The
     # composer (in the FastAPI backend) calls those endpoints with this
     # token to flush CR caches after a ValueSet edit so the change is
     # immediately reflected without waiting for a HAPI restart.
     HAPI_ADMIN_TOKEN: ${HAPI_ADMIN_TOKEN:-}
-    # JVM heap. Pressures during reindex:
-    #   1. Bulk Synthea bundle load (100 patients ≈ thousands of resources
-    #      through HAPI's transaction processor at once)
-    #   2. Hibernate Search reindex over loaded resources + terminology
-    #      (~280k records on existing deployments where load_terminology
-    #      already loaded LOINC + ICD-10; trimmed deploys are smaller).
-    # 6g heap with 8g container leaves room for Lucene's write buffers
-    # and file cache. We tried 5g/6g first; the 6g cap was tight enough
-    # that Lucene indexing burst memory triggered OOM-kill mid-reindex.
-    # 8g/15g VM RAM still leaves ~7g for postgres/backend/frontend.
-    JAVA_TOOL_OPTIONS: "-Xmx6g -Xms1g"
-  volumes:
-    # Persistent Lucene index — survives container recreates so the
-    # reindex (~5-10 min) is a one-time cost on first deploy. Wipe and
-    # re-create the volume + run \$reindex if the index ever corrupts;
-    # nothing in Lucene is unique-source-of-truth (postgres has all
-    # resources).
-    - hapi_lucene_data:/var/lib/hapi-lucene
+    # JVM heap sized for the bulk Synthea bundle load (100 patients ≈
+    # thousands of resources through HAPI's transaction processor at once).
+    # 1.5G was too tight — OOM-killed mid-load on a fresh deploy.
+    JAVA_TOOL_OPTIONS: "-Xmx3g -Xms512m"
   deploy:
     resources:
       limits:
-        # Must comfortably exceed JAVA_TOOL_OPTIONS Xmx + Lucene write
-        # buffers + JPA caches; if the container cap is below peak
-        # working set the kernel OOM-kills HAPI before the JVM throws.
-        memory: 8g
+        memory: 4g
   healthcheck:
     disable: true
 
@@ -258,11 +224,6 @@ services:
       - USE_REDIS_CACHE=true
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
       - HAPI_ADMIN_TOKEN=${HAPI_ADMIN_TOKEN:-}
-      # Toggle the cql_artifact_builder's inline-rewrite step. Default
-      # "true" (rewrite on) for backward compat with deploys that don't
-      # have HAPI Lucene built. Flip to "false" once the index is built
-      # and validated; after the rollout the rewrite is removed entirely.
-      - CDS_STUDIO_INLINE_VALUESETS=${CDS_STUDIO_INLINE_VALUESETS:-true}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - SMART_BASE_URL=${SMART_BASE_URL:-http://localhost:8000}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
@@ -302,11 +263,6 @@ services:
       - USE_REDIS_CACHE=true
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
       - HAPI_ADMIN_TOKEN=${HAPI_ADMIN_TOKEN:-}
-      # Toggle the cql_artifact_builder's inline-rewrite step. Default
-      # "true" (rewrite on) for backward compat with deploys that don't
-      # have HAPI Lucene built. Flip to "false" once the index is built
-      # and validated; after the rollout the rewrite is removed entirely.
-      - CDS_STUDIO_INLINE_VALUESETS=${CDS_STUDIO_INLINE_VALUESETS:-true}
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DOMAIN=${DOMAIN:-localhost}
       - FRONTEND_URL=${FRONTEND_URL:-}
@@ -413,4 +369,3 @@ networks:
 
 volumes:
   postgres_data:
-  hapi_lucene_data:

@@ -515,15 +515,9 @@ async def materialize_cql_service(
 
     # Rewrite `[Resource: "VS"]` retrieves to inline code-list filtering so
     # the compiled Library never issues runtime `code:in=<canonical>`
-    # searches. Required when HAPI's Hibernate Search isn't running.
-    #
-    # Gated by CDS_STUDIO_INLINE_VALUESETS — set to "false" once HAPI's
-    # Hibernate Search/Lucene index is built and validated for native :in
-    # resolution. Defaults to "true" so existing deploys keep working
-    # during the rollout. Plan to remove the rewrite entirely once we've
-    # validated end-to-end (~/.claude/plans/we-want-students-to-sharded-pond.md).
-    if os.getenv("CDS_STUDIO_INLINE_VALUESETS", "true").lower() != "false":
-        cql_source = await inline_value_set_retrieves(cql_source, hapi_base_url)
+    # searches (which would need HAPI's Hibernate Search, which we don't
+    # run). See `inline_value_set_retrieves` for the rationale.
+    cql_source = await inline_value_set_retrieves(cql_source, hapi_base_url)
 
     detected = detect_cql_defines(cql_source)
     if APPLICABILITY_DEFINE not in detected:
