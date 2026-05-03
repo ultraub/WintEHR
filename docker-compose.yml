@@ -256,6 +256,11 @@ services:
       - USE_REDIS_CACHE=true
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
       - HAPI_ADMIN_TOKEN=${HAPI_ADMIN_TOKEN:-}
+      # Toggle the cql_artifact_builder's inline-rewrite step. Default
+      # "true" (rewrite on) for backward compat with deploys that don't
+      # have HAPI Lucene built. Flip to "false" once the index is built
+      # and validated; after the rollout the rewrite is removed entirely.
+      - CDS_STUDIO_INLINE_VALUESETS=${CDS_STUDIO_INLINE_VALUESETS:-true}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - SMART_BASE_URL=${SMART_BASE_URL:-http://localhost:8000}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
@@ -295,6 +300,11 @@ services:
       - USE_REDIS_CACHE=true
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
       - HAPI_ADMIN_TOKEN=${HAPI_ADMIN_TOKEN:-}
+      # Toggle the cql_artifact_builder's inline-rewrite step. Default
+      # "true" (rewrite on) for backward compat with deploys that don't
+      # have HAPI Lucene built. Flip to "false" once the index is built
+      # and validated; after the rollout the rewrite is removed entirely.
+      - CDS_STUDIO_INLINE_VALUESETS=${CDS_STUDIO_INLINE_VALUESETS:-true}
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DOMAIN=${DOMAIN:-localhost}
       - FRONTEND_URL=${FRONTEND_URL:-}
