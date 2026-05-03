@@ -66,8 +66,8 @@ x-hapi-fhir-common: &hapi-fhir-common
   build:
     context: ./deploy/hapi-overlay
     args:
-      HAPI_VERSION: image/v8.6.0-1
-  image: wintehr-hapi-fhir:overlay-v8.6.0-1
+      HAPI_VERSION: image/v8.8.0-1
+  image: wintehr-hapi-fhir:overlay-v8.8.0-1
   container_name: emr-hapi-fhir
   restart: ${RESTART_POLICY:-no}
   environment:

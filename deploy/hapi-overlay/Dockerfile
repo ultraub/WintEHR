@@ -19,7 +19,7 @@
 # class only depends on stable cqf-fhir public APIs (`EvaluationSettings`
 # has been in CR since 3.x); upgrades should be clean.
 
-ARG HAPI_VERSION=image/v8.6.0-1
+ARG HAPI_VERSION=image/v8.8.0-1
 
 # ---------- Build stage ----------
 FROM maven:3.9-eclipse-temurin-17 AS build
