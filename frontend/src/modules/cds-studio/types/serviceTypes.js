@@ -120,15 +120,23 @@ export const DATA_SOURCES = {
 };
 
 /**
- * Service type definitions with schemas
+ * Service type definitions.
+ *
+ * Only two distinct execution paths exist at runtime: the visual condition
+ * tree (anything not `cql-based`) and the CQL bridge (`cql-based`). Earlier
+ * cosmetic types (medication-based, lab-value-based, preventive-care,
+ * risk-assessment, workflow-automation) all dispatched through the same
+ * visual path, so they were collapsed into the single Visual entry. Old
+ * services persisted with those legacy ids continue to load — the backend
+ * treats anything that isn't `cql-based` as visual.
  */
 export const SERVICE_TYPES = {
   CONDITION_BASED: {
     id: 'condition-based',
-    label: 'Condition-Based Alert',
-    description: 'Alert when patient has specific conditions or characteristics',
+    label: 'Visual rule',
+    description: 'Build the trigger logic with the visual condition tree',
     icon: '🔍',
-    hookTypes: ['patient-view', 'encounter-start'],
+    hookTypes: ['patient-view', 'encounter-start', 'medication-prescribe', 'order-select', 'order-sign'],
     defaultHook: 'patient-view',
 
     schema: {
@@ -143,169 +151,22 @@ export const SERVICE_TYPES = {
         'PATIENT_AGE',
         'PATIENT_GENDER',
         'HAS_CONDITION',
+        'TAKES_MEDICATION',
+        'LAB_VALUE',
         'LAST_VISIT_DATE'
       ]
     },
 
     examples: [
       'Alert if patient >65 with no recent wellness visit',
-      'Identify patients with diabetes and hypertension',
-      'Flag patients overdue for cancer screening'
-    ]
-  },
-
-  MEDICATION_BASED: {
-    id: 'medication-based',
-    label: 'Medication Safety Check',
-    description: 'Check for drug interactions, contraindications, and safety issues',
-    icon: '💊',
-    hookTypes: ['medication-prescribe', 'order-select'],
-    defaultHook: 'medication-prescribe',
-
-    schema: {
-      checkTypes: [
-        { id: 'interaction', label: 'Drug-Drug Interaction', enabled: true },
-        { id: 'allergy', label: 'Allergy Check', enabled: true },
-        { id: 'contraindication', label: 'Contraindication', enabled: true },
-        { id: 'duplicate', label: 'Duplicate Therapy', enabled: true },
-        { id: 'dose', label: 'Dose Range Check', enabled: false }
-      ],
-      medications: [], // Medication codes to check
-      conditions: [], // Condition-based contraindications
-      recommendedDataSources: [
-        'TAKES_MEDICATION',
-        'HAS_CONDITION',
-        'HAS_ALLERGY',
-        'PATIENT_AGE'
-      ]
-    },
-
-    examples: [
-      'Alert on warfarin + aspirin interaction',
-      'Check for NSAIDs in patients with kidney disease',
-      'Flag high-risk medications for elderly (Beers Criteria)'
-    ]
-  },
-
-  LAB_VALUE_BASED: {
-    id: 'lab-value-based',
-    label: 'Lab Value Alert',
-    description: 'Alert on abnormal or critical lab values',
-    icon: '🔬',
-    hookTypes: ['patient-view', 'order-sign'],
-    defaultHook: 'patient-view',
-
-    schema: {
-      labTests: [], // Lab test codes
-      thresholds: {
-        critical: { enabled: true, min: null, max: null },
-        abnormal: { enabled: true, min: null, max: null },
-        trend: { enabled: false, direction: 'increasing', percentage: 20 }
-      },
-      timeframe: {
-        mostRecent: true,
-        withinDays: 7
-      },
-      recommendedDataSources: [
-        'LAB_VALUE',
-        'VITAL_SIGN'
-      ]
-    },
-
-    examples: [
-      'Alert on potassium < 3.0 or > 5.5',
-      'Flag eGFR < 30 for medication adjustment',
-      'Identify rising creatinine trend'
-    ]
-  },
-
-  PREVENTIVE_CARE: {
-    id: 'preventive-care',
-    label: 'Preventive Care Reminder',
-    description: 'Identify gaps in preventive care and screenings',
-    icon: '🛡️',
-    hookTypes: ['patient-view', 'encounter-start'],
-    defaultHook: 'patient-view',
-
-    schema: {
-      screeningType: '', // mammography, colonoscopy, etc.
-      ageRange: { min: null, max: null },
-      frequency: { value: 1, unit: 'years' },
-      conditions: [], // Risk factors
-      recommendedDataSources: [
-        'PATIENT_AGE',
-        'PATIENT_GENDER',
-        'NO_RECENT_SCREENING',
-        'HAS_CONDITION'
-      ]
-    },
-
-    examples: [
-      'Mammography reminder for women 40-75',
-      'Colonoscopy screening for patients 50+',
-      'Diabetes screening for BMI >25'
-    ]
-  },
-
-  RISK_ASSESSMENT: {
-    id: 'risk-assessment',
-    label: 'Risk Assessment',
-    description: 'Calculate and display clinical risk scores',
-    icon: '⚠️',
-    hookTypes: ['patient-view', 'encounter-start'],
-    defaultHook: 'patient-view',
-
-    schema: {
-      riskType: '', // cardiovascular, fall, readmission, etc.
-      scoreComponents: [], // Factors contributing to risk score
-      thresholds: {
-        low: { max: 5, color: 'success' },
-        moderate: { min: 5, max: 10, color: 'warning' },
-        high: { min: 10, color: 'error' }
-      },
-      recommendedDataSources: [
-        'PATIENT_AGE',
-        'HAS_CONDITION',
-        'LAB_VALUE',
-        'VITAL_SIGN',
-        'TAKES_MEDICATION'
-      ]
-    },
-
-    examples: [
-      'CHADS2-VASc stroke risk score',
-      'Fall risk assessment for elderly',
-      'Hospital readmission risk calculator'
-    ]
-  },
-
-  WORKFLOW_AUTOMATION: {
-    id: 'workflow-automation',
-    label: 'Workflow Automation',
-    description: 'Automate clinical workflows and task creation',
-    icon: '🔄',
-    hookTypes: ['order-sign', 'encounter-discharge'],
-    defaultHook: 'order-sign',
-
-    schema: {
-      triggers: [], // Conditions that trigger automation
-      actions: [], // Tasks to create, orders to place
-      recommendedDataSources: [
-        'HAS_CONDITION',
-        'LAB_VALUE'
-      ]
-    },
-
-    examples: [
-      'Auto-order CBC with chemotherapy',
-      'Create follow-up task for abnormal result',
-      'Generate discharge instructions'
+      'Flag patients overdue for cancer screening',
+      'Warn on potassium > 5.5'
     ]
   },
 
   CQL_BASED: {
     id: 'cql-based',
-    label: 'Custom CQL Rule',
+    label: 'CQL rule',
     description: 'Author rules in Clinical Quality Language; HAPI evaluates via $apply',
     icon: '📝',
     hookTypes: ['patient-view', 'medication-prescribe', 'order-select', 'encounter-start'],
@@ -367,48 +228,6 @@ export function getDefaultCardTemplate(typeId) {
   const templates = {
     'condition-based': {
       summary: 'Patient meets condition criteria',
-      detail: '',
-      indicator: 'info',
-      suggestions: [],
-      links: []
-    },
-    'medication-based': {
-      summary: 'Medication safety alert',
-      detail: '',
-      indicator: 'warning',
-      suggestions: [
-        { label: 'Review medication', actions: [] }
-      ],
-      links: []
-    },
-    'lab-value-based': {
-      summary: 'Abnormal lab value detected',
-      detail: '',
-      indicator: 'warning',
-      suggestions: [
-        { label: 'Acknowledge result', actions: [] }
-      ],
-      links: []
-    },
-    'preventive-care': {
-      summary: 'Preventive care reminder',
-      detail: '',
-      indicator: 'info',
-      suggestions: [
-        { label: 'Order screening', actions: [] },
-        { label: 'Schedule appointment', actions: [] }
-      ],
-      links: []
-    },
-    'risk-assessment': {
-      summary: 'Risk assessment result',
-      detail: '',
-      indicator: 'info',
-      suggestions: [],
-      links: []
-    },
-    'workflow-automation': {
-      summary: 'Workflow action recommended',
       detail: '',
       indicator: 'info',
       suggestions: [],
