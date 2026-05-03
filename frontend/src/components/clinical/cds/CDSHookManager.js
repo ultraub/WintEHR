@@ -87,9 +87,17 @@ const CDSHookManager = forwardRef(({
   // Load hook configurations with display behavior
   const loadHookConfigurations = useCallback(async () => {
     try {
-      const hooks = await cdsHooksService.listCustomHooks();
+      // listCustomHooks (→ listCustomServices) returns `{success, data}`;
+      // earlier code did `hooks.forEach(...)` directly on that object,
+      // which silently fell into the catch and left configMap empty.
+      // Result: every service got the 'popup' fallback regardless of
+      // its configured displayBehavior. Unwrap the array here.
+      const response = await cdsHooksService.listCustomHooks();
+      const hooks = Array.isArray(response)
+        ? response
+        : (response?.data || []);
       const configMap = {};
-      
+
       hooks.forEach(hook => {
         configMap[hook.id] = hook;
       });
