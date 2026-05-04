@@ -138,6 +138,22 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null 
   const isEditMode = Boolean(existingService);
   const isCQLService = serviceConfig.service_type === CQL_SERVICE_TYPE;
 
+  // After a ValueSet is created or edited inside the composer, refresh the
+  // referenced-VS list so the inline panel reflects the new code count.
+  // Only meaningful in edit mode (we have a deployed service to query); in
+  // create mode there's nothing for /full-edit-state to return yet.
+  const refreshReferencedValueSets = async () => {
+    if (!isEditMode || !serviceConfig.service_id) return;
+    try {
+      const { data } = await axios.get(
+        `/api/cds-visual-builder/services/${serviceConfig.service_id}/full-edit-state`
+      );
+      setReferencedValueSets(data.value_sets || []);
+    } catch (err) {
+      console.warn('Failed to refresh referenced ValueSets', err);
+    }
+  };
+
   // Edit-mode hydration: when the wizard opens with an existing service,
   // pull its full state (config + referenced ValueSets) in one round-trip
   // and seed the form. Skips draft-save (the row already exists in DB).
@@ -561,6 +577,8 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null 
               if (!savedServiceId) return null;
               return cdsStudioApi.getServiceFHIRPreview(serviceConfig.service_id);
             }}
+            referencedValueSets={referencedValueSets}
+            onValueSetSaved={refreshReferencedValueSets}
           />
         </Box>
       );
