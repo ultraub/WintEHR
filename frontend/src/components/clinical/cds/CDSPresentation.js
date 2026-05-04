@@ -605,117 +605,17 @@ const CDSPresentation = ({
 
   if (visibleAlerts.length === 0) return null;
 
-  // Banner mode - Critical alerts at top
-  if (mode === PRESENTATION_MODES.BANNER) {
-    const criticalAlerts = visibleAlerts.filter(a => a.indicator === 'critical');
-    if (criticalAlerts.length === 0) return null;
-
-    return (
-      <Box sx={{ 
-        position: 'sticky', 
-        top: 0, 
-        zIndex: 1200,
-        width: '100%'
-      }}>
-        {criticalAlerts.map((alert, index) => {
-          const { content, actions } = renderAlert(alert);
-          return (
-            <Alert
-              key={`critical-${alert.summary}-${index}`}
-              severity="error"
-              action={actions}
-              sx={{
-                boxShadow: 2
-              }}
-            >
-              {content}
-            </Alert>
-          );
-        })}
-      </Box>
-    );
-  }
-
-  // Toast mode - Auto-hiding notifications
-  if (mode === PRESENTATION_MODES.TOAST) {
-    // Stack toasts vertically with proper spacing
-    return (
-      <Box sx={{ 
-        position: 'fixed', 
-        bottom: 16, 
-        right: 16, 
-        zIndex: 1400,
-        display: 'flex',
-        flexDirection: 'column-reverse',
-        gap: 1,
-        maxWidth: 400
-      }}>
-        {visibleAlerts.map((alert, index) => {
-          const alertKey = `${alert.serviceId}-${alert.summary}`;
-          const isVisible = !dismissedAlerts.has(alertKey) && !isAlertSnoozed(alert);
-          
-          if (!isVisible) return null;
-          
-          const { content } = renderAlert(alert, true);
-          return (
-            <Slide
-              key={`toast-${alert.summary}-${index}`}
-              direction="left"
-              in={isVisible}
-              timeout={300}
-            >
-              <Alert
-                severity={getSeverityColor(alert.indicator)}
-                onClose={() => handleAlertAction(alert, 'dismiss')}
-                sx={{ 
-                  boxShadow: 3,
-                  '& .MuiAlert-action': {
-                    alignItems: 'flex-start'
-                  }
-                }}
-              >
-                {content}
-              </Alert>
-            </Slide>
-          );
-        })}
-      </Box>
-    );
-  }
-
-  // Popup mode - Modal dialog
-  if (mode === PRESENTATION_MODES.POPUP) {
-    return (
-      <>
-      <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-        <DialogTitle>
-          Clinical Decision Support
-        </DialogTitle>
-        <DialogContent>
-          <Stack spacing={2}>
-            {visibleAlerts.map((alert, index) => {
-              const { content, actions } = renderAlert(alert);
-              return (
-                <Card key={`dialog-${alert.summary}-${index}`} variant="outlined">
-                  <CardContent>
-                    <Stack direction="row" spacing={1} alignItems="flex-start">
-                      {getSeverityIcon(alert.indicator)}
-                      <Box sx={{ flex: 1 }}>
-                        {content}
-                      </Box>
-                    </Stack>
-                  </CardContent>
-                  {actions && <CardActions>{actions}</CardActions>}
-                </Card>
-              );
-            })}
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose}>Close</Button>
-        </DialogActions>
-      </Dialog>
-      {/* Quick snooze menu for POPUP mode */}
+  // Interaction dialogs (suggestion-detail, override-reason, snooze) and the
+  // quick-snooze menu live here once and render across every presentation
+  // mode. Previously each mode rendered its own copy (only popup + inline
+  // had them at all), so suggestion-button clicks were no-ops in modal /
+  // drawer / compact / card / sidebar / banner / toast and dismissals from
+  // popup didn't survive navigation. Each mode return wraps its content
+  // with `<>{content}{renderInteractionDialogs()}</>` so the dialogs are
+  // available regardless of mode.
+  const renderInteractionDialogs = () => (
+    <>
+      {/* Quick snooze menu (anchored to the snooze button per-card) */}
       <Menu
         anchorEl={snoozeMenuAnchor}
         open={Boolean(snoozeMenuAnchor)}
@@ -727,10 +627,10 @@ const CDSPresentation = ({
         <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 240)}>4 hours</MenuItem>
         <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 1440)}>24 hours</MenuItem>
       </Menu>
-      {/* Suggestion Detail Dialog — confirms a suggestion before executing
-          its actions[]. Must render here for POPUP mode; previously it was
-          only declared in the inline-mode return so clicking a suggestion
-          button in the popup did nothing. */}
+
+      {/* Suggestion Detail Dialog — confirms a suggestion's actions before
+          executing. Opened by `setSelectedAlert({alert, suggestion})` from
+          renderSuggestionButton. */}
       {selectedAlert && (
         <Dialog
           open={!!selectedAlert}
@@ -768,9 +668,12 @@ const CDSPresentation = ({
           </DialogActions>
         </Dialog>
       )}
-      {/* Override Reason Dialog — same story; required when the alert
-          declares acknowledgmentRequired or reasonRequired so the user
-          can supply a reason without losing the rest of the popup. */}
+
+      {/* Override Reason Dialog — opened when handleAlertAction(.,'dismiss',.)
+          sees acknowledgmentRequired/reasonRequired. Confirms the override
+          and dismisses just that one card via handleDismissAlert (which
+          persists via cdsAlertPersistence so the dismissal survives
+          navigation). */}
       {showOverrideDialog && currentOverride && (
         <Dialog
           open={showOverrideDialog}
@@ -850,54 +753,38 @@ const CDSPresentation = ({
                       overrideReason: OVERRIDE_REASONS[Object.keys(OVERRIDE_REASONS).find(key =>
                         OVERRIDE_REASONS[key].code === overrideReasonCode
                       )],
-                      userComment: overrideUserComment || undefined
+                      userComment: overrideUserComment
                     });
                   }
-                } else if (alert.serviceId && alert.uuid) {
-                  await cdsFeedbackService.sendFeedback({
-                    serviceId: alert.serviceId,
-                    cardUuid: alert.uuid,
-                    outcome: 'acknowledged'
-                  });
-                }
-                // Mark as dismissed so the popup re-renders with the
-                // remaining cards. Persist via cdsAlertPersistence so the
-                // dismissal survives navigation.
-                const alertKey = `${alert.serviceId}-${alert.summary}`;
-                setDismissedAlerts(prev => {
-                  const newSet = new Set([...prev, alertKey]);
-                  if (patientId) {
-                    try {
-                      sessionStorage.setItem(
-                        `cds-dismissed-alerts-${patientId}`,
-                        JSON.stringify([...newSet])
-                      );
-                    } catch (e) { /* ignore storage errors */ }
+                  handleDismissAlert(alert, `${overrideReasonCode}: ${overrideUserComment}`);
+                } else {
+                  if (alert.serviceId && alert.uuid) {
+                    await cdsFeedbackService.sendFeedback({
+                      serviceId: alert.serviceId,
+                      cardUuid: alert.uuid,
+                      outcome: 'acknowledged',
+                      userComment: 'Alert acknowledged by user'
+                    });
                   }
-                  return newSet;
-                });
-                if (patientId) {
-                  cdsAlertPersistence.dismissAlert(
-                    patientId,
-                    alertKey,
-                    currentOverride.requiresReason ? 'override' : 'acknowledged',
-                    false
-                  );
+                  handleDismissAlert(alert, 'Acknowledged');
                 }
                 setShowOverrideDialog(false);
                 setCurrentOverride(null);
                 setOverrideReasonCode('');
                 setOverrideUserComment('');
               }}
+              disabled={currentOverride.requiresReason && (!overrideReasonCode || (overrideReasonCode === 'other' && !overrideUserComment.trim()))}
             >
               {currentOverride.requiresReason ? 'Override Alert' : 'Acknowledge'}
             </Button>
           </DialogActions>
         </Dialog>
       )}
-      {/* Snooze dialog for POPUP mode — must be outside the main Dialog */}
+
+      {/* Snooze Dialog — full snooze flow with all duration options +
+          existing-snoozed hint. Quick options live in the Menu above. */}
       {showSnoozeDialog && alertToSnooze && (
-        <Dialog open={showSnoozeDialog} onClose={() => setShowSnoozeDialog(false)} maxWidth="xs" fullWidth sx={{ zIndex: 1400 }}>
+        <Dialog open={showSnoozeDialog} onClose={() => setShowSnoozeDialog(false)} maxWidth="xs" fullWidth sx={{ zIndex: 1500 }}>
           <DialogTitle>
             <Stack direction="row" alignItems="center" spacing={1}>
               <SnoozeIcon color="primary" />
@@ -922,21 +809,165 @@ const CDSPresentation = ({
                 <MenuItem value={30}>30 minutes</MenuItem>
                 <MenuItem value={60}>1 hour</MenuItem>
                 <MenuItem value={120}>2 hours</MenuItem>
+                <MenuItem value={240}>4 hours</MenuItem>
                 <MenuItem value={480}>8 hours</MenuItem>
                 <MenuItem value={1440}>24 hours</MenuItem>
               </Select>
             </FormControl>
+            {snoozedAlerts.size > 0 && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                You have {snoozedAlerts.size} snoozed alert{snoozedAlerts.size > 1 ? 's' : ''}.
+              </Typography>
+            )}
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => { setShowSnoozeDialog(false); setAlertToSnooze(null); }}>Cancel</Button>
-            <Button variant="contained" onClick={() => {
-              handleSnoozeAlert(alertToSnooze, snoozeDuration);
+            <Button onClick={() => {
               setShowSnoozeDialog(false);
               setAlertToSnooze(null);
-            }}>Snooze</Button>
+            }}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<ScheduleIcon />}
+              onClick={() => {
+                handleSnoozeAlert(alertToSnooze, snoozeDuration);
+                setShowSnoozeDialog(false);
+                setAlertToSnooze(null);
+                if (window.showNotification) {
+                  const duration = snoozeDuration < 60
+                    ? `${snoozeDuration} minutes`
+                    : `${snoozeDuration / 60} hour${snoozeDuration > 60 ? 's' : ''}`;
+                  window.showNotification(`Alert snoozed for ${duration}`, 'info');
+                }
+              }}
+            >
+              Snooze
+            </Button>
           </DialogActions>
         </Dialog>
       )}
+    </>
+  );
+
+  // Banner mode - Critical alerts at top
+  if (mode === PRESENTATION_MODES.BANNER) {
+    const criticalAlerts = visibleAlerts.filter(a => a.indicator === 'critical');
+    if (criticalAlerts.length === 0) return null;
+
+    return (
+      <>
+      <Box sx={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 1200,
+        width: '100%'
+      }}>
+        {criticalAlerts.map((alert, index) => {
+          const { content, actions } = renderAlert(alert);
+          return (
+            <Alert
+              key={`critical-${alert.summary}-${index}`}
+              severity="error"
+              action={actions}
+              sx={{
+                boxShadow: 2
+              }}
+            >
+              {content}
+            </Alert>
+          );
+        })}
+      </Box>
+      {renderInteractionDialogs()}
+      </>
+    );
+  }
+
+  // Toast mode - Auto-hiding notifications
+  if (mode === PRESENTATION_MODES.TOAST) {
+    // Stack toasts vertically with proper spacing
+    return (
+      <>
+      <Box sx={{
+        position: 'fixed',
+        bottom: 16,
+        right: 16,
+        zIndex: 1400,
+        display: 'flex',
+        flexDirection: 'column-reverse',
+        gap: 1,
+        maxWidth: 400
+      }}>
+        {visibleAlerts.map((alert, index) => {
+          const alertKey = `${alert.serviceId}-${alert.summary}`;
+          const isVisible = !dismissedAlerts.has(alertKey) && !isAlertSnoozed(alert);
+
+          if (!isVisible) return null;
+
+          const { content } = renderAlert(alert, true);
+          return (
+            <Slide
+              key={`toast-${alert.summary}-${index}`}
+              direction="left"
+              in={isVisible}
+              timeout={300}
+            >
+              <Alert
+                severity={getSeverityColor(alert.indicator)}
+                onClose={() => handleAlertAction(alert, 'dismiss')}
+                sx={{
+                  boxShadow: 3,
+                  '& .MuiAlert-action': {
+                    alignItems: 'flex-start'
+                  }
+                }}
+              >
+                {content}
+              </Alert>
+            </Slide>
+          );
+        })}
+      </Box>
+      {renderInteractionDialogs()}
+      </>
+    );
+  }
+
+  // Popup mode - Modal dialog
+  if (mode === PRESENTATION_MODES.POPUP) {
+    return (
+      <>
+      <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Clinical Decision Support
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2}>
+            {visibleAlerts.map((alert, index) => {
+              const { content, actions } = renderAlert(alert);
+              return (
+                <Card key={`dialog-${alert.summary}-${index}`} variant="outlined">
+                  <CardContent>
+                    <Stack direction="row" spacing={1} alignItems="flex-start">
+                      {getSeverityIcon(alert.indicator)}
+                      <Box sx={{ flex: 1 }}>
+                        {content}
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                  {actions && <CardActions>{actions}</CardActions>}
+                </Card>
+              );
+            })}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClose}>Close</Button>
+        </DialogActions>
+      </Dialog>
+      {renderInteractionDialogs()}
       </>
     );
   }
@@ -1111,6 +1142,7 @@ const CDSPresentation = ({
             </Button>
           </DialogActions>
         </Dialog>
+      {renderInteractionDialogs()}
       </>
     );
   }
@@ -1118,6 +1150,7 @@ const CDSPresentation = ({
   // Drawer mode - Slide-out panel
   if (mode === PRESENTATION_MODES.DRAWER) {
     return (
+      <>
       <Drawer
         anchor="right"
         open={open}
@@ -1147,6 +1180,8 @@ const CDSPresentation = ({
           </Stack>
         </Box>
       </Drawer>
+      {renderInteractionDialogs()}
+      </>
     );
   }
 
@@ -1216,6 +1251,7 @@ const CDSPresentation = ({
             </Stack>
           </Box>
         </Popover>
+      {renderInteractionDialogs()}
       </>
     );
   }
@@ -1223,6 +1259,7 @@ const CDSPresentation = ({
   // Card mode - Rich card display
   if (mode === PRESENTATION_MODES.CARD) {
     return (
+      <>
       <Stack spacing={2}>
         {visibleAlerts.map((alert, index) => {
           const { content, actions } = renderAlert(alert);
@@ -1284,6 +1321,8 @@ const CDSPresentation = ({
           );
         })}
       </Stack>
+      {renderInteractionDialogs()}
+      </>
     );
   }
 
@@ -1292,6 +1331,7 @@ const CDSPresentation = ({
     // Show minimized version
     if (sidebarMinimized) {
       return (
+        <>
         <Paper
           elevation={3}
           sx={{
@@ -1306,7 +1346,7 @@ const CDSPresentation = ({
           <Tooltip title={`${visibleAlerts.length} CDS Alerts - Click to expand`}>
             <IconButton
               onClick={() => setSidebarMinimized(false)}
-              color={visibleAlerts.some(a => a.indicator === 'critical') ? 'error' : 
+              color={visibleAlerts.some(a => a.indicator === 'critical') ? 'error' :
                      visibleAlerts.some(a => a.indicator === 'warning') ? 'warning' : 'info'}
               sx={{ p: 2 }}
             >
@@ -1316,11 +1356,14 @@ const CDSPresentation = ({
             </IconButton>
           </Tooltip>
         </Paper>
+        {renderInteractionDialogs()}
+        </>
       );
     }
-    
+
     // Show full sidebar
     return (
+      <>
       <Paper
         elevation={3}
         sx={{
@@ -1394,6 +1437,8 @@ const CDSPresentation = ({
           </Stack>
         </Box>
       </Paper>
+      {renderInteractionDialogs()}
+      </>
     );
   }
 
@@ -1415,243 +1460,7 @@ const CDSPresentation = ({
       })}
     </Stack>
 
-    {/* Quick snooze menu for inline mode */}
-    <Menu
-      anchorEl={snoozeMenuAnchor}
-      open={Boolean(snoozeMenuAnchor)}
-      onClose={() => { setSnoozeMenuAnchor(null); setSnoozeMenuAlert(null); }}
-    >
-      <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 15)}>15 minutes</MenuItem>
-      <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 60)}>1 hour</MenuItem>
-      <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 240)}>4 hours</MenuItem>
-      <MenuItem onClick={() => snoozeMenuAlert && handleQuickSnooze(snoozeMenuAlert, 1440)}>24 hours</MenuItem>
-    </Menu>
-
-      {/* Suggestion Detail Dialog */}
-      {selectedAlert && (
-        <Dialog
-          open={!!selectedAlert}
-          onClose={() => setSelectedAlert(null)}
-          maxWidth="sm"
-          fullWidth
-        >
-          <DialogTitle>
-            {selectedAlert.suggestion.label}
-          </DialogTitle>
-          <DialogContent>
-            <Typography variant="body1">
-              {selectedAlert.suggestion.description || 'No description available'}
-            </Typography>
-            {selectedAlert.suggestion.actions?.map((action, index) => (
-              <Typography key={`action-${action.description?.substring(0, 20) || ''}-${index}`} variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                {action.description}
-              </Typography>
-            ))}
-          </DialogContent>
-          <DialogActions>
-            <Button
-              onClick={() => handleAlertAction(selectedAlert.alert, 'reject', selectedAlert.suggestion)}
-            >
-              Reject
-            </Button>
-            <Button
-              variant="contained"
-              onClick={() => handleAlertAction(selectedAlert.alert, 'accept', selectedAlert.suggestion)}
-            >
-              Accept
-            </Button>
-          </DialogActions>
-        </Dialog>
-      )}
-
-      {/* Override Reason Dialog */}
-      {showOverrideDialog && currentOverride && (
-        <Dialog open={showOverrideDialog} onClose={() => setShowOverrideDialog(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>
-            {currentOverride.requiresReason ? 'Override Clinical Alert' : 'Acknowledge Alert'}
-          </DialogTitle>
-          <DialogContent>
-            <Typography variant="body1" gutterBottom>
-              {currentOverride.requiresReason 
-                ? `You are overriding a ${currentOverride.alert.indicator} alert. Please provide a reason:`
-                : `Please acknowledge this ${currentOverride.alert.indicator} alert before continuing.`
-              }
-            </Typography>
-            
-            <Alert severity={getSeverityColor(currentOverride.alert.indicator)} sx={{ my: 2 }}>
-              <Typography variant="subtitle2">{currentOverride.alert.summary}</Typography>
-              {currentOverride.alert.detail && (
-                <Typography variant="body2">{currentOverride.alert.detail}</Typography>
-              )}
-            </Alert>
-
-            {currentOverride.requiresReason && (
-              <>
-                <FormControl fullWidth sx={{ mt: 2 }}>
-                  <InputLabel>Override Reason</InputLabel>
-                  <Select
-                    value={overrideReasonCode}
-                    onChange={(e) => setOverrideReasonCode(e.target.value)}
-                    label="Override Reason"
-                  >
-                    {Object.entries(OVERRIDE_REASONS).map(([key, reason]) => (
-                      <MenuItem key={key} value={reason.code}>
-                        {reason.display}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={3}
-                  value={overrideUserComment}
-                  onChange={(e) => setOverrideUserComment(e.target.value)}
-                  placeholder="Additional comments (optional, required for 'Other' reason)..."
-                  label="Comments"
-                  variant="outlined"
-                  sx={{ mt: 2 }}
-                />
-              </>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => {
-              setShowOverrideDialog(false);
-              setCurrentOverride(null);
-              setOverrideReasonCode('');
-              setOverrideUserComment('');
-            }}>
-              Cancel
-            </Button>
-            <Button 
-              variant="contained" 
-              color="primary"
-              onClick={async () => {
-                const alert = currentOverride.alert;
-
-                if (currentOverride.requiresReason) {
-                  // Validate reason is provided
-                  if (!overrideReasonCode || (overrideReasonCode === 'other' && !overrideUserComment.trim())) {
-                    return;
-                  }
-                  
-                  // Send override feedback with reason
-                  if (alert.serviceId && alert.uuid) {
-                    await cdsFeedbackService.sendFeedback({
-                      serviceId: alert.serviceId,
-                      cardUuid: alert.uuid,
-                      outcome: 'overridden',
-                      overrideReason: OVERRIDE_REASONS[Object.keys(OVERRIDE_REASONS).find(key => 
-                        OVERRIDE_REASONS[key].code === overrideReasonCode
-                      )],
-                      userComment: overrideUserComment
-                    });
-                  }
-                  
-                  // Dismiss the alert with reason
-                  handleDismissAlert(alert, `${overrideReasonCode}: ${overrideUserComment}`);
-                } else {
-                  // Just acknowledgment required
-                  if (alert.serviceId && alert.uuid) {
-                    await cdsFeedbackService.sendFeedback({
-                      serviceId: alert.serviceId,
-                      cardUuid: alert.uuid,
-                      outcome: 'acknowledged',
-                      userComment: 'Alert acknowledged by user'
-                    });
-                  }
-                  
-                  // Dismiss the alert
-                  handleDismissAlert(alert, 'Acknowledged');
-                }
-                
-                // Close dialog
-                setShowOverrideDialog(false);
-                setCurrentOverride(null);
-                setOverrideReasonCode('');
-                setOverrideUserComment('');
-              }}
-              disabled={currentOverride.requiresReason && (!overrideReasonCode || (overrideReasonCode === 'other' && !overrideUserComment.trim()))}
-            >
-              {currentOverride.requiresReason ? 'Override Alert' : 'Acknowledge'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-      )}
-
-      {/* Snooze Dialog */}
-      {showSnoozeDialog && alertToSnooze && (
-        <Dialog open={showSnoozeDialog} onClose={() => setShowSnoozeDialog(false)} maxWidth="xs" fullWidth>
-          <DialogTitle>
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <SnoozeIcon color="primary" />
-              <Typography>Snooze Alert</Typography>
-            </Stack>
-          </DialogTitle>
-          <DialogContent>
-            <Typography variant="body2" gutterBottom>
-              How long would you like to snooze this alert?
-            </Typography>
-            
-            <Alert severity={getSeverityColor(alertToSnooze.indicator)} sx={{ my: 2 }}>
-              <Typography variant="subtitle2">{alertToSnooze.summary}</Typography>
-            </Alert>
-
-            <FormControl fullWidth sx={{ mt: 2 }}>
-              <InputLabel>Snooze Duration</InputLabel>
-              <Select
-                value={snoozeDuration}
-                onChange={(e) => setSnoozeDuration(e.target.value)}
-                label="Snooze Duration"
-              >
-                <MenuItem value={15}>15 minutes</MenuItem>
-                <MenuItem value={30}>30 minutes</MenuItem>
-                <MenuItem value={60}>1 hour</MenuItem>
-                <MenuItem value={120}>2 hours</MenuItem>
-                <MenuItem value={240}>4 hours</MenuItem>
-                <MenuItem value={480}>8 hours</MenuItem>
-                <MenuItem value={1440}>24 hours</MenuItem>
-              </Select>
-            </FormControl>
-
-            {snoozedAlerts.size > 0 && (
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-                You have {snoozedAlerts.size} snoozed alert{snoozedAlerts.size > 1 ? 's' : ''}.
-              </Typography>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => {
-              setShowSnoozeDialog(false);
-              setAlertToSnooze(null);
-            }}>
-              Cancel
-            </Button>
-            <Button 
-              variant="contained" 
-              color="primary"
-              startIcon={<ScheduleIcon />}
-              onClick={() => {
-                handleSnoozeAlert(alertToSnooze, snoozeDuration);
-                setShowSnoozeDialog(false);
-                setAlertToSnooze(null);
-                
-                // Show notification if available
-                if (window.showNotification) {
-                  const duration = snoozeDuration < 60 
-                    ? `${snoozeDuration} minutes` 
-                    : `${snoozeDuration / 60} hour${snoozeDuration > 60 ? 's' : ''}`;
-                  window.showNotification(`Alert snoozed for ${duration}`, 'info');
-                }
-              }}
-            >
-              Snooze
-            </Button>
-          </DialogActions>
-        </Dialog>
-      )}
+      {renderInteractionDialogs()}
     </>
   );
 };
