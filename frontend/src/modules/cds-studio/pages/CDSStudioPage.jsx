@@ -39,6 +39,9 @@ const CDSStudioPage = () => {
 
   // Builder dialog states
   const [visualBuilderOpen, setVisualBuilderOpen] = useState(false);
+  // When non-null, the wizard opens in edit mode and seeds from this service
+  // via GET /full-edit-state. Cleared on close.
+  const [editingService, setEditingService] = useState(null);
   const [templateBuilderOpen, setTemplateBuilderOpen] = useState(false);
   const [builtInDialogOpen, setBuiltInDialogOpen] = useState(false);
   const [externalDialogOpen, setExternalDialogOpen] = useState(false);
@@ -67,8 +70,14 @@ const CDSStudioPage = () => {
   };
 
   const handleNewVisualBuilder = () => {
+    setEditingService(null);
     setVisualBuilderOpen(true);
     handleCloseNewServiceMenu();
+  };
+
+  const handleEditService = (service) => {
+    setEditingService(service);
+    setVisualBuilderOpen(true);
   };
 
   const handleNewTemplateBuilder = () => {
@@ -194,6 +203,7 @@ const CDSStudioPage = () => {
 
           <ServicesTable
             onSelectService={handleSelectService}
+            onEditService={handleEditService}
             onRefresh={handleRefresh}
           />
         </Paper>
@@ -206,11 +216,17 @@ const CDSStudioPage = () => {
         onClose={handleCloseDetailPanel}
       />
 
-      {/* Visual Builder Wizard */}
+      {/* Visual Builder Wizard — handles both create and edit modes via the
+          existingService prop. Editing pulls full state via GET
+          /full-edit-state, the final-step button becomes "Save and Re-deploy". */}
       <VisualBuilderWizard
         open={visualBuilderOpen}
-        onClose={() => setVisualBuilderOpen(false)}
+        onClose={() => {
+          setVisualBuilderOpen(false);
+          setEditingService(null);
+        }}
         onSuccess={handleServiceCreated}
+        existingService={editingService}
       />
 
       {/* Template Service Builder */}

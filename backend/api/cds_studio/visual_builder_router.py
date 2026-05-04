@@ -19,6 +19,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 import logging
+import re
 import uuid
 import json
 
@@ -292,6 +293,85 @@ async def get_visual_service(
     except Exception as e:
         logger.error(f"Error getting visual service: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Match `valueset "Some Name": 'http://canonical/url'` declarations in CQL.
+# Whitespace-tolerant; only captures the quoted name and the single-quoted URL.
+_VALUESET_DECLARATION_RE = re.compile(
+    r"""valueset \s+ "([^"]+)" \s* : \s* '([^']+)'""",
+    re.VERBOSE,
+)
+
+
+@router.get("/services/{service_id}/full-edit-state")
+async def get_full_edit_state(
+    service_id: str,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user_or_demo),
+):
+    """Return everything the wizard needs to re-load a deployed service.
+
+    Combines the service config and the ValueSets its CQL references in one
+    round-trip so the edit-mode wizard doesn't have to do N+1 calls. The
+    backend has the local mirror of authored ValueSets in
+    cds_visual_builder.value_sets keyed by canonical URL, so we resolve
+    each declared canonical URL against that table.
+
+    ValueSets referenced by canonical URL but not present in the local
+    mirror (e.g. system terminology, or URLs typed before the composer
+    was used) are returned as `{name, canonical_url, vs_id: null,
+    codes: []}` so the wizard can still list them. The Edit affordance
+    in the wizard should only be enabled when `vs_id` is non-null.
+    """
+    query = select(VisualServiceConfig).where(
+        VisualServiceConfig.service_id == service_id
+    )
+    result = await db.execute(query)
+    service = result.scalar_one_or_none()
+    if not service:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Visual service '{service_id}' not found",
+        )
+
+    referenced: List[Dict[str, Any]] = []
+    if service.cql_source:
+        from .visual_service_config import VisualValueSet
+        seen_urls: set = set()
+        for name, canonical_url in _VALUESET_DECLARATION_RE.findall(service.cql_source):
+            if canonical_url in seen_urls:
+                continue
+            seen_urls.add(canonical_url)
+            vs_query = select(VisualValueSet).where(
+                VisualValueSet.hapi_canonical_url == canonical_url,
+                VisualValueSet.deleted_at.is_(None),
+            )
+            vs_row = (await db.execute(vs_query)).scalar_one_or_none()
+            if vs_row is not None:
+                referenced.append({
+                    "name": name,
+                    "canonical_url": canonical_url,
+                    "vs_id": vs_row.vs_id,
+                    "title": vs_row.title,
+                    "description": vs_row.description,
+                    "codes": vs_row.codes or [],
+                })
+            else:
+                # Declared but not in our local mirror — surface it so the
+                # wizard lists it; Edit button stays disabled (vs_id null).
+                referenced.append({
+                    "name": name,
+                    "canonical_url": canonical_url,
+                    "vs_id": None,
+                    "title": None,
+                    "description": None,
+                    "codes": [],
+                })
+
+    return {
+        "service": VisualServiceConfigResponse.from_orm(service),
+        "value_sets": referenced,
+    }
 
 
 @router.put("/services/{service_id}", response_model=VisualServiceConfigResponse)

@@ -16,7 +16,7 @@
  * review summary fits naturally above the deploy button.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -76,8 +76,51 @@ const STEP_TEST_DEPLOY = 4;
 
 /**
  * Visual Builder Wizard Component
+ *
+ * @param {Object|null} existingService - When non-null, the wizard opens in
+ *   edit mode: it fetches the deployed config + referenced ValueSets and
+ *   seeds the form. The final-step button becomes "Save and Re-deploy" and
+ *   submits via PUT + redeploy instead of POST + deploy. The `service_id`
+ *   field is locked because the id is the stable identifier across HAPI,
+ *   the DB, and the discovery response.
  */
-const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
+const buildEmptyServiceConfig = (createdBy) => ({
+  service_id: '',
+  name: '',
+  description: '',
+  service_type: 'condition-based',
+  category: 'preventive-care',
+  hook_type: 'patient-view',
+  conditions: [
+    {
+      type: 'group',
+      operator: 'AND',
+      conditions: []
+    }
+  ],
+  // CQL services store their logic here instead of in `conditions`. The
+  // backend dispatcher reads `service_type` to decide which path runs.
+  cql_source: '',
+  card: {
+    summary: '',
+    detail: '',
+    indicator: 'info',
+    source: { label: '' },
+    suggestions: [],
+    links: []
+  },
+  // Backend Pydantic model (`DisplayConfiguration`) requires
+  // `presentationMode`. We send the spec-default `'inline'` so saves
+  // succeed; the wizard no longer surfaces display behavior because the
+  // EMR runtime reads `card.displayBehavior` / `card.overrideReasons`,
+  // not `service.display_config`. If someone wires per-service display
+  // behavior into the runtime later, re-add the panel.
+  display_config: { presentationMode: 'inline' },
+  prefetch: {},
+  created_by: createdBy || 'unknown'
+});
+
+const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null }) => {
   const { user } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -85,44 +128,64 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
   const [testResults, setTestResults] = useState(null);
 
   // Service configuration state
-  const [serviceConfig, setServiceConfig] = useState({
-    service_id: '',
-    name: '',
-    description: '',
-    service_type: 'condition-based',
-    category: 'preventive-care',
-    hook_type: 'patient-view',
-    conditions: [
-      {
-        type: 'group',
-        operator: 'AND',
-        conditions: []
-      }
-    ],
-    // CQL services store their logic here instead of in `conditions`. The
-    // backend dispatcher reads `service_type` to decide which path runs.
-    cql_source: '',
-    card: {
-      summary: '',
-      detail: '',
-      indicator: 'info',
-      source: { label: '' },
-      suggestions: [],
-      links: []
-    },
-    // Backend Pydantic model (`DisplayConfiguration`) requires
-    // `presentationMode`. We send the spec-default `'inline'` so saves
-    // succeed; the wizard no longer surfaces display behavior because the
-    // EMR runtime reads `card.displayBehavior` / `card.overrideReasons`,
-    // not `service.display_config`. If someone wires per-service display
-    // behavior into the runtime later, re-add the panel.
-    display_config: { presentationMode: 'inline' },
-    prefetch: {},
-    created_by: user?.username || 'unknown'
-  });
+  const [serviceConfig, setServiceConfig] = useState(() => buildEmptyServiceConfig(user?.username));
 
   const [savedServiceId, setSavedServiceId] = useState(null);
+  // ValueSets that the current CQL references — populated when editing an
+  // existing service so PR 2 (inline VS edit list) has data to render.
+  // For new services this stays empty.
+  const [referencedValueSets, setReferencedValueSets] = useState([]);
+  const isEditMode = Boolean(existingService);
   const isCQLService = serviceConfig.service_type === CQL_SERVICE_TYPE;
+
+  // Edit-mode hydration: when the wizard opens with an existing service,
+  // pull its full state (config + referenced ValueSets) in one round-trip
+  // and seed the form. Skips draft-save (the row already exists in DB).
+  useEffect(() => {
+    if (!open || !existingService) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data } = await axios.get(
+          `/api/cds-visual-builder/services/${existingService.service_id}/full-edit-state`
+        );
+        if (cancelled) return;
+        const svc = data.service || {};
+        setServiceConfig({
+          service_id: svc.service_id || existingService.service_id,
+          name: svc.name || '',
+          description: svc.description || '',
+          service_type: svc.service_type || 'condition-based',
+          category: svc.category || 'preventive-care',
+          hook_type: svc.hook_type || 'patient-view',
+          conditions: svc.conditions || [{ type: 'group', operator: 'AND', conditions: [] }],
+          cql_source: svc.cql_source || '',
+          card: svc.card_config || {
+            summary: '',
+            detail: '',
+            indicator: 'info',
+            source: { label: '' },
+            suggestions: [],
+            links: []
+          },
+          display_config: svc.display_config || { presentationMode: 'inline' },
+          prefetch: svc.prefetch_config || {},
+          created_by: svc.created_by || user?.username || 'unknown'
+        });
+        setReferencedValueSets(data.value_sets || []);
+        setSavedServiceId(svc.id || existingService.id);
+        setActiveStep(0);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err.response?.data?.detail || 'Failed to load service for editing');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, existingService, user?.username]);
 
   /**
    * Format error messages for display
@@ -251,17 +314,40 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
     setError(null);
 
     try {
-      // Save or update service first
       let serviceId = savedServiceId;
-      if (!serviceId) {
+      if (isEditMode) {
+        // Edit-mode: PUT the updated config (re-materializes Library +
+        // PlanDefinition for CQL services, regenerates Python for visual
+        // services), then deploy to bump the stable Library version and
+        // refresh inlined ValueSet codes. Single-button "Save and
+        // Re-deploy" — the user shouldn't have to remember a second step
+        // for the deployed Library to pick up changes.
+        await axios.put(
+          `/api/cds-visual-builder/services/${serviceConfig.service_id}`,
+          {
+            name: serviceConfig.name,
+            description: serviceConfig.description,
+            service_type: serviceConfig.service_type,
+            category: serviceConfig.category,
+            hook_type: serviceConfig.hook_type,
+            conditions: isCQLService ? undefined : serviceConfig.conditions,
+            cql_source: isCQLService ? serviceConfig.cql_source : undefined,
+            card_config: serviceConfig.card,
+            display_config: serviceConfig.display_config,
+            prefetch_config: serviceConfig.prefetch
+          }
+        );
+      } else if (!serviceId) {
         const savedService = await handleSaveDraft();
         serviceId = savedService.id;
       }
 
-      // Deploy the service (send empty object for ServiceDeploymentRequest)
+      // Deploy. For new services this is the first stable-version upload;
+      // for edits this bumps the version and re-runs `inline_value_set_retrieves`,
+      // refreshing any ValueSet code edits made in this session.
       await axios.post(
-        `/api/cds-visual-builder/services/${serviceId}/deploy`,
-        {}  // Required: ServiceDeploymentRequest body (deployed_by and notes are optional)
+        `/api/cds-visual-builder/services/${serviceConfig.service_id}/deploy`,
+        {}
       );
 
       onSuccess?.();
@@ -276,30 +362,13 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
   };
 
   const handleClose = () => {
-    // Reset wizard state
+    // Reset wizard state so a subsequent Create doesn't pre-populate from
+    // a stale edit, and a subsequent Edit doesn't see the previous service's
+    // CQL/valuesets while the GET /full-edit-state is in flight.
     setActiveStep(0);
-    setServiceConfig({
-      service_id: '',
-      name: '',
-      description: '',
-      service_type: 'condition-based',
-      category: 'preventive-care',
-      hook_type: 'patient-view',
-      conditions: [],
-      cql_source: '',
-      card: {
-        summary: '',
-        detail: '',
-        indicator: 'info',
-        source: { label: '' },
-        suggestions: [],
-        links: []
-      },
-      display_config: { presentationMode: 'inline' },
-      prefetch: {},
-      created_by: user?.username || 'unknown'
-    });
+    setServiceConfig(buildEmptyServiceConfig(user?.username));
     setSavedServiceId(null);
+    setReferencedValueSets([]);
     setTestResults(null);
     setError(null);
 
@@ -350,7 +419,10 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
             value={serviceConfig.service_id}
             onChange={(e) => setServiceConfig({ ...serviceConfig, service_id: e.target.value })}
             placeholder="my-preventive-care-service"
-            helperText="Unique identifier for this service (lowercase, hyphens allowed)"
+            helperText={isEditMode
+              ? 'Service ID is the stable identifier in HAPI and the database; rename is not supported.'
+              : 'Unique identifier for this service (lowercase, hyphens allowed)'}
+            disabled={isEditMode}
             required
           />
         </Grid>
@@ -656,7 +728,9 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
       }}
     >
       <DialogTitle>
-        Visual Service Builder
+        {isEditMode
+          ? `Edit Service — ${existingService?.service_id || serviceConfig.service_id}`
+          : 'Visual Service Builder'}
       </DialogTitle>
 
       <DialogContent dividers sx={{ p: 3 }}>
@@ -718,7 +792,9 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess }) => {
             onClick={handleDeploy}
             disabled={loading}
           >
-            {loading ? <CircularProgress size={20} color="inherit" /> : 'Deploy Service'}
+            {loading
+              ? <CircularProgress size={20} color="inherit" />
+              : (isEditMode ? 'Save and Re-deploy' : 'Deploy Service')}
           </Button>
         )}
       </DialogActions>

@@ -34,7 +34,7 @@ import {
 } from '@mui/icons-material';
 import cdsStudioApi from '../../services/cdsStudioApi';
 
-const ServicesTable = ({ onSelectService, onRefresh }) => {
+const ServicesTable = ({ onSelectService, onEditService, onRefresh }) => {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -77,6 +77,13 @@ const ServicesTable = ({ onSelectService, onRefresh }) => {
   const handleViewDetails = () => {
     if (selectedService) {
       onSelectService(selectedService);
+    }
+    handleMenuClose();
+  };
+
+  const handleEdit = () => {
+    if (selectedService && onEditService) {
+      onEditService(selectedService);
     }
     handleMenuClose();
   };
@@ -316,6 +323,12 @@ const ServicesTable = ({ onSelectService, onRefresh }) => {
         onClose={handleMenuClose}
       >
         <MenuItem onClick={handleViewDetails}>View Details</MenuItem>
+        {/* Edit only applies to visual-builder-authored services. Built-in
+            services live in code (no DB row to edit), and external services
+            are HTTP endpoints owned elsewhere. */}
+        {selectedService?.origin === 'visual-builder' && onEditService && (
+          <MenuItem onClick={handleEdit}>Edit Service</MenuItem>
+        )}
         <MenuItem onClick={handleToggleStatus}>
           {selectedService?.status === 'active' ? 'Deactivate' : 'Activate'}
         </MenuItem>
