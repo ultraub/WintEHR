@@ -329,3 +329,17 @@ four fixes are now baked in above:
 If a future student/LLM produces CQL that fails for a new reason, add a
 section here documenting the failure mode and update the prompt above so it
 doesn't recur.
+
+### 2026-05-04 — Composer now allows spaced ValueSet names
+
+Originally the ValueSet Composer enforced PascalCase identifiers (no
+spaces) for `ValueSet.name`, while LLM-generated retrieves naturally
+read as `[Condition: "Diabetes Mellitus"]`. That mismatch was the
+naming-consistency bug above (#2 in the prior section). With the
+composer relaxed (PR #93), the same string can be used end-to-end:
+the `Name` field accepts `"Diabetes Mellitus"`, the FHIR
+`ValueSet.name` is stored that way, and the inserted CQL declaration
+`valueset "Diabetes Mellitus": '...'` lines up with the retrieve.
+The "naming consistency" rule still applies — declaration name and
+retrieve name must match — but it's now a much smaller hazard
+because the natural form works everywhere.

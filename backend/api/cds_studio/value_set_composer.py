@@ -60,8 +60,15 @@ WINTEHR_FHIR_BASE = os.getenv("WINTEHR_FHIR_BASE", "http://wintehr.example.org")
 # Mirrors FHIR id constraints with a stricter character set so we don't accidentally
 # clash with system terminology ids loaded by load_terminology.py.
 _VS_ID_RE = re.compile(r"^[a-z][a-z0-9-]{2,63}$")
-# FHIR Name should be a valid CQL identifier — letters/digits/underscores, starts with letter.
-_FHIR_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+# Name accepts a human-readable label. CQL `valueset "X": '...'` declarations
+# take quoted identifiers (any string in double quotes), so spaces are valid;
+# FHIR `ValueSet.name` is data type `string`, not `id`, so spaces are spec-legal
+# there too. The earlier no-spaces rule was overly strict — it forced the
+# declaration name to PascalCase while LLM-generated retrieves naturally use
+# spaced names like `[Condition: "Diabetes Mellitus"]`, producing a mismatch
+# the student then had to debug. We still require a leading letter and
+# disallow weirdness like newlines/control chars; everything else is allowed.
+_FHIR_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_ \-]{0,499}$")
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +90,9 @@ class ValueSetCreateRequest(BaseModel):
     )
     name: str = Field(
         ..., max_length=500,
-        description="FHIR Name (computer-friendly, valid CQL identifier)",
+        description="Display name. Used as ValueSet.name and as the quoted "
+        "identifier in CQL declarations (e.g. `valueset \"Diabetes Mellitus\": ...`). "
+        "Spaces and hyphens are allowed; must start with a letter.",
     )
     title: Optional[str] = Field(None, max_length=500, description="Human-readable title")
     description: Optional[str] = Field(None, description="What this ValueSet captures")
@@ -94,9 +103,19 @@ class ValueSetCreateRequest(BaseModel):
     @field_validator("name")
     @classmethod
     def _validate_name(cls, v: str) -> str:
+        # Normalize whitespace before regex check: strip leading/trailing
+        # space, collapse internal runs to a single space. Without this
+        # the looser regex would let a student create "Diabetes " (trailing
+        # space) — invisible in most UIs but a byte mismatch against
+        # `[Condition: "Diabetes"]` retrieves. Better to silently
+        # canonicalize than to ship the footgun.
+        v = re.sub(r"\s+", " ", (v or "").strip())
+        if not v:
+            raise ValueError("name is required")
         if not _FHIR_NAME_RE.match(v):
             raise ValueError(
-                "name must be a valid identifier (letters/digits/underscores, starts with letter)"
+                "name must start with a letter and contain only letters, "
+                "digits, spaces, hyphens, or underscores"
             )
         return v
 

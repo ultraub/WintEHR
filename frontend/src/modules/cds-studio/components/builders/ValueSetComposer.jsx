@@ -78,7 +78,13 @@ const KNOWN_SYSTEMS = [
   { uri: 'http://terminology.hl7.org/CodeSystem/v3-ActCode', label: 'HL7 ActCode' },
 ];
 
-const FHIR_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
+// Name is the quoted identifier used in CQL `valueset "X": '...'` declarations
+// AND the FHIR `ValueSet.name` field. CQL accepts arbitrary quoted strings so
+// spaces are fine; FHIR `name` is data type `string` (not `id`), so spaces are
+// spec-legal there too. Earlier rule (PascalCase only) forced declarations to
+// disagree with LLM-generated retrieves like `[Condition: "Diabetes Mellitus"]`,
+// which students then had to debug. We just require a leading letter.
+const FHIR_NAME_RE = /^[A-Za-z][A-Za-z0-9_ -]{0,499}$/;
 
 /**
  * @param {object} props
@@ -297,16 +303,16 @@ const ValueSetComposer = ({
             </Typography>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField
-                label="Name (CQL identifier)"
+                label="Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="DiabetesConditions"
+                placeholder="Diabetes Mellitus"
                 helperText={
                   isEditMode
                     ? "Name is the canonical identity; rename isn't supported (would re-publish under a new URL)."
                     : (nameValid || !name
-                      ? 'Letters/digits/underscores; starts with letter (e.g. DiabetesConditions)'
-                      : 'Invalid identifier — no hyphens or spaces')
+                      ? 'Used in CQL as `valueset "Name": ...` and in retrieves. Spaces are fine.'
+                      : 'Must start with a letter; only letters, digits, spaces, hyphens, and underscores allowed.')
                 }
                 error={!!name && !nameValid}
                 disabled={isEditMode}
