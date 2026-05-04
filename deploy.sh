@@ -685,14 +685,17 @@ echo ""
 # SQLite index gives the catalog endpoints a fast search path that doesn't
 # depend on HAPI's expansion. The backend's terminology service factory
 # auto-detects the index file and uses it; no env var or feature flag.
+#
+# Copy the JSON into the container ourselves rather than relying on the
+# load-to-HAPI step above — when HAPI already has terminology loaded, that
+# step short-circuits and never populates /tmp/fhir_vocabularies, so the
+# build would fail with `--json-dir does not exist`.
 if [ -d "$HOME/fhir_vocabularies/terminology" ] && \
    [ -n "$(ls -A $HOME/fhir_vocabularies/terminology/*.json 2>/dev/null)" ]; then
     echo -e "${BLUE}🔍 Building local terminology index for catalog search...${NC}"
 
-    docker exec emr-backend mkdir -p /app/data
-
-    # The build script lives in the backend image; the JSON files were
-    # copied into /tmp/fhir_vocabularies during the load step above.
+    docker exec emr-backend mkdir -p /app/data /tmp/fhir_vocabularies
+    docker cp "$HOME/fhir_vocabularies/terminology" emr-backend:/tmp/fhir_vocabularies/
     # ucum.json is bundled in the repo (not in UMLS) — copy it in.
     docker cp scripts/ucum.json emr-backend:/tmp/ucum.json 2>/dev/null || true
 
