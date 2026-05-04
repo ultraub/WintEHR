@@ -89,12 +89,12 @@ used in retrieves character-for-character, including whitespace and
 punctuation:
 
 ```
-// CORRECT — declaration matches retrieve
-valueset "Diabetes Mellitus": 'http://wintehr.example.org/ValueSet/diabetesmellitus'
+// CORRECT — declaration matches retrieve, canonical URL is kebab-case
+valueset "Diabetes Mellitus": 'http://wintehr.example.org/ValueSet/diabetes-mellitus'
 define HasDiabetes: exists [Condition: "Diabetes Mellitus"]
 
 // WRONG — different whitespace, will fail with "Could not resolve identifier ..."
-valueset "DiabetesMellitus": 'http://wintehr.example.org/ValueSet/diabetesmellitus'
+valueset "DiabetesMellitus": 'http://wintehr.example.org/ValueSet/diabetes-mellitus'
 define HasDiabetes: exists [Condition: "Diabetes Mellitus"]
 ```
 
@@ -236,6 +236,34 @@ Use the system that matches what the FHIR resource actually carries. Synthea
 data uses SNOMED for `Condition.code`, LOINC for `Observation.code`, RxNorm
 for `MedicationRequest.medication`, CVX for `Immunization.vaccineCode`.
 
+#### Canonical URL derivation (strict)
+
+The Studio derives the ValueSet's canonical URL from its name:
+
+1. Lowercase the name.
+2. Replace every run of non-alphanumeric characters (whitespace, hyphens,
+   slashes, punctuation) with a single hyphen.
+3. Strip leading/trailing hyphens.
+4. Prefix with `http://wintehr.example.org/ValueSet/`.
+
+So `valueset "Diabetes Mellitus Type 2"` → `.../diabetes-mellitus-type-2`,
+`valueset "Hemoglobin A1c"` → `.../hemoglobin-a1c`,
+`valueset "Essential Hypertension"` → `.../essential-hypertension`.
+
+**Pitfall**: a no-separator URL like `.../diabetesmellitustype2` will *save*
+the CDS service successfully (the platform does not validate canonical URLs
+at save time) but the CQL retrieve `[Condition: "Diabetes Mellitus Type 2"]`
+will resolve to an empty set at runtime, producing the silent
+`{"cards": []}` failure mode. Always emit the kebab-case form.
+
+```
+// CORRECT — kebab-case canonical
+valueset "Diabetes Mellitus": 'http://wintehr.example.org/ValueSet/diabetes-mellitus'
+
+// WRONG — silently fires zero cards at runtime
+valueset "Diabetes Mellitus": 'http://wintehr.example.org/ValueSet/diabetesmellitus'
+```
+
 ### Idioms you should use freely
 
 **Date math — recency check on a `[x]` choice field:**
@@ -343,3 +371,29 @@ the `Name` field accepts `"Diabetes Mellitus"`, the FHIR
 The "naming consistency" rule still applies — declaration name and
 retrieve name must match — but it's now a much smaller hazard
 because the natural form works everywhere.
+
+### 2026-05-04 — Subagent eval round (3 use cases)
+
+Smoke-tested the prompt by spawning three independent agents and giving
+each only the prompt body (with the placeholder block replaced by a
+single clinical decision problem): diabetic A1c overdue, HTN potassium
+overdue, mammography overdue. All three produced syntactically clean,
+logically correct CQL on the first try — boilerplate ordering, status
+filters, choice-type casts, and the `Coalesce` idiom all held up under
+a fresh-context model.
+
+The single recurring failure was canonical-URL derivation. The prompt's
+prior example showed `http://wintehr.example.org/ValueSet/diabetesmellitus`
+(no separators). All three agents followed that pattern and produced
+URLs the platform's `derive_vs_id` doesn't generate (it kebab-cases
+multi-word names: `Diabetes Mellitus` → `diabetes-mellitus`). The CDS
+service still *saved* (no validation at save time), but the CQL retrieve
+resolved to an empty set at runtime — the user-visible failure is a
+silent `{"cards": []}` with no log entry indicating why.
+
+Fix: added a "Canonical URL derivation (strict)" sub-section under
+"ValueSet authoring guidance" spelling out the four-step lowercase /
+hyphenate / strip / prefix derivation, called out the silent-fail mode
+explicitly, and corrected the existing example URLs in the
+"ValueSet naming consistency (strict)" section to kebab-case so the
+prompt's own examples don't seed the wrong pattern.
