@@ -38,7 +38,7 @@ import { useInitializationGuard } from '../../../hooks/ui/useStableReferences';
 import { getClinicalContext } from '../../../themes/clinicalThemeUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import CDSPresentation, { PRESENTATION_MODES } from '../cds/CDSPresentation';
-import { useCDS } from '../../../contexts/CDSContext';
+import { usePatientCDSAlerts } from '../../../contexts/CDSContext';
 import { useMedicationResolver } from '../../../core/fhir/hooks/useMedicationResolver';
 
 const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
@@ -1069,19 +1069,24 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
   );
 };
 
-// CDS Alerts Component - displays alerts inline as dismissible cards
+// CDS Alerts Component - displays alerts inline as dismissible cards.
+//
+// Uses `usePatientCDSAlerts(patientId)` rather than the bare
+// `useCDS().getAlerts('patient-view')` because the latter only reads cached
+// state. When a user navigates between patients (e.g. clinical workspace
+// for patient A → summary for patient B), the cache still holds patient
+// A's alerts and they'd render on patient B's summary until something else
+// triggered a re-fire. `usePatientCDSAlerts` detects the patient change,
+// clears alerts, and re-fires patient-view hooks for the new patient.
 const CDSAlerts = ({ patientId }) => {
-  const { getAlerts } = useCDS();
-  
-  // Get alerts for patient-view hook
-  const alerts = getAlerts('patient-view') || [];
-  
-  if (alerts.length === 0) {
+  const { alerts } = usePatientCDSAlerts(patientId);
+
+  if (!alerts || alerts.length === 0) {
     return null;
   }
-  
+
   return (
-    <CDSPresentation 
+    <CDSPresentation
       alerts={alerts}
       mode={PRESENTATION_MODES.INLINE}
       allowInteraction={true}
