@@ -1439,6 +1439,7 @@ const EnhancedOrdersTab = ({
             setSignOrdersDialog({ open: false, orders: [] });
           }
         }}
+        patientId={patientId}
         orders={signOrdersDialog.orders}
         onOrdersSigned={async (signedOrders, pin, reason) => {
           // Persist a digital signature for each selected order:
