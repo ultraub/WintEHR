@@ -677,6 +677,42 @@ else
 fi
 echo ""
 
+# Build the local terminology index for catalog search.
+# Background: HAPI's $expand against the loaded CodeSystems is broken
+# without HSearch (HAPI-0831 "produced too many codes"), so /api/catalogs/*
+# search degrades to dynamic-from-Synthea results only — typing "diabetes"
+# returns 1 result instead of the full ICD-10/SNOMED list. The local
+# SQLite index gives the catalog endpoints a fast search path that doesn't
+# depend on HAPI's expansion. The backend's terminology service factory
+# auto-detects the index file and uses it; no env var or feature flag.
+if [ -d "$HOME/fhir_vocabularies/terminology" ] && \
+   [ -n "$(ls -A $HOME/fhir_vocabularies/terminology/*.json 2>/dev/null)" ]; then
+    echo -e "${BLUE}🔍 Building local terminology index for catalog search...${NC}"
+
+    docker exec emr-backend mkdir -p /app/data
+
+    # The build script lives in the backend image; the JSON files were
+    # copied into /tmp/fhir_vocabularies during the load step above.
+    # ucum.json is bundled in the repo (not in UMLS) — copy it in.
+    docker cp scripts/ucum.json emr-backend:/tmp/ucum.json 2>/dev/null || true
+
+    if docker exec emr-backend python3 \
+        /app/scripts/active/build_terminology_index.py \
+        --json-dir /tmp/fhir_vocabularies/terminology \
+        --ucum-json /tmp/ucum.json \
+        --output /app/data/terminology.db; then
+        echo -e "${GREEN}✓ Local terminology index built — restart emr-backend to pick it up${NC}"
+        # The factory caches the chosen backend per-process, so an existing
+        # backend that booted before the index was built keeps using the
+        # HAPI fallback. Restart picks up the new index immediately.
+        docker restart emr-backend > /dev/null
+        echo "   emr-backend restarted; catalog search now uses the local index"
+    else
+        echo -e "${YELLOW}⚠️  Index build failed — catalog search will degrade to dynamic-only (HAPI \$expand fallback)${NC}"
+    fi
+    echo ""
+fi
+
 # Step 5: Configure Azure NSG (if Azure deployment and prod profile)
 AZURE_RESOURCE_GROUP="${WINTEHR_AZURE_RESOURCE_GROUP:-${AZURE_RESOURCE_GROUP:-}}"
 if [ -n "$AZURE_RESOURCE_GROUP" ] && [ "$PROFILE" = "prod" ]; then
