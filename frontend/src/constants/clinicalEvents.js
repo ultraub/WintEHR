@@ -72,6 +72,7 @@ export const CLINICAL_EVENTS = {
   // Order events
   ORDER_PLACED: 'order.placed',
   ORDER_UPDATED: 'order.updated',
+  ORDER_SIGNED: 'order.signed',
   ORDER_COMPLETED: 'order.completed',
   ORDER_CANCELLED: 'order.cancelled',
   ORDER_STATUS_CHANGED: 'order.status.changed',
