@@ -32,6 +32,7 @@ from .visual_service_config import (
     VisualServiceConfigCreate,
     VisualServiceConfigUpdate,
     VisualServiceConfigResponse,
+    VisualValueSet,
     ServiceStatus,
     ServiceType,
     ServiceDeploymentRequest,
@@ -66,6 +67,48 @@ router = APIRouter(prefix="/api/cds-visual-builder", tags=["CDS Visual Builder"]
 async def get_code_generator() -> ServiceCodeGenerator:
     """Get service code generator instance"""
     return ServiceCodeGenerator()
+
+
+# Matches `valueset "Name": '<url>'` or `valueset "Name" : "<url>"` —
+# accepts single or double quotes around the URL since CQL allows both.
+_VALUESET_DECL_RE = re.compile(
+    r'valueset\s+"[^"]+"\s*:\s*[\'"]([^\'"]+)[\'"]'
+)
+
+
+async def _validate_cql_valueset_urls(cql_source: str, db: AsyncSession) -> None:
+    """Reject CQL whose `valueset` declarations point at canonical URLs we
+    don't have ValueSet rows for.
+
+    The Studio derives canonical URLs as kebab-case from the ValueSet name
+    (e.g. `Diabetes Mellitus` → `.../diabetes-mellitus`). LLM-generated CQL
+    routinely produces no-separator forms (`.../diabetesmellitus`) following
+    the prior prompt example. Without this check, the save succeeds, the
+    hook fires at runtime, and the CQL retrieve resolves to an empty set —
+    user-visible symptom is a silent `{"cards": []}` with no log line
+    indicating the URL didn't resolve. Fail loudly at save time instead.
+    """
+    declared = _VALUESET_DECL_RE.findall(cql_source or "")
+    if not declared:
+        return
+
+    result = await db.execute(
+        select(VisualValueSet.hapi_canonical_url).where(VisualValueSet.deleted_at.is_(None))
+    )
+    known = {row[0] for row in result.all()}
+
+    unresolved = [url for url in declared if url not in known]
+    if unresolved:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "CQL references ValueSet canonical URL(s) that don't match any "
+                f"composed ValueSet: {unresolved}. Canonical URLs are kebab-case "
+                "from the ValueSet name (e.g. 'Diabetes Mellitus' → "
+                "'http://wintehr.example.org/ValueSet/diabetes-mellitus'). "
+                "Compose the missing ValueSet first, or correct the URL in the CQL."
+            ),
+        )
 
 
 # Visual Service CRUD Endpoints
@@ -107,6 +150,7 @@ async def create_visual_service(
                         "applicability gate that decides when to fire."
                     ),
                 )
+            await _validate_cql_valueset_urls(config.cql_source, db)
             # No condition-tree validation, no Python codegen for CQL services.
             generated_code = None
             code_hash = None
@@ -474,6 +518,7 @@ async def update_visual_service(
                         "boolean expression."
                     ),
                 )
+            await _validate_cql_valueset_urls(update.cql_source, db)
             service.cql_source = update.cql_source
             needs_cql_rematerialize = True
 
@@ -581,7 +626,44 @@ async def delete_visual_service(
         service.deleted_at = datetime.utcnow()
         service.deleted_by = current_user.id
 
+        # Snapshot HAPI canonicals BEFORE the commit; we'll need them after.
+        plan_def_url = service.plan_definition_canonical_url
+        library_url = service.library_canonical_url
+
         await db.commit()
+
+        # Retire the corresponding HAPI artifacts so the discovery query
+        # (`PlanDefinition?status=active`) stops returning this service.
+        # Without this, soft-deleted services keep appearing in the
+        # `/api/cds-services` listing and continue to fire — the runtime
+        # never reads the local `deleted_at` column.
+        #
+        # Failures here are non-fatal: the DB soft-delete already happened,
+        # so re-running the DELETE picks up the orphan retirement on retry.
+        # An offline cleanup script can also reconcile.
+        if plan_def_url or library_url:
+            from services.hapi_fhir_client import HAPIFHIRClient
+
+            hapi = HAPIFHIRClient()
+            for resource_type, canonical_url in (
+                ("PlanDefinition", plan_def_url),
+                ("Library", library_url),
+            ):
+                if not canonical_url:
+                    continue
+                resource_id = canonical_url.rsplit("/", 1)[-1]
+                try:
+                    resource = await hapi.read(resource_type, resource_id)
+                    if resource.get("status") != "retired":
+                        resource["status"] = "retired"
+                        await hapi.update(resource_type, resource_id, resource)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to retire HAPI %s/%s for deleted service %s: %s. "
+                        "DB soft-delete completed; resource may still appear in "
+                        "discovery until retried or manually retired.",
+                        resource_type, resource_id, service_id, exc,
+                    )
 
         logger.info(f"Archived visual service: {service_id}")
 
