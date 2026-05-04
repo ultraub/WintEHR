@@ -350,7 +350,12 @@ class VisualServiceConfigResponse(BaseModel):
     # - analytics
 
     class Config:
-        orm_mode = True
+        # Pydantic v2 — `from_attributes=True` is the new spelling of v1's
+        # `orm_mode=True`. Required so `VisualServiceConfigResponse.model_validate(orm_obj)`
+        # reads attributes from the SQLAlchemy row instead of treating it
+        # as a dict. (FastAPI's response_model path tolerates the v1 key
+        # but explicit model_validate calls don't.)
+        from_attributes = True
 
 
 class ServiceDeploymentRequest(BaseModel):

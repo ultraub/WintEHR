@@ -369,7 +369,10 @@ async def get_full_edit_state(
                 })
 
     return {
-        "service": VisualServiceConfigResponse.from_orm(service),
+        # Pydantic v2 — `model_validate` replaces v1's `from_orm`. Pairs with
+        # `from_attributes=True` on VisualServiceConfigResponse.Config to read
+        # the SQLAlchemy ORM object's attributes.
+        "service": VisualServiceConfigResponse.model_validate(service),
         "value_sets": referenced,
     }
 
