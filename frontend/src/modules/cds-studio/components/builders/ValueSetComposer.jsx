@@ -85,11 +85,23 @@ const FHIR_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
  * @param {boolean} props.open
  * @param {() => void} props.onClose
  * @param {(payload: {name: string, hapi_canonical_url: string, vs_id: string}) => void}
- *   props.onSave — called after successful POST. Parent inserts the valueset
- *   declaration into the editor.
- * @param {string} [props.suggestedName] — pre-filled FHIR Name (CQL identifier)
+ *   props.onSave — called after successful save (POST for create, PUT for edit).
+ * @param {string} [props.suggestedName] — pre-filled FHIR Name (CQL identifier).
+ *   Only used in create mode; ignored when editing.
+ * @param {object} [props.editingValueSet] — when present, opens in edit mode:
+ *   `{ vs_id, name, title, description, codes: [{system, code, display}] }`.
+ *   Save calls PUT instead of POST. The `name` field is locked (canonical
+ *   identity in HAPI; rename would require re-uploading a new ValueSet
+ *   resource and rewriting CQL retrieves).
  */
-const ValueSetComposer = ({ open, onClose, onSave, suggestedName = '' }) => {
+const ValueSetComposer = ({
+  open,
+  onClose,
+  onSave,
+  suggestedName = '',
+  editingValueSet = null,
+}) => {
+  const isEditMode = Boolean(editingValueSet);
   // Form fields
   const [name, setName] = useState(suggestedName);
   const [title, setTitle] = useState('');
@@ -115,21 +127,38 @@ const ValueSetComposer = ({ open, onClose, onSave, suggestedName = '' }) => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
-  // Reset on open so re-opening starts fresh.
+  // Reset on open. In edit mode, hydrate from the supplied editingValueSet
+  // so the user sees the current name/title/description/codes; in create
+  // mode start fresh with the suggested name.
   useEffect(() => {
     if (!open) return;
-    setName(suggestedName);
-    setTitle('');
-    setDescription('');
+    if (editingValueSet) {
+      setName(editingValueSet.name || '');
+      setTitle(editingValueSet.title || '');
+      setDescription(editingValueSet.description || '');
+      setSelected(
+        Array.isArray(editingValueSet.codes)
+          ? editingValueSet.codes.map((c) => ({
+              system: c.system,
+              code: c.code,
+              display: c.display,
+            }))
+          : []
+      );
+    } else {
+      setName(suggestedName);
+      setTitle('');
+      setDescription('');
+      setSelected([]);
+    }
     setSearch('');
     setSearchResults([]);
     setManualSystem('');
     setManualCode('');
     setManualDisplay('');
     setManualError(null);
-    setSelected([]);
     setSaveError(null);
-  }, [open, suggestedName]);
+  }, [open, suggestedName, editingValueSet]);
 
   // Debounced catalog search.
   useEffect(() => {
@@ -229,11 +258,17 @@ const ValueSetComposer = ({ open, onClose, onSave, suggestedName = '' }) => {
           display: c.display,
         })),
       };
-      const created = await cdsStudioApi.createValueSet(payload);
+      // PUT in edit mode — the backend handler re-PUTs the FHIR ValueSet
+      // to HAPI when the code list changes and flushes the CR engine's
+      // expansion cache, so the next $apply for any service that
+      // references this VS sees the new codes.
+      const result = isEditMode
+        ? await cdsStudioApi.updateValueSet(editingValueSet.vs_id, payload)
+        : await cdsStudioApi.createValueSet(payload);
       onSave?.({
-        name: created.name,
-        hapi_canonical_url: created.hapi_canonical_url,
-        vs_id: created.vs_id,
+        name: result.name,
+        hapi_canonical_url: result.hapi_canonical_url,
+        vs_id: result.vs_id,
       });
       onClose?.();
     } catch (err) {
@@ -241,12 +276,12 @@ const ValueSetComposer = ({ open, onClose, onSave, suggestedName = '' }) => {
     } finally {
       setSaving(false);
     }
-  }, [canSave, name, title, description, selected, onSave, onClose]);
+  }, [canSave, name, title, description, selected, onSave, onClose, isEditMode, editingValueSet]);
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
-        Compose a ValueSet
+        {isEditMode ? `Edit ValueSet — ${editingValueSet.name}` : 'Compose a ValueSet'}
         <Box sx={{ flex: 1 }} />
         <IconButton onClick={onClose} disabled={saving} size="small">
           <CloseIcon fontSize="small" />
@@ -267,11 +302,14 @@ const ValueSetComposer = ({ open, onClose, onSave, suggestedName = '' }) => {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="DiabetesConditions"
                 helperText={
-                  nameValid || !name
-                    ? 'Letters/digits/underscores; starts with letter (e.g. DiabetesConditions)'
-                    : 'Invalid identifier — no hyphens or spaces'
+                  isEditMode
+                    ? "Name is the canonical identity; rename isn't supported (would re-publish under a new URL)."
+                    : (nameValid || !name
+                      ? 'Letters/digits/underscores; starts with letter (e.g. DiabetesConditions)'
+                      : 'Invalid identifier — no hyphens or spaces')
                 }
                 error={!!name && !nameValid}
+                disabled={isEditMode}
                 required
                 sx={{ flex: 1 }}
               />

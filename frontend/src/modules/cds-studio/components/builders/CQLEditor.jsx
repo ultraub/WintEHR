@@ -119,6 +119,14 @@ const CQLEditor = ({
   onOpenValueSetComposer,
   onLoadFHIRPreview,
   height = '380px',
+  // ValueSets the parent has resolved against the current CQL declarations.
+  // Each: { name, canonical_url, vs_id, title, description, codes }.
+  // Entries with vs_id=null are referenced-but-not-in-our-DB (e.g. system
+  // terminology); the Edit affordance is hidden for those.
+  referencedValueSets = [],
+  // Called after the user saves a ValueSet edit so the parent can refetch
+  // the referenced list (the code count in our local cache may have changed).
+  onValueSetSaved,
 }) => {
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
@@ -132,6 +140,9 @@ const CQLEditor = ({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  // When non-null, the composer opens in edit mode for this VS. Cleared
+  // on close so the next "Compose ValueSet" click starts fresh.
+  const [editingValueSet, setEditingValueSet] = useState(null);
 
   const handleEditorMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
@@ -502,6 +513,57 @@ const CQLEditor = ({
             />
           </Box>
 
+          {referencedValueSets.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                ValueSets used by this CQL
+              </Typography>
+              <Stack spacing={0.5}>
+                {referencedValueSets.map((vs) => (
+                  <Box
+                    key={vs.canonical_url}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      px: 1.5,
+                      py: 0.75,
+                      border: 1,
+                      borderColor: 'divider',
+                      borderRadius: 0,
+                      gap: 1,
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                      &quot;{vs.name}&quot;
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={`${(vs.codes || []).length} codes`}
+                      variant="outlined"
+                    />
+                    <Box sx={{ flex: 1 }} />
+                    {vs.vs_id ? (
+                      <Button
+                        size="small"
+                        startIcon={<EditIcon />}
+                        onClick={() => {
+                          setEditingValueSet(vs);
+                          setComposerOpen(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    ) : (
+                      <Tooltip title="ValueSet not in local catalog (system terminology or external).">
+                        <Chip size="small" label="external" />
+                      </Tooltip>
+                    )}
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+          )}
+
           {issuePanel}
         </>
       )}
@@ -516,8 +578,23 @@ const CQLEditor = ({
 
       <ValueSetComposer
         open={composerOpen}
-        onClose={() => setComposerOpen(false)}
-        onSave={insertValueSetDeclaration}
+        onClose={() => {
+          setComposerOpen(false);
+          setEditingValueSet(null);
+        }}
+        editingValueSet={editingValueSet}
+        onSave={(payload) => {
+          // Create-mode: insert the new declaration into the CQL buffer.
+          // Edit-mode: leave the buffer alone (the declaration already
+          // exists). In both cases, let the parent know the catalog
+          // changed so it can refetch the referenced-VS list.
+          if (!editingValueSet) {
+            insertValueSetDeclaration(payload);
+          }
+          if (onValueSetSaved) {
+            onValueSetSaved(payload);
+          }
+        }}
       />
     </Box>
   );
