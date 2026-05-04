@@ -16,7 +16,7 @@
  * review summary fits naturally above the deploy button.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -54,6 +54,7 @@ import ServiceTester from '../testing/ServiceTester';
 import { SERVICE_TYPES } from '../../types/serviceTypes';
 import cdsStudioApi from '../../services/cdsStudioApi';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { extractCardDefinesFromCQL } from '../../utils/cqlDefineExtractor';
 import axios from 'axios';
 
 const CQL_SERVICE_TYPE = 'cql-based';
@@ -137,6 +138,14 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null 
   const [referencedValueSets, setReferencedValueSets] = useState([]);
   const isEditMode = Boolean(existingService);
   const isCQLService = serviceConfig.service_type === CQL_SERVICE_TYPE;
+
+  // When CQL defines string-literal CardSummary / CardDetail, surface them
+  // as overrides so CardDesigner shows a read-only preview instead of an
+  // empty input. The CQL value wins at $apply time anyway.
+  const cqlCardOverrides = useMemo(
+    () => (isCQLService ? extractCardDefinesFromCQL(serviceConfig.cql_source) : {}),
+    [isCQLService, serviceConfig.cql_source]
+  );
 
   // After a ValueSet is created or edited inside the composer, refresh the
   // referenced-VS list so the inline panel reflects the new code count.
@@ -283,7 +292,11 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null 
         break;
 
       case 2: // Card Design
-        if (!serviceConfig.card.summary) {
+        // When CQL defines CardSummary, the static summary is unreachable
+        // at runtime — the dynamicValue overrides it. Skip the required
+        // check in that case so the student isn't forced to type a
+        // duplicate string. Same for CardDetail.
+        if (!serviceConfig.card.summary && cqlCardOverrides.summary === undefined) {
           return { valid: false, error: 'Card summary is required' };
         }
         break;
@@ -616,6 +629,8 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null 
           <CardDesigner
             card={serviceConfig.card}
             onChange={(card) => setServiceConfig({ ...serviceConfig, card })}
+            cqlOverrides={cqlCardOverrides}
+            onJumpToCQL={() => setActiveStep(1)}
           />
         </Grid>
 
