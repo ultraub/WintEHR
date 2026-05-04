@@ -39,6 +39,46 @@ import CDSCard from '../../../../components/clinical/cds/CDSCard';
 import SuggestionActionBuilder from './SuggestionActionBuilder';
 
 /**
+ * Read-only preview shown in place of the static Summary/Detail input
+ * when the parent CQL has a matching `define CardSummary:` / `CardDetail:`
+ * literal. The CQL value wins at $apply time anyway, so the static field
+ * would be unreachable — surfacing the CQL value here is honest about
+ * what the runtime will display.
+ */
+const CqlOverridePreview = ({ label, value, onJumpToCQL, multiline = false }) => (
+  <Box
+    sx={{
+      border: 1,
+      borderColor: 'divider',
+      borderRadius: 0,
+      p: 1.5,
+      backgroundColor: 'action.hover',
+    }}
+  >
+    <Stack direction="row" alignItems="center" sx={{ mb: 0.5 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
+        {label}
+      </Typography>
+      {onJumpToCQL && (
+        <Button size="small" startIcon={<EditIcon />} onClick={onJumpToCQL}>
+          Edit in CQL
+        </Button>
+      )}
+    </Stack>
+    <Typography
+      variant="body2"
+      sx={{
+        whiteSpace: multiline ? 'pre-wrap' : 'normal',
+        fontStyle: 'italic',
+        color: 'text.primary',
+      }}
+    >
+      {value || <span style={{ color: 'rgba(0,0,0,0.4)' }}>(empty string from CQL)</span>}
+    </Typography>
+  </Box>
+);
+
+/**
  * Card indicator options
  */
 const CARD_INDICATORS = {
@@ -217,7 +257,16 @@ const LinkBuilder = ({ links, onChange }) => {
 const CardDesigner = ({
   card,
   onChange,
-  error = null
+  error = null,
+  // When the parent CQL has `define CardSummary:` / `CardDetail:` string
+  // literals, surface them as `{ summary?, detail? }`. The matching
+  // static input is replaced with a read-only preview because the CQL
+  // value overrides the static action.title/description at $apply time
+  // anyway (cql_artifact_builder wires it as PlanDefinition.action.dynamicValue).
+  cqlOverrides = {},
+  // Optional callback to jump back to the Build Logic step. Used by the
+  // "Edit in CQL" affordance on the read-only preview.
+  onJumpToCQL,
 }) => {
   const [summary, setSummary] = useState(card?.summary || '');
   const [detail, setDetail] = useState(card?.detail || '');
@@ -355,28 +404,45 @@ const CardDesigner = ({
                 <Divider sx={{ mb: 2 }} />
 
                 <Stack spacing={2}>
-                  {/* Summary */}
-                  <TextField
-                    fullWidth
-                    label="Summary"
-                    value={summary}
-                    onChange={(e) => handleSummaryChange(e.target.value)}
-                    placeholder="Brief one-line summary of the alert"
-                    required
-                    helperText="Clear, concise summary (required)"
-                  />
+                  {/* Summary — read-only preview when CQL provides CardSummary */}
+                  {cqlOverrides.summary !== undefined ? (
+                    <CqlOverridePreview
+                      label="Summary (from CQL CardSummary)"
+                      value={cqlOverrides.summary}
+                      onJumpToCQL={onJumpToCQL}
+                    />
+                  ) : (
+                    <TextField
+                      fullWidth
+                      label="Summary"
+                      value={summary}
+                      onChange={(e) => handleSummaryChange(e.target.value)}
+                      placeholder="Brief one-line summary of the alert"
+                      required
+                      helperText="Clear, concise summary (required)"
+                    />
+                  )}
 
-                  {/* Detail */}
-                  <TextField
-                    fullWidth
-                    label="Detail"
-                    value={detail}
-                    onChange={(e) => handleDetailChange(e.target.value)}
-                    placeholder="Detailed explanation of the alert and recommended action"
-                    multiline
-                    rows={4}
-                    helperText="Provide clinical context and rationale"
-                  />
+                  {/* Detail — read-only preview when CQL provides CardDetail */}
+                  {cqlOverrides.detail !== undefined ? (
+                    <CqlOverridePreview
+                      label="Detail (from CQL CardDetail)"
+                      value={cqlOverrides.detail}
+                      onJumpToCQL={onJumpToCQL}
+                      multiline
+                    />
+                  ) : (
+                    <TextField
+                      fullWidth
+                      label="Detail"
+                      value={detail}
+                      onChange={(e) => handleDetailChange(e.target.value)}
+                      placeholder="Detailed explanation of the alert and recommended action"
+                      multiline
+                      rows={4}
+                      helperText="Provide clinical context and rationale"
+                    />
+                  )}
 
                   {/* Indicator */}
                   <FormControl fullWidth>
