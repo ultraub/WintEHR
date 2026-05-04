@@ -949,21 +949,46 @@ class CDSStudioService:
             except Exception as e:
                 logger.error(f"Error updating local status for {service_id}: {e}")
 
-        # Update HAPI FHIR PlanDefinition if it exists
+        # Update HAPI FHIR PlanDefinition if it exists.
+        #
+        # Visual-builder services live at `PlanDefinition/vb-{service_id}` and
+        # have `name=None`, so the prior `?name={service_id}` search returned
+        # zero hits and the status update silently no-op'd — the symptom user
+        # see was "delete looks like it worked but the service stays in the
+        # listing." Try the canonical `vb-{service_id}` id directly; if that
+        # 404s (e.g. legacy services without the prefix, or external imports),
+        # fall back to walking PlanDefinitions matching the `hook-service-id`
+        # extension. Both paths are non-fatal — DB status was already flipped
+        # above, so a missed HAPI update at worst leaves a stale listing entry.
         try:
             fhir_status = fhir_status_map.get(status, "draft")
-            bundle = await self.hapi_client.search("PlanDefinition", {
-                "name": service_id,
-                "_count": "1"
-            })
-            entries = bundle.get("entry", [])
-            if entries:
-                plan_def = entries[0].get("resource", {})
+            plan_def = None
+            try:
+                plan_def = await self.hapi_client.read("PlanDefinition", f"vb-{service_id}")
+            except Exception:
+                plan_def = None
+
+            if plan_def is None:
+                bundle = await self.hapi_client.search("PlanDefinition", {
+                    "_count": "200",
+                    "status": "active,draft",
+                })
+                hook_service_id_url = "http://wintehr.local/fhir/StructureDefinition/hook-service-id"
+                for entry in bundle.get("entry", []) or []:
+                    candidate = entry.get("resource", {})
+                    for ext in candidate.get("extension", []) or []:
+                        if ext.get("url") == hook_service_id_url and ext.get("valueString") == service_id:
+                            plan_def = candidate
+                            break
+                    if plan_def is not None:
+                        break
+
+            if plan_def is not None:
                 plan_def["status"] = fhir_status
-                await self.hapi_client.update(
-                    "PlanDefinition", plan_def["id"], plan_def
-                )
-                logger.info(f"Updated PlanDefinition status for {service_id} to {fhir_status}")
+                await self.hapi_client.update("PlanDefinition", plan_def["id"], plan_def)
+                logger.info(f"Updated PlanDefinition/{plan_def['id']} status for {service_id} to {fhir_status}")
+            else:
+                logger.info(f"No PlanDefinition found for {service_id}; only DB status updated")
         except Exception as e:
             logger.error(f"Error updating FHIR PlanDefinition status for {service_id}: {e}")
 
