@@ -51,6 +51,7 @@ backend/dist/
 *.egg-info/
 synthea/build/
 .gradle/
+*.tsbuildinfo
 
 # Lock files (can cause issues with large changes)
 frontend/package-lock.json
@@ -233,6 +234,8 @@ CONCEPT_CLASS.csv
 
 .claude
 .claude_old
+.claude.json
+.playwright-mcp/
 AWS_DEPLOYMENT_ISSUES_AND_FIXES.md
 AWS_DEPLOYMENT_COMPLETE_SUMMARY.md
 CLAUDE.md
