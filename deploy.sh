@@ -426,6 +426,32 @@ docker_compose up -d
 echo -e "${GREEN}✅ Services started${NC}"
 echo ""
 
+# Step 2a: Refresh nginx if its bind-mounted config is newer than the
+# running container. Background: nginx-prod.conf is bind-mounted as a
+# single file. When git pull or an editor rewrites the file via temp +
+# rename, the inode changes — but the running nginx container is pinned
+# to the original (now orphaned) inode and never sees the new content.
+# Even `nginx -s reload` reads the stale inode. The only way to pick up
+# the new config is to recreate the container so the bind mount
+# resolves the new inode. Without this guard, perfectly good nginx
+# config changes ship to master and silently sit unread on prod for
+# days.
+if [ -f "nginx-prod.conf" ] && docker inspect emr-nginx >/dev/null 2>&1; then
+    conf_mtime=$(stat -c %Y nginx-prod.conf 2>/dev/null || stat -f %m nginx-prod.conf)
+    started_at=$(docker inspect emr-nginx --format '{{.State.StartedAt}}')
+    started_epoch=$(
+        date -d "$started_at" +%s 2>/dev/null \
+        || python3 -c "import datetime,sys; print(int(datetime.datetime.fromisoformat(sys.argv[1].replace('Z','+00:00')).timestamp()))" "$started_at" 2>/dev/null \
+        || echo 0
+    )
+    if [ -n "$conf_mtime" ] && [ "$started_epoch" != "0" ] && [ "$conf_mtime" -gt "$started_epoch" ]; then
+        echo -e "${YELLOW}🔄 nginx-prod.conf is newer than the running nginx container; recreating to pick it up...${NC}"
+        docker_compose up -d --force-recreate nginx
+        echo -e "${GREEN}✅ nginx recreated${NC}"
+        echo ""
+    fi
+fi
+
 # Step 2.5: Sync PostgreSQL password with .env
 # This fixes an issue where PostgreSQL was initialized with a different password
 # than what's currently in .env (init scripts only run on first database creation)
