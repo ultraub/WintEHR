@@ -170,47 +170,81 @@ describe('CDSHooksClient', () => {
       expect(result).toEqual({ cards: [] });
     });
 
-    test('should suppress further calls after a 5xx response', async () => {
+    test('should suppress further calls after a 5xx, with 60s cooldown', async () => {
       const hookId = 'broken-service';
       const context = { patientId: 'patient-1' };
 
       mock.onPost(`/cds-services/${hookId}`).reply(503);
 
-      // First call fires and fails — that 503 hits the network.
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
       const first = await cdsHooksClient.executeHook(hookId, { hook: 'patient-view', context });
       expect(first).toEqual({ cards: [] });
       expect(mock.history.post).toHaveLength(1);
       expect(warnSpy).toHaveBeenCalledTimes(1);
 
-      // Second call short-circuits — no new HTTP call. Use a different
-      // context to bypass the request cache so we're definitely testing
-      // the suppression path, not the cache path.
+      // Second call short-circuits — no new HTTP call. Different context
+      // bypasses the request cache so we're definitely testing the
+      // suppression path, not the cache path.
       const second = await cdsHooksClient.executeHook(hookId, {
         hook: 'patient-view',
         context: { patientId: 'patient-2' },
       });
       expect(second).toEqual({ cards: [] });
       expect(mock.history.post).toHaveLength(1);
-      expect(warnSpy).toHaveBeenCalledTimes(1); // logged once, not on every call
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+
+      // Cooldown for 5xx is short — 60s. Verify the entry carries that
+      // cooldown rather than the 5-min one used for 404s.
+      const entry = cdsHooksClient.failedServices.get(hookId);
+      expect(entry.cooldownMs).toBe(cdsHooksClient.FAILED_COOLDOWN_5XX_MS);
+
       warnSpy.mockRestore();
     });
 
-    test('should not suppress on a 400 (transient client error)', async () => {
+    test('should suppress 404 with the long 5-min cooldown', async () => {
+      const hookId = 'gone-service';
+      const context = { patientId: 'patient-1' };
+
+      mock.onPost(`/cds-services/${hookId}`).reply(404);
+
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      await cdsHooksClient.executeHook(hookId, { hook: 'patient-view', context });
+      warnSpy.mockRestore();
+
+      // 404 means the service genuinely doesn't exist — long cooldown
+      // because retrying soon won't help.
+      const entry = cdsHooksClient.failedServices.get(hookId);
+      expect(entry.cooldownMs).toBe(cdsHooksClient.FAILED_COOLDOWN_404_MS);
+      expect(entry.cooldownMs).toBeGreaterThan(cdsHooksClient.FAILED_COOLDOWN_5XX_MS);
+    });
+
+    test('should NOT sticky-fail on a network error', async () => {
+      const hookId = 'flaky-network';
+      const context = { patientId: 'patient-1' };
+
+      mock.onPost(`/cds-services/${hookId}`).networkError();
+
+      await cdsHooksClient.executeHook(hookId, { hook: 'patient-view', context });
+
+      // Network blips (offline, DNS, transient) shouldn't lock out a
+      // working service — the next render's request gets to try fresh.
+      expect(cdsHooksClient.failedServices.has(hookId)).toBe(false);
+    });
+
+    test('should not suppress on a 400 (caller-side error)', async () => {
       const hookId = 'misconfigured-call';
       const context = { patientId: 'patient-1' };
 
       mock.onPost(`/cds-services/${hookId}`).reply(400);
 
       await cdsHooksClient.executeHook(hookId, { hook: 'patient-view', context });
-      // Different context to dodge the request cache
       await cdsHooksClient.executeHook(hookId, {
         hook: 'patient-view',
         context: { patientId: 'patient-2' },
       });
 
-      // Both calls go over the wire — 4xx is the caller's fault, not the
-      // service's, so we don't sticky-fail it.
+      // 4xx (other than 404) is the caller's fault, not the service's,
+      // so we don't sticky-fail it.
       expect(mock.history.post).toHaveLength(2);
       expect(cdsHooksClient.failedServices.has(hookId)).toBe(false);
     });

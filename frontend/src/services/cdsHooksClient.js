@@ -33,15 +33,19 @@ class CDSHooksClient {
     this.requestCacheTimeout = 30 * 1000; // 30 seconds cache for individual requests
     this.lastFailureLogged = null;
 
-    // Services that have failed hard (5xx, 404, network error). Once a service
-    // is in this set we short-circuit subsequent executeHook calls for it and
-    // return empty cards without going over the wire. Otherwise a broken
-    // deployed service drops a failed XHR every render and clutters the
-    // network tab forever. The Map value is the ms timestamp of the failure
-    // so we can retry after `failedServiceCooldownMs` in case the service
-    // comes back.
+    // Suppress further calls to a service that just failed, so a broken
+    // service doesn't drop a failed XHR on every React render. The cooldown
+    // depends on the failure category — see executeHook():
+    //   - 404: stick for FAILED_COOLDOWN_404_MS — service genuinely doesn't
+    //     exist; pointless to keep trying.
+    //   - 5xx: stick for FAILED_COOLDOWN_5XX_MS — likely infrastructure
+    //     (nginx rate limit, backend hiccup); recover quickly.
+    //   - network error: do NOT stick. Transient client-side blips
+    //     (offline, DNS) shouldn't lock out a working service.
+    // Map value: { at: ms timestamp, cooldownMs: number }.
     this.failedServices = new Map();
-    this.failedServiceCooldownMs = 5 * 60 * 1000; // 5 minutes
+    this.FAILED_COOLDOWN_404_MS = 5 * 60 * 1000; // 5 minutes
+    this.FAILED_COOLDOWN_5XX_MS = 60 * 1000;     // 60 seconds
 
     // Promise deduplication for in-flight requests
     this.inFlightRequests = new Map();
@@ -110,11 +114,12 @@ class CDSHooksClient {
     const now = Date.now();
 
     // Short-circuit services that have already failed hard in this session.
-    // After the cooldown elapses we drop the entry and try once more — the
-    // service may have been redeployed.
-    const failedAt = this.failedServices.get(hookId);
-    if (failedAt !== undefined) {
-      if (now - failedAt < this.failedServiceCooldownMs) {
+    // After the per-entry cooldown elapses we drop the record and try
+    // again — the service may have been redeployed (404 → 200) or
+    // infrastructure pressure may have subsided (503 → 200).
+    const failure = this.failedServices.get(hookId);
+    if (failure !== undefined) {
+      if (now - failure.at < failure.cooldownMs) {
         return { cards: [] };
       }
       this.failedServices.delete(hookId);
@@ -165,22 +170,26 @@ class CDSHooksClient {
         
         return response.data;
       } catch (error) {
-        // Failed to execute CDS hook - error handled gracefully with fallback
-
-        // Mark the service as failed so we stop hammering it for the rest of
-        // the cooldown window. 5xx / 404 / network errors all qualify;
-        // we only suppress when the failure is structural rather than a
-        // transient network blip. The first occurrence logs once so a
-        // student running locally still notices something is wrong.
+        // Failed to execute CDS hook - error handled gracefully with fallback.
+        //
+        // Pick a cooldown by failure category:
+        //   404 → service is gone; long cooldown (no point retrying)
+        //   5xx → infrastructure (nginx rate limit, backend hiccup);
+        //         short cooldown so we recover quickly when it eases
+        //   network/other → transient client-side; do NOT sticky-fail,
+        //         the next render's request gets to try fresh
         const status = error.response?.status;
-        const shouldSuppress = !status || status >= 500 || status === 404;
-        if (shouldSuppress && !this.failedServices.has(hookId)) {
-          this.failedServices.set(hookId, Date.now());
+        let cooldownMs = null;
+        if (status === 404) {
+          cooldownMs = this.FAILED_COOLDOWN_404_MS;
+        } else if (status >= 500) {
+          cooldownMs = this.FAILED_COOLDOWN_5XX_MS;
+        }
+        if (cooldownMs !== null && !this.failedServices.has(hookId)) {
+          this.failedServices.set(hookId, { at: Date.now(), cooldownMs });
           console.warn(
             `[CDSHooksClient] Suppressing further calls to "${hookId}" for `
-            + `${this.failedServiceCooldownMs / 1000}s after `
-            + (status ? `HTTP ${status}` : 'network error')
-            + '. Check the service deployment if this persists.'
+            + `${cooldownMs / 1000}s after HTTP ${status}.`
           );
         }
 
