@@ -1398,9 +1398,29 @@ const EnhancedOrdersTab = ({
           const orderList = Array.isArray(orders) ? orders : [orders];
           const isEdit = saveMode === 'edit' || cpoeMode === 'edit';
 
-          // Publish events for each created/updated order
+          // Persist each order to HAPI. CPOEDialog/MedicationDialog only
+          // build the in-memory FHIR resource — they hand it here for the
+          // tab to actually write. Without this loop the dialog "succeeds"
+          // (snackbar + refresh) but the order never reaches the backend,
+          // and the tab list quietly stays unchanged.
+          const { fhirClient } = await import('../../../../core/fhir/services/fhirClient');
+          const persisted = [];
+          const failed = [];
           for (const order of orderList) {
             if (!order) continue;
+            try {
+              const result = (isEdit && order.id)
+                ? await fhirClient.update(order.resourceType, order.id, order)
+                : await fhirClient.create(order.resourceType, order);
+              persisted.push(result);
+            } catch (writeError) {
+              console.error('Failed to persist order:', writeError);
+              failed.push({ order, error: writeError });
+            }
+          }
+
+          // Publish events using the persisted resources (real IDs from HAPI)
+          for (const order of persisted) {
             const eventType = isEdit
               ? CLINICAL_EVENTS.ORDER_UPDATED || 'order.updated'
               : order.resourceType === 'MedicationRequest'
@@ -1422,13 +1442,28 @@ const EnhancedOrdersTab = ({
           refreshSearch();
           setCpoeEditOrder(null);
           setCpoeMode('add');
-          setSnackbar({
-            open: true,
-            message: isEdit
-              ? 'Order updated successfully'
-              : `${orderList.length} order(s) created successfully`,
-            severity: 'success'
-          });
+
+          if (failed.length > 0 && persisted.length === 0) {
+            setSnackbar({
+              open: true,
+              message: `Failed to ${isEdit ? 'update' : 'create'} order: ${failed[0].error?.message || 'unknown error'}`,
+              severity: 'error',
+            });
+          } else if (failed.length > 0) {
+            setSnackbar({
+              open: true,
+              message: `${persisted.length} of ${orderList.length} order(s) saved; ${failed.length} failed`,
+              severity: 'warning',
+            });
+          } else {
+            setSnackbar({
+              open: true,
+              message: isEdit
+                ? 'Order updated successfully'
+                : `${persisted.length} order(s) created successfully`,
+              severity: 'success'
+            });
+          }
         }}
       />
 
