@@ -918,19 +918,48 @@ export function FHIRResourceProvider({ children }) {
     const everythingPromise = (async () => {
       try {
         dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: true });
-        
-        // Call $everything operation with query parameters
-        const url = `/Patient/${patientId}/$everything${params.toString() ? `?${params.toString()}` : ''}`;
-        const response = await fhirClient.httpClient.get(url);
-        
-        // Check if response is already standardized by interceptor
-        let bundle;
-        if (response.data && response.data.resources !== undefined && response.data.bundle !== undefined) {
-          // Response was already transformed by standardizeResponse interceptor
-          bundle = response.data.bundle;
-        } else {
-          bundle = response.data || response;
+
+        // Call $everything operation with query parameters, then walk the
+        // `next` link to collect every page. The first page caps at the
+        // `_count` value (100 by default for this caller); patients with
+        // many Observations would otherwise fall off the end of page 1
+        // and never be fetched, leaving conditions/medications/allergies
+        // truncated in state. Cap iterations to 50 pages as a safety
+        // valve against runaway pagination.
+        const initialUrl = `/Patient/${patientId}/$everything${params.toString() ? `?${params.toString()}` : ''}`;
+
+        const fetchPage = async (urlOrPath) => {
+          // The $everything `next` link comes back as an absolute URL
+          // pointing at HAPI's internal address (http://hapi-fhir:8080/...).
+          // Strip the prefix and re-route through the proxy so auth +
+          // CORS are consistent across pages.
+          if (typeof urlOrPath === 'string' && /^https?:\/\//i.test(urlOrPath)) {
+            const hapiPathMatch = urlOrPath.match(/\/fhir\/(.+)$/);
+            if (hapiPathMatch) urlOrPath = `/${hapiPathMatch[1]}`;
+          }
+          const r = await fhirClient.httpClient.get(urlOrPath);
+          if (r.data && r.data.resources !== undefined && r.data.bundle !== undefined) {
+            return r.data.bundle;
+          }
+          return r.data || r;
+        };
+
+        const aggregatedEntries = [];
+        let pageBundle = await fetchPage(initialUrl);
+        let pageCount = 0;
+        const MAX_PAGES = 50;
+        while (pageBundle && pageCount < MAX_PAGES) {
+          const entries = pageBundle.entry || [];
+          aggregatedEntries.push(...entries);
+          const nextLink = (pageBundle.link || []).find(l => l.relation === 'next');
+          if (!nextLink || !nextLink.url) break;
+          pageBundle = await fetchPage(nextLink.url);
+          pageCount += 1;
         }
+        if (pageCount === MAX_PAGES) {
+          console.warn(`fetchPatientEverything hit MAX_PAGES (${MAX_PAGES}) for patient ${patientId}; some resources may still be missing.`);
+        }
+        const bundle = { ...pageBundle, entry: aggregatedEntries, total: aggregatedEntries.length };
         
         
         // Process bundle entries and update state
@@ -1402,18 +1431,37 @@ export function FHIRResourceProvider({ children }) {
         Object.keys(state.relationships[patientId]).length > 0;
       
       if (!hasExistingData) {
-        // Try to use $everything first for optimal performance
+        // Use the typed batch loader (same path PatientSummaryV4 calls).
+        //
+        // We previously fired `Patient/$everything?_count=100` here in
+        // parallel with whatever the page also requested, which raced
+        // against PatientSummaryV4's `warmPatientCache('summary')` and
+        // routinely lost — `$everything`'s first 100 entries get
+        // dominated by Observations, leaving room for only a handful of
+        // MedicationRequests / Conditions in the response. Whichever
+        // dispatch landed last won, and SET_RELATIONSHIPS (which
+        // overwrites per-type id lists) silently truncated the good
+        // batch data. User symptom: chart review tabs show 1-3 of 13
+        // medications until refresh.
+        //
+        // warmPatientCache('summary') uses per-type queries with proper
+        // _count values (Condition 50, MedicationRequest 50,
+        // AllergyIntolerance 20, Observation 30 vital-signs only, …).
+        // It also deduplicates inflight requests, so a concurrent call
+        // from PatientSummaryV4 merges instead of races.
         try {
+          await warmPatientCache(patientId, 'summary');
+        } catch (warmError) {
+          // Last-resort fallback: the legacy $everything path. Kept for
+          // safety in case the batch endpoint returns a structurally
+          // odd response. fetchPatientEverything itself paginates
+          // properly (see the change in fetchPatientEverything).
           await fetchPatientEverything(patientId, {
             types: ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Observation', 'Encounter'],
             count: 100,
-            autoSince: false, // Disabled - was excluding older medications/conditions
-            forceRefresh: false
-          });
-        } catch (everythingError) {
-          // Fall back to batch bundle if $everything fails
-          // Patient $everything failed in setCurrentPatient - using batch bundle fallback
-          await fetchPatientBundle(patientId, false, 'critical');
+            autoSince: false,
+            forceRefresh: false,
+          }).catch(() => fetchPatientBundle(patientId, false, 'critical'));
         }
       }
       
