@@ -746,17 +746,30 @@ const EnhancedOrdersTab = ({
   }, [patientId]);
 
   // Handle incremental order updates
-  const handleOrderUpdate = useCallback((eventType, eventData) => {
+  const handleOrderUpdate = useCallback(async (eventType, eventData) => {
     // Extract the order from the event data
     const order = eventData.order || eventData.medication || eventData.resource;
-    
+
     if (!order) {
       console.warn('[EnhancedOrdersTab] No order in event data');
       return;
     }
 
-    // For now, refresh the search to get updated data
-    // In a full implementation, we would update the state incrementally
+    // Invalidate the order-search service cache before refreshing.
+    // enhancedOrderSearchService caches FHIR search bundles for 5 minutes
+    // keyed by URL; without this clear, the refresh below hands back the
+    // stale bundle from before the create/update and the new order won't
+    // appear in the tab until the page is refreshed (or the TTL expires).
+    // This is what users see as "the websocket fires but nothing changes."
+    try {
+      const { default: enhancedOrderSearch } = await import('../../../../services/enhancedOrderSearch');
+      enhancedOrderSearch.clearCache?.();
+    } catch (err) {
+      console.warn('[EnhancedOrdersTab] Failed to clear order-search cache:', err);
+    }
+
+    // Refresh the search to get updated data.
+    // In a full implementation, we would update the state incrementally.
     refreshSearch();
 
     // Show notification for important events
