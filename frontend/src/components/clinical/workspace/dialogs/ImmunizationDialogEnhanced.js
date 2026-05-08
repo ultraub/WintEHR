@@ -82,32 +82,65 @@ import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/di
 
 const searchImmunizations = async (query) => {
   try {
-    // Search for immunizations from existing resources
-    const searchParams = {
-      _count: 100,
-      _sort: '-date'
-    };
-    
-    if (query) {
-      searchParams._text = query;
-    }
-    
-    const bundle = await fhirClient.search('Immunization', searchParams);
-    const immunizations = bundle.entry?.map(entry => entry.resource) || [];
-    
-    // Extract unique vaccine codes
     const vaccineMap = new Map();
-    
+
+    // Pull candidate vaccines from the platform's CVX catalog.
+    //
+    // The earlier implementation searched HAPI's `Immunization` resources with
+    // `_text=<query>` to derive the vaccine list. That broke when Hibernate
+    // Search was disabled — HAPI started returning HAPI-1192 ("Fulltext search
+    // is not enabled on this service"), the search bombed, and students saw
+    // an empty vaccine picker on the chart-review immunization dialog.
+    //
+    // The local terminology index has all 287 CVX codes; `/api/catalogs/vaccines`
+    // serves them with substring filtering. Use that as the primary source.
+    if (query && query.length >= 2) {
+      try {
+        const params = new URLSearchParams({ search: query, limit: '50' });
+        const resp = await fetch(`/api/catalogs/vaccines?${params}`);
+        if (resp.ok) {
+          const catalog = await resp.json();
+          (Array.isArray(catalog) ? catalog : []).forEach(v => {
+            const code = v.cvx_code || v.vaccine_code || v.code;
+            const display = v.vaccine_name || v.display || code;
+            if (code && !vaccineMap.has(code)) {
+              vaccineMap.set(code, {
+                code,
+                display,
+                system: 'http://hl7.org/fhir/sid/cvx',
+              });
+            }
+          });
+        }
+      } catch (catalogErr) {
+        // Non-fatal: fall through to existing-Immunization extraction below
+        console.warn('Vaccine catalog lookup failed; falling back to history:', catalogErr);
+      }
+    }
+
+    // Also extract codes from existing Immunization resources so the picker
+    // surfaces vaccines that have been administered to patients in this
+    // dataset, even if the catalog miss-spells or omits them.
+    const bundle = await fhirClient.search('Immunization', {
+      _count: 100,
+      _sort: '-date',
+    });
+    const immunizations = bundle.entry?.map(entry => entry.resource) || [];
+
     immunizations.forEach(immunization => {
       if (immunization.vaccineCode?.coding) {
         immunization.vaccineCode.coding.forEach(coding => {
           const key = coding.code || coding.display;
           if (key && !vaccineMap.has(key)) {
-            vaccineMap.set(key, {
-              code: coding.code,
-              display: coding.display || immunization.vaccineCode.text || 'Unknown Vaccine',
-              system: coding.system
-            });
+            // Apply the same substring filter the catalog already applied
+            const haystack = (coding.display || immunization.vaccineCode.text || '').toLowerCase();
+            if (!query || haystack.includes(query.toLowerCase()) || (coding.code || '').includes(query)) {
+              vaccineMap.set(key, {
+                code: coding.code,
+                display: coding.display || immunization.vaccineCode.text || 'Unknown Vaccine',
+                system: coding.system,
+              });
+            }
           }
         });
       }
@@ -254,13 +287,15 @@ const ImmunizationDialogEnhanced = ({
     },
   });
 
-  // Load trending vaccines on mount
+  // Load trending vaccines on mount. `patient` is in the deps so the
+  // schedule recomputes once ClinicalContext finishes loading the patient
+  // (it's null on the first render the dialog sees).
   useEffect(() => {
     if (open && !immunization) {
       loadTrendingVaccines();
       loadVaccineSchedule();
     }
-  }, [open, immunization]);
+  }, [open, immunization, patient]);
 
   // Load existing immunization data
   useEffect(() => {
@@ -340,7 +375,14 @@ const ImmunizationDialogEnhanced = ({
   // Load recommended vaccine schedule based on patient age
   const loadVaccineSchedule = async () => {
     try {
-      // Calculate patient age
+      // Patient comes from ClinicalContext, which loads asynchronously after
+      // the dialog mounts. Bail out quietly until the resource is available
+      // — the useEffect re-runs on `patient` so the schedule will populate
+      // on the next render.
+      if (!patient?.birthDate) {
+        setVaccineSchedule([]);
+        return;
+      }
       const birthDate = new Date(patient.birthDate);
       const ageInYears = differenceInDays(new Date(), birthDate) / 365.25;
       
@@ -453,8 +495,8 @@ const ImmunizationDialogEnhanced = ({
       console.error('Error checking allergies:', error);
     }
     
-    // Check pregnancy status for live vaccines
-    if (patient.gender === 'female') {
+    // Check pregnancy status for live vaccines (no-op if patient hasn't loaded yet)
+    if (patient?.gender === 'female') {
       // In real system, would check for active pregnancy condition
       if (vaccine.display?.toLowerCase().includes('mmr') || 
           vaccine.display?.toLowerCase().includes('varicella')) {
