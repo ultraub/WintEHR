@@ -165,59 +165,48 @@ class CORSSecurityMiddleware(BaseHTTPMiddleware):
         max_age: int = 3600
     ):
         super().__init__(app)
-        
-        # Configure allowed origins - be restrictive in production
+
+        # Configure allowed origins. The platform's default posture is
+        # permissive (any origin) — WintEHR is an educational platform on
+        # synthetic Synthea data and is routinely used by student-built
+        # external apps that don't have a fixed origin. Operators who want
+        # to lock the API down to specific origins (e.g. for an instance
+        # carrying real data, which the platform isn't designed for) can
+        # set CORS_ORIGINS to a comma-separated allow-list.
         self.allowed_origins = allowed_origins or self._get_default_origins()
-        self.allowed_methods = allowed_methods or ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-        self.allowed_headers = allowed_headers or [
-            "Authorization",
-            "Content-Type",
-            "X-Requested-With",
-            "X-CSRF-Token"
+        # PATCH included so FHIR conditional/partial-update flows work
+        # without a follow-up CORS change.
+        self.allowed_methods = allowed_methods or [
+            "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
         ]
+        # Modern browsers honor `*` for Allow-Headers even when credentials
+        # are involved, since the request origin (not `*`) is what's
+        # echoed for the origin header. Operators can override with the
+        # CORS_HEADERS env var.
+        self.allowed_headers = allowed_headers or self._get_default_headers()
         self.allow_credentials = allow_credentials
         self.max_age = max_age
-    
-    def _get_default_origins(self) -> list:
-        """Get default allowed origins based on environment.
 
-        Uses CORS_ORIGINS env var if set, otherwise derives from FRONTEND_URL/DOMAIN
-        in production or allows localhost in development.
+    def _get_default_origins(self) -> list:
+        """Get default allowed origins.
+
+        CORS_ORIGINS env var wins. When unset, default to ``["*"]`` —
+        the platform is open by intent.
         """
-        # CORS_ORIGINS env var takes priority in ALL environments
         cors_env = os.getenv("CORS_ORIGINS")
         if cors_env:
             return [o.strip() for o in cors_env.split(",") if o.strip()]
+        return ["*"]
 
-        env = os.getenv("ENVIRONMENT", "development").lower()
+    def _get_default_headers(self) -> list:
+        """Get default allowed request headers.
 
-        if env in ("production", "prod"):
-            origins = []
-            # Use explicit FRONTEND_URL if set
-            frontend_url = os.getenv("FRONTEND_URL")
-            if frontend_url:
-                origins.append(frontend_url)
-            # Also derive from DOMAIN env var (set by deploy.sh)
-            domain = os.getenv("DOMAIN")
-            if domain:
-                domain_origin = f"https://{domain}"
-                if domain_origin not in origins:
-                    origins.append(domain_origin)
-            # Warn if no origins configured in production
-            if not origins:
-                logger.warning(
-                    "No CORS origins configured in production. "
-                    "Set CORS_ORIGINS, FRONTEND_URL, or DOMAIN env var."
-                )
-            return origins
-        else:
-            # Development allows localhost
-            return [
-                "http://localhost:3000",
-                "http://localhost:3001",
-                "http://127.0.0.1:3000",
-                "http://127.0.0.1:3001"
-            ]
+        CORS_HEADERS env var wins. When unset, default to ``["*"]``.
+        """
+        cors_headers = os.getenv("CORS_HEADERS")
+        if cors_headers:
+            return [h.strip() for h in cors_headers.split(",") if h.strip()]
+        return ["*"]
     
     def is_allowed_origin(self, origin: str) -> bool:
         """Check if origin is allowed."""
@@ -232,16 +221,31 @@ class CORSSecurityMiddleware(BaseHTTPMiddleware):
         # Handle preflight requests
         if request.method == "OPTIONS":
             response = Response(status_code=200)
-            
+
             if origin and self.is_allowed_origin(origin):
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Access-Control-Allow-Methods"] = ", ".join(self.allowed_methods)
-                response.headers["Access-Control-Allow-Headers"] = ", ".join(self.allowed_headers)
+
+                # When the configured header allow-list is `["*"]` and
+                # credentials are enabled, browsers reject literal `*` —
+                # the spec requires a concrete header list. Echo back
+                # whatever the preflight requested (Access-Control-
+                # Request-Headers), which is the same trick we already
+                # use for the origin header.
+                if self.allowed_headers == ["*"] and self.allow_credentials:
+                    requested = request.headers.get("access-control-request-headers")
+                    if requested:
+                        response.headers["Access-Control-Allow-Headers"] = requested
+                    else:
+                        response.headers["Access-Control-Allow-Headers"] = "*"
+                else:
+                    response.headers["Access-Control-Allow-Headers"] = ", ".join(self.allowed_headers)
+
                 response.headers["Access-Control-Max-Age"] = str(self.max_age)
-                
+
                 if self.allow_credentials:
                     response.headers["Access-Control-Allow-Credentials"] = "true"
-            
+
             return response
         
         # Process actual request
