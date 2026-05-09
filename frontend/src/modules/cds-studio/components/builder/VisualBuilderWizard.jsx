@@ -224,7 +224,16 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null 
           created_by: svc.created_by || user?.username || 'unknown'
         });
         setReferencedValueSets(data.value_sets || []);
-        setSavedServiceId(svc.id || existingService.id);
+        // Save the SLUG (service_id), not the integer DB row id. The
+        // PUT/DELETE/test endpoints route by `{service_id}` and look up
+        // `WHERE service_id == '<slug>'`. PR #110 fixed this for the
+        // freshly-saved path (handleSaveDraft → setSavedServiceId(
+        // response.data.service_id)) but the edit-mode hydration path
+        // here was unfixed: clicking Next on step 4 (Prefetch) calls
+        // handleSaveDraft, which PUTs to `/services/<dbId>` (e.g. /35),
+        // backend returns "Visual service '35' not found", error
+        // banner appears on the prefetch step. Use the slug here too.
+        setSavedServiceId(svc.service_id || existingService.service_id);
         setActiveStep(0);
       } catch (err) {
         if (cancelled) return;
