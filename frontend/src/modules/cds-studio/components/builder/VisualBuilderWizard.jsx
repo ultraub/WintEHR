@@ -249,10 +249,13 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null 
 
     setError(null);
 
-    // Save draft before moving into Test & Deploy. The testing UI needs a
-    // real backend service to invoke, and the FHIR-preview tab in the CQL
-    // editor needs to fetch the generated Library + PlanDefinition.
-    if (activeStep === STEP_PREFETCH && !savedServiceId) {
+    // Save (or re-save) the draft before moving into Test & Deploy. The
+    // testing UI needs a real backend service to invoke, and the FHIR-
+    // preview tab in the CQL editor needs to fetch the generated
+    // Library + PlanDefinition. We always re-save on entry so edits in
+    // step 2/3/4 after the first save get persisted — without this the
+    // test panel runs against the previously-saved CQL.
+    if (activeStep === STEP_PREFETCH) {
       await handleSaveDraft();
     }
 
@@ -321,12 +324,42 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null 
     setError(null);
 
     try {
-      const response = await axios.post(
-        '/api/cds-visual-builder/services',
-        serviceConfig
-      );
+      // First save: POST to create. Subsequent saves (re-entering step 5
+      // after edits in step 2/3/4): PUT to update the existing draft so
+      // the test panel runs against current CQL/card config, not the
+      // initial snapshot. The PUT path also re-materializes the HAPI
+      // Library + PlanDefinition so $apply sees the latest code.
+      let response;
+      if (savedServiceId) {
+        response = await axios.put(
+          `/api/cds-visual-builder/services/${savedServiceId}`,
+          {
+            name: serviceConfig.name,
+            description: serviceConfig.description,
+            service_type: serviceConfig.service_type,
+            category: serviceConfig.category,
+            hook_type: serviceConfig.hook_type,
+            conditions: isCQLService ? undefined : serviceConfig.conditions,
+            cql_source: isCQLService ? serviceConfig.cql_source : undefined,
+            card_config: serviceConfig.card,
+            display_config: serviceConfig.display_config,
+            prefetch_config: serviceConfig.prefetch,
+          }
+        );
+      } else {
+        response = await axios.post(
+          '/api/cds-visual-builder/services',
+          serviceConfig
+        );
+      }
 
-      setSavedServiceId(response.data.id);
+      // The test endpoint URL is `/services/{service_id}/test` — the
+      // *string* identifier. The backend response includes both the
+      // integer DB row id (`id`) and the string identifier (`service_id`).
+      // Previously we set savedServiceId to `id`, so the test endpoint
+      // got "/services/123/test" and 404'd because no service has
+      // `service_id == "123"`. Use service_id.
+      setSavedServiceId(response.data.service_id);
       return response.data;
     } catch (err) {
       console.error('Error saving draft:', err);
@@ -368,7 +401,7 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null 
         );
       } else if (!serviceId) {
         const savedService = await handleSaveDraft();
-        serviceId = savedService.id;
+        serviceId = savedService.service_id;
       }
 
       // Deploy. For new services this is the first stable-version upload;
