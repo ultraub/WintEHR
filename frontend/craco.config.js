@@ -148,9 +148,29 @@ module.exports = {
   babel: {
     plugins: [
       // Remove console.log in production
-      ...(process.env.NODE_ENV === 'production' 
+      ...(process.env.NODE_ENV === 'production'
         ? [['transform-remove-console', { exclude: ['error', 'warn'] }]]
         : []),
     ],
+  },
+  jest: {
+    configure: (jestConfig) => {
+      // axios v1.x ships ESM-only and CRA's default transformIgnorePatterns
+      // bans everything under node_modules from babel transformation,
+      // which means `import axios from 'axios'` blows up in tests with
+      // "SyntaxError: Cannot use import statement outside a module".
+      //
+      // Whitelist axios (and any future ESM-only deps we identify) so
+      // jest transforms them through babel like our own source. Without
+      // this, every test that transitively imports axios needs a
+      // hand-rolled `jest.mock('axios', ...)` at the top — see prior
+      // PRs #113 and #117 for the workaround.
+      const esmOnlyDeps = ['axios'];
+      jestConfig.transformIgnorePatterns = [
+        `[/\\\\]node_modules[/\\\\](?!(${esmOnlyDeps.join('|')})[/\\\\])`,
+        '^.+\\.module\\.(css|sass|scss)$',
+      ];
+      return jestConfig;
+    },
   },
 };
