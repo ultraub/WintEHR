@@ -273,6 +273,37 @@ describe('FHIRClient', () => {
       expect(results[1].success).toBe(true);
     });
 
+    test('should unwrap responses pre-transformed by the standardizeResponse interceptor', async () => {
+      // FHIRResourceContext registers a global response interceptor that
+      // rewrites any Bundle into `{ resources, total, bundle }`. By the
+      // time `httpClient.post` resolves, `response.data` is the wrapped
+      // shape and no longer has a top-level `.entry`. Without unwrapping,
+      // batch() silently returned [] and every loader that depended on it
+      // (warmPatientCache, fetchPatientBundle) dispatched nothing — the
+      // user-visible symptom was a fully-empty patient summary.
+      const innerBundle = {
+        resourceType: 'Bundle',
+        type: 'batch-response',
+        entry: [
+          { response: { status: '200' }, resource: { resourceType: 'Patient', id: '1' } },
+          { response: { status: '200' }, resource: { resourceType: 'Bundle', type: 'searchset', total: 2, entry: [] } }
+        ]
+      };
+      const wrapped = { resources: [], total: 2, bundle: innerBundle };
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: wrapped });
+
+      const results = await client.batch([
+        { method: 'GET', url: 'Patient/1' },
+        { method: 'GET', url: 'Condition?patient=1' }
+      ]);
+
+      expect(results).toHaveLength(2);
+      expect(results[0].success).toBe(true);
+      expect(results[0].resource).toEqual({ resourceType: 'Patient', id: '1' });
+      expect(results[1].success).toBe(true);
+      expect(results[1].resource?.resourceType).toBe('Bundle');
+    });
+
     test('should handle batch errors', async () => {
       const batchBundle = {
         resourceType: 'Bundle',

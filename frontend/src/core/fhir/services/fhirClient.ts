@@ -1300,9 +1300,18 @@ class FHIRClient {
     return this.executeWithDeduplication(requestKey, () =>
       this.queueRequest(async () => {
         const response = await this.httpClient.post<Bundle>('/', bundle);
-        
+
+        // FHIRResourceContext registers a response interceptor that rewrites
+        // any Bundle response (including batch-response) into a wrapped shape
+        // `{ resources, total, bundle }`. Unwrap it so we always work with
+        // the raw Bundle's `.entry`. Without this, every batch silently
+        // resolves to [] and the warming/summary loaders dispatch nothing.
+        const rawBundle: Bundle = (response.data as any)?.bundle?.resourceType === 'Bundle'
+          ? (response.data as any).bundle
+          : (response.data as Bundle);
+
         // Process results
-        const results: BatchResult[] = response.data.entry?.map(entry => {
+        const results: BatchResult[] = rawBundle.entry?.map(entry => {
           const status = entry.response?.status || '';
           const success = status.startsWith('2');
           
