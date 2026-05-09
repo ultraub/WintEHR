@@ -40,6 +40,7 @@ import {
   InputAdornment,
   Radio,
   RadioGroup,
+  Stack,
   useTheme,
   alpha,
 } from '@mui/material';
@@ -75,10 +76,13 @@ import { debounce } from 'lodash';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
+import { useOrderSelectHook } from '../../../../hooks/useCDSHooks';
+import CDSCard from '../../cds/CDSCard';
 
 const searchImmunizations = async (query) => {
   try {
@@ -240,6 +244,7 @@ const ImmunizationDialogEnhanced = ({
   const { patient } = useClinicalContext();
   const { publish } = useClinicalWorkflow();
   const { resources } = useFHIRResource();
+  const { user } = useAuth();
   
   // Use consistent dialog helpers
   const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(onSave, null);
@@ -258,6 +263,35 @@ const ImmunizationDialogEnhanced = ({
   const [searching, setSearching] = useState(false);
   const [trendingVaccines, setTrendingVaccines] = useState([]);
   const [vaccineSchedule, setVaccineSchedule] = useState([]);
+
+  // CDS Hooks 2.0 order-select integration
+  // ---------------------------------------
+  // Fire on the catalog-pick moment: whenever selectedVaccine flips
+  // to a non-null code. useOrderSelectHook internally JSON-keys on
+  // resourceType/code so it won't refire on parent re-renders.
+  const orderSelectDraft = useMemo(() => {
+    if (!selectedVaccine?.code) return [];
+    return [{
+      resourceType: 'Immunization',
+      status: 'completed',
+      vaccineCode: {
+        coding: [{
+          system: 'http://hl7.org/fhir/sid/cvx',
+          code: selectedVaccine.code,
+          display: selectedVaccine.display,
+        }],
+        text: selectedVaccine.display,
+      },
+      patient: { reference: `Patient/${patientId}` },
+    }];
+  }, [selectedVaccine, patientId]);
+
+  const { cards: orderSelectCards = [] } = useOrderSelectHook(
+    patientId,
+    user?.id || user?.username,
+    orderSelectDraft,
+    encounterId
+  ) || {};
 
   // Immunization details
   const [formData, setFormData] = useState({
@@ -895,6 +929,26 @@ const ImmunizationDialogEnhanced = ({
                     ))}
                   </List>
                 </Box>
+              )}
+
+              {/* CDS Hooks 2.0 order-select cards. Fired by
+                  useOrderSelectHook on selectedVaccine catalog pick.
+                  Rendered above the local contraindication alerts so
+                  external CDS guidance lands first. */}
+              {orderSelectCards.length > 0 && (
+                <Stack spacing={1} sx={{ mb: 2 }}>
+                  {orderSelectCards.map((card) => (
+                    <CDSCard
+                      key={card.uuid}
+                      card={card}
+                      serviceId={card.serviceId}
+                      hookInstance={card.hookInstance}
+                      patientId={patientId}
+                      userId={user?.id || user?.username}
+                      compact={true}
+                    />
+                  ))}
+                </Stack>
               )}
 
               {/* Alerts */}

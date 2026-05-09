@@ -623,6 +623,186 @@ class PatientGreeterService(SimpleCDSService):
         )]
 
 
+class OrderCompositionContextService(CDSService):
+    """
+    Reference implementation of a CDS Hooks 2.0 `order-select` service.
+
+    Fires during composition for ServiceRequest, MedicationRequest, and
+    Immunization drafts. Returns one info card per resource type
+    summarizing what the clinician is composing and flagging similar
+    recent activity from the patient record.
+
+    Educational notes:
+    - Reads `context.selections` (a list of `Bundle/<id>#<rt>/<id>`
+      reference strings — the canonical CDS Hooks 2.0 format) and
+      resolves them back to entries in `context.draftOrders`. This
+      reference-resolution pattern is non-obvious from the spec wording
+      and is the recommended starting point for students writing
+      order-select services.
+    - Filters by resource type in `should_execute` to avoid noise on
+      hooks that don't carry composable orders.
+    - Demonstrates multi-type dispatch in `execute`: one card per
+      resource type group lets students see how to author a single
+      service that handles all order entry surfaces.
+
+    Card source label is "Order Composition Context (reference example)"
+    so students learn this is a built-in pattern they can model.
+    """
+
+    service_id = "order-composition-context"
+    hook_type = HookType.ORDER_SELECT
+    title = "Order Composition Context"
+    description = (
+        "Fires during composition for service requests, medication "
+        "requests, and immunizations. Echoes draft codes and flags "
+        "similar recent activity. Reference example for authoring "
+        "order-select services."
+    )
+    prefetch_templates = {
+        "patient": "Patient/{{context.patientId}}",
+        "recentLabOrders": (
+            "ServiceRequest?patient={{context.patientId}}"
+            "&category=laboratory&_count=20&_sort=-authored"
+        ),
+        "recentMedications": (
+            "MedicationRequest?patient={{context.patientId}}"
+            "&_count=20&_sort=-authoredon"
+        ),
+        "recentImmunizations": (
+            "Immunization?patient={{context.patientId}}"
+            "&_count=20&_sort=-occurrence-date"
+        ),
+    }
+
+    SUPPORTED_TYPES = ("ServiceRequest", "MedicationRequest", "Immunization")
+    TYPE_LABELS = {
+        "ServiceRequest": "Order",
+        "MedicationRequest": "Medication",
+        "Immunization": "Vaccine",
+    }
+
+    @staticmethod
+    def _resolve_selection(selection_ref: str, draft_orders: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Parse `Bundle/<bid>#<rt>/<id>` and find the matching entry.
+
+        The reference format is fixed by CDS Hooks 2.0. Robust to
+        callers that pass malformed refs (returns None instead of
+        raising).
+        """
+        try:
+            _bundle_part, frag = selection_ref.split("#", 1)
+            rt, draft_id = frag.split("/", 1)
+        except (ValueError, AttributeError):
+            return None
+        for entry in (draft_orders or {}).get("entry", []):
+            r = entry.get("resource", {})
+            if r.get("resourceType") == rt and r.get("id") == draft_id:
+                return r
+        return None
+
+    @classmethod
+    def _resolve_focused(cls, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        selections = context.get("selections", []) or []
+        draft_orders = context.get("draftOrders") or {}
+        focused: List[Dict[str, Any]] = []
+        for sel in selections:
+            r = cls._resolve_selection(sel, draft_orders)
+            if r is not None:
+                focused.append(r)
+        return focused
+
+    @staticmethod
+    def _code_text(resource: Dict[str, Any]) -> str:
+        rt = resource.get("resourceType")
+        cc = (
+            resource.get("code") if rt == "ServiceRequest"
+            else resource.get("medicationCodeableConcept") if rt == "MedicationRequest"
+            else resource.get("vaccineCode") if rt == "Immunization"
+            else None
+        )
+        if not cc:
+            return "(unspecified)"
+        text = cc.get("text")
+        if text:
+            return text
+        coding = cc.get("coding") or [{}]
+        return coding[0].get("display") or "(unspecified)"
+
+    @classmethod
+    def _recent_codes(cls, bundle: Optional[Dict[str, Any]]) -> set:
+        out = set()
+        for entry in (bundle or {}).get("entry", []):
+            r = entry.get("resource", {})
+            txt = cls._code_text(r)
+            if txt and txt != "(unspecified)":
+                out.add(txt.lower())
+        return out
+
+    async def should_execute(
+        self,
+        context: Dict[str, Any],
+        prefetch: Dict[str, Any]
+    ) -> bool:
+        return any(
+            r.get("resourceType") in self.SUPPORTED_TYPES
+            for r in self._resolve_focused(context)
+        )
+
+    async def execute(
+        self,
+        context: Dict[str, Any],
+        prefetch: Dict[str, Any]
+    ) -> List[Card]:
+        focused = self._resolve_focused(context)
+        if not focused:
+            return []
+
+        # Group focused resources by type so we can emit one card per
+        # type with the relevant recent-activity comparison.
+        groups: Dict[str, List[Dict[str, Any]]] = {}
+        for r in focused:
+            rt = r.get("resourceType")
+            if rt in self.SUPPORTED_TYPES:
+                groups.setdefault(rt, []).append(r)
+
+        recent_by_type = {
+            "ServiceRequest": self._recent_codes(prefetch.get("recentLabOrders")),
+            "MedicationRequest": self._recent_codes(prefetch.get("recentMedications")),
+            "Immunization": self._recent_codes(prefetch.get("recentImmunizations")),
+        }
+
+        cards: List[Card] = []
+        for rt, items in groups.items():
+            label = self.TYPE_LABELS[rt]
+            codes = [self._code_text(i) for i in items]
+            recent = recent_by_type.get(rt, set())
+            overlap = [c for c in codes if c.lower() in recent]
+
+            detail_lines = [
+                f"Composing {label.lower()}: {', '.join(codes)}",
+            ]
+            if overlap:
+                detail_lines.append(
+                    f"⚠️ Similar {label.lower()} in last 7 days: {', '.join(overlap)}"
+                )
+            else:
+                detail_lines.append(
+                    f"No similar {label.lower()}s found in recent activity."
+                )
+
+            summary_codes = ", ".join(codes)
+            if len(summary_codes) > 80:
+                summary_codes = summary_codes[:77] + "..."
+
+            cards.append(self.create_card(
+                summary=f"{label} context: {summary_codes}",
+                indicator="info",
+                detail="\n\n".join(detail_lines),
+                source_label="Order Composition Context (reference example)",
+            ))
+        return cards
+
+
 # =============================================================================
 # Service Registration Helper
 # =============================================================================
@@ -644,6 +824,7 @@ def get_builtin_services() -> List[CDSService]:
         PotassiumMonitorService(),
         DiabetesCareService(),
         PatientGreeterService(),
+        OrderCompositionContextService(),
     ]
 
 
@@ -673,6 +854,7 @@ __all__ = [
     "PotassiumMonitorService",
     "DiabetesCareService",
     "PatientGreeterService",
+    "OrderCompositionContextService",
     # Helper functions
     "get_builtin_services",
     "register_builtin_services",

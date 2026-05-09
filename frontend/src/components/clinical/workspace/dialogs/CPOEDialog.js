@@ -2,7 +2,7 @@
  * CPOE (Computerized Physician Order Entry) Dialog - Migrated to BaseResourceDialog
  * Modern order entry system using the new BaseResourceDialog pattern
  */
-import React from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import BaseResourceDialog from '../../../base/BaseResourceDialog';
@@ -16,6 +16,7 @@ import {
   ORDER_CATEGORIES
 } from './config/serviceRequestDialogConfig';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useOrderSelectHook } from '../../../../hooks/useCDSHooks';
 
 const CPOEDialog = ({ 
   open, 
@@ -28,11 +29,58 @@ const CPOEDialog = ({
   recentOrders = []
 }) => {
   const { user } = useAuth();
-  
+
   // Parse existing resource for edit mode
-  const parsedInitialValues = serviceRequest && mode === 'edit' 
+  const parsedInitialValues = serviceRequest && mode === 'edit'
     ? parseServiceRequestResource(serviceRequest)
     : initialValues;
+
+  // CDS Hooks 2.0 order-select integration
+  // ---------------------------------------
+  // Fire order-select on the discrete catalog-pick moment: when
+  // formData.selectedTest changes to a NEW non-null code that we
+  // haven't already fired CDS for. We don't fire on keystrokes, on
+  // category changes, on customTest typing, or when clearing the
+  // field — only on a fresh, deliberate catalog selection. The
+  // BaseResourceDialog onFormDataChange callback gives us the
+  // before/after snapshot pair so we can detect this transition
+  // without owning the form state ourselves.
+  const lastFiredTestCodeRef = useRef(null);
+  const [draftFormData, setDraftFormData] = useState(null);
+
+  const handleFormDataChange = (next, prev) => {
+    const newCode = next?.selectedTest?.code || next?.selectedTest?.id;
+    const oldCode = prev?.selectedTest?.code || prev?.selectedTest?.id;
+    if (newCode && newCode !== oldCode && newCode !== lastFiredTestCodeRef.current) {
+      lastFiredTestCodeRef.current = newCode;
+      setDraftFormData(next);
+    }
+  };
+
+  const draftResources = useMemo(() => {
+    if (!draftFormData?.selectedTest) return [];
+    // Build a transient ServiceRequest reflecting the current draft for
+    // CDS evaluation. Not persisted — discarded when the dialog closes
+    // or the user picks a different test.
+    return [createServiceRequestResource(
+      draftFormData,
+      patientId,
+      user?.id || user?.username || 'unknown',
+      user?.display_name || user?.name || 'Unknown'
+    )];
+  }, [draftFormData, patientId, user]);
+
+  // useOrderSelectHook returns the underlying useCDSHooks instance,
+  // which holds the response cards locally for this hook invocation.
+  // This is the same pattern EnhancedOrdersTab uses for the existing-
+  // orders checkbox path — read cards directly off the returned
+  // object, not from CDSContext.alerts (which is populated via a
+  // different code path: useCDS().executeCDSHooks).
+  const { cards: orderSelectCards = [] } = useOrderSelectHook(
+    patientId,
+    user?.id || user?.username,
+    draftResources
+  ) || {};
 
   // Custom validation function
   const handleValidate = (formData) => {
@@ -155,6 +203,7 @@ const CPOEDialog = ({
         // Callbacks
         onSave={handleSave}
         onValidate={handleValidate}
+        onFormDataChange={handleFormDataChange}
         
         // UI customization
         showPreview={true}
@@ -177,9 +226,10 @@ const CPOEDialog = ({
           }
         ]}
       >
-        <ServiceRequestFormFields 
+        <ServiceRequestFormFields
           patientConditions={patientConditions}
           recentOrders={recentOrders}
+          orderSelectCards={orderSelectCards}
         />
       </BaseResourceDialog>
     </LocalizationProvider>

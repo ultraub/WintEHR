@@ -24,6 +24,7 @@ import {
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { format } from 'date-fns';
 import ResourceSearchAutocomplete from '../../../../search/ResourceSearchAutocomplete';
+import CDSCard from '../../../cds/CDSCard';
 import { useLabTestSearch, useHybridSearch } from '../../../../../hooks/useResourceSearch';
 import {
   SERVICE_REQUEST_STATUS_OPTIONS,
@@ -40,7 +41,20 @@ import {
   validateClinicalAppropriateness
 } from '../config/serviceRequestDialogConfig';
 
-const ServiceRequestFormFields = ({ formData = {}, errors = {}, onChange, disabled, patientConditions = [], recentOrders = [] }) => {
+const ServiceRequestFormFields = ({
+  formData = {},
+  errors = {},
+  onChange,
+  disabled,
+  patientConditions = [],
+  recentOrders = [],
+  // CDS Hooks 2.0 order-select cards from the parent dialog. Rendered
+  // at the top of the form so the clinician sees CDS guidance after
+  // they pick a test from the catalog and before they continue
+  // filling clinical context. Empty array when no service has fired
+  // or no service is registered for order-select.
+  orderSelectCards = [],
+}) => {
   const [testOptions, setTestOptions] = useState([]);
   const [clinicalWarnings, setClinicalWarnings] = useState([]);
 
@@ -122,6 +136,13 @@ const ServiceRequestFormFields = ({ formData = {}, errors = {}, onChange, disabl
 
   return (
     <Stack spacing={3}>
+      {orderSelectCards.length > 0 && (
+        <Stack spacing={1}>
+          {orderSelectCards.map((card) => (
+            <CDSCard key={card.uuid} card={card} compact />
+          ))}
+        </Stack>
+      )}
       <Grid container spacing={2}>
         {/* Category Selection */}
         <Grid item xs={12}>
