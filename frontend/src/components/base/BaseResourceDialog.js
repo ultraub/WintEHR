@@ -47,6 +47,9 @@ const BaseResourceDialog = ({
   // Callbacks
   onSave,
   onValidate,
+  onFormDataChange, // Optional: emitted on every field change as (next, prev). Used by
+                    // CDS-aware dialogs to detect catalog-pick commit signals
+                    // without a stepper Next button.
   
   // UI customization
   showStepper = false,
@@ -113,11 +116,19 @@ const BaseResourceDialog = ({
 
   // Handle form data change with useCallback to prevent recreation
   const handleFieldChange = useCallback((fieldName, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [fieldName]: value
-    }));
-    
+    setFormData(prev => {
+      const next = { ...prev, [fieldName]: value };
+      // Notify the parent with both next and prev so they can diff
+      // specific fields (e.g., a CDS-aware dialog watching for the
+      // moment selectedTest transitions to a new non-null value).
+      // Optional callback — no behavior change for callers that don't
+      // pass onFormDataChange.
+      if (onFormDataChange) {
+        onFormDataChange(next, prev);
+      }
+      return next;
+    });
+
     // Clear field error when user starts typing
     setErrors(prev => {
       if (prev[fieldName]) {
@@ -128,10 +139,10 @@ const BaseResourceDialog = ({
       }
       return prev;
     });
-    
+
     // Clear save error when user makes changes
     setSaveError(null);
-  }, []); // Empty dependency array since we only need the function reference
+  }, [onFormDataChange]);
 
   // Validate form with useCallback to prevent recreation
   const validateForm = useCallback(() => {

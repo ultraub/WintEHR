@@ -95,6 +95,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useOrderSelectHook } from '../../../../hooks/useCDSHooks';
 import CDSCard from '../../cds/CDSCard';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
@@ -369,6 +370,45 @@ const MedicationDialogEnhanced = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMedication, setSelectedMedication] = useState(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+
+  // CDS Hooks 2.0 order-select integration
+  // ---------------------------------------
+  // Fire order-select on the catalog-pick moment: whenever
+  // selectedMedication changes to a non-null value with a code. The
+  // useOrderSelectHook internally JSON-keys on the resource shape, so
+  // this won't refire on parent re-renders or duplicate-pick. Coexists
+  // with the existing medication-prescribe firing in handleNext —
+  // both hooks are spec-allowed during medication composition.
+  const orderSelectDraft = useMemo(() => {
+    if (!selectedMedication?.code) return [];
+    return [{
+      resourceType: 'MedicationRequest',
+      status: 'draft',
+      intent: 'order',
+      medicationCodeableConcept: {
+        coding: [{
+          system: 'http://www.nlm.nih.gov/research/umls/rxnorm',
+          code: selectedMedication.code,
+          display: selectedMedication.display || selectedMedication.label,
+        }],
+        text: selectedMedication.display || selectedMedication.label,
+      },
+      subject: { reference: `Patient/${patientId}` },
+    }];
+  }, [selectedMedication, patientId]);
+
+  // useOrderSelectHook returns the underlying useCDSHooks instance.
+  // Read cards directly from the return value — these are LOCAL to
+  // this hook invocation (same pattern as EnhancedOrdersTab uses).
+  // Coexists with cdsAlerts above (which comes from CDSContext alerts
+  // via getAlerts and is populated by the existing executeCDSHooks
+  // call in handleNext for medication-prescribe).
+  const { cards: orderSelectCards = [] } = useOrderSelectHook(
+    patientId,
+    user?.id || user?.username,
+    orderSelectDraft,
+    encounterId
+  ) || {};
   
   // Use consistent dialog helpers
   const saveHandler = onSave || onSaved; // Support both prop names
@@ -1032,6 +1072,30 @@ const MedicationDialogEnhanced = ({
                 <Box sx={{ mb: 3 }}>
                   <Stack spacing={1}>
                     {cdsAlerts.map((card) => (
+                      <CDSCard
+                        key={card.uuid}
+                        card={card}
+                        serviceId={card.serviceId}
+                        hookInstance={card.hookInstance}
+                        patientId={patientId}
+                        userId={user?.id || user?.username}
+                        compact={true}
+                        onAcceptSuggestion={() => {}}
+                        onDismiss={() => {}}
+                      />
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              {/* CDS Hooks 2.0 order-select cards. Fired by
+                  useOrderSelectHook on selectedMedication change.
+                  Coexists with medication-prescribe alerts above —
+                  both hooks fire on med composition per spec. */}
+              {orderSelectCards && orderSelectCards.length > 0 && (
+                <Box sx={{ mb: 3 }}>
+                  <Stack spacing={1}>
+                    {orderSelectCards.map((card) => (
                       <CDSCard
                         key={card.uuid}
                         card={card}

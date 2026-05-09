@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { cdsHooksClient } from '../../services/cdsHooksClient';
+import { buildDraftOrderBundle } from '../../utils/cdsDraftBundle';
 import { v4 as uuidv4 } from 'uuid';
 
 export const useCDSHooks = () => {
@@ -224,19 +225,62 @@ export const usePatientViewHook = (patientId, userId) => {
   return cdsHooks;
 };
 
-export const useOrderSelectHook = (patientId, userId, selections) => {
+/**
+ * Fire CDS Hooks 2.0 `order-select` for one or more in-progress order
+ * resources. The caller passes plain FHIR resources (ServiceRequest,
+ * MedicationRequest, Immunization); this hook wraps them in a
+ * spec-compliant draftOrders Bundle and emits matching `selections`
+ * reference strings (`Bundle/<id>#<rt>/<id>`) — the format CDS Hooks
+ * 2.0 expects.
+ *
+ * Re-fire is gated by a stable identity key over (resourceType, id, code)
+ * so a parent re-render with the same logical drafts does not refire.
+ *
+ * @param {string} patientId - Patient FHIR id (bare, no Patient/ prefix).
+ * @param {string} userId - Practitioner id; bare or `Practitioner/<id>`.
+ *   Normalized to `Practitioner/<id>` for spec compliance.
+ * @param {Array<object>} draftResources - Draft FHIR resources to send.
+ * @param {string} [encounterId] - Optional encounter context.
+ */
+export const useOrderSelectHook = (patientId, userId, draftResources, encounterId) => {
   const cdsHooks = useCDSHooks();
-  
+
+  // Stable identity key. JSON.stringify on a small projection is fine
+  // for FHIR resource shapes; avoids refiring on every parent render.
+  const key = JSON.stringify(
+    (draftResources || []).map((r) => ({
+      rt: r?.resourceType,
+      id: r?.id,
+      // Pull whichever code field this resource type uses
+      code:
+        r?.code ||
+        r?.medicationCodeableConcept ||
+        r?.medicationReference ||
+        r?.vaccineCode ||
+        null,
+    }))
+  );
+
   useEffect(() => {
-    if (patientId && userId && selections?.length > 0) {
-      cdsHooks.executeHook('order-select', {
-        patientId,
-        userId,
-        selections
-      });
-    }
-  }, [patientId, userId, selections]);
-  
+    if (!patientId || !userId || !draftResources?.length) return;
+
+    const { draftOrders, selections } = buildDraftOrderBundle(draftResources);
+    if (!draftOrders) return;
+
+    const userRef = String(userId).startsWith('Practitioner/')
+      ? userId
+      : `Practitioner/${userId}`;
+
+    cdsHooks.executeHook('order-select', {
+      userId: userRef,
+      patientId,
+      ...(encounterId && { encounterId }),
+      selections,
+      draftOrders,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId, userId, key, encounterId]);
+
   return cdsHooks;
 };
 
