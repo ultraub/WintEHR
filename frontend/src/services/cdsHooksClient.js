@@ -225,38 +225,43 @@ class CDSHooksClient {
   async firePatientView(patientId, userId, encounterId = null) {
     const services = await this.discoverServices();
     const patientViewServices = services.filter(s => s.hook === 'patient-view');
-    
-    const allCards = [];
-    
-    for (const service of patientViewServices) {
-      // Properly format context according to CDS Hooks v1.0 spec
-      const context = {
-        patientId,
-        userId
-      };
-      
-      if (encounterId) {
-        context.encounterId = encounterId;
-      }
-      
-      // Resolve prefetch data if service has prefetch templates
-      let prefetch = null;
-      if (service.prefetch && Object.keys(service.prefetch).length > 0) {
-        try {
-          prefetch = await cdsPrefetchResolver.resolvePrefetchTemplates(service, context);
-        } catch (error) {
-          // Prefetch resolution failed, continuing without prefetch
+
+    // Dispatch every matching service in parallel. The previous
+    // `for...of`+`await` serialized N services into wall = sum(durations);
+    // this gives wall = max(durations). allSettled keeps the per-service
+    // error-isolation behavior — one rejecting service doesn't lose the
+    // others' cards. Output ordering matches input ordering because
+    // Array.map preserves it.
+    const settled = await Promise.allSettled(
+      patientViewServices.map(async (service) => {
+        const context = { patientId, userId };
+        if (encounterId) context.encounterId = encounterId;
+
+        let prefetch = null;
+        if (service.prefetch && Object.keys(service.prefetch).length > 0) {
+          try {
+            prefetch = await cdsPrefetchResolver.resolvePrefetchTemplates(service, context);
+          } catch (error) {
+            // Prefetch resolution failed, continuing without prefetch
+          }
         }
-      }
-      
-      const hookContext = {
-        hook: 'patient-view',
-        hookInstance: uuidv4(), // CDS Hooks 2.0 requires UUID
-        context
-      };
-      
-      const result = await this.executeHook(service.id, hookContext, prefetch);
-      if (result.cards && result.cards.length > 0) {
+
+        const hookContext = {
+          hook: 'patient-view',
+          hookInstance: uuidv4(),
+          context
+        };
+
+        const result = await this.executeHook(service.id, hookContext, prefetch);
+        return { service, result };
+      })
+    );
+
+    const allCards = [];
+    for (const outcome of settled) {
+      if (outcome.status !== 'fulfilled') continue;
+      const { service, result } = outcome.value;
+      if (result?.cards?.length > 0) {
         allCards.push(...result.cards.map(card => ({
           ...card,
           serviceId: service.id,
@@ -264,7 +269,6 @@ class CDSHooksClient {
         })));
       }
     }
-
     return allCards;
   }
 
@@ -290,38 +294,46 @@ class CDSHooksClient {
       }))
     };
 
-    for (const service of prescribeServices) {
-      const context = {
-        patientId,
-        userId,
-        draftOrders // CDS Hooks spec requires draftOrders, not medications
-      };
-      
-      // Resolve prefetch data if service has prefetch templates
-      let prefetch = null;
-      if (service.prefetch && Object.keys(service.prefetch).length > 0) {
-        try {
-          prefetch = await cdsPrefetchResolver.resolvePrefetchTemplates(service, context);
-        } catch (error) {
-          // Prefetch resolution failed, continuing without prefetch
+    // Parallel dispatch — same rationale as firePatientView.
+    const settled = await Promise.allSettled(
+      prescribeServices.map(async (service) => {
+        const context = {
+          patientId,
+          userId,
+          draftOrders // CDS Hooks spec requires draftOrders, not medications
+        };
+
+        let prefetch = null;
+        if (service.prefetch && Object.keys(service.prefetch).length > 0) {
+          try {
+            prefetch = await cdsPrefetchResolver.resolvePrefetchTemplates(service, context);
+          } catch (error) {
+            // Prefetch resolution failed, continuing without prefetch
+          }
+        } else {
+          // Use common prefetch for medication-prescribe if no templates defined
+          try {
+            prefetch = await cdsPrefetchResolver.buildCommonPrefetch('medication-prescribe', context);
+          } catch (error) {
+            console.warn('Common prefetch failed, continuing without prefetch', error);
+          }
         }
-      } else {
-        // Use common prefetch for medication prescribe if no templates defined
-        try {
-          prefetch = await cdsPrefetchResolver.buildCommonPrefetch('medication-prescribe', context);
-        } catch (error) {
-          console.warn('Common prefetch failed, continuing without prefetch', error);
-        }
-      }
-      
-      const hookContext = {
-        hook: 'medication-prescribe',
-        hookInstance: uuidv4(), // CDS Hooks 2.0 requires UUID
-        context
-      };
-      
-      const result = await this.executeHook(service.id, hookContext, prefetch);
-      if (result.cards && result.cards.length > 0) {
+
+        const hookContext = {
+          hook: 'medication-prescribe',
+          hookInstance: uuidv4(),
+          context
+        };
+
+        const result = await this.executeHook(service.id, hookContext, prefetch);
+        return { service, result };
+      })
+    );
+
+    for (const outcome of settled) {
+      if (outcome.status !== 'fulfilled') continue;
+      const { service, result } = outcome.value;
+      if (result?.cards?.length > 0) {
         allCards.push(...result.cards.map(card => ({
           ...card,
           serviceId: service.id,
@@ -329,7 +341,6 @@ class CDSHooksClient {
         })));
       }
     }
-
     return allCards;
   }
 
@@ -355,20 +366,23 @@ class CDSHooksClient {
       }))
     };
 
-    for (const service of orderServices) {
-      // Properly format context according to CDS Hooks spec
-      const hookContext = {
-        hook: 'order-sign',
-        hookInstance: uuidv4(), // CDS Hooks 2.0 requires UUID
-        context: {
-          patientId,
-          userId,
-          draftOrders
-        }
-      };
-      
-      const result = await this.executeHook(service.id, hookContext);
-      if (result.cards && result.cards.length > 0) {
+    // Parallel dispatch — same rationale as firePatientView.
+    const settled = await Promise.allSettled(
+      orderServices.map(async (service) => {
+        const hookContext = {
+          hook: 'order-sign',
+          hookInstance: uuidv4(),
+          context: { patientId, userId, draftOrders }
+        };
+        const result = await this.executeHook(service.id, hookContext);
+        return { service, result };
+      })
+    );
+
+    for (const outcome of settled) {
+      if (outcome.status !== 'fulfilled') continue;
+      const { service, result } = outcome.value;
+      if (result?.cards?.length > 0) {
         allCards.push(...result.cards.map(card => ({
           ...card,
           serviceId: service.id,
@@ -376,7 +390,6 @@ class CDSHooksClient {
         })));
       }
     }
-
     return allCards;
   }
 

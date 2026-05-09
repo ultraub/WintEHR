@@ -191,102 +191,115 @@ export const CDSProvider = ({ children }) => {
       cdsLogger.debug(`CDSContext: Found ${matchingServices.length} services for ${hookType}`);
       // [CDS Debug] Found ${matchingServices.length} matching services for ${hookType}:`, matchingServices);
       
-      const allAlerts = [];
-      
-      // Execute each matching service
-      for (const service of matchingServices) {
-        try {
+      // Enhance a raw card from a service response with display-behavior
+      // metadata. Pure transform — no I/O — safe to call after parallel
+      // service dispatch resolves.
+      const enhanceCard = (service, card) => {
+        let presentationMode = null;
+        let acknowledgmentRequired = false;
+        let reasonRequired = false;
+        let snoozeEnabled = false;
+
+        if (service.id && hookConfigurations[service.id]) {
+          const hookConfig = hookConfigurations[service.id];
+          const displayBehavior = hookConfig.displayBehavior;
+          cdsLogger.debug(`CDSContext: Display behavior for ${service.id}`, displayBehavior);
+
+          if (displayBehavior) {
+            // Map display behavior values to presentation modes.
+            // Includes the modes the wizard now exposes (card,
+            // compact, drawer) — missing entries fall back to POPUP
+            // via the lookup default below.
+            const modeMapping = {
+              'hard-stop': PRESENTATION_MODES.MODAL,
+              'modal': PRESENTATION_MODES.MODAL,
+              'popup': PRESENTATION_MODES.POPUP,
+              'sidebar': PRESENTATION_MODES.SIDEBAR,
+              'inline': PRESENTATION_MODES.INLINE,
+              'banner': PRESENTATION_MODES.BANNER,
+              'toast': PRESENTATION_MODES.TOAST,
+              'card': PRESENTATION_MODES.CARD,
+              'compact': PRESENTATION_MODES.COMPACT,
+              'drawer': PRESENTATION_MODES.DRAWER
+            };
+
+            const cardIndicator = card.indicator || 'info';
+            const indicatorOverride = displayBehavior.indicatorOverrides?.[cardIndicator];
+            const configuredMode = indicatorOverride || displayBehavior.defaultMode || 'popup';
+
+            presentationMode = modeMapping[configuredMode] || PRESENTATION_MODES.POPUP;
+            acknowledgmentRequired = displayBehavior.acknowledgment?.required || false;
+            reasonRequired = displayBehavior.acknowledgment?.reasonRequired || false;
+            snoozeEnabled = displayBehavior.snooze?.enabled || false;
+
+            cdsLogger.debug(`CDSContext: Using configured display behavior for ${service.id}:`, {
+              configuredMode,
+              presentationMode,
+              acknowledgmentRequired,
+              snoozeEnabled,
+              cardIndicator
+            });
+          } else {
+            cdsLogger.debug(`CDSContext: No display behavior found for ${service.id}, using popup default`);
+            presentationMode = PRESENTATION_MODES.POPUP;
+          }
+        } else {
+          cdsLogger.debug(`CDSContext: No hook configuration found for ${service.id}, using popup default`);
+          presentationMode = PRESENTATION_MODES.POPUP;
+        }
+
+        return {
+          ...card,
+          uuid: card.uuid || uuidv4(),
+          serviceId: service.id,
+          serviceName: service.title || service.id,
+          hookType,
+          timestamp: new Date(),
+          displayBehavior: {
+            presentationMode,
+            acknowledgmentRequired,
+            reasonRequired,
+            snoozeEnabled
+          }
+        };
+      };
+
+      // Dispatch every matching service in parallel. Previously this was
+      // a `for...of` with `await` inside, which serialized the calls — on
+      // a chart with N services the wall time was sum-of-durations
+      // instead of max-of-durations. With ~12 patient-view services that
+      // turned a ~3s slowest-CQL-eval into a ~20s user-visible delay
+      // before all alert cards landed. allSettled (not all) preserves
+      // the per-service try/catch semantics: one failing/rejecting
+      // service doesn't kill the batch, it just gets logged. Display
+      // ordering is preserved because Array.map returns results in
+      // input order.
+      const settled = await Promise.allSettled(
+        matchingServices.map(async (service) => {
           cdsLogger.debug(`CDSContext: Executing service ${service.id}`);
-          // Create hook request with proper format matching backend expectations
-          // CDS Hooks 2.0 requires hookInstance to be a valid UUID
           const hookRequest = {
-            hook: hookType,  // This is required by the backend
-            hookInstance: uuidv4(),  // Generate proper UUID for CDS Hooks 2.0
-            context: context  // Just pass the context object directly
+            hook: hookType,                  // required by backend
+            hookInstance: uuidv4(),          // CDS Hooks 2.0 requires UUID
+            context: context
           };
-          
           const response = await cdsHooksClient.callService(service.id, hookRequest);
           cdsLogger.debug(`CDSContext: Response from ${service.id}`, response);
-          
-          if (response.cards && response.cards.length > 0) {
-            allAlerts.push(...response.cards.map(card => {
-              // Enhance alert with display behavior metadata
-              let presentationMode = null;
-              let acknowledgmentRequired = false;
-              let reasonRequired = false;
-              let snoozeEnabled = false;
-              
-              // Check if this alert has a serviceId that matches a hook configuration
-              if (service.id && hookConfigurations[service.id]) {
-                const hookConfig = hookConfigurations[service.id];
-                const displayBehavior = hookConfig.displayBehavior;
-                cdsLogger.debug(`CDSContext: Display behavior for ${service.id}`, displayBehavior);
-                
-                if (displayBehavior) {
-                  // Map display behavior values to presentation modes.
-                  // Includes the modes the wizard now exposes (card,
-                  // compact, drawer) — missing entries fall back to POPUP
-                  // via the lookup default below.
-                  const modeMapping = {
-                    'hard-stop': PRESENTATION_MODES.MODAL,
-                    'modal': PRESENTATION_MODES.MODAL,
-                    'popup': PRESENTATION_MODES.POPUP,
-                    'sidebar': PRESENTATION_MODES.SIDEBAR,
-                    'inline': PRESENTATION_MODES.INLINE,
-                    'banner': PRESENTATION_MODES.BANNER,
-                    'toast': PRESENTATION_MODES.TOAST,
-                    'card': PRESENTATION_MODES.CARD,
-                    'compact': PRESENTATION_MODES.COMPACT,
-                    'drawer': PRESENTATION_MODES.DRAWER
-                  };
-                  
-                  // Check for indicator-based overrides
-                  const cardIndicator = card.indicator || 'info';
-                  const indicatorOverride = displayBehavior.indicatorOverrides?.[cardIndicator];
-                  const configuredMode = indicatorOverride || displayBehavior.defaultMode || 'popup';
-                  
-                  presentationMode = modeMapping[configuredMode] || PRESENTATION_MODES.POPUP;
-                  acknowledgmentRequired = displayBehavior.acknowledgment?.required || false;
-                  reasonRequired = displayBehavior.acknowledgment?.reasonRequired || false;
-                  snoozeEnabled = displayBehavior.snooze?.enabled || false;
-                  
-                  cdsLogger.debug(`CDSContext: Using configured display behavior for ${service.id}:`, {
-                    configuredMode,
-                    presentationMode,
-                    acknowledgmentRequired,
-                    snoozeEnabled,
-                    cardIndicator
-                  });
-                } else {
-                  cdsLogger.debug(`CDSContext: No display behavior found for ${service.id}, using popup default`);
-                  presentationMode = PRESENTATION_MODES.POPUP;
-                }
-              } else {
-                cdsLogger.debug(`CDSContext: No hook configuration found for ${service.id}, using popup default`);
-                presentationMode = PRESENTATION_MODES.POPUP;
-              }
+          return { service, response };
+        })
+      );
 
-              const enhancedAlert = {
-                ...card,
-                uuid: card.uuid || uuidv4(),  // Use proper UUID
-                serviceId: service.id,
-                serviceName: service.title || service.id,
-                hookType,
-                timestamp: new Date(),
-                displayBehavior: {
-                  presentationMode,
-                  acknowledgmentRequired,
-                  reasonRequired,
-                  snoozeEnabled
-                }
-              };
-              return enhancedAlert;
-            }));
+      const allAlerts = [];
+      settled.forEach((outcome, idx) => {
+        if (outcome.status === 'fulfilled') {
+          const { service, response } = outcome.value;
+          if (response?.cards?.length > 0) {
+            allAlerts.push(...response.cards.map(card => enhanceCard(service, card)));
           }
-        } catch (serviceError) {
-          cdsLogger.warn(`CDSContext: Error calling service ${service.id}:`, serviceError);
+        } else {
+          const failedId = matchingServices[idx]?.id ?? '<unknown>';
+          cdsLogger.warn(`CDSContext: Error calling service ${failedId}:`, outcome.reason);
         }
-      }
+      });
       
       cdsLogger.info(`CDSContext: Received ${allAlerts.length} alerts for ${hookType}`);
       // [CDS Debug] All alerts for ${hookType}:`, allAlerts);
