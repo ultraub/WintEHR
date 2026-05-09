@@ -32,7 +32,7 @@ import {
   Warning as WarningIcon,
   Psychology as CDSIcon
 } from '@mui/icons-material';
-import { useCDSHooks } from '../../../../hooks/useCDSHooks';
+import { useCDSHooks } from '../../../../hooks/cds/useCDSHooks';
 import { useClinical } from '../../../../contexts/ClinicalContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import CDSCard from '../../cds/CDSCard';

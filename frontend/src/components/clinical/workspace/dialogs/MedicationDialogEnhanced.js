@@ -95,7 +95,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useOrderSelectHook } from '../../../../hooks/useCDSHooks';
+import { useOrderSelectHook } from '../../../../hooks/cds/useCDSHooks';
 import CDSCard from '../../cds/CDSCard';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';

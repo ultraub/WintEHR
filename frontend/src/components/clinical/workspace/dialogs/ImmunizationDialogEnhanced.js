@@ -81,7 +81,7 @@ import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
-import { useOrderSelectHook } from '../../../../hooks/useCDSHooks';
+import { useOrderSelectHook } from '../../../../hooks/cds/useCDSHooks';
 import CDSCard from '../../cds/CDSCard';
 
 const searchImmunizations = async (query) => {

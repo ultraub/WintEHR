@@ -65,7 +65,7 @@ import VirtualizedList from '../../../common/VirtualizedList';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
 import { getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
-import { useOrderSelectHook } from '../../../../hooks/useCDSHooks';
+import { useOrderSelectHook } from '../../../../hooks/cds/useCDSHooks';
 import CDSCard from '../../cds/CDSCard';
 import { getStatusColor, getSeverityColor } from '../../../../themes/clinicalThemeUtils';
 import websocketService from '../../../../services/websocket';
