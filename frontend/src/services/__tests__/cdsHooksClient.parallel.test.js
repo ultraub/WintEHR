@@ -13,37 +13,10 @@
  * card ordering still matches the input service list so on-screen
  * placement is stable.
  */
-// axios v1.x ships ESM and isn't transformed by the project's jest
-// config; mock it before the cdsHooksClient module loads. The tests
-// stub `executeHook` directly via spyOn, so the underlying HTTP client
-// is never exercised — the mock just needs to satisfy the import +
-// `axios.create({...})` call at module load.
-jest.mock('axios', () => ({
-  __esModule: true,
-  default: {
-    create: () => ({
-      get: jest.fn(),
-      post: jest.fn(),
-      put: jest.fn(),
-      delete: jest.fn(),
-      interceptors: {
-        request: { use: jest.fn() },
-        response: { use: jest.fn() },
-      },
-    }),
-  },
-  create: () => ({
-    get: jest.fn(),
-    post: jest.fn(),
-    put: jest.fn(),
-    delete: jest.fn(),
-    interceptors: {
-      request: { use: jest.fn() },
-      response: { use: jest.fn() },
-    },
-  }),
-}));
-
+// CRACO's jest.transformIgnorePatterns now whitelists axios so the
+// per-file ESM mock dance previous PRs needed (#113, #117) is no
+// longer required. The cdsPrefetchResolver mock stays — it stubs out
+// network behavior the tests don't want to exercise, not an ESM workaround.
 jest.mock('../cdsPrefetchResolver', () => ({
   cdsPrefetchResolver: {
     resolvePrefetchTemplates: jest.fn().mockResolvedValue(null),
