@@ -16,7 +16,7 @@ import {
   ORDER_CATEGORIES
 } from './config/serviceRequestDialogConfig';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useOrderSelectHook } from '../../../../hooks/useCDSHooks';
+import { useOrderSelectHook } from '../../../../hooks/cds/useCDSHooks';
 
 const CPOEDialog = ({ 
   open, 
