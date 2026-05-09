@@ -54,7 +54,7 @@ import ServiceTester from '../testing/ServiceTester';
 import { SERVICE_TYPES } from '../../types/serviceTypes';
 import cdsStudioApi from '../../services/cdsStudioApi';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { extractCardDefinesFromCQL } from '../../utils/cqlDefineExtractor';
+import { extractCardDefinesFromCQL, detectCardDefines } from '../../utils/cqlDefineExtractor';
 import axios from 'axios';
 
 const CQL_SERVICE_TYPE = 'cql-based';
@@ -139,13 +139,37 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null 
   const isEditMode = Boolean(existingService);
   const isCQLService = serviceConfig.service_type === CQL_SERVICE_TYPE;
 
-  // When CQL defines string-literal CardSummary / CardDetail, surface them
-  // as overrides so CardDesigner shows a read-only preview instead of an
-  // empty input. The CQL value wins at $apply time anyway.
-  const cqlCardOverrides = useMemo(
-    () => (isCQLService ? extractCardDefinesFromCQL(serviceConfig.cql_source) : {}),
-    [isCQLService, serviceConfig.cql_source]
-  );
+  // When CQL defines CardSummary / CardDetail, surface them as overrides
+  // so CardDesigner shows a read-only treatment instead of an editable
+  // input the runtime would silently ignore. Two cases:
+  //
+  //   - Literal define (`define CardSummary: 'fixed string'`):
+  //     extractCardDefinesFromCQL returns the unquoted value. CardDesigner
+  //     shows it as a read-only preview ("from CQL CardSummary: <value>").
+  //
+  //   - Expression define (`define CardSummary: 'a' + ToString(b)`):
+  //     extractor returns nothing (the rendered text depends on patient
+  //     data the wizard can't evaluate). detectCardDefines tags it as
+  //     'expression' so CardDesigner can still lock the field with a
+  //     "computed by CQL — see editor" hint instead of letting the
+  //     student type a static string the runtime will throw away.
+  const cqlCardOverrides = useMemo(() => {
+    if (!isCQLService) return {};
+    const literals = extractCardDefinesFromCQL(serviceConfig.cql_source);
+    const presence = detectCardDefines(serviceConfig.cql_source);
+    const out = {};
+    if (presence.summary) {
+      out.summary = literals.summary !== undefined
+        ? { kind: 'literal', value: literals.summary }
+        : { kind: 'expression' };
+    }
+    if (presence.detail) {
+      out.detail = literals.detail !== undefined
+        ? { kind: 'literal', value: literals.detail }
+        : { kind: 'expression' };
+    }
+    return out;
+  }, [isCQLService, serviceConfig.cql_source]);
 
   // After a ValueSet is created or edited inside the composer, refresh the
   // referenced-VS list so the inline panel reflects the new code count.

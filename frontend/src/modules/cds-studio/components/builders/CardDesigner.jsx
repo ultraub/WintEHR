@@ -404,11 +404,22 @@ const CardDesigner = ({
                 <Divider sx={{ mb: 2 }} />
 
                 <Stack spacing={2}>
-                  {/* Summary — read-only preview when CQL provides CardSummary */}
-                  {cqlOverrides.summary !== undefined ? (
+                  {/* Summary — locked when CQL has any CardSummary define
+                      (literal preview if we can show it, otherwise an
+                      "expression — see CQL editor" placeholder). The CQL
+                      value overrides the static action.title at $apply
+                      time regardless, so an editable input here would
+                      let the student type a string the runtime ignores. */}
+                  {cqlOverrides.summary?.kind === 'literal' ? (
                     <CqlOverridePreview
                       label="Summary (from CQL CardSummary)"
-                      value={cqlOverrides.summary}
+                      value={cqlOverrides.summary.value}
+                      onJumpToCQL={onJumpToCQL}
+                    />
+                  ) : cqlOverrides.summary?.kind === 'expression' ? (
+                    <CqlOverridePreview
+                      label="Summary (computed by CQL CardSummary)"
+                      value="Computed at runtime — edit the expression in the CQL editor."
                       onJumpToCQL={onJumpToCQL}
                     />
                   ) : (
@@ -423,11 +434,18 @@ const CardDesigner = ({
                     />
                   )}
 
-                  {/* Detail — read-only preview when CQL provides CardDetail */}
-                  {cqlOverrides.detail !== undefined ? (
+                  {/* Detail — same locked treatment when CQL has CardDetail. */}
+                  {cqlOverrides.detail?.kind === 'literal' ? (
                     <CqlOverridePreview
                       label="Detail (from CQL CardDetail)"
-                      value={cqlOverrides.detail}
+                      value={cqlOverrides.detail.value}
+                      onJumpToCQL={onJumpToCQL}
+                      multiline
+                    />
+                  ) : cqlOverrides.detail?.kind === 'expression' ? (
+                    <CqlOverridePreview
+                      label="Detail (computed by CQL CardDetail)"
+                      value="Computed at runtime — edit the expression in the CQL editor."
                       onJumpToCQL={onJumpToCQL}
                       multiline
                     />
