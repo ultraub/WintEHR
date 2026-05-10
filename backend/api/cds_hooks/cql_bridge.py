@@ -335,10 +335,33 @@ class CQLBridge:
             else f"Encounter/{encounter_id}" if encounter_id else None
         )
 
+        # CDS Hooks 2.0 context-binding: surface `draftOrders` to CQL via the
+        # $apply `data` parameter. cqf-fhir-cr-hapi merges these entries into
+        # the data sources its CQL Data Provider consults — verified end-to-
+        # end in spike #126 (T2 inline merge, T4 status filter, T5 strict
+        # subject-context filter, T6 multi-retrieve consistency, T7 no
+        # caching across calls). With this wiring, an order-select CQL rule
+        # can write `[Immunization]` and see both persisted resources AND
+        # the in-progress draft from `context.draftOrders` — without any
+        # special parameters or platform-specific CQL.
+        #
+        # Skip empty / malformed bundles: sending Bundle{entry: []} is
+        # legal but adds engine work for zero benefit, and a non-Bundle
+        # value (or null) should never reach $apply as `data`.
+        draft_orders = ctx.get("draftOrders")
+        data_bundle = (
+            draft_orders
+            if isinstance(draft_orders, dict)
+            and draft_orders.get("resourceType") == "Bundle"
+            and draft_orders.get("entry")
+            else None
+        )
+
         result = await self.apply(
             plan_definition_id,
             subject_ref=subject_ref,
             encounter_ref=encounter_ref,
+            data_bundle=data_bundle,
             source_label=source_label,
         )
         return CDSHookResponse(cards=result.cards, systemActions=None)

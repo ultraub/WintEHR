@@ -8,6 +8,7 @@ Coverage:
 - validate_cql, apply, derive_data_requirements: HAPI interaction (mocked)
 """
 
+import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -579,6 +580,168 @@ class TestExecuteForHook:
 
         with pytest.raises(ValueError, match="patientId"):
             await bridge.execute_for_hook("pd1", request)
+
+
+# ---------------------------------------------------------------------------
+# execute_for_hook + draftOrders → $apply data parameter (issue #127)
+#
+# CDS Hooks 2.0 carries the in-progress order(s) being composed in
+# context.draftOrders. The bridge surfaces this to CQL via the $apply `data`
+# parameter — cqf-fhir-cr-hapi merges those entries into the CQL Data
+# Provider's view, so a `[Immunization]` retrieve sees both persisted
+# resources and the draft. Verified end-to-end by spike #126.
+# ---------------------------------------------------------------------------
+
+
+def _make_request_with_context(hook_type, ctx):
+    import uuid
+    return CDSHookRequest(
+        hook=hook_type,
+        hookInstance=str(uuid.uuid4()),
+        context=ctx,
+    )
+
+
+def _make_immunization_bundle(*coding_codes):
+    """Build a draftOrders Bundle with one Immunization per CVX code."""
+    return {
+        "resourceType": "Bundle",
+        "id": "cds-draft-test",
+        "type": "collection",
+        "entry": [
+            {"resource": {
+                "resourceType": "Immunization",
+                "id": f"draft-{i + 1}",
+                "status": "completed",
+                "vaccineCode": {
+                    "coding": [{
+                        "system": "http://hl7.org/fhir/sid/cvx",
+                        "code": code,
+                    }],
+                },
+                "patient": {"reference": "Patient/p1"},
+            }}
+            for i, code in enumerate(coding_codes)
+        ],
+    }
+
+
+class TestExecuteForHookDraftOrders:
+    """draftOrders flows through to $apply as the `data` parameter."""
+
+    @pytest.mark.asyncio
+    async def test_draft_orders_forwarded_as_data_parameter(self):
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        bundle = _make_immunization_bundle("03")
+        request = _make_request_with_context(
+            HookType.ORDER_SELECT,
+            {
+                "patientId": "p1",
+                "userId": "Practitioner/demo",
+                "selections": ["Bundle/cds-draft-test#Immunization/draft-1"],
+                "draftOrders": bundle,
+            },
+        )
+        cp = make_careplan([{"title": "x"}])
+
+        with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked:
+            mocked.return_value = cp
+            await bridge.execute_for_hook("pd1", request)
+
+        _, body = mocked.call_args[0]
+        params_by_name = {p["name"]: p for p in body["parameter"]}
+        assert "data" in params_by_name, "draftOrders should be forwarded as `data` parameter"
+        # Pass-through: the bundle reaches $apply byte-equal to context.draftOrders.
+        assert params_by_name["data"]["resource"] == bundle
+
+    @pytest.mark.asyncio
+    async def test_no_draft_orders_skips_data_parameter(self):
+        """patient-view and other hooks without draftOrders should not send `data`."""
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        request = _make_request_with_context(
+            HookType.PATIENT_VIEW,
+            {"patientId": "p1", "userId": "Practitioner/demo"},
+        )
+        cp = make_careplan([{"title": "x"}])
+
+        with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked:
+            mocked.return_value = cp
+            await bridge.execute_for_hook("pd1", request)
+
+        _, body = mocked.call_args[0]
+        param_names = [p["name"] for p in body["parameter"]]
+        assert "data" not in param_names
+
+    @pytest.mark.asyncio
+    async def test_empty_draft_orders_bundle_skips_data_parameter(self):
+        """Bundle with entry=[] — legal FHIR but no value sending it on."""
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        request = _make_request_with_context(
+            HookType.ORDER_SELECT,
+            {
+                "patientId": "p1",
+                "draftOrders": {
+                    "resourceType": "Bundle",
+                    "type": "collection",
+                    "entry": [],
+                },
+            },
+        )
+        cp = make_careplan([{"title": "x"}])
+
+        with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked:
+            mocked.return_value = cp
+            await bridge.execute_for_hook("pd1", request)
+
+        _, body = mocked.call_args[0]
+        param_names = [p["name"] for p in body["parameter"]]
+        assert "data" not in param_names
+
+    @pytest.mark.asyncio
+    async def test_malformed_draft_orders_skipped_gracefully(self):
+        """Bridge tolerates non-Bundle / null / wrong-shape draftOrders."""
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        cp = make_careplan([{"title": "x"}])
+
+        for bad in [
+            None,
+            "not a bundle",
+            42,
+            {"resourceType": "Patient", "id": "p1"},   # wrong resourceType
+            {"resourceType": "Bundle"},                  # missing entry
+        ]:
+            request = _make_request_with_context(
+                HookType.ORDER_SELECT,
+                {"patientId": "p1", "draftOrders": bad},
+            )
+            with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked:
+                mocked.return_value = cp
+                await bridge.execute_for_hook("pd1", request)
+            _, body = mocked.call_args[0]
+            param_names = [p["name"] for p in body["parameter"]]
+            assert "data" not in param_names, f"data param leaked for malformed bundle: {bad!r}"
+
+    @pytest.mark.asyncio
+    async def test_draft_orders_passed_through_unchanged(self):
+        """Bridge should not mutate or filter the bundle — it goes to $apply as-is."""
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        bundle = _make_immunization_bundle("03", "21", "37")
+        original_snapshot = json.dumps(bundle, sort_keys=True)
+        request = _make_request_with_context(
+            HookType.ORDER_SELECT,
+            {"patientId": "p1", "draftOrders": bundle},
+        )
+        cp = make_careplan([{"title": "x"}])
+
+        with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked:
+            mocked.return_value = cp
+            await bridge.execute_for_hook("pd1", request)
+
+        # Bundle is byte-equal both in the call AND in the original (no mutation).
+        _, body = mocked.call_args[0]
+        forwarded = next(p for p in body["parameter"] if p["name"] == "data")["resource"]
+        assert forwarded == bundle
+        assert json.dumps(bundle, sort_keys=True) == original_snapshot
 
 
 # ---------------------------------------------------------------------------
