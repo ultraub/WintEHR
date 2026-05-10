@@ -277,6 +277,133 @@ ValueSet again — the flush will fire on save.
 
 ---
 
+## Reacting to the order being composed (order-select hooks)
+
+For hooks that fire during order composition (`order-select`, sometimes
+`medication-prescribe`), the CDS Hooks request carries the in-progress
+draft order in `context.draftOrders` — a Bundle of resources the clinician
+is currently selecting but hasn't yet signed/saved.
+
+The platform's CQL bridge forwards this Bundle to HAPI's `$apply` operation
+as the `data` parameter. cqf-fhir-cr-hapi merges those entries into the
+data the CQL Data Provider consults, so a retrieve like `[Immunization]`
+returns **both** persisted resources from the patient's record AND the
+draft from the hook payload — automatically. You don't declare any special
+parameters; the standard CQL retrieve syntax just works.
+
+### Worked example: live-vaccine contraindication for immunocompromised patients
+
+Fires when an immunocompromised adult is selecting a live attenuated vaccine.
+Targets `order-select`. The draft Immunization being composed appears in
+`[Immunization]` retrievals alongside the patient's persisted vaccine
+history.
+
+```cql
+library LiveVaccineContraindication version '1.0.0'
+
+using FHIR version '4.0.1'
+include FHIRHelpers version '4.0.1' called FHIRHelpers
+
+context Patient
+
+// Patient phenotype: severe immunocompromise per CDC ACIP definition.
+// CD4 < 200 cells/mm³ measured in the last 6 months.
+
+define IsAdult: AgeInYears() >= 18
+
+define MostRecentCD4:
+  First([Observation] O
+    where exists (O.code.coding C where C.system = 'http://loinc.org'
+                                     and C.code = '24467-3')
+      and O.status in {'final', 'amended', 'corrected'}
+      and (O.effective as FHIR.dateTime).value after Now() - 6 months
+    sort by (effective as FHIR.dateTime).value desc)
+
+define MostRecentCD4Value: (MostRecentCD4.value as Quantity).value
+
+define HasSevereImmunocompromise:
+  MostRecentCD4 is not null and MostRecentCD4Value < 200
+
+// The draft Immunization the clinician is selecting lands in
+// [Immunization] retrievals automatically (via context-binding from
+// CDS Hooks 2.0 draftOrders to the $apply data parameter). We match
+// it using a where-clause on the coding rather than a
+// [Resource: "VS"] retrieve — see "ValueSet retrievals" caveat below.
+
+define IsLiveVaccineBeingSelected:
+  exists ([Immunization] I
+    where exists (I.vaccineCode.coding C
+      where C.system = 'http://hl7.org/fhir/sid/cvx'
+        and C.code in {'03', '21', '37', '94', '111', '25', '75'}))
+      // 03=MMR, 21=varicella, 37=Yellow Fever, 94=MMRV,
+      // 111=influenza live, 25=typhoid, 75=Smallpox
+
+define Applicability:
+  IsAdult and HasSevereImmunocompromise and IsLiveVaccineBeingSelected
+
+define CardSummary:
+  'Live vaccine contraindicated: CD4 ' + ToString(MostRecentCD4Value) + ' cells/mm³'
+
+define CardDetail:
+  'Patient has CD4 ' + ToString(MostRecentCD4Value)
+    + ' cells/mm³ — severe immunocompromise per CDC ACIP. Live, '
+    + 'replicating vaccines are contraindicated due to risk of '
+    + 'disseminated infection from the attenuated organism. '
+    + 'Cancel and consider an inactivated alternative if available, '
+    + 'or defer pending infectious disease consultation.'
+```
+
+This rule fires only when **all three** are true — the patient is an
+adult, has severe immunocompromise (CD4 < 200), AND is selecting a live
+vaccine. None of the three predicates needs special hook-context plumbing;
+standard CQL syntax sees both persisted and draft data.
+
+### What's available where
+
+The platform forwards `context.draftOrders` for `order-select` firings on:
+
+- `CPOEDialog` (lab / imaging / procedure orders → `ServiceRequest` drafts)
+- `MedicationDialogEnhanced` (medication picks → `MedicationRequest` drafts;
+  also fires the existing `medication-prescribe` hook for compatibility)
+- `ImmunizationDialogEnhanced` (vaccine picks → `Immunization` drafts)
+- `EnhancedOrdersTab` (existing-orders checkbox path → whatever resource
+  type the order is)
+
+When the bridge receives a hook request with `context.draftOrders` set, it
+attaches the bundle as the `data` parameter on `$apply`. When `draftOrders`
+is missing or empty, the parameter is omitted (so patient-view hooks and
+other non-composition flows are unchanged).
+
+### Trade-offs and constraints
+
+**Subject filtering is strict.** If `draftOrders` includes resources
+referencing a different patient than the hook's `subject`, the engine
+filters them out. Drafts always need to align with the patient context to
+be visible to CQL. This is good — it keeps cross-patient leakage
+impossible at the engine level.
+
+**ValueSet retrievals can fail.** A retrieve like
+`[Immunization: "Live Replicating Vaccines"]` against a freshly-uploaded
+ValueSet can cause the entire library to fail compilation in this HAPI
+deployment — an orthogonal issue with HAPI's terminology cache (HSearch
+disabled). Workaround: use `where`-clause matching against known coding
+values, as in the worked example above. Both produce equivalent semantics;
+the where-clause version sidesteps the VS-expansion path entirely.
+
+**The `data` parameter is additive, not a replacement.** CQL retrieves
+still consult patient-compartment data (the persisted resources HAPI has
+stored). Drafts appear *alongside* the persisted set, not instead of it.
+Don't try to use this mechanism to override patient data; use it to react
+to the draft in flight.
+
+**Multi-resource composition (future).** When CPOE evolves to multi-order
+drafting (issue #116), all drafted resources land in `context.draftOrders`
+together. CQL retrieves like `[Immunization]` already handle this case
+without changes — each draft Immunization in the bundle becomes an
+independent entry in the retrieve result.
+
+---
+
 ## What happens when you Deploy
 
 1. Your CQL is re-uploaded to HAPI at a stable, versioned canonical URL
