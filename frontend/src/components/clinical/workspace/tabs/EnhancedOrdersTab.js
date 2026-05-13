@@ -89,6 +89,7 @@ import {
 
 // Existing dialogs
 import CPOEDialog from '../dialogs/CPOEDialog';
+import UnifiedOrderEntry from '../UnifiedOrderEntry/UnifiedOrderEntry';
 import QuickOrderDialog from '../dialogs/QuickOrderDialog';
 import OrderSigningDialog from '../dialogs/OrderSigningDialog';
 
@@ -514,6 +515,10 @@ const EnhancedOrdersTab = ({
   const [cpoeDialogOpen, setCpoeDialogOpen] = useState(false);
   const [cpoeEditOrder, setCpoeEditOrder] = useState(null); // Order being edited or reordered
   const [cpoeMode, setCpoeMode] = useState('add'); // 'add' or 'edit'
+  // Phase 4.1 (#116): new unified order-entry shell, opt-in alongside the
+  // legacy CPOEDialog. Single-order edits still go through CPOEDialog;
+  // multi-order composition goes through UnifiedOrderEntry.
+  const [unifiedEntryOpen, setUnifiedEntryOpen] = useState(false);
   const [signOrdersDialog, setSignOrdersDialog] = useState({ open: false, orders: [] });
   const [signingInProgress, setSigningInProgress] = useState(false);
   const [showStatistics, setShowStatistics] = useState(false);
@@ -1101,6 +1106,18 @@ const EnhancedOrdersTab = ({
             >
               New Order
             </Button>
+            {/* Phase 4.1 (#116) opt-in: composes many orders at once and
+                signs them in a single confirmation step. Uses the new
+                UnifiedOrderEntry shell. */}
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setUnifiedEntryOpen(true)}
+              sx={{ borderRadius: 0, height: 28, fontSize: '0.8125rem' }}
+            >
+              Multi-order Entry
+            </Button>
             <IconButton
               size="small"
               onClick={() => handleExportOrders('csv')}
@@ -1406,6 +1423,18 @@ const EnhancedOrdersTab = ({
         patientId={patientId}
         orderType={quickOrderDialog.type}
         onOrderCreated={(order) => refreshSearch()}
+      />
+
+      {/* Unified Order Entry — multi-order composition + Sign All in one
+          modal. Coexists with the legacy CPOEDialog (single-order edit
+          path stays unchanged). Both write to HAPI via fhirClient; the
+          UnifiedOrderEntry handles its own create + ORDER_PLACED event
+          internally and just notifies us via onSigned so we can refresh. */}
+      <UnifiedOrderEntry
+        open={unifiedEntryOpen}
+        onClose={() => setUnifiedEntryOpen(false)}
+        patientId={patientId}
+        onSigned={() => refreshSearch?.()}
       />
 
       <CPOEDialog
