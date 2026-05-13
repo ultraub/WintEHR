@@ -1093,67 +1093,6 @@ async def deploy_visual_service(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-class _ServiceStatusUpdate(BaseModel):
-    """Status transition request — accepts the lowercase frontend values."""
-    status: str = Field(..., description="'active' or 'inactive'")
-
-
-@router.put("/services/{service_id}/status")
-async def update_service_status(
-    service_id: str,
-    body: _ServiceStatusUpdate,
-    db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user_or_demo),
-):
-    """Unified status setter used by the Services Registry toggle.
-
-    The frontend prefers a single PUT over separate POST /deploy and POST
-    /deactivate endpoints because the table renders one row-level
-    "Activate/Deactivate" menu item that flips based on current status.
-    This route normalizes the lowercase 'active'/'inactive' payload to the
-    uppercase enum values service_configs.status expects, then writes via
-    the same SQLAlchemy path the dedicated endpoints use.
-    """
-    requested = (body.status or "").lower()
-    if requested not in ("active", "inactive"):
-        raise HTTPException(
-            status_code=422,
-            detail="status must be 'active' or 'inactive'",
-        )
-    new_status = "ACTIVE" if requested == "active" else "INACTIVE"
-
-    try:
-        query = select(VisualServiceConfig).where(
-            VisualServiceConfig.service_id == service_id
-        )
-        result = await db.execute(query)
-        service = result.scalar_one_or_none()
-
-        if not service:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Visual service '{service_id}' not found",
-            )
-
-        service.status = new_status
-        if new_status == "ACTIVE":
-            service.last_deployed_at = datetime.utcnow()
-        await db.commit()
-
-        logger.info(f"Service {service_id} status set to {new_status}")
-        return {
-            "service_id": service_id,
-            "status": new_status,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating status for {service_id}: {e}", exc_info=True)
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.post("/services/{service_id}/deactivate")
 async def deactivate_visual_service(
     service_id: str,
