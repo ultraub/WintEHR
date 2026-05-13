@@ -32,6 +32,7 @@ import {
   Divider,
   FormControl,
   IconButton,
+  InputAdornment,
   InputLabel,
   MenuItem,
   Paper,
@@ -44,6 +45,8 @@ import {
   TableHead,
   TableRow,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -51,6 +54,10 @@ import {
   Add as AddIcon,
   Close as CloseIcon,
   Delete as DeleteIcon,
+  Edit as EditIcon,
+  Search as SearchIcon,
+  Check as CheckIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
 
 import catalogService from '../../../../services/CatalogIntegrationService';
@@ -107,7 +114,24 @@ const ValueSetComposer = ({
   suggestedName = '',
   editingValueSet = null,
 }) => {
-  const isEditMode = Boolean(editingValueSet);
+  // External edit-mode (parent passed an existing VS) starts in 'create'
+  // mode pre-populated for editing. Internal edit-mode (user clicked
+  // "Open to modify" in browse mode) ALSO switches to 'create' mode but
+  // tracks the source VS in `localEditing` so the save path PUTs instead
+  // of POSTs. mode toggles between 'create' (default, when no
+  // editingValueSet was passed in) and 'browse' (pick an existing one).
+  const [mode, setMode] = useState(editingValueSet ? 'create' : 'create');
+  const [localEditing, setLocalEditing] = useState(null);
+  const effectiveEditing = editingValueSet || localEditing;
+  const isEditMode = Boolean(effectiveEditing);
+
+  // Browse-pane state — populated by listValueSets when mode='browse'
+  const [browseQuery, setBrowseQuery] = useState('');
+  const [browseLoading, setBrowseLoading] = useState(false);
+  const [browseResults, setBrowseResults] = useState([]);
+  const [browseExpandedId, setBrowseExpandedId] = useState(null);
+  const [browseError, setBrowseError] = useState(null);
+
   // Form fields
   const [name, setName] = useState(suggestedName);
   const [title, setTitle] = useState('');
@@ -133,24 +157,16 @@ const ValueSetComposer = ({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
-  // Reset on open. In edit mode, hydrate from the supplied editingValueSet
-  // so the user sees the current name/title/description/codes; in create
-  // mode start fresh with the suggested name.
+  // Reset on open. External edit-mode (editingValueSet prop) hydrates the
+  // composer immediately. Fresh-open in create mode starts blank with the
+  // suggested name. localEditing is cleared so a previous browse-then-modify
+  // session doesn't leak between dialog opens.
   useEffect(() => {
     if (!open) return;
+    setLocalEditing(null);
+    setMode('create');
     if (editingValueSet) {
-      setName(editingValueSet.name || '');
-      setTitle(editingValueSet.title || '');
-      setDescription(editingValueSet.description || '');
-      setSelected(
-        Array.isArray(editingValueSet.codes)
-          ? editingValueSet.codes.map((c) => ({
-              system: c.system,
-              code: c.code,
-              display: c.display,
-            }))
-          : []
-      );
+      hydrateFromValueSet(editingValueSet);
     } else {
       setName(suggestedName);
       setTitle('');
@@ -164,7 +180,76 @@ const ValueSetComposer = ({
     setManualDisplay('');
     setManualError(null);
     setSaveError(null);
+    setBrowseQuery('');
+    setBrowseResults([]);
+    setBrowseError(null);
+    setBrowseExpandedId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, suggestedName, editingValueSet]);
+
+  // Shared hydration helper — used by external edit-mode AND by browse's
+  // "Open to modify" action.
+  const hydrateFromValueSet = useCallback((vs) => {
+    setName(vs.name || '');
+    setTitle(vs.title || '');
+    setDescription(vs.description || '');
+    setSelected(
+      Array.isArray(vs.codes)
+        ? vs.codes.map((c) => ({ system: c.system, code: c.code, display: c.display }))
+        : []
+    );
+  }, []);
+
+  // Debounced fetch for the browse pane. Runs when mode='browse' and the
+  // query changes. listValueSets is a thin GET wrapper, so we don't need
+  // pagination at this scale (student-authored catalog is small).
+  useEffect(() => {
+    if (!open || mode !== 'browse') return;
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      setBrowseLoading(true);
+      setBrowseError(null);
+      try {
+        const results = await cdsStudioApi.listValueSets({
+          search: browseQuery.trim() || undefined,
+          limit: 100,
+        });
+        if (!cancelled) setBrowseResults(Array.isArray(results) ? results : []);
+      } catch (err) {
+        if (!cancelled) {
+          setBrowseError(err?.message || 'Failed to load ValueSets');
+          setBrowseResults([]);
+        }
+      } finally {
+        if (!cancelled) setBrowseLoading(false);
+      }
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [open, mode, browseQuery]);
+
+  const handleUseExisting = useCallback((vs) => {
+    // "Use this" — just hand the reference back to the parent so the
+    // editor inserts a `valueset "Name": '<url>'` line. No DB writes,
+    // no modal switch — close immediately.
+    onSave?.({
+      name: vs.name,
+      hapi_canonical_url: vs.hapi_canonical_url,
+      vs_id: vs.vs_id,
+    });
+    onClose?.();
+  }, [onSave, onClose]);
+
+  const handleOpenToModify = useCallback((vs) => {
+    // Switch into create-mode (the form), but mark this VS as the edit
+    // target so save calls PUT instead of POST. Hydrate fields from the
+    // chosen VS — same flow as external edit-mode.
+    setLocalEditing(vs);
+    hydrateFromValueSet(vs);
+    setMode('create');
+  }, [hydrateFromValueSet]);
 
   // Debounced catalog search.
   useEffect(() => {
@@ -269,7 +354,7 @@ const ValueSetComposer = ({
       // expansion cache, so the next $apply for any service that
       // references this VS sees the new codes.
       const result = isEditMode
-        ? await cdsStudioApi.updateValueSet(editingValueSet.vs_id, payload)
+        ? await cdsStudioApi.updateValueSet(effectiveEditing.vs_id, payload)
         : await cdsStudioApi.createValueSet(payload);
       onSave?.({
         name: result.name,
@@ -282,20 +367,208 @@ const ValueSetComposer = ({
     } finally {
       setSaving(false);
     }
-  }, [canSave, name, title, description, selected, onSave, onClose, isEditMode, editingValueSet]);
+  }, [canSave, name, title, description, selected, onSave, onClose, isEditMode, effectiveEditing]);
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
-        {isEditMode ? `Edit ValueSet — ${editingValueSet.name}` : 'Compose a ValueSet'}
+        {isEditMode ? `Edit ValueSet — ${effectiveEditing.name}` : 'ValueSet'}
         <Box sx={{ flex: 1 }} />
         <IconButton onClick={onClose} disabled={saving} size="small">
           <CloseIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
 
+      {/* Mode toggle — hidden when the parent opened us in external
+          edit-mode (editingValueSet prop). In that case there's nothing
+          to browse for; the caller wants to edit a specific VS. */}
+      {!editingValueSet && (
+        <Box sx={{ px: 3, pt: 2 }}>
+          <ToggleButtonGroup
+            value={mode}
+            exclusive
+            onChange={(_e, next) => next && setMode(next)}
+            size="small"
+            fullWidth
+          >
+            <ToggleButton value="create">Create new</ToggleButton>
+            <ToggleButton value="browse">Use or modify existing</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+      )}
+
       <DialogContent dividers>
+        {mode === 'browse' && (
+          <Stack spacing={2}>
+            <TextField
+              value={browseQuery}
+              onChange={(e) => setBrowseQuery(e.target.value)}
+              placeholder="Search ValueSets by name, title, or description…"
+              fullWidth
+              autoFocus
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+                endAdornment: browseLoading ? <CircularProgress size={18} /> : null,
+              }}
+            />
+            {browseError && <Alert severity="error">{browseError}</Alert>}
+            <Paper variant="outlined" sx={{ maxHeight: 480, overflow: 'auto', borderRadius: 1 }}>
+              {!browseLoading && browseResults.length === 0 && (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ p: 3, textAlign: 'center' }}
+                >
+                  No ValueSets match — switch to "Create new" to author one, or
+                  loosen the search.
+                </Typography>
+              )}
+              {browseResults.map((vs) => {
+                const expanded = browseExpandedId === vs.vs_id;
+                const codeCount = Array.isArray(vs.codes) ? vs.codes.length : 0;
+                const origin = (vs.vs_id || '').startsWith('wintehr-') ? 'system' : 'user';
+                return (
+                  <Box
+                    key={vs.vs_id}
+                    sx={{
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                      '&:last-child': { borderBottom: 'none' },
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        px: 2,
+                        py: 1.5,
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                      onClick={() => setBrowseExpandedId(expanded ? null : vs.vs_id)}
+                    >
+                      <ExpandMoreIcon
+                        fontSize="small"
+                        sx={{
+                          transition: '0.15s transform',
+                          transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                          color: 'text.secondary',
+                        }}
+                      />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="body1" noWrap>
+                          {vs.title || vs.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap>
+                          {vs.name}
+                          {vs.created_by && ` · by ${vs.created_by}`}
+                        </Typography>
+                      </Box>
+                      <Tooltip title={`${codeCount} codes`}>
+                        <Chip
+                          label={codeCount}
+                          size="small"
+                          variant="outlined"
+                          sx={{ minWidth: 48 }}
+                        />
+                      </Tooltip>
+                      <Chip
+                        label={origin === 'system' ? 'system' : 'user'}
+                        size="small"
+                        color={origin === 'system' ? 'default' : 'primary'}
+                        variant="outlined"
+                      />
+                      <Button
+                        size="small"
+                        startIcon={<CheckIcon />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUseExisting(vs);
+                        }}
+                      >
+                        Use
+                      </Button>
+                      {origin === 'user' && (
+                        <Button
+                          size="small"
+                          startIcon={<EditIcon />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenToModify(vs);
+                          }}
+                        >
+                          Modify
+                        </Button>
+                      )}
+                    </Box>
+                    {expanded && (
+                      <Box sx={{ px: 4, pb: 1.5 }}>
+                        {vs.description && (
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            {vs.description}
+                          </Typography>
+                        )}
+                        {Array.isArray(vs.codes) && vs.codes.length > 0 ? (
+                          <TableContainer component={Paper} variant="outlined">
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>System</TableCell>
+                                  <TableCell>Code</TableCell>
+                                  <TableCell>Display</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {vs.codes.slice(0, 20).map((c) => (
+                                  <TableRow key={`${c.system}|${c.code}`}>
+                                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+                                      {c.system?.split('/').pop()}
+                                    </TableCell>
+                                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+                                      {c.code}
+                                    </TableCell>
+                                    <TableCell>{c.display || ''}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                            {vs.codes.length > 20 && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ p: 1, display: 'block', textAlign: 'center' }}
+                              >
+                                …and {vs.codes.length - 20} more
+                              </Typography>
+                            )}
+                          </TableContainer>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            No codes loaded.
+                          </Typography>
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })}
+            </Paper>
+          </Stack>
+        )}
+
+        {mode === 'create' && (
         <Stack spacing={3}>
+          {localEditing && (
+            <Alert severity="info" sx={{ borderRadius: 1 }}>
+              Editing existing ValueSet <strong>{localEditing.name}</strong>. Save will update
+              the codes in HAPI; services that reference this VS see the change on next $apply.
+            </Alert>
+          )}
           {/* Section 1: Identity */}
           <Box>
             <Typography variant="subtitle2" gutterBottom>
@@ -532,20 +805,23 @@ const ValueSetComposer = ({
 
           {saveError && <Alert severity="error">{saveError}</Alert>}
         </Stack>
+        )}
       </DialogContent>
 
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>
           Cancel
         </Button>
-        <Button
-          variant="contained"
-          onClick={handleSave}
-          disabled={!canSave}
-          startIcon={saving ? <CircularProgress size={16} /> : null}
-        >
-          Save ValueSet
-        </Button>
+        {mode === 'create' && (
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={!canSave}
+            startIcon={saving ? <CircularProgress size={16} /> : null}
+          >
+            {isEditMode ? 'Save changes' : 'Save ValueSet'}
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );

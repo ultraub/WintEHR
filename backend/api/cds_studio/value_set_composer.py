@@ -292,12 +292,33 @@ async def create_value_set(
             detail="vs_id cannot start with 'wintehr-' (reserved for system terminology)",
         )
 
-    # Conflict check — caller must DELETE before re-creating.
+    # Conflict check — surface the existing VS payload so the composer can
+    # offer "Open to modify" instead of forcing the student to manually
+    # delete-then-recreate. The error detail is a structured payload (not
+    # a flat string) so the frontend can show row data; FastAPI passes
+    # `detail` through verbatim into the JSON body.
     existing = await db.execute(
         select(VisualValueSet).where(VisualValueSet.vs_id == vs_id)
     )
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail=f"ValueSet '{vs_id}' already exists")
+    existing_row = existing.scalar_one_or_none()
+    if existing_row:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": f"ValueSet '{vs_id}' already exists",
+                "vs_id": existing_row.vs_id,
+                "name": existing_row.name,
+                "title": existing_row.title,
+                "hapi_canonical_url": existing_row.hapi_canonical_url,
+                "created_by": existing_row.created_by,
+                "code_count": len(existing_row.codes or []),
+                "owned_by_caller": (
+                    existing_row.created_by == getattr(current_user, "id", None)
+                    if getattr(current_user, "id", None)
+                    else False
+                ),
+            },
+        )
 
     resource = build_value_set_resource(
         vs_id=vs_id,
