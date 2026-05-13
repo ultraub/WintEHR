@@ -132,6 +132,24 @@ async def dispense_medication(dispense_request: MedicationDispenseRequest):
                 detail="Medication request not found"
             )
 
+        # FHIR R4 lifecycle gate: only signed orders may be dispensed.
+        # Order creation dialogs land orders as `draft`; the encounter
+        # signing dialog (PR #85) flips them to `active` after the
+        # prescriber explicitly Signs. Dispensing a draft would bypass
+        # that signature step entirely — a real patient-safety risk.
+        # `entered-in-error`, `cancelled`, `stopped`, `unknown` are also
+        # non-dispensable terminal/error states.
+        DISPENSABLE_STATUSES = {"active", "on-hold", "completed"}
+        order_status = med_request.get("status")
+        if order_status not in DISPENSABLE_STATUSES:
+            raise HTTPException(
+                status_code=http_status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Cannot dispense MedicationRequest in status '{order_status}'. "
+                    f"The order must be signed (status='active') before dispensing."
+                ),
+            )
+
         # FHIR R4: subject is required (1..1) - validate it exists in the request
         if not med_request.get("subject") or not med_request.get("subject", {}).get("reference"):
             raise HTTPException(
@@ -251,6 +269,12 @@ async def dispense_medication(dispense_request: MedicationDispenseRequest):
             "medication_request_id": dispense_request.medication_request_id
         }
 
+    except HTTPException:
+        # Re-raise FastAPI HTTPExceptions verbatim so the specific status
+        # codes (404 missing, 400 invalid, 409 signing-gate) reach the
+        # client unchanged. Without this, the catch-all below wrapped
+        # everything as 500 and swallowed the intended response codes.
+        raise
     except Exception as e:
         logger.error(f"Failed to dispense medication: {str(e)}", exc_info=True)
         raise HTTPException(

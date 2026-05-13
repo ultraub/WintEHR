@@ -413,10 +413,16 @@ const MedicationDialogEnhanced = ({
   const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(saveHandler, null); // Don't auto-close, we'll handle it
   
   // Form data
+  //
+  // status defaults to 'draft' so newly composed orders land in an
+  // unsigned state. The signing dialog (PR #85) flips draft → active on
+  // explicit Sign; backend consumers (pharmacy_router.dispense_medication)
+  // refuse to act on draft. PR #117's order-select draft (line 386 above)
+  // is independent and already uses 'draft'.
   const [formData, setFormData] = useState({
     medicationCode: '',
     medicationDisplay: '',
-    status: 'active',
+    status: 'draft',
     intent: 'order',
     priority: 'routine',
     dosageQuantity: '',
