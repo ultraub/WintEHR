@@ -6,10 +6,36 @@
 
 import axios from 'axios';
 import FHIRClient, { fhirClient } from '../fhirClient';
-import type { Patient, Condition, MedicationRequest, Observation } from '../../types';
+import type { Patient, Condition } from '../../types';
 
-// Mock axios
-jest.mock('axios');
+// jest.mock is hoisted above imports by babel-plugin-jest-hoist. Using a
+// factory lets axios.create() return a usable instance at module-load time
+// — the fhirClient module eagerly constructs a singleton at the bottom of
+// fhirClient.ts (createSingletonClient), and a default auto-mock would
+// return undefined and crash setupInterceptors before any beforeEach runs.
+jest.mock('axios', () => {
+  const buildInstance = () => ({
+    get: jest.fn(),
+    post: jest.fn(),
+    put: jest.fn(),
+    delete: jest.fn(),
+    request: jest.fn(),
+    interceptors: {
+      request: { use: jest.fn() },
+      response: { use: jest.fn() },
+    },
+  });
+  return {
+    __esModule: true,
+    default: {
+      create: jest.fn(buildInstance),
+      isAxiosError: jest.fn(() => false),
+    },
+    create: jest.fn(buildInstance),
+    isAxiosError: jest.fn(() => false),
+  };
+});
+
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('FHIRClient', () => {
@@ -62,7 +88,7 @@ describe('FHIRClient', () => {
 
       const result = await client.create<Patient>('Patient', newPatient);
 
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/Patient', newPatient);
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('Patient', newPatient);
       expect(result).toEqual(createdPatient);
     });
 
@@ -79,7 +105,7 @@ describe('FHIRClient', () => {
 
       const result = await client.read<Patient>('Patient', '123');
 
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/Patient/123');
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('Patient/123');
       expect(result).toEqual(patient);
     });
 
@@ -96,7 +122,7 @@ describe('FHIRClient', () => {
 
       const result = await client.update<Patient>('Patient', '123', patient);
 
-      expect(mockAxiosInstance.put).toHaveBeenCalledWith('/Patient/123', patient);
+      expect(mockAxiosInstance.put).toHaveBeenCalledWith('Patient/123', patient);
       expect(result).toEqual(patient);
     });
 
@@ -105,7 +131,7 @@ describe('FHIRClient', () => {
 
       await client.delete('Patient', '123');
 
-      expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/Patient/123');
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith('Patient/123');
     });
   });
 
@@ -128,7 +154,7 @@ describe('FHIRClient', () => {
         'clinical-status': 'active'
       });
 
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/Condition', {
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('Condition', {
         params: {
           patient: 'Patient/123',
           'clinical-status': 'active'
@@ -189,26 +215,37 @@ describe('FHIRClient', () => {
       expect(result1).toEqual(result2);
     });
 
-    test('should clear cache after update', async () => {
-      const patient: Patient = {
+    test('should refresh cache from PUT response after update', async () => {
+      // update() clears the prior cache entry for this resource and re-seeds
+      // it with the PUT response. A subsequent read therefore returns the
+      // updated value from cache without a follow-up GET — confirmed by
+      // fhirClient.ts:1024 (clearCache) + 1030 (setInCache).
+      const original: Patient = {
         resourceType: 'Patient',
         id: '123',
         name: [{ family: 'Test', given: ['Patient'] }]
       };
+      const updated: Patient = {
+        resourceType: 'Patient',
+        id: '123',
+        name: [{ family: 'Updated', given: ['Patient'] }]
+      };
 
-      mockAxiosInstance.get.mockResolvedValue({ data: patient });
-      mockAxiosInstance.put.mockResolvedValue({ data: patient });
+      mockAxiosInstance.get.mockResolvedValue({ data: original });
+      mockAxiosInstance.put.mockResolvedValue({ data: updated });
 
       // Read to populate cache
-      await client.read<Patient>('Patient', '123');
+      const before = await client.read<Patient>('Patient', '123');
       expect(mockAxiosInstance.get).toHaveBeenCalledTimes(1);
+      expect(before.name?.[0].family).toBe('Test');
 
-      // Update should clear cache
-      await client.update<Patient>('Patient', '123', patient);
+      // Update re-seeds cache with PUT response
+      await client.update<Patient>('Patient', '123', updated);
 
-      // Next read should hit API again
-      await client.read<Patient>('Patient', '123');
-      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(2);
+      // Next read returns the updated value from cache; no extra GET
+      const after = await client.read<Patient>('Patient', '123');
+      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(1);
+      expect(after.name?.[0].family).toBe('Updated');
     });
 
     test('should clear cache by pattern', async () => {
@@ -339,38 +376,57 @@ describe('FHIRClient', () => {
   });
 
   describe('Retry Logic', () => {
-    test('should retry on network errors', async () => {
-      // First call fails, second succeeds
-      mockAxiosInstance.get
-        .mockRejectedValueOnce(new Error('Network error'))
-        .mockResolvedValueOnce({ data: { resourceType: 'Patient', id: '123' } });
+    // The retry handler is the LAST one registered during construction (see
+    // setupInterceptors in fhirClient.ts:266). We build a dedicated client
+    // with retryDelay=0 so backoff doesn't slow the suite, then capture the
+    // error handler off the mocked interceptor registration and invoke it
+    // directly with a synthetic AxiosError — the same shape axios would
+    // hand to it in real execution.
+    let retryErrorHandler: (error: any) => any;
+    let retryInstance: any;
 
-      // Mock the interceptor to actually retry
-      mockAxiosInstance.interceptors.response.use.mockImplementation((success, error) => {
-        const errorHandler = error;
-        return Promise.resolve()
-          .then(() => mockAxiosInstance.get('/Patient/123'))
-          .catch(err => {
-            if (err.message === 'Network error') {
-              return mockAxiosInstance.request({ url: '/Patient/123', method: 'get' });
-            }
-            throw err;
-          });
+    beforeEach(() => {
+      retryInstance = {
+        get: jest.fn(),
+        post: jest.fn(),
+        put: jest.fn(),
+        delete: jest.fn(),
+        request: jest.fn(),
+        interceptors: {
+          request: { use: jest.fn() },
+          response: { use: jest.fn() },
+        },
+      };
+      mockedAxios.create.mockReturnValueOnce(retryInstance);
+
+      new FHIRClient({
+        baseUrl: '/fhir/R4',
+        queue: { retryDelay: 0, retryAttempts: 3 } as any,
       });
 
-      const result = await client.read<Patient>('Patient', '123');
+      const responseUseCalls = retryInstance.interceptors.response.use.mock.calls;
+      // The retry handler is the final response.use registration.
+      retryErrorHandler = responseUseCalls[responseUseCalls.length - 1][1];
+    });
 
-      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(2);
-      expect(result.id).toBe('123');
-    }, 10000); // Increase timeout for retry test
+    test('should retry on network errors', async () => {
+      retryInstance.request.mockResolvedValueOnce({
+        data: { resourceType: 'Patient', id: '123' },
+      });
+
+      // No response object → network error; shouldRetry returns true.
+      const networkError = { config: {}, message: 'Network error' };
+      const result = await retryErrorHandler(networkError);
+
+      expect(retryInstance.request).toHaveBeenCalledTimes(1);
+      expect(result.data.id).toBe('123');
+    });
 
     test('should not retry on 4xx errors except specific ones', async () => {
-      mockAxiosInstance.get.mockRejectedValueOnce({
-        response: { status: 400 }
-      });
+      const badRequest = { config: {}, response: { status: 400 } };
 
-      await expect(client.read<Patient>('Patient', '123')).rejects.toThrow();
-      expect(mockAxiosInstance.get).toHaveBeenCalledTimes(1);
+      await expect(retryErrorHandler(badRequest)).rejects.toBeDefined();
+      expect(retryInstance.request).not.toHaveBeenCalled();
     });
   });
 
@@ -405,7 +461,7 @@ describe('FHIRClient', () => {
       const result = await client.getPatientEverything('123');
 
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
-        '/Patient/123/$everything',
+        'Patient/123/$everything',
         undefined
       );
       expect(result).toEqual(bundle);
@@ -422,7 +478,7 @@ describe('FHIRClient', () => {
 
       await client.getVitalSigns('123', 10);
 
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/Observation', {
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('Observation', {
         params: {
           patient: '123',
           category: 'vital-signs',
