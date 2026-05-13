@@ -29,9 +29,20 @@ import {
   Image as ImagingIcon,
   HealingOutlined as ProcedureIcon,
   MedicationOutlined as MedicationIcon,
+  Vaccines as ImmunizationIcon,
 } from '@mui/icons-material';
 
 import { useDraftOrderBundle } from './DraftOrderBundleProvider';
+
+// SNOMED category codes used by the OrderComposer tabs. Lookup table
+// so summarize() doesn't grow a chain of equality checks as new tabs
+// arrive in 4.3 (nursing, diet, referral, code-status).
+const SR_CATEGORY_KIND = {
+  '108252007': 'lab',
+  '363679005': 'imaging',
+  '33879002': 'immunization',
+  '387713003': 'procedure',
+};
 
 // Reduce a FHIR resource into a (type, label, code) display tuple. Pulled
 // to module scope (not a useMemo) because it's a pure transform; reused
@@ -41,9 +52,7 @@ function summarize(resource) {
 
   if (type === 'ServiceRequest') {
     const catCode = resource?.category?.[0]?.coding?.[0]?.code;
-    const isLab = catCode === '108252007';
-    const isImaging = catCode === '363679005';
-    const kind = isLab ? 'lab' : isImaging ? 'imaging' : 'procedure';
+    const kind = SR_CATEGORY_KIND[catCode] || 'procedure';
     const code = resource?.code?.coding?.[0]?.code;
     const label =
       resource?.code?.text ||
@@ -73,6 +82,7 @@ const ICONS = {
   imaging: <ImagingIcon fontSize="small" />,
   procedure: <ProcedureIcon fontSize="small" />,
   medication: <MedicationIcon fontSize="small" />,
+  immunization: <ImmunizationIcon fontSize="small" />,
   other: null,
 };
 
