@@ -107,20 +107,12 @@ CREATE TABLE IF NOT EXISTS cds_hooks.hook_configurations (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- CDS Hooks execution log
-CREATE TABLE IF NOT EXISTS cds_hooks.execution_log (
-    id BIGSERIAL PRIMARY KEY,
-    hook_id VARCHAR(255) NOT NULL,
-    execution_id UUID DEFAULT gen_random_uuid(),
-    patient_id VARCHAR(255),
-    user_id VARCHAR(255),
-    context JSONB,
-    cards JSONB,
-    execution_time_ms INTEGER,
-    status VARCHAR(50) NOT NULL,
-    error_message TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- CDS Hooks execution log — DROPPED.
+-- Was written by feedback/persistence.log_hook_execution (now removed)
+-- but the function's INSERT columns never matched this table's schema, so
+-- every write silently failed. Reads went to cds_visual_builder.execution_logs
+-- instead. The unified writer is now log_service_execution → that table.
+DROP TABLE IF EXISTS cds_hooks.execution_log CASCADE;
 
 -- ========================================================================
 -- Indexes for Performance
@@ -139,9 +131,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_outcome ON audit.events(outcome);
 -- CDS Hooks indexes
 CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_active ON cds_hooks.hook_configurations(is_active);
 CREATE INDEX IF NOT EXISTS idx_cds_hooks_config_type ON cds_hooks.hook_configurations(hook_type);
-CREATE INDEX IF NOT EXISTS idx_cds_hooks_log_hook ON cds_hooks.execution_log(hook_id);
-CREATE INDEX IF NOT EXISTS idx_cds_hooks_log_patient ON cds_hooks.execution_log(patient_id);
-CREATE INDEX IF NOT EXISTS idx_cds_hooks_log_created ON cds_hooks.execution_log(created_at);
+-- (Indexes for cds_hooks.execution_log removed alongside the dropped table.)
 
 -- ========================================================================
 -- Functions and Triggers
@@ -252,13 +242,13 @@ BEGIN
     SELECT COUNT(*) INTO table_count
     FROM information_schema.tables
     WHERE (table_schema = 'auth' AND table_name IN ('users', 'roles', 'user_roles'))
-       OR (table_schema = 'cds_hooks' AND table_name IN ('hook_configurations', 'execution_log'))
+       OR (table_schema = 'cds_hooks' AND table_name = 'hook_configurations')
        OR (table_schema = 'audit' AND table_name = 'events');
 
-    IF table_count = 6 THEN
+    IF table_count = 5 THEN
         RAISE NOTICE '✅ All core tables created successfully';
     ELSE
-        RAISE EXCEPTION '❌ Table creation failed. Expected 6, found %', table_count;
+        RAISE EXCEPTION '❌ Table creation failed. Expected 5, found %', table_count;
     END IF;
 END$$;
 

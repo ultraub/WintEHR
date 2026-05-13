@@ -98,40 +98,18 @@ CREATE TABLE IF NOT EXISTS cds_visual_builder.service_versions (
 ALTER TABLE cds_visual_builder.service_versions
     ADD COLUMN IF NOT EXISTS cql_source TEXT;
 
--- Service Analytics Table
-CREATE TABLE IF NOT EXISTS cds_visual_builder.service_analytics (
-    id SERIAL PRIMARY KEY,
-    service_id VARCHAR(255) NOT NULL,
-
-    -- Execution Metrics
-    total_executions INTEGER DEFAULT 0,
-    successful_executions INTEGER DEFAULT 0,
-    failed_executions INTEGER DEFAULT 0,
-
-    -- Performance Metrics
-    avg_execution_time_ms DECIMAL(10, 2),
-    min_execution_time_ms DECIMAL(10, 2),
-    max_execution_time_ms DECIMAL(10, 2),
-
-    -- Card Metrics
-    total_cards_shown INTEGER DEFAULT 0,
-    cards_accepted INTEGER DEFAULT 0,
-    cards_dismissed INTEGER DEFAULT 0,
-
-    -- User Feedback
-    avg_user_rating DECIMAL(3, 2),
-    total_ratings INTEGER DEFAULT 0,
-
-    -- Time Windows
-    last_execution_at TIMESTAMP WITH TIME ZONE,
-    metrics_updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-
-    CONSTRAINT fk_service FOREIGN KEY (service_id)
-        REFERENCES cds_visual_builder.service_configs(service_id)
-        ON DELETE CASCADE
-);
-
 -- Service Execution Log Table
+--
+-- Single source of truth for service execution metrics. Populated by
+-- backend/api/cds_hooks/feedback/persistence.py::log_service_execution,
+-- which is called from every arm of execute_service (success + failure).
+--
+-- No FK constraint on service_id — built-in services (which live in
+-- code rather than in service_configs) need to be able to log too. The
+-- legacy `service_analytics` rollup table was dropped (see migration
+-- block below) because nothing ever wrote to it; `get_service_analytics`
+-- and `service.py::_get_service_metrics` now aggregate directly from
+-- this table.
 CREATE TABLE IF NOT EXISTS cds_visual_builder.execution_logs (
     id SERIAL PRIMARY KEY,
     service_id VARCHAR(255) NOT NULL,
@@ -151,12 +129,17 @@ CREATE TABLE IF NOT EXISTS cds_visual_builder.execution_logs (
     stack_trace TEXT,
 
     -- Timestamp
-    executed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-
-    CONSTRAINT fk_service_log FOREIGN KEY (service_id)
-        REFERENCES cds_visual_builder.service_configs(service_id)
-        ON DELETE CASCADE
+    executed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Migrations for existing deployments — idempotent.
+-- 1. Drop the legacy service_analytics rollup table; nothing wrote to it
+--    and analytics now compute from execution_logs directly.
+DROP TABLE IF EXISTS cds_visual_builder.service_analytics CASCADE;
+-- 2. Drop the FK on execution_logs.service_id so built-in services (which
+--    aren't in service_configs) can also log execution metrics.
+ALTER TABLE cds_visual_builder.execution_logs
+    DROP CONSTRAINT IF EXISTS fk_service_log;
 
 -- Student-authored ValueSets (Phase 2 of the CQL feature; created here so the
 -- schema is consistent in one file).
@@ -288,8 +271,7 @@ COMMENT ON COLUMN cds_visual_builder.service_configs.cql_source IS 'CQL text for
 COMMENT ON COLUMN cds_visual_builder.service_configs.library_canonical_url IS 'HAPI canonical URL of the Library generated from cql_source';
 COMMENT ON COLUMN cds_visual_builder.service_configs.plan_definition_canonical_url IS 'HAPI canonical URL of the PlanDefinition wrapper that runs the CQL';
 COMMENT ON TABLE cds_visual_builder.service_versions IS 'Version history for service configurations';
-COMMENT ON TABLE cds_visual_builder.service_analytics IS 'Performance and usage analytics for services';
-COMMENT ON TABLE cds_visual_builder.execution_logs IS 'Execution logs for debugging and monitoring';
+COMMENT ON TABLE cds_visual_builder.execution_logs IS 'Execution metrics — written by execute_service, read by analytics + service registry table';
 COMMENT ON TABLE cds_visual_builder.value_sets IS 'Student-authored ValueSets; mirrored to HAPI as FHIR ValueSet resources';
 
 DO $$

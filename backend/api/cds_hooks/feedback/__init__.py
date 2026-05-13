@@ -10,7 +10,8 @@ from .persistence import (
     get_feedback_manager,
     process_cds_feedback,
     get_service_analytics,
-    log_hook_execution,
+    log_service_execution,
+    log_service_failure,
 )
 
 __all__ = [
@@ -22,5 +23,6 @@ __all__ = [
     "get_feedback_manager",
     "process_cds_feedback",
     "get_service_analytics",
-    "log_hook_execution",
+    "log_service_execution",
+    "log_service_failure",
 ]
