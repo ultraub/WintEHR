@@ -1012,20 +1012,51 @@ class CDSStudioService:
                 except Exception as e:
                     logger.error(f"Error hard-deleting local config for {service_id}: {e}")
 
-            # Remove PlanDefinition from HAPI FHIR
-            try:
-                bundle = await self.hapi_client.search("PlanDefinition", {
-                    "name": service_id,
-                    "_count": "1"
-                })
-                entries = bundle.get("entry", [])
-                if entries:
-                    plan_id = entries[0].get("resource", {}).get("id")
-                    if plan_id:
-                        await self.hapi_client.delete("PlanDefinition", plan_id)
-                        logger.info(f"Hard-deleted PlanDefinition {plan_id} for {service_id}")
-            except Exception as e:
-                logger.error(f"Error deleting FHIR PlanDefinition for {service_id}: {e}")
+            # Remove PlanDefinition from HAPI FHIR. Three lookup strategies,
+            # tried in order — services land in HAPI via different paths
+            # depending on origin:
+            #   1. vb-{service_id} — the canonical id for visual-builder
+            #      services authored through the wizard
+            #   2. service_id directly — the id imported services and
+            #      manually-uploaded test PlanDefinitions use (e.g. the
+            #      data-param-spike-051407 incident)
+            #   3. PlanDefinition?name=service_id — fallback for services
+            #      whose id was renamed but `name` still matches
+            #
+            # Each strategy is wrapped so a 404 in one doesn't short-circuit
+            # the next. Deletion of PD is non-fatal — the DB row is already
+            # gone above, so a missed HAPI delete at worst leaves an orphan
+            # PlanDefinition that ServicesTable shows as a "built-in" entry.
+            candidate_ids = []
+            for read_id in (f"vb-{service_id}", service_id):
+                try:
+                    pd = await self.hapi_client.read("PlanDefinition", read_id)
+                    if pd and pd.get("id"):
+                        candidate_ids.append(pd["id"])
+                except Exception:
+                    pass
+
+            if not candidate_ids:
+                try:
+                    bundle = await self.hapi_client.search("PlanDefinition", {
+                        "name": service_id,
+                        "_count": "5",
+                    })
+                    for entry in bundle.get("entry", []) or []:
+                        pd_id = entry.get("resource", {}).get("id")
+                        if pd_id and pd_id not in candidate_ids:
+                            candidate_ids.append(pd_id)
+                except Exception as e:
+                    logger.warning(f"PlanDefinition name-search failed for {service_id}: {e}")
+
+            for pd_id in candidate_ids:
+                try:
+                    await self.hapi_client.delete("PlanDefinition", pd_id)
+                    logger.info(f"Hard-deleted PlanDefinition/{pd_id} for {service_id}")
+                except Exception as e:
+                    logger.error(f"Error deleting PlanDefinition/{pd_id} for {service_id}: {e}")
+            if not candidate_ids:
+                logger.info(f"No PlanDefinition found in HAPI for {service_id}; DB row removed only")
         else:
             # Soft delete: set to inactive/retired
             await self.update_service_status(service_id, ServiceStatus.INACTIVE)
