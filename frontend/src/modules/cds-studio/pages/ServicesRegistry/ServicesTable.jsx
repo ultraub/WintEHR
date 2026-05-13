@@ -131,7 +131,13 @@ const ServicesTable = ({ onSelectService, onEditService, onRefresh }) => {
 
     setDeleting(true);
     try {
-      await cdsStudioApi.deleteService(deleteTarget.service_id);
+      // hard_delete=true so "Delete" actually removes the row from the DB
+      // AND the PlanDefinition from HAPI. Without it the backend's
+      // soft-delete path just flips status → INACTIVE, which is what
+      // "Deactivate" already does from the same menu — making the two
+      // menu items indistinguishable in effect. Users expect Delete to
+      // be destructive; that's also what the confirmation copy implies.
+      await cdsStudioApi.deleteService(deleteTarget.service_id, true);
       setDeleteTarget(null);
       await loadServices();
       setSnackbar({ open: true, message: `Deleted "${deleteTarget.title}"`, severity: 'success' });
