@@ -64,7 +64,6 @@ import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import VirtualizedList from '../../../common/VirtualizedList';
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
 import { getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
-import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
 import { useOrderSelectHook } from '../../../../hooks/cds/useCDSHooks';
 import CDSCard from '../../cds/CDSCard';
 import { getStatusColor, getSeverityColor } from '../../../../themes/clinicalThemeUtils';
@@ -477,7 +476,6 @@ const EnhancedOrdersTab = ({
   const theme = useTheme();
   const { currentPatient } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
-  const { getAlerts } = useCDS();
   const { user } = useAuth();
 
   // Enhanced search hook
@@ -671,18 +669,6 @@ const EnhancedOrdersTab = ({
   const urgentOrdersCount = processedResults.all.filter(o => 
     o.priority === 'urgent' || o.priority === 'stat'
   ).length;
-
-  // Handle CDS alerts notification
-  useEffect(() => {
-    const orderAlerts = getAlerts(CDS_HOOK_TYPES.ORDER_SIGN) || [];
-    const selectAlerts = getAlerts(CDS_HOOK_TYPES.ORDER_SELECT) || [];
-    const allAlerts = [...orderAlerts, ...selectAlerts];
-    
-    if (allAlerts.length > 0 && onNotificationUpdate) {
-      const criticalCount = allAlerts.filter(alert => alert.indicator === 'critical').length;
-      onNotificationUpdate(criticalCount || allAlerts.length);
-    }
-  }, [getAlerts, onNotificationUpdate]);
 
   // Real-time updates subscription
   useEffect(() => {

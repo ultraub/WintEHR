@@ -91,7 +91,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useCDS } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
@@ -321,19 +320,17 @@ const AllergyDialogEnhanced = ({
   const theme = useTheme();
   const { user } = useAuth();
   const { currentPatient } = useFHIRResource();
-  const { evaluateCDS } = useCDS();
   const { publish } = useClinicalWorkflow();
 
   // Use consistent dialog helpers
   const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(onSave, null);
   const { errors: validationErrors, validateForm, clearErrors } = useDialogValidation();
-  
+
   // State
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAllergen, setSelectedAllergen] = useState(null);
-  const [cdsAlerts, setCdsAlerts] = useState([]);
   const [showAllManifestations, setShowAllManifestations] = useState(false);
   
   // Form data
@@ -472,20 +469,8 @@ const AllergyDialogEnhanced = ({
         code: selectedAllergen.code,
         display: selectedAllergen.display
       }));
-      
-      // Evaluate CDS for the selected allergen
-      try {
-        const alerts = await evaluateCDS('allergy-add', {
-          patient: patientId,
-          allergen: selectedAllergen,
-          category: formData.category
-        });
-        setCdsAlerts(alerts);
-      } catch (error) {
-        console.error('CDS evaluation error:', error);
-      }
     }
-    
+
     setActiveStep(prev => prev + 1);
   };
 
@@ -624,7 +609,6 @@ const AllergyDialogEnhanced = ({
       reactionNote: ''
     });
     setErrors({});
-    setCdsAlerts([]);
     onClose();
   };
 
@@ -838,22 +822,6 @@ const AllergyDialogEnhanced = ({
         return (
           <Fade in timeout={300}>
             <Box>
-              {/* CDS Alerts */}
-              {cdsAlerts.length > 0 && (
-                <Box sx={{ mb: 3 }}>
-                  {cdsAlerts.map((alert, index) => (
-                    <Alert
-                      key={index}
-                      severity={alert.indicator}
-                      icon={<SmartIcon />}
-                      sx={{ mb: 1 }}
-                    >
-                      <Typography variant="body2">{alert.summary}</Typography>
-                    </Alert>
-                  ))}
-                </Box>
-              )}
-
               <Stack spacing={3}>
                 {/* Type and Criticality */}
                 <Grid container spacing={3}>

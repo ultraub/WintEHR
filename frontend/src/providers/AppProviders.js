@@ -9,7 +9,7 @@ import { TaskProvider } from '../contexts/TaskContext';
 import { InboxProvider } from '../contexts/InboxContext';
 import { AppointmentProvider } from '../contexts/AppointmentContext';
 import { ClinicalWorkflowProvider } from '../contexts/ClinicalWorkflowContext';
-import { CDSProvider } from '../contexts/CDSContext';
+import { CDSHooksProvider } from '../contexts/CDSHooksContext';
 import { ProviderDirectoryProvider } from '../contexts/ProviderDirectoryContext';
 import { SMARTProvider } from '../contexts/SMARTContext';
 import { createCompoundProvider } from '../utils/providerOptimization';
@@ -28,7 +28,7 @@ const CoreDataProvider = createCompoundProvider([
 // Clinical domain providers (often update together)
 const ClinicalDomainProvider = createCompoundProvider([
   ClinicalProvider,
-  CDSProvider,  // CDS only needed in clinical context, not globally
+  CDSHooksProvider,  // CDS only needed in clinical context, not globally
   DocumentationProvider,
   OrderProvider,
   TaskProvider

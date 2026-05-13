@@ -142,7 +142,7 @@ class CDSHooksClient {
         // Build request - check if context is already a full request object
         let request;
         if (context.hook && context.hookInstance && context.context) {
-          // It's already a full request object from CDSContext
+          // It's already a full request object from a caller (e.g. CDSHooksContext)
           request = { ...context };
         } else {
           // It's just a context object, build the full request

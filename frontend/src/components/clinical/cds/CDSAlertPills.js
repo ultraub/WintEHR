@@ -29,16 +29,15 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
-import { useCDS } from '../../../contexts/CDSContext';
+import { useCDS } from '../../../contexts/CDSHooksContext';
 
 const CDSAlertPills = ({ maxVisible = 3, hookType = 'patient-view' }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
   const [expandedCard, setExpandedCard] = useState(null);
-  const { getAlerts } = useCDS();
-  
-  // Get alerts from CDSContext
-  const alerts = getAlerts(hookType) || [];
+  const { getCards } = useCDS();
+
+  const alerts = getCards(hookType);
   
   // Group alerts by severity
   const alertGroups = useMemo(() => {
