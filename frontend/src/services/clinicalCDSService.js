@@ -4,7 +4,7 @@
  * Manages alert presentation, acknowledgment, and suggestion actions
  */
 import { cdsHooksClient } from './cdsHooksClient';
-import { CDS_HOOK_TYPES } from '../contexts/CDSContext';
+import { CDS_HOOK_TYPES } from '../contexts/CDSHooksContext';
 import { cdsLogger } from '../config/logging';
 
 class ClinicalCDSService {

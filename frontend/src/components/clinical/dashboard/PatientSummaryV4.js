@@ -38,7 +38,7 @@ import { useInitializationGuard } from '../../../hooks/ui/useStableReferences';
 import { getClinicalContext } from '../../../themes/clinicalThemeUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import CDSPresentation, { PRESENTATION_MODES } from '../cds/CDSPresentation';
-import { usePatientCDSAlerts } from '../../../contexts/CDSContext';
+import { usePatientCDSAlerts } from '../../../contexts/CDSHooksContext';
 import { useMedicationResolver } from '../../../core/fhir/hooks/useMedicationResolver';
 
 const PatientSummaryV4 = ({ patientId, department = 'general' }) => {

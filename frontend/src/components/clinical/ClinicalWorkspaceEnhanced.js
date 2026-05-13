@@ -32,7 +32,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { decodeFhirId } from '../../core/navigation/navigationUtils';
 import { useClinicalWorkflow } from '../../contexts/ClinicalWorkflowContext';
-import { usePatientCDSAlerts } from '../../contexts/CDSContext';
+import { usePatientCDSAlerts } from '../../contexts/CDSHooksContext';
 import TabErrorBoundary from './workspace/TabErrorBoundary';
 import { useKeyboardNavigation } from '../../hooks/useKeyboardNavigation';
 import KeyboardShortcutsDialog from './shared/dialogs/KeyboardShortcutsDialog';

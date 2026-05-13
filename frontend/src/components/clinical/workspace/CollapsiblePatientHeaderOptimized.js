@@ -52,7 +52,7 @@ import {
 } from '@mui/icons-material';
 import { format, differenceInYears, isValid, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
-import { useCDS } from '../../../contexts/CDSContext';
+import { useCDS, CDS_HOOK_TYPES } from '../../../contexts/CDSHooksContext';
 import { useNavigate } from 'react-router-dom';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
 import websocketService from '../../../services/websocket';
@@ -79,8 +79,8 @@ const CollapsiblePatientHeaderOptimized = ({
   const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
   
   const { currentPatient, getPatientResources, refreshPatientData } = useFHIRResource();
-  const { alerts: contextAlerts } = useCDS();
-  const alerts = contextAlerts?.['patient-view'] || [];
+  const { getCards } = useCDS();
+  const alerts = getCards(CDS_HOOK_TYPES.PATIENT_VIEW);
   const { subscribe } = useClinicalWorkflow();
   const dataQuality = useDataQualityLogger('CollapsiblePatientHeader');
   

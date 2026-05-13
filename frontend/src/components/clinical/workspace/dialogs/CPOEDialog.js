@@ -70,12 +70,11 @@ const CPOEDialog = ({
     )];
   }, [draftFormData, patientId, user]);
 
-  // useOrderSelectHook returns the underlying useCDSHooks instance,
-  // which holds the response cards locally for this hook invocation.
-  // This is the same pattern EnhancedOrdersTab uses for the existing-
-  // orders checkbox path — read cards directly off the returned
-  // object, not from CDSContext.alerts (which is populated via a
-  // different code path: useCDS().executeCDSHooks).
+  // useOrderSelectHook returns its own useCDSHooks instance, which
+  // holds the response cards locally for this hook invocation — Pattern
+  // B in frontend/src/hooks/cds/CLAUDE.md. Read cards directly off the
+  // returned object; they stay dialog-scoped and don't land in
+  // CDSHooksContext's shared store.
   const { cards: orderSelectCards = [] } = useOrderSelectHook(
     patientId,
     user?.id || user?.username,

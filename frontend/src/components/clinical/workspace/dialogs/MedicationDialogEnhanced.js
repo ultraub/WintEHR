@@ -92,7 +92,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSContext';
+import { useCDS, CDS_HOOK_TYPES } from '../../../../contexts/CDSHooksContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useOrderSelectHook } from '../../../../hooks/cds/useCDSHooks';
@@ -353,14 +353,13 @@ const MedicationDialogEnhanced = ({
   const theme = useTheme();
   const { user } = useAuth();
   const { currentPatient } = useFHIRResource();
-  const { executeCDSHooks, getAlerts } = useCDS();
-  // Pull medication-prescribe alerts directly from the CDS context.
-  // executeCDSHooks doesn't return its result (it has internal duplicate
-  // detection that early-returns), so the previous local-state pattern
-  // —`setCdsAlerts(await executeCDSHooks(…))` — was always recording
-  // []. getAlerts reads from the same context.alerts state that
-  // executeCDSHooks writes to.
-  const cdsAlerts = getAlerts(CDS_HOOK_TYPES.MEDICATION_PRESCRIBE) || [];
+  const { fireHook, getCards } = useCDS();
+  // Pull medication-prescribe cards directly from the unified CDS store.
+  // fireHook() doesn't return its result (it has internal dedup that
+  // early-returns), so callers must read via getCards() after the fire.
+  // Both methods share state with patient-view / order-select / etc., so
+  // alerts produced here are visible to the global header badge too.
+  const cdsAlerts = getCards(CDS_HOOK_TYPES.MEDICATION_PRESCRIBE);
   const { publish } = useClinicalWorkflow();
   
   // State
@@ -397,12 +396,11 @@ const MedicationDialogEnhanced = ({
     }];
   }, [selectedMedication, patientId]);
 
-  // useOrderSelectHook returns the underlying useCDSHooks instance.
-  // Read cards directly from the return value — these are LOCAL to
-  // this hook invocation (same pattern as EnhancedOrdersTab uses).
-  // Coexists with cdsAlerts above (which comes from CDSContext alerts
-  // via getAlerts and is populated by the existing executeCDSHooks
-  // call in handleNext for medication-prescribe).
+  // useOrderSelectHook returns its own useCDSHooks instance — these
+  // cards stay LOCAL to this dialog rather than landing in the shared
+  // CDSHooksContext store. Coexists with cdsAlerts above (which comes
+  // from the shared store via getCards() and is populated by the
+  // fireHook('medication-prescribe', …) call in handleNext below).
   const { cards: orderSelectCards = [] } = useOrderSelectHook(
     patientId,
     user?.id || user?.username,
@@ -663,10 +661,10 @@ const MedicationDialogEnhanced = ({
       // reference patient.age etc. couldn't read patientId from it
       // and returned empty cards.
       //
-      // Result lives in the CDSContext alerts map; we read it via
-      // getAlerts(MEDICATION_PRESCRIBE) above, no local state needed.
+      // Result lives in the unified CDS store; we read it via
+      // getCards(MEDICATION_PRESCRIBE) above, no local state needed.
       try {
-        await executeCDSHooks('medication-prescribe', {
+        await fireHook(CDS_HOOK_TYPES.MEDICATION_PRESCRIBE, {
           patientId,
           userId: user?.id || user?.username || 'unknown',
           medications: [selectedMedication]
@@ -876,7 +874,7 @@ const MedicationDialogEnhanced = ({
       note: ''
     });
     setErrors({});
-    // cdsAlerts is now derived from context (getAlerts), no local state to clear.
+    // cdsAlerts is derived from CDSHooksContext via getCards(); no local state to clear.
     setShowAdvancedOptions(false);
     onClose();
   };
@@ -1063,9 +1061,9 @@ const MedicationDialogEnhanced = ({
                   surface their action buttons and Accept executes the
                   proposed FHIR resource on the patient. Cards come from
                   the medication-prescribe firing in handleNext above
-                  (`executeCDSHooks('medication-prescribe', …)`); each
-                  one already has uuid + serviceId attached by
-                  CDSContext. patientId/userId are forwarded so the
+                  (`fireHook('medication-prescribe', …)`); each one
+                  already has uuid + serviceId attached by
+                  CDSHooksContext. patientId/userId are forwarded so the
                   feedback POST carries enough context for the runtime
                   executor (cds_hooks_router::_execute_accepted_suggestion_actions). */}
               {cdsAlerts && cdsAlerts.length > 0 && (

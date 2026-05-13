@@ -83,7 +83,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { useCDS } from '../../../../contexts/CDSContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
@@ -200,7 +199,6 @@ const ConditionDialogEnhanced = ({
   const theme = useTheme();
   const { user } = useAuth();
   const { currentPatient } = useFHIRResource();
-  const { evaluateCDS } = useCDS();
   const { publish } = useClinicalWorkflow();
 
   // State
@@ -209,12 +207,11 @@ const ConditionDialogEnhanced = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCondition, setSelectedCondition] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
-  
+
   // Use consistent dialog helpers
   const saveHandler = onSave || onSaved; // Support both prop names
   const { saving: isSaving, error: saveError, handleSave: performSave } = useDialogSave(saveHandler, null);
   const { errors: validationErrors, validateForm, clearErrors } = useDialogValidation();
-  const [cdsAlerts, setCdsAlerts] = useState([]);
   
   // Form data
   const [formData, setFormData] = useState({
@@ -332,19 +329,8 @@ const ConditionDialogEnhanced = ({
         code: selectedCondition.code,
         display: selectedCondition.display
       }));
-      
-      // Evaluate CDS for the selected condition
-      try {
-        const alerts = await evaluateCDS('condition-select', {
-          patient: patientId,
-          condition: selectedCondition
-        });
-        setCdsAlerts(alerts);
-      } catch (error) {
-        console.error('CDS evaluation error:', error);
-      }
     }
-    
+
     setActiveStep(prev => prev + 1);
   };
 
@@ -472,7 +458,6 @@ const ConditionDialogEnhanced = ({
       stage: ''
     });
     setErrors({});
-    setCdsAlerts([]);
     onClose();
   };
 
@@ -646,22 +631,6 @@ const ConditionDialogEnhanced = ({
         return (
           <Fade in timeout={300}>
             <Box>
-              {/* CDS Alerts */}
-              {cdsAlerts.length > 0 && (
-                <Box sx={{ mb: 3 }}>
-                  {cdsAlerts.map((alert, index) => (
-                    <Alert
-                      key={index}
-                      severity={alert.indicator}
-                      icon={<SmartIcon />}
-                      sx={{ mb: 1 }}
-                    >
-                      <Typography variant="body2">{alert.summary}</Typography>
-                    </Alert>
-                  ))}
-                </Box>
-              )}
-
               <Stack spacing={3}>
                 {/* Clinical Status */}
                 <FormControl component="fieldset" error={!!errors.clinicalStatus}>
