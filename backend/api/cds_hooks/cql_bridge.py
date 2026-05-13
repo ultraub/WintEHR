@@ -57,6 +57,27 @@ from .models import (
 _LIBRARY_DIRECTIVE_RE = re.compile(r"\s*library\s+[A-Za-z][A-Za-z0-9_]*\s+version\s+'")
 _COMMENT_STRIP_RE = re.compile(r"//[^\n]*\n|/\*.*?\*/", flags=re.DOTALL)
 
+# Two error shapes from the CQL→ELM compiler both have the same student fix:
+# add `include FHIRHelpers version '4.0.001'`. The first fires when CQL calls
+# any operator (ToString, ToDecimal, etc.) on a value of type FHIR.X — the
+# compiler can't find a matching signature without FHIRHelpers' implicit
+# converters. The second fires when the library references FHIRHelpers
+# explicitly (e.g. via `include FHIRHelpers version '4.0.000'`) and the
+# version isn't resolvable in HAPI's content catalog.
+_FHIR_TYPE_SIGNATURE_RE = re.compile(
+    r"Could not resolve call to operator \w+ with signature \(FHIR\.\w+\)"
+)
+_UNRESOLVED_FHIRHELPERS_RE = re.compile(
+    r"Could not resolve library name FHIRHelpers"
+)
+_FHIRHELPERS_HINT_DIAGNOSTIC = (
+    "Tip: Add `include FHIRHelpers version '4.0.001'` near the top of your "
+    "library (just below `using FHIR version '4.0.1'`). FHIRHelpers provides "
+    "the implicit converters CQL needs to call operators on FHIR-typed "
+    "values like Patient.id or Observation.value. See "
+    "docs/STUDENT_CQL_PRIMER.md → Common errors."
+)
+
 
 def _looks_like_full_library(cql_text: str) -> bool:
     """True if the input starts with a `library X version 'V'` directive.
@@ -142,8 +163,14 @@ class CQLBridge:
         need a subject for compile-time validation.
         """
         if _looks_like_full_library(cql_text):
-            return await self._validate_library(cql_text)
-        return await self._validate_expression(cql_text, subject_ref)
+            result = await self._validate_library(cql_text)
+        else:
+            result = await self._validate_expression(cql_text, subject_ref)
+        # Single augmentation point — covers expression + library paths AND
+        # every failure mode they handle internally (HTTP errors, request
+        # errors, compile-time OperationOutcomes), so students see the
+        # FHIRHelpers tip regardless of where the error originated.
+        return self._with_fhirhelpers_hint(result)
 
     async def _validate_expression(
         self,
@@ -491,6 +518,34 @@ class CQLBridge:
                 actions=actions or None,
             ))
         return suggestions
+
+    def _with_fhirhelpers_hint(self, result: ValidationResult) -> ValidationResult:
+        """Append a FHIRHelpers tip when issues match known fingerprint patterns.
+
+        The CQL→ELM compiler error messages for missing-FHIRHelpers are
+        cryptic for students (e.g. ``Could not resolve call to operator
+        ToString with signature (FHIR.id)``). Both fingerprints have the
+        same fix — adding ``include FHIRHelpers version '4.0.001'`` — so we
+        detect either and append a single info-severity hint. Deduplicated:
+        we never append the hint twice, even if the response surfaces
+        multiple matching errors.
+        """
+        if any(i.severity == "information" and i.diagnostics == _FHIRHELPERS_HINT_DIAGNOSTIC
+               for i in result.issues):
+            return result
+
+        for issue in result.issues:
+            diag = issue.diagnostics or ""
+            if (
+                _FHIR_TYPE_SIGNATURE_RE.search(diag)
+                or _UNRESOLVED_FHIRHELPERS_RE.search(diag)
+            ):
+                hint = ValidationIssue(
+                    severity="information",
+                    diagnostics=_FHIRHELPERS_HINT_DIAGNOSTIC,
+                )
+                return ValidationResult(ok=result.ok, issues=result.issues + [hint])
+        return result
 
     def _collect_outcome_issues(self, response: Any) -> List[ValidationIssue]:
         """Aggregate OperationOutcome.issue[] from anywhere in the response.

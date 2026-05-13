@@ -225,6 +225,27 @@ The Synthea data set includes plenty of common conditions.
 
 ## Common mistakes (saving you a few hours of debugging)
 
+### "Could not resolve call to operator ToString with signature (FHIR.id)" (or any FHIR.X)
+
+CQL needs `FHIRHelpers` to call operators (`ToString`, `ToDecimal`, `ToConcept`,
+etc.) on FHIR-typed values like `Patient.id`, `Observation.value`, or any
+`code`/`Coding` field. Without it, the compiler can't find a matching
+signature for "operator + FHIR type" and the error fingerprint always
+includes `signature (FHIR.something)`.
+
+**Fix**: add this line near the top of your library, just below
+`using FHIR version '4.0.1'`:
+
+```cql
+include FHIRHelpers version '4.0.001'
+```
+
+The test panel will now also append a hint with the same advice whenever
+it sees this fingerprint — so if you see "Tip: Add `include FHIRHelpers
+version '4.0.001'`" in the validation panel, the fix is exactly that one
+line. (Same hint fires if you wrote `include FHIRHelpers version '4.0.000'`
+or some other version HAPI doesn't have — use `'4.0.001'`.)
+
 ### "Could not resolve expression reference 'X'"
 
 Means HAPI couldn't find a `define` named X. Either you mistyped it, or

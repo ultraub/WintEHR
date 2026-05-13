@@ -455,6 +455,156 @@ class TestValidateCQLAutoRouting:
 
 
 # ---------------------------------------------------------------------------
+# FHIRHelpers hint detection (#122)
+# ---------------------------------------------------------------------------
+
+
+class TestFHIRHelpersHint:
+    """validate_cql should surface a friendly tip when the underlying CQL
+    compiler error fingerprints to a missing-FHIRHelpers situation."""
+
+    HINT_FRAGMENT = "include FHIRHelpers version '4.0.001'"
+
+    @pytest.mark.asyncio
+    async def test_expression_path_emits_hint_for_fhir_type_signature_error(self):
+        """`ToString(Patient.id)` without FHIRHelpers triggers a 'signature (FHIR.id)' error.
+
+        The bridge should append an info-severity hint pointing the student
+        at the FHIRHelpers include line.
+        """
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked:
+            mocked.return_value = {
+                "resourceType": "OperationOutcome",
+                "issue": [{
+                    "severity": "error",
+                    "diagnostics": (
+                        "Could not resolve call to operator ToString "
+                        "with signature (FHIR.id)"
+                    ),
+                }],
+            }
+            result = await bridge.validate_cql("ToString(Patient.id)")
+
+        assert result.ok is False
+        hints = [i for i in result.issues if i.severity == "information"]
+        assert len(hints) == 1
+        assert self.HINT_FRAGMENT in (hints[0].diagnostics or "")
+        # The original error must remain — the hint is additive, not a replacement.
+        assert any(i.severity == "error" for i in result.issues)
+
+    @pytest.mark.asyncio
+    async def test_library_path_emits_hint_for_unresolved_fhirhelpers(self):
+        """`include FHIRHelpers version 'X.Y.Z'` where X.Y.Z isn't in HAPI
+        produces `Could not resolve library name FHIRHelpers`. Same hint applies."""
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        cql = (
+            "library Bad version '0.1.0'\n"
+            "using FHIR version '4.0.1'\n"
+            "include FHIRHelpers version '9.9.999'\n"
+            "context Patient\n"
+            "define X: ToString(Patient.id)"
+        )
+
+        with patch("api.cds_hooks.cql_dev_helper.upload_dev_library", new=AsyncMock()) as mock_upload:
+            mock_upload.return_value = ("ValidateProbeFH", "http://x/Library/ValidateProbeFH")
+            with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked_post:
+                mocked_post.return_value = {
+                    "resourceType": "Library",
+                    "contained": [{
+                        "resourceType": "OperationOutcome",
+                        "issue": [{
+                            "severity": "error",
+                            "diagnostics": "Could not resolve library name FHIRHelpers",
+                        }],
+                    }],
+                }
+                result = await bridge.validate_cql(cql)
+
+        assert result.ok is False
+        hints = [i for i in result.issues if i.severity == "information"]
+        assert len(hints) == 1
+        assert self.HINT_FRAGMENT in (hints[0].diagnostics or "")
+
+    @pytest.mark.asyncio
+    async def test_no_hint_when_unrelated_error(self):
+        """An error that doesn't match either fingerprint should NOT trigger the hint —
+        we don't want to spam students with FHIRHelpers advice for, say, a typo."""
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked:
+            mocked.return_value = {
+                "resourceType": "OperationOutcome",
+                "issue": [{
+                    "severity": "error",
+                    "diagnostics": "Could not resolve identifier NoSuchIdentifier",
+                }],
+            }
+            result = await bridge.validate_cql("NoSuchIdentifier")
+
+        assert result.ok is False
+        assert not any(i.severity == "information" for i in result.issues)
+
+    @pytest.mark.asyncio
+    async def test_hint_is_deduplicated(self):
+        """Multiple matching errors must produce only ONE hint — repeated tips are noise."""
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked:
+            mocked.return_value = {
+                "resourceType": "OperationOutcome",
+                "issue": [
+                    {
+                        "severity": "error",
+                        "diagnostics": (
+                            "Could not resolve call to operator ToString "
+                            "with signature (FHIR.id)"
+                        ),
+                    },
+                    {
+                        "severity": "error",
+                        "diagnostics": (
+                            "Could not resolve call to operator ToString "
+                            "with signature (FHIR.code)"
+                        ),
+                    },
+                ],
+            }
+            result = await bridge.validate_cql("ToString(Patient.id) | ToString(Observation.code)")
+
+        hints = [i for i in result.issues if i.severity == "information"]
+        assert len(hints) == 1
+
+    @pytest.mark.asyncio
+    async def test_hint_appended_on_http_error_path_when_outcome_matches(self):
+        """A 4xx with an OperationOutcome containing the fingerprint should still
+        get the hint — the issue body originated from HAPI, not from the bridge."""
+        bridge = CQLBridge(hapi_base_url="http://hapi.test/fhir")
+        bad_response = MagicMock(spec=httpx.Response)
+        bad_response.status_code = 400
+        bad_response.json.return_value = {
+            "resourceType": "OperationOutcome",
+            "issue": [{
+                "severity": "error",
+                "diagnostics": (
+                    "Could not resolve call to operator ToDecimal "
+                    "with signature (FHIR.decimal)"
+                ),
+            }],
+        }
+        bad_response.text = "..."
+
+        with patch.object(bridge, "_post_operation", new=AsyncMock()) as mocked:
+            mocked.side_effect = httpx.HTTPStatusError(
+                "400", request=MagicMock(), response=bad_response,
+            )
+            result = await bridge.validate_cql("ToDecimal(Observation.value)")
+
+        assert result.ok is False
+        hints = [i for i in result.issues if i.severity == "information"]
+        assert len(hints) == 1
+        assert self.HINT_FRAGMENT in (hints[0].diagnostics or "")
+
+
+# ---------------------------------------------------------------------------
 # apply — happy path & shape end-to-end
 # ---------------------------------------------------------------------------
 
