@@ -21,7 +21,8 @@ import {
   VpnKey as CredentialsIcon,
   Dashboard as DashboardIcon,
   BuildCircle as VisualBuilderIcon,
-  ViewModule as TemplateIcon
+  ViewModule as TemplateIcon,
+  LibraryBooks as ValueSetCatalogIcon,
 } from '@mui/icons-material';
 import ServicesTable from '../pages/ServicesRegistry/ServicesTable';
 import ServiceDetailPanel from '../components/ServiceDetailPanel';
@@ -30,6 +31,7 @@ import ExternalServiceDialog from '../components/ExternalServiceDialog';
 import DiscoveryImportDialog from '../components/DiscoveryImportDialog';
 import CredentialsManager from './CredentialsManager';
 import MonitoringDashboard from './MonitoringDashboard';
+import ValueSetCatalog from './ValueSetCatalog/ValueSetCatalog';
 import VisualBuilderWizard from '../components/builder/VisualBuilderWizard';
 import TemplateServiceBuilder from '../components/templates/TemplateServiceBuilder';
 
@@ -50,6 +52,7 @@ const CDSStudioPage = () => {
   const [discoveryImportDialogOpen, setDiscoveryImportDialogOpen] = useState(false);
   const [credentialsDialogOpen, setCredentialsDialogOpen] = useState(false);
   const [monitoringDialogOpen, setMonitoringDialogOpen] = useState(false);
+  const [valueSetCatalogOpen, setValueSetCatalogOpen] = useState(false);
   const [newServiceMenuAnchor, setNewServiceMenuAnchor] = useState(null);
 
   const handleSelectService = (service) => {
@@ -126,6 +129,13 @@ const CDSStudioPage = () => {
               onClick={() => setDiscoveryImportDialogOpen(true)}
             >
               Discovery Import
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<ValueSetCatalogIcon />}
+              onClick={() => setValueSetCatalogOpen(true)}
+            >
+              ValueSets
             </Button>
             <Button
               variant="outlined"
@@ -291,6 +301,13 @@ const CDSStudioPage = () => {
       >
         <MonitoringDashboard />
       </Dialog>
+
+      {/* ValueSet Catalog — manage student-authored and system ValueSets.
+          Self-contained dialog component manages its own Edit/Delete flows. */}
+      <ValueSetCatalog
+        open={valueSetCatalogOpen}
+        onClose={() => setValueSetCatalogOpen(false)}
+      />
     </Box>
   );
 };

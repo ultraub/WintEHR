@@ -59,6 +59,13 @@ import axios from 'axios';
 
 const CQL_SERVICE_TYPE = 'cql-based';
 
+// Matches `valueset "Name": '<canonical_url>'` — same shape the backend
+// regex in cql_artifact_builder.py:_VALUESET_DECL_RE recognizes. The /m
+// flag is essential because students write one declaration per line.
+// Lives at module scope so the useEffect that consumes it doesn't need to
+// list a fresh regex object in its dependency array on every render.
+const VALUESET_DECL_RE = /^\s*valueset\s+"([^"]+)"\s*:\s*'([^']+)'\s*$/gm;
+
 // Step 1 label varies by service type — `renderConditionBuilder` renders
 // either ConditionBuilder (visual) or CQLEditor (CQL). The step list itself
 // uses a single neutral label so the stepper looks the same for both paths.
@@ -171,17 +178,93 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null 
     return out;
   }, [isCQLService, serviceConfig.cql_source]);
 
+  // Derive the referenced ValueSets directly from the CQL declarations.
+  // Closes #124: a VS composed via the composer inserts a declaration into
+  // the CQL editor → this effect parses that declaration → resolves the
+  // canonical URL against listValueSets → updates the panel. Works in
+  // create mode too (no service_id yet), unlike refreshFromBackend.
+  //
+  // We list all VSes once per CQL change rather than fetching each
+  // declaration individually — student catalogs stay small enough that the
+  // one-shot list is cheaper than N round-trips, and the same call result
+  // serves any subsequent declarations the same way.
+  useEffect(() => {
+    if (!open || !isCQLService) return;
+    const cql = serviceConfig.cql_source || '';
+    const declarations = [];
+    let match;
+    VALUESET_DECL_RE.lastIndex = 0;
+    while ((match = VALUESET_DECL_RE.exec(cql)) !== null) {
+      declarations.push({ name: match[1], canonical_url: match[2] });
+    }
+    if (declarations.length === 0) {
+      setReferencedValueSets([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const all = await cdsStudioApi.listValueSets({ limit: 500 });
+        if (cancelled) return;
+        const byUrl = new Map((all || []).map((vs) => [vs.hapi_canonical_url, vs]));
+        const resolved = declarations.map(({ name, canonical_url }) => {
+          const hit = byUrl.get(canonical_url);
+          if (hit) {
+            return {
+              name: hit.name,
+              canonical_url: hit.hapi_canonical_url,
+              vs_id: hit.vs_id,
+              title: hit.title,
+              description: hit.description,
+              codes: hit.codes || [],
+            };
+          }
+          // Unresolved URL — declaration points at a VS we haven't found
+          // (could be system terminology like wintehr-* or a deleted user
+          // VS). Surface it as a stub so the panel can still show the name
+          // and a "not found" affordance.
+          return {
+            name,
+            canonical_url,
+            vs_id: null,
+            title: null,
+            description: null,
+            codes: [],
+            unresolved: true,
+          };
+        });
+        setReferencedValueSets(resolved);
+      } catch (err) {
+        console.warn('Failed to resolve referenced ValueSets from CQL:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isCQLService, serviceConfig.cql_source]);
+
   // After a ValueSet is created or edited inside the composer, refresh the
-  // referenced-VS list so the inline panel reflects the new code count.
-  // Only meaningful in edit mode (we have a deployed service to query); in
-  // create mode there's nothing for /full-edit-state to return yet.
+  // referenced-VS list. The CQL-derive effect above handles re-resolution
+  // on cql_source change, but on Open-to-Modify the URL hasn't changed —
+  // only the code list did. Re-list to pick up the new codes count.
   const refreshReferencedValueSets = async () => {
-    if (!isEditMode || !serviceConfig.service_id) return;
+    if (!isCQLService) return;
     try {
-      const { data } = await axios.get(
-        `/api/cds-visual-builder/services/${serviceConfig.service_id}/full-edit-state`
+      const all = await cdsStudioApi.listValueSets({ limit: 500 });
+      const byUrl = new Map((all || []).map((vs) => [vs.hapi_canonical_url, vs]));
+      setReferencedValueSets((prev) =>
+        prev.map((entry) => {
+          const fresh = entry.canonical_url ? byUrl.get(entry.canonical_url) : null;
+          if (!fresh) return entry;
+          return {
+            ...entry,
+            title: fresh.title,
+            description: fresh.description,
+            codes: fresh.codes || [],
+            unresolved: false,
+          };
+        })
       );
-      setReferencedValueSets(data.value_sets || []);
     } catch (err) {
       console.warn('Failed to refresh referenced ValueSets', err);
     }
