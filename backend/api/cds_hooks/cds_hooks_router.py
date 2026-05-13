@@ -50,7 +50,8 @@ from .feedback import (
     get_feedback_manager,
     process_cds_feedback,
     get_service_analytics,
-    log_hook_execution
+    log_service_execution,
+    log_service_failure,
 )
 from .models import (
     CDSHookRequest,
@@ -611,27 +612,20 @@ async def execute_service(
         # Calculate execution time
         execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
-        # Log execution (fire and forget)
-        try:
-            patient_id = request.context.get('patientId') if isinstance(request.context, dict) else None
-            user_id = request.context.get('userId') if isinstance(request.context, dict) else None
-
-            await log_hook_execution(
-                db=db,
-                service_id=service_id,
-                hook_type=request.hook.value,
-                patient_id=patient_id,
-                user_id=user_id,
-                context=request.context if isinstance(request.context, dict) else request.context.dict(),
-                request_data=request.dict(),
-                response_data={"cards": [c.dict() for c in cards]},
-                cards_returned=len(cards),
-                execution_time_ms=execution_time_ms,
-                success=True,
-                error_message=None
-            )
-        except Exception as log_error:
-            logger.warning(f"Failed to log hook execution: {log_error}")
+        # Log execution (fire-and-forget — never breaks the hook response)
+        patient_id = request.context.get('patientId') if isinstance(request.context, dict) else None
+        user_id = request.context.get('userId') if isinstance(request.context, dict) else None
+        await log_service_execution(
+            db,
+            service_id=service_id,
+            patient_id=patient_id,
+            user_id=user_id,
+            hook_instance=request.hookInstance,
+            success=True,
+            execution_time_ms=execution_time_ms,
+            cards_returned=len(cards),
+            error_message=None,
+        )
 
         return CDSHookResponse(cards=cards)
 
@@ -639,24 +633,54 @@ async def execute_service(
         raise
     except httpx.HTTPStatusError as e:
         logger.error(f"FHIR server error executing CDS service {service_id}: {e.response.status_code}")
+        await log_service_failure(
+            db, service_id=service_id, request_context=request.context,
+            hook_instance=request.hookInstance, start_time=start_time,
+            error_message=f"FHIR {e.response.status_code}",
+        )
         return CDSHookResponse(cards=[])
     except (httpx.RequestError, httpx.TimeoutException) as e:
         logger.error(f"Connection error executing CDS service {service_id}: {e}")
+        await log_service_failure(
+            db, service_id=service_id, request_context=request.context,
+            hook_instance=request.hookInstance, start_time=start_time,
+            error_message=f"Connection: {e}",
+        )
         return CDSHookResponse(cards=[])
     except CDSExecutionError as e:
         logger.error(f"CDS execution error for service {service_id}: {e.message}")
+        await log_service_failure(
+            db, service_id=service_id, request_context=request.context,
+            hook_instance=request.hookInstance, start_time=start_time,
+            error_message=e.message,
+        )
         return CDSHookResponse(cards=[])
     except DatabaseQueryError as e:
         logger.error(f"Database error executing CDS service {service_id}: {e.message}")
+        await log_service_failure(
+            db, service_id=service_id, request_context=request.context,
+            hook_instance=request.hookInstance, start_time=start_time,
+            error_message=e.message,
+        )
         return CDSHookResponse(cards=[])
     except (ValueError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Data error executing CDS service {service_id}: {e}")
+        await log_service_failure(
+            db, service_id=service_id, request_context=request.context,
+            hook_instance=request.hookInstance, start_time=start_time,
+            error_message=f"Data: {e}",
+        )
         # CDS Hooks should be non-blocking - return empty cards on error
         return CDSHookResponse(cards=[])
     except Exception as e:
         # Catch-all for any other errors (e.g., external service failures)
         # CDS Hooks should be non-blocking - return empty cards on error
         logger.error(f"Unexpected error executing CDS service {service_id}: {e}")
+        await log_service_failure(
+            db, service_id=service_id, request_context=request.context,
+            hook_instance=request.hookInstance, start_time=start_time,
+            error_message=str(e),
+        )
         return CDSHookResponse(cards=[])
 
 

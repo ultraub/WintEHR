@@ -1093,6 +1093,67 @@ async def deploy_visual_service(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class _ServiceStatusUpdate(BaseModel):
+    """Status transition request — accepts the lowercase frontend values."""
+    status: str = Field(..., description="'active' or 'inactive'")
+
+
+@router.put("/services/{service_id}/status")
+async def update_service_status(
+    service_id: str,
+    body: _ServiceStatusUpdate,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user_or_demo),
+):
+    """Unified status setter used by the Services Registry toggle.
+
+    The frontend prefers a single PUT over separate POST /deploy and POST
+    /deactivate endpoints because the table renders one row-level
+    "Activate/Deactivate" menu item that flips based on current status.
+    This route normalizes the lowercase 'active'/'inactive' payload to the
+    uppercase enum values service_configs.status expects, then writes via
+    the same SQLAlchemy path the dedicated endpoints use.
+    """
+    requested = (body.status or "").lower()
+    if requested not in ("active", "inactive"):
+        raise HTTPException(
+            status_code=422,
+            detail="status must be 'active' or 'inactive'",
+        )
+    new_status = "ACTIVE" if requested == "active" else "INACTIVE"
+
+    try:
+        query = select(VisualServiceConfig).where(
+            VisualServiceConfig.service_id == service_id
+        )
+        result = await db.execute(query)
+        service = result.scalar_one_or_none()
+
+        if not service:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Visual service '{service_id}' not found",
+            )
+
+        service.status = new_status
+        if new_status == "ACTIVE":
+            service.last_deployed_at = datetime.utcnow()
+        await db.commit()
+
+        logger.info(f"Service {service_id} status set to {new_status}")
+        return {
+            "service_id": service_id,
+            "status": new_status,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating status for {service_id}: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/services/{service_id}/deactivate")
 async def deactivate_visual_service(
     service_id: str,
@@ -1170,39 +1231,55 @@ async def get_service_analytics(
                 detail=f"Visual service '{service_id}' not found"
             )
 
-        # Fetch from service_analytics table
-        analytics_query = text("""
-            SELECT total_executions, total_cards_shown, cards_accepted,
-                   cards_dismissed, avg_execution_time_ms
-            FROM cds_visual_builder.service_analytics
+        # Aggregate everything from execution_logs — single source of truth
+        # for service execution metrics. The legacy `service_analytics`
+        # rollup table was dropped because nothing wrote to it.
+        exec_aggregate_query = text("""
+            SELECT
+                COUNT(*) AS total_executions,
+                COALESCE(SUM(cards_returned), 0) AS cards_shown,
+                COALESCE(AVG(execution_time_ms), 0)::numeric(10, 2) AS avg_execution_time_ms
+            FROM cds_visual_builder.execution_logs
             WHERE service_id = :service_id
         """)
-        analytics_result = await db.execute(analytics_query, {"service_id": service_id})
-        analytics_row = analytics_result.first()
+        aggregate_result = await db.execute(exec_aggregate_query, {"service_id": service_id})
+        aggregate_row = aggregate_result.first()
 
-        total_executions = 0
-        cards_shown = 0
+        total_executions = aggregate_row.total_executions if aggregate_row else 0
+        cards_shown = aggregate_row.cards_shown if aggregate_row else 0
+        avg_exec_time = float(aggregate_row.avg_execution_time_ms) if aggregate_row else 0.0
+
+        # Card-feedback counts come from cds_hooks.feedback — kept separate
+        # because the feedback table tracks per-card outcomes whereas
+        # execution_logs only knows how many cards were returned.
+        feedback_query = text("""
+            SELECT
+                COUNT(*) FILTER (WHERE outcome = 'accepted') AS cards_accepted,
+                COUNT(*) FILTER (WHERE outcome = 'overridden') AS cards_dismissed
+            FROM cds_hooks.feedback
+            WHERE service_id = :service_id
+        """)
         cards_accepted = 0
         cards_dismissed = 0
-        avg_exec_time = 0.0
-
-        if analytics_row:
-            total_executions = analytics_row.total_executions or 0
-            cards_shown = analytics_row.total_cards_shown or 0
-            cards_accepted = analytics_row.cards_accepted or 0
-            cards_dismissed = analytics_row.cards_dismissed or 0
-            avg_exec_time = float(analytics_row.avg_execution_time_ms or 0)
+        try:
+            feedback_result = await db.execute(feedback_query, {"service_id": service_id})
+            feedback_row = feedback_result.first()
+            if feedback_row:
+                cards_accepted = feedback_row.cards_accepted or 0
+                cards_dismissed = feedback_row.cards_dismissed or 0
+        except Exception:
+            pass  # Feedback table may not exist yet — degrade gracefully.
 
         acceptance_rate = 0.0
         if cards_shown > 0:
             acceptance_rate = round((cards_accepted / cards_shown) * 100, 2)
 
-        # Get execution counts by date from execution_logs
+        # Daily execution counts for the last 30 days
         exec_by_date_query = text("""
-            SELECT DATE(created_at) as exec_date, COUNT(*) as count
+            SELECT DATE(executed_at) as exec_date, COUNT(*) as count
             FROM cds_visual_builder.execution_logs
             WHERE service_id = :service_id
-            GROUP BY DATE(created_at)
+            GROUP BY DATE(executed_at)
             ORDER BY exec_date DESC
             LIMIT 30
         """)

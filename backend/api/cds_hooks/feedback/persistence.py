@@ -577,58 +577,106 @@ async def get_service_analytics(db: AsyncSession, service_id: str, days: int = 3
         logger.error(f"Data error getting service analytics: {e}")
         return {}
 
-async def log_hook_execution(db: AsyncSession,
-                           service_id: str,
-                           hook_type: str,
-                           patient_id: Optional[str],
-                           user_id: Optional[str],
-                           context: Dict[str, Any],
-                           request_data: Dict[str, Any],
-                           response_data: Dict[str, Any],
-                           cards_returned: int,
-                           execution_time_ms: int,
-                           success: bool = True,
-                           error_message: Optional[str] = None) -> int:
-    """Log CDS hook execution for monitoring and analytics"""
+async def log_service_execution(
+    db: AsyncSession,
+    *,
+    service_id: str,
+    patient_id: Optional[str],
+    user_id: Optional[str],
+    hook_instance: Optional[str],
+    success: bool,
+    execution_time_ms: int,
+    cards_returned: int,
+    error_message: Optional[str] = None,
+) -> Optional[int]:
+    """Append one row to cds_visual_builder.execution_logs for analytics.
+
+    Single source of truth for service execution metrics — the table is
+    read by both `get_service_analytics` (per-service deep dive) and
+    `service.py:_get_service_metrics` (per-service summary shown in the
+    Services Registry table). Writes here populate "Executions (24h)",
+    "Success Rate", avg/p95 latency, and execution_by_date.
+
+    Failures are non-fatal: the hook fire itself has already happened by
+    the time we log, so a DB error here must never propagate up and turn a
+    successful card response into a 500. Returns the row id on success or
+    None on failure.
+
+    No FK constraint on service_id — built-in services that aren't in
+    `cds_visual_builder.service_configs` log freely. The schema migration
+    in `06_cds_visual_builder.sql` drops `fk_service_log` for this reason.
+    """
     try:
         insert_sql = text("""
-            INSERT INTO cds_hooks.execution_log (
-                service_id, hook_type, patient_id, user_id,
-                context, request_data, response_data,
-                cards_returned, execution_time_ms, success, error_message
+            INSERT INTO cds_visual_builder.execution_logs (
+                service_id, patient_id, user_id, hook_instance,
+                success, execution_time_ms, cards_returned, error_message
             ) VALUES (
-                :service_id, :hook_type, :patient_id, :user_id,
-                :context, :request_data, :response_data,
-                :cards_returned, :execution_time_ms, :success, :error_message
+                :service_id, :patient_id, :user_id, :hook_instance,
+                :success, :execution_time_ms, :cards_returned, :error_message
             ) RETURNING id
         """)
 
         result = await db.execute(insert_sql, {
             'service_id': service_id,
-            'hook_type': hook_type,
             'patient_id': patient_id,
             'user_id': user_id,
-            'context': json.dumps(context) if context else None,
-            'request_data': json.dumps(request_data) if request_data else None,
-            'response_data': json.dumps(response_data) if response_data else None,
-            'cards_returned': cards_returned,
-            'execution_time_ms': execution_time_ms,
+            'hook_instance': hook_instance,
             'success': success,
-            'error_message': error_message
+            'execution_time_ms': execution_time_ms,
+            'cards_returned': cards_returned,
+            'error_message': error_message,
         })
 
         await db.commit()
 
         log_id = result.scalar()
-        logger.debug(f"Logged hook execution {log_id} for service {service_id}")
-
         return log_id
 
     except (SQLAlchemyError, OperationalError, IntegrityError) as e:
         await db.rollback()
-        logger.error(f"Database error logging hook execution: {e}")
-        return 0
-    except (json.JSONDecodeError, ValueError, TypeError) as e:
+        logger.warning(f"Failed to log execution for service {service_id}: {e}")
+        return None
+    except (ValueError, TypeError) as e:
         await db.rollback()
-        logger.error(f"Data error logging hook execution: {e}")
-        return 0
+        logger.warning(f"Data error logging execution for service {service_id}: {e}")
+        return None
+
+
+async def log_service_failure(
+    db: AsyncSession,
+    *,
+    service_id: str,
+    request_context: Any,
+    hook_instance: Optional[str],
+    start_time: datetime,
+    error_message: str,
+) -> None:
+    """Best-effort wrapper around log_service_execution for the exception
+    arms of execute_service. Extracts patient/user from `request_context`
+    (which may be a dict or a Pydantic model), computes elapsed ms from
+    start_time, truncates the error_message so a multi-MB upstream payload
+    doesn't poison the TEXT column, and swallows any further exceptions
+    so the original error's response path stays intact.
+    """
+    try:
+        execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+        if isinstance(request_context, dict):
+            patient_id = request_context.get('patientId')
+            user_id = request_context.get('userId')
+        else:
+            patient_id = getattr(request_context, 'patientId', None)
+            user_id = getattr(request_context, 'userId', None)
+        await log_service_execution(
+            db,
+            service_id=service_id,
+            patient_id=patient_id,
+            user_id=user_id,
+            hook_instance=hook_instance,
+            success=False,
+            execution_time_ms=execution_time_ms,
+            cards_returned=0,
+            error_message=(error_message[:1000] if error_message else None),
+        )
+    except Exception as log_error:
+        logger.warning(f"Could not log failure for service {service_id}: {log_error}")

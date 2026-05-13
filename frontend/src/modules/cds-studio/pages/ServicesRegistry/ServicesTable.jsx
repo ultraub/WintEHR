@@ -20,7 +20,14 @@ import {
   Select,
   FormControl,
   InputLabel,
-  Tooltip
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
+  Snackbar
 } from '@mui/material';
 import {
   MoreVert as MoreVertIcon,
@@ -46,6 +53,13 @@ const ServicesTable = ({ onSelectService, onEditService, onRefresh }) => {
   });
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
+  // Delete confirmation lives in its own state slot so closing the row
+  // menu (which clears selectedService) doesn't strand the dialog with
+  // nothing to act on. snackbar surfaces API failures that the inline
+  // <Alert> would miss when triggered from inside the dialog.
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
 
   const loadServices = async () => {
     try {
@@ -90,29 +104,42 @@ const ServicesTable = ({ onSelectService, onEditService, onRefresh }) => {
 
   const handleToggleStatus = async () => {
     if (!selectedService) return;
+    const target = selectedService;
+    handleMenuClose();
 
     try {
-      const newStatus = selectedService.status === 'active' ? 'inactive' : 'active';
-      await cdsStudioApi.updateServiceStatus(selectedService.service_id, newStatus);
+      const newStatus = target.status === 'active' ? 'inactive' : 'active';
+      await cdsStudioApi.updateServiceStatus(target.service_id, newStatus);
       await loadServices();
     } catch (err) {
-      setError(err.message);
+      setSnackbar({ open: true, message: err.message || 'Failed to update status', severity: 'error' });
     }
+  };
+
+  const openDeleteDialog = () => {
+    if (!selectedService) return;
+    // Capture the service object NOW — handleMenuClose() clears
+    // selectedService and the dialog needs to remember which row to
+    // delete on confirm. Without this snapshot, racing menu-close +
+    // dialog-confirm could fire delete against null.
+    setDeleteTarget(selectedService);
     handleMenuClose();
   };
 
-  const handleDelete = async () => {
-    if (!selectedService) return;
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
 
-    if (window.confirm(`Delete service "${selectedService.title}"?`)) {
-      try {
-        await cdsStudioApi.deleteService(selectedService.service_id);
-        await loadServices();
-      } catch (err) {
-        setError(err.message);
-      }
+    setDeleting(true);
+    try {
+      await cdsStudioApi.deleteService(deleteTarget.service_id);
+      setDeleteTarget(null);
+      await loadServices();
+      setSnackbar({ open: true, message: `Deleted "${deleteTarget.title}"`, severity: 'success' });
+    } catch (err) {
+      setSnackbar({ open: true, message: err.message || 'Failed to delete service', severity: 'error' });
+    } finally {
+      setDeleting(false);
     }
-    handleMenuClose();
   };
 
   const getStatusIcon = (status) => {
@@ -332,10 +359,52 @@ const ServicesTable = ({ onSelectService, onEditService, onRefresh }) => {
         <MenuItem onClick={handleToggleStatus}>
           {selectedService?.status === 'active' ? 'Deactivate' : 'Activate'}
         </MenuItem>
-        <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
+        <MenuItem onClick={openDeleteDialog} sx={{ color: 'error.main' }}>
           Delete
         </MenuItem>
       </Menu>
+
+      {/* Delete confirmation — replaces window.confirm so styling
+          matches the rest of the studio and works in environments where
+          the native dialog is suppressed. deleteTarget gates the open
+          state and carries the service through the async confirm. */}
+      <Dialog open={Boolean(deleteTarget)} onClose={() => !deleting && setDeleteTarget(null)}>
+        <DialogTitle>Delete service?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {deleteTarget && (
+              <>
+                This will remove <strong>{deleteTarget.title}</strong> (
+                <code>{deleteTarget.service_id}</code>) from the registry.
+                Execution history is preserved but the service stops firing.
+              </>
+            )}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button onClick={confirmDelete} color="error" disabled={deleting} autoFocus>
+            {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={5000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
