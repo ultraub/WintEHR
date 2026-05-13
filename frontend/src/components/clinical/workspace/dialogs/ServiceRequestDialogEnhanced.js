@@ -282,8 +282,13 @@ const ServiceRequestDialogEnhanced = ({
   const [duplicateCheck, setDuplicateCheck] = useState([]);
 
   // Service request details
+  //
+  // status defaults to 'draft' so newly composed orders land in an
+  // unsigned state — the signing dialog flips them to 'active' on Sign.
+  // Backend consumers must refuse to act on drafts (e.g. lab routing on
+  // a draft ServiceRequest is a noop).
   const [formData, setFormData] = useState({
-    status: 'active',
+    status: 'draft',
     intent: 'order',
     priority: 'routine',
     category: [],

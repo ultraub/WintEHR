@@ -280,10 +280,13 @@ const QuickOrderDialog = ({
       let savedResource;
       
       if (formData.orderType === 'medication') {
-        // Create MedicationRequest
+        // Create MedicationRequest.
+        // status='draft' — orders land unsigned; the encounter signing
+        // dialog flips draft → active. Backend pharmacy refuses to
+        // dispense draft.
         const medicationRequest = {
           resourceType: 'MedicationRequest',
-          status: 'active',
+          status: 'draft',
           intent: 'order',
           priority: formData.priority,
           subject: { reference: `Patient/${patientId}` },
@@ -305,11 +308,13 @@ const QuickOrderDialog = ({
         };
         savedResource = medicationRequest;
       } else {
-        // Create ServiceRequest for other order types
+        // Create ServiceRequest for other order types.
+        // status='draft' — orders land unsigned; the encounter signing
+        // dialog flips draft → active on Sign.
         const categoryData = ORDER_CATEGORIES.find(c => c.value === formData.orderType);
         const serviceRequest = {
           resourceType: 'ServiceRequest',
-          status: 'active',
+          status: 'draft',
           intent: 'order',
           priority: formData.priority,
           subject: { reference: `Patient/${patientId}` },

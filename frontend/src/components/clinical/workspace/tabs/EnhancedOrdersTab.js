@@ -158,10 +158,15 @@ const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAl
               <Typography variant="body2" fontWeight="medium">
                 {title}
               </Typography>
-              <Chip 
-                label={order.status} 
-                size="small" 
-                color={order.status === 'active' ? 'success' : order.status === 'cancelled' ? 'error' : 'default'}
+              <Chip
+                label={order.status === 'draft' ? 'unsigned' : order.status}
+                size="small"
+                color={
+                  order.status === 'active' ? 'success'
+                  : order.status === 'cancelled' ? 'error'
+                  : order.status === 'draft' ? 'warning'
+                  : 'default'
+                }
                 sx={{ height: 18, borderRadius: 0, fontSize: '0.7rem' }}
               />
               {order.priority && order.priority !== 'routine' && (
@@ -244,8 +249,13 @@ const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAl
         title={title}
         icon={getOrderIcon()}
         severity={getSeverity()}
-        status={order.status}
-        statusColor={order.status === 'active' ? 'success' : order.status === 'cancelled' ? 'error' : 'default'}
+        status={order.status === 'draft' ? 'unsigned' : order.status}
+        statusColor={
+          order.status === 'active' ? 'success'
+          : order.status === 'cancelled' ? 'error'
+          : order.status === 'draft' ? 'warning'
+          : 'default'
+        }
         details={details}
         onEdit={() => onAction(order, 'edit')}
         onMore={() => onAction(order, 'view')}
@@ -666,7 +676,11 @@ const EnhancedOrdersTab = ({
 
   // Count active orders for alerts
   const activeOrdersCount = processedResults.all.filter(o => o.status === 'active').length;
-  const urgentOrdersCount = processedResults.all.filter(o => 
+  // Draft = orders authored but not yet signed. Surfaced as a chip in the
+  // header so the user sees there's an unsigned queue waiting for them —
+  // dispense / lab routing on the backend refuses to act on these.
+  const draftOrdersCount = processedResults.all.filter(o => o.status === 'draft').length;
+  const urgentOrdersCount = processedResults.all.filter(o =>
     o.priority === 'urgent' || o.priority === 'stat'
   ).length;
 
@@ -1011,6 +1025,14 @@ const EnhancedOrdersTab = ({
                 label={`${activeOrdersCount} active`}
                 size="small"
                 color="primary"
+                sx={{ borderRadius: 0, height: 20 }}
+              />
+            )}
+            {draftOrdersCount > 0 && (
+              <Chip
+                label={`${draftOrdersCount} unsigned`}
+                size="small"
+                color="warning"
                 sx={{ borderRadius: 0, height: 20 }}
               />
             )}
