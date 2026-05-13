@@ -9,6 +9,7 @@ Main router for CDS Management Studio providing endpoints for:
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query
+from pydantic import BaseModel
 from typing import List, Optional
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -256,10 +257,21 @@ async def get_system_metrics(
 # Service Management Endpoints
 # ============================================================================
 
+class _ServiceStatusUpdate(BaseModel):
+    """JSON body for `PUT /services/{id}/status`.
+
+    The frontend ServicesTable toggles with a single PUT carrying
+    `{status: "active"|"inactive"}` in the body — wraps the enum here so
+    FastAPI parses from the JSON body rather than from the query string
+    (which is what a bare `status: ServiceStatus` parameter would do).
+    """
+    status: ServiceStatus
+
+
 @router.put("/services/{service_id}/status")
 async def update_service_status(
     service_id: str,
-    status: ServiceStatus,
+    body: _ServiceStatusUpdate,
     studio_service: CDSStudioService = Depends(get_studio_service)
 ):
     """
@@ -268,12 +280,12 @@ async def update_service_status(
     Updates PlanDefinition status in HAPI FHIR.
     """
     try:
-        await studio_service.update_service_status(service_id, status)
+        await studio_service.update_service_status(service_id, body.status)
         return {
             "success": True,
             "service_id": service_id,
-            "status": status,
-            "message": f"Service status updated to {status}"
+            "status": body.status,
+            "message": f"Service status updated to {body.status}"
         }
     except HTTPException:
         raise
