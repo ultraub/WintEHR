@@ -26,7 +26,7 @@
  * land drafts that flow through the encounter signing dialog.
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -203,6 +203,14 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
   // via `initialTab` to land on a specific tab when they open the
   // composer with a context already in mind.
   const [activeTab, setActiveTab] = useState(initialTab || 'med');
+
+  // The composer stays mounted (hidden) between opens, so `useState`
+  // only picks up `initialTab` on the very first mount. Resync the
+  // active tab each time the dialog opens so a caller that flips
+  // `initialTab` then opens us actually lands on the requested tab.
+  useEffect(() => {
+    if (open) setActiveTab(initialTab || 'med');
+  }, [open, initialTab]);
   const [signing, setSigning] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
 
