@@ -155,11 +155,11 @@ def overlap():
 
 @pytest.mark.asyncio
 async def test_overlap_detects_cmp_plus_glucose(overlap):
-    """CMP (24323-8) draft + standalone Glucose (2345-7) draft → one card."""
+    """CMP (24323-8) draft + standalone Glucose (2345-7, Ser/Plas) draft → one card."""
     ctx = {
         "draftOrders": make_bundle(
             lab("24323-8", "cmp"),       # CMP
-            lab("2345-7", "glu"),        # Glucose — part of CMP
+            lab("2345-7", "glu"),        # Glucose Ser/Plas — canonical CMP component
         )
     }
     assert await overlap.should_execute(ctx, {}) is True
@@ -168,6 +168,23 @@ async def test_overlap_detects_cmp_plus_glucose(overlap):
     assert "Comprehensive Metabolic Panel" in cards[0].summary
     assert "Glucose" in cards[0].detail
     assert cards[0].indicator == "warning"
+
+
+@pytest.mark.asyncio
+async def test_overlap_detects_blood_variant_loinc(overlap):
+    """CMP + Glucose-in-Blood variant (2339-0) — the catalog surfaces this
+    variant for "glucose" searches. Overlap detection must catch it even
+    though 2339-0 isn't the formal Ser/Plas LOINC inside the CMP panel
+    definition. Clinicians don't differentiate when ordering."""
+    ctx = {
+        "draftOrders": make_bundle(
+            lab("24323-8", "cmp"),
+            lab("2339-0", "glu-blood"),  # Glucose in Blood variant
+        )
+    }
+    cards = await overlap.execute(ctx, {})
+    assert len(cards) == 1
+    assert "Glucose" in cards[0].detail
 
 
 @pytest.mark.asyncio

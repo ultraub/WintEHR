@@ -978,18 +978,26 @@ class DrugDrugInteractionCohortService(CDSService):
 # point: ordering a panel + one of its components is duplicate work
 # AND a duplicate bill — easy to do by accident in a long draft list,
 # impossible to detect from a single draft.
+#
+# Each "component" entry maps a LOINC code to a human display label.
+# We include both the canonical Ser/Plas variant (the one nominally
+# inside the panel definition) AND the common Blood-variant LOINC that
+# our lab-tests catalog surfaces by default. Real clinicians order
+# "glucose" generically — they don't pick a specimen-type-specific
+# code — so overlap detection has to be tolerant of which LOINC
+# variant the picker emitted.
 _PANEL_COMPONENTS: Dict[str, Dict[str, Any]] = {
     # Basic Metabolic Panel
     "24320-4": {
         "label": "Basic Metabolic Panel (BMP)",
         "components": {
-            "2345-7": "Glucose",
-            "2951-2": "Sodium",
-            "2823-3": "Potassium",
+            "2345-7": "Glucose",   "2339-0": "Glucose",
+            "2951-2": "Sodium",    "2947-0": "Sodium",
+            "2823-3": "Potassium", "6298-4": "Potassium",
             "2075-0": "Chloride",
             "2028-9": "CO2",
             "3094-0": "BUN",
-            "2160-0": "Creatinine",
+            "2160-0": "Creatinine", "38483-4": "Creatinine",
             "17861-6": "Calcium",
         },
     },
@@ -997,13 +1005,13 @@ _PANEL_COMPONENTS: Dict[str, Dict[str, Any]] = {
     "24323-8": {
         "label": "Comprehensive Metabolic Panel (CMP)",
         "components": {
-            "2345-7": "Glucose",
-            "2951-2": "Sodium",
-            "2823-3": "Potassium",
+            "2345-7": "Glucose",   "2339-0": "Glucose",
+            "2951-2": "Sodium",    "2947-0": "Sodium",
+            "2823-3": "Potassium", "6298-4": "Potassium",
             "2075-0": "Chloride",
             "2028-9": "CO2",
             "3094-0": "BUN",
-            "2160-0": "Creatinine",
+            "2160-0": "Creatinine", "38483-4": "Creatinine",
             "17861-6": "Calcium",
             "1751-7": "Albumin",
             "2885-2": "Total protein",
