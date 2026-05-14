@@ -172,11 +172,14 @@ class CatalogIntegrationService {
       if (searchTerm) params.search = searchTerm;
       const response = await axios.get(`${CATALOG_BASE}/imaging-studies`, { params });
       const items = response.data || [];
+      // ImagingStudyCatalogItem returns {id, study_name, study_code, modality, body_site, ...}
       const normalized = items.map((item) => ({
-        id: item.id || item.code,
-        code: item.code,
-        display: item.display || item.name || item.code,
-        system: item.system || 'http://loinc.org',
+        id: item.id || item.study_code,
+        code: item.study_code || item.id,
+        display: item.study_name || item.study_description || item.study_code || item.id,
+        system: 'http://loinc.org',
+        modality: item.modality,
+        body_site: item.body_site,
         category: 'imaging',
       }));
       this.setCache(cacheKey, normalized);
@@ -203,13 +206,19 @@ class CatalogIntegrationService {
       if (searchTerm) params.search = searchTerm;
       const response = await axios.get(`${CATALOG_BASE}/procedures`, { params });
       const items = response.data || [];
-      const normalized = items.map((item) => ({
-        id: item.id || item.code,
-        code: item.code,
-        display: item.display || item.name || item.code,
-        system: item.system || 'http://snomed.info/sct',
-        category: 'procedure',
-      }));
+      // ProcedureCatalogItem returns {id, procedure_name, procedure_code, snomed_code, cpt_code, ...}
+      const normalized = items.map((item) => {
+        const system = item.snomed_code
+          ? 'http://snomed.info/sct'
+          : (item.cpt_code ? 'http://www.ama-assn.org/go/cpt' : 'http://snomed.info/sct');
+        return {
+          id: item.id || item.procedure_code,
+          code: item.procedure_code || item.snomed_code || item.cpt_code || item.id,
+          display: item.procedure_name || item.procedure_description || item.procedure_code,
+          system,
+          category: 'procedure',
+        };
+      });
       this.setCache(cacheKey, normalized);
       return normalized;
     } catch (error) {
