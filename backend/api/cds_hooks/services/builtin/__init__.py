@@ -804,6 +804,368 @@ class OrderCompositionContextService(CDSService):
 
 
 # =============================================================================
+# Cross-order CDS — demonstrates the Order Composer's bundle firing
+# =============================================================================
+#
+# These two services exist to *demonstrate* what unified-level order-select
+# firing buys you. They scan ALL draft orders in the bundle, not just the
+# single "selected" one, and flag interactions that are only visible across
+# multiple drafts. Per-tab order-select firing (the pre-composer world)
+# couldn't produce these warnings — neither pair-finding nor
+# panel-component overlap is detectable from a single draft.
+#
+# Both services intentionally use small, hand-curated lookup tables so the
+# educational story is "here's the cross-order pattern" rather than "here's
+# a production drug-interaction database". Students replace the tables (or
+# back them with a CQL service authored in the studio) once they understand
+# the firing model.
+
+# (drug_a_substr, drug_b_substr, indicator, summary, detail)
+# Substring match on the medication's display text — same approach the
+# legacy MedicationInteractionService uses, kept consistent for cohesion.
+_INTERACTION_PAIRS = [
+    (
+        "warfarin", "aspirin", "critical",
+        "Warfarin + Aspirin: major bleeding risk",
+        "Concurrent anticoagulation and antiplatelet therapy substantially "
+        "increases major bleeding risk. Use only with a clear indication, "
+        "monitor INR more frequently, and document the risk/benefit rationale.",
+    ),
+    (
+        "warfarin", "ibuprofen", "warning",
+        "Warfarin + Ibuprofen: bleeding + GI risk",
+        "NSAIDs displace warfarin from protein binding (INR rises) and add "
+        "antiplatelet effect plus GI mucosal injury. Prefer acetaminophen "
+        "for analgesia in anticoagulated patients.",
+    ),
+    (
+        "lisinopril", "spironolactone", "warning",
+        "ACE inhibitor + K-sparing diuretic: hyperkalemia risk",
+        "Combining lisinopril with spironolactone (or eplerenone/triamterene) "
+        "raises serum potassium. Monitor K+ within 1 week of starting and "
+        "after any dose change.",
+    ),
+    (
+        "metformin", "iodinated contrast", "warning",
+        "Metformin around iodinated contrast: lactic acidosis risk",
+        "Hold metformin at the time of and for 48h after IV iodinated contrast "
+        "in patients with eGFR < 60 or AKI risk. Resume after renal function "
+        "is reassessed.",
+    ),
+    (
+        "ciprofloxacin", "warfarin", "warning",
+        "Ciprofloxacin + Warfarin: INR elevation",
+        "Fluoroquinolones inhibit warfarin metabolism. Expect INR to rise "
+        "within 3–5 days of starting; check INR within a week and consider "
+        "an empiric 10–20% warfarin dose reduction.",
+    ),
+    (
+        "tramadol", "ssri", "warning",
+        "Tramadol + SSRI: serotonin syndrome risk",
+        "Combining tramadol with SSRIs/SNRIs raises risk of serotonin "
+        "syndrome and lowers seizure threshold. Prefer alternative analgesia "
+        "in patients on serotonergic antidepressants.",
+    ),
+]
+
+# SSRI generic-name substrings, expanded once at module load so the lookup
+# stays a simple substring scan over the bundle's medication text.
+_SSRI_NAMES = ("fluoxetine", "sertraline", "citalopram", "escitalopram", "paroxetine", "fluvoxamine")
+
+
+class DrugDrugInteractionCohortService(CDSService):
+    """
+    Scans ALL MedicationRequest drafts in the order-select bundle for
+    drug-drug interactions across the cohort.
+
+    Cross-order intelligence — the point this service proves:
+    the cohort of drafts must be visible at the same time for pair-finding
+    to work. If order-select fired per-tab (the pre-composer model), this
+    service would see a single draft and miss every pair entirely. The
+    `MedicationInteractionService` shipped for the legacy medication-prescribe
+    hook can only compare ONE new med against an active-medications prefetch;
+    it cannot reason about the user's drafts as a cohort.
+
+    Educational notes:
+    - Reads `context.draftOrders.entry[].resource` — the full Bundle, not
+      just `context.selections`. We want the cohort even when the
+      composer only "focuses" a single entry.
+    - Pair detection is order-independent and case-insensitive. We do
+      substring matching against the rendered display text because RxNorm
+      codes vary by formulation/strength and the educational signal is
+      stronger when matching the drug NAME the student typed.
+    - The SSRI rule expands to a small list of common SSRIs so the demo
+      fires on realistic Synthea data, not just a literal "ssri" string.
+    """
+
+    service_id = "drug-drug-interaction-cohort"
+    hook_type = HookType.ORDER_SELECT
+    title = "Drug-Drug Interaction (cohort)"
+    description = (
+        "Scans all medication drafts in the Order Composer at once and "
+        "flags interacting pairs. Demonstrates the cohort-firing pattern "
+        "the unified Order Composer enables."
+    )
+    # No FHIR prefetch — the relevant data is in context.draftOrders.
+    prefetch_templates: Dict[str, str] = {}
+
+    @staticmethod
+    def _med_text(resource: Dict[str, Any]) -> str:
+        mc = resource.get("medicationCodeableConcept") or {}
+        return (mc.get("text") or (mc.get("coding") or [{}])[0].get("display") or "").lower()
+
+    @staticmethod
+    def _name_matches(name: str, needle: str) -> bool:
+        if needle == "ssri":
+            return any(s in name for s in _SSRI_NAMES)
+        return needle in name
+
+    async def should_execute(
+        self,
+        context: Dict[str, Any],
+        prefetch: Dict[str, Any],
+    ) -> bool:
+        # Quick gate: at least two medication drafts in the cohort.
+        entries = (context.get("draftOrders") or {}).get("entry", [])
+        meds = [
+            e.get("resource") for e in entries
+            if e.get("resource", {}).get("resourceType") == "MedicationRequest"
+        ]
+        return len(meds) >= 2
+
+    async def execute(
+        self,
+        context: Dict[str, Any],
+        prefetch: Dict[str, Any],
+    ) -> List[Card]:
+        entries = (context.get("draftOrders") or {}).get("entry", [])
+        drafts = [
+            e.get("resource", {}) for e in entries
+            if e.get("resource", {}).get("resourceType") == "MedicationRequest"
+        ]
+        med_texts = [(self._med_text(d), d) for d in drafts]
+
+        cards: List[Card] = []
+        seen_pairs: set = set()
+        for needle_a, needle_b, indicator, summary, detail in _INTERACTION_PAIRS:
+            matches_a = [d for (n, d) in med_texts if self._name_matches(n, needle_a)]
+            matches_b = [d for (n, d) in med_texts if self._name_matches(n, needle_b)]
+            if not matches_a or not matches_b:
+                continue
+            for a in matches_a:
+                for b in matches_b:
+                    if a is b:
+                        # Same draft matched both sides — skip.
+                        continue
+                    key = tuple(sorted([a.get("id", ""), b.get("id", "")]))
+                    if key in seen_pairs:
+                        continue
+                    seen_pairs.add(key)
+                    name_a = self._med_text(a) or "(unspecified)"
+                    name_b = self._med_text(b) or "(unspecified)"
+                    cards.append(self.create_card(
+                        summary=summary,
+                        indicator=indicator,
+                        detail=f"{detail}\n\nDrafts implicated: {name_a}; {name_b}",
+                        source_label="Drug-Drug Interaction (cohort demo)",
+                    ))
+        return cards
+
+
+# Hand-curated panel-component map. Keys are LOINC codes for common
+# panels; values are the LOINC codes a clinician would also order
+# individually that are already inside the panel. The student-facing
+# point: ordering a panel + one of its components is duplicate work
+# AND a duplicate bill — easy to do by accident in a long draft list,
+# impossible to detect from a single draft.
+_PANEL_COMPONENTS: Dict[str, Dict[str, Any]] = {
+    # Basic Metabolic Panel
+    "24320-4": {
+        "label": "Basic Metabolic Panel (BMP)",
+        "components": {
+            "2345-7": "Glucose",
+            "2951-2": "Sodium",
+            "2823-3": "Potassium",
+            "2075-0": "Chloride",
+            "2028-9": "CO2",
+            "3094-0": "BUN",
+            "2160-0": "Creatinine",
+            "17861-6": "Calcium",
+        },
+    },
+    # Comprehensive Metabolic Panel
+    "24323-8": {
+        "label": "Comprehensive Metabolic Panel (CMP)",
+        "components": {
+            "2345-7": "Glucose",
+            "2951-2": "Sodium",
+            "2823-3": "Potassium",
+            "2075-0": "Chloride",
+            "2028-9": "CO2",
+            "3094-0": "BUN",
+            "2160-0": "Creatinine",
+            "17861-6": "Calcium",
+            "1751-7": "Albumin",
+            "2885-2": "Total protein",
+            "1920-8": "AST",
+            "1742-6": "ALT",
+            "6768-6": "Alkaline phosphatase",
+            "1975-2": "Total bilirubin",
+        },
+    },
+    # Complete Blood Count (with differential variant)
+    "58410-2": {
+        "label": "Complete Blood Count (CBC) with differential",
+        "components": {
+            "6690-2": "WBC",
+            "789-8": "RBC",
+            "718-7": "Hemoglobin",
+            "4544-3": "Hematocrit",
+            "777-3": "Platelets",
+            "770-8": "Neutrophils %",
+            "736-9": "Lymphocytes %",
+        },
+    },
+    # Lipid Panel
+    "24331-1": {
+        "label": "Lipid Panel",
+        "components": {
+            "2093-3": "Total cholesterol",
+            "2085-9": "HDL cholesterol",
+            "2089-1": "LDL cholesterol",
+            "2571-8": "Triglycerides",
+        },
+    },
+    # Hepatic Function Panel
+    "24325-3": {
+        "label": "Hepatic Function Panel",
+        "components": {
+            "1751-7": "Albumin",
+            "1920-8": "AST",
+            "1742-6": "ALT",
+            "6768-6": "Alkaline phosphatase",
+            "1975-2": "Total bilirubin",
+            "1968-7": "Direct bilirubin",
+            "2885-2": "Total protein",
+        },
+    },
+}
+
+
+class PanelComponentOverlapService(CDSService):
+    """
+    Warns when the draft cohort contains a lab panel AND a separate draft
+    for one of that panel's components — duplicate work in clinical and
+    billing terms.
+
+    Cross-order intelligence — same point as the DDI service: pair-finding
+    is impossible from a single draft. A clinician composing a CMP + a
+    standalone glucose order is a real, common mistake (CMP fatigue: you
+    add the panel reflexively, then the resident also adds the glucose).
+    The composer's bundle-level firing makes this detectable for the
+    first time.
+
+    Educational notes:
+    - Operates only on ServiceRequest drafts with a laboratory category.
+    - Compares the FIRST LOINC coding on each draft to the panel map.
+      Real labs sometimes carry multiple codings (LOINC + an internal
+      code); we keep the demo simple by trusting the first coding.
+    - Emits one card per (panel, component) pair detected. Students see
+      both items by name in the card body so the duplicate is obvious.
+    """
+
+    service_id = "panel-component-overlap"
+    hook_type = HookType.ORDER_SELECT
+    title = "Panel/Component Overlap"
+    description = (
+        "Detects when a draft includes a lab panel and a separate draft "
+        "for one of its components (e.g., CMP + glucose). Demonstrates "
+        "cross-order CDS firing the Order Composer enables."
+    )
+    prefetch_templates: Dict[str, str] = {}
+
+    LAB_CATEGORY_CODES = {"108252007", "laboratory", "laboratory-procedure"}
+
+    @classmethod
+    def _is_lab(cls, sr: Dict[str, Any]) -> bool:
+        for cat in (sr.get("category") or []):
+            for coding in (cat.get("coding") or []):
+                if coding.get("code") in cls.LAB_CATEGORY_CODES:
+                    return True
+            if cat.get("text", "").strip().lower() == "laboratory":
+                return True
+        return False
+
+    @staticmethod
+    def _loinc_code(sr: Dict[str, Any]) -> Optional[str]:
+        for coding in ((sr.get("code") or {}).get("coding") or []):
+            if (coding.get("system") or "").lower().endswith("loinc.org"):
+                return coding.get("code")
+        # Fall back to the first coding if no LOINC marker is set.
+        coding = ((sr.get("code") or {}).get("coding") or [{}])[0]
+        return coding.get("code")
+
+    async def should_execute(
+        self,
+        context: Dict[str, Any],
+        prefetch: Dict[str, Any],
+    ) -> bool:
+        entries = (context.get("draftOrders") or {}).get("entry", [])
+        labs = [
+            e.get("resource") for e in entries
+            if e.get("resource", {}).get("resourceType") == "ServiceRequest"
+            and self._is_lab(e.get("resource", {}))
+        ]
+        return len(labs) >= 2
+
+    async def execute(
+        self,
+        context: Dict[str, Any],
+        prefetch: Dict[str, Any],
+    ) -> List[Card]:
+        entries = (context.get("draftOrders") or {}).get("entry", [])
+        labs = [
+            e.get("resource", {}) for e in entries
+            if e.get("resource", {}).get("resourceType") == "ServiceRequest"
+            and self._is_lab(e.get("resource", {}))
+        ]
+        # Build a map: LOINC code → list of drafts requesting it.
+        by_code: Dict[str, List[Dict[str, Any]]] = {}
+        for lab in labs:
+            code = self._loinc_code(lab)
+            if code:
+                by_code.setdefault(code, []).append(lab)
+
+        cards: List[Card] = []
+        for panel_code, panel_info in _PANEL_COMPONENTS.items():
+            if panel_code not in by_code:
+                continue
+            overlapping_codes = [
+                (c, d) for c, d in panel_info["components"].items()
+                if c in by_code
+            ]
+            if not overlapping_codes:
+                continue
+            panel_label = panel_info["label"]
+            component_descriptions = "; ".join(
+                f"{display} ({code})" for code, display in overlapping_codes
+            )
+            cards.append(self.create_card(
+                summary=f"Overlap: {panel_label} already covers {len(overlapping_codes)} ordered component(s)",
+                indicator="warning",
+                detail=(
+                    f"Draft list includes {panel_label} ({panel_code}) AND the "
+                    f"following individual component(s): {component_descriptions}. "
+                    "These results are already produced by the panel — the "
+                    "standalone orders add cost without adding information. "
+                    "Consider removing the duplicates before signing."
+                ),
+                source_label="Panel/Component Overlap (cohort demo)",
+            ))
+        return cards
+
+
+# =============================================================================
 # Service Registration Helper
 # =============================================================================
 
@@ -825,6 +1187,8 @@ def get_builtin_services() -> List[CDSService]:
         DiabetesCareService(),
         PatientGreeterService(),
         OrderCompositionContextService(),
+        DrugDrugInteractionCohortService(),
+        PanelComponentOverlapService(),
     ]
 
 
@@ -855,6 +1219,8 @@ __all__ = [
     "DiabetesCareService",
     "PatientGreeterService",
     "OrderCompositionContextService",
+    "DrugDrugInteractionCohortService",
+    "PanelComponentOverlapService",
     # Helper functions
     "get_builtin_services",
     "register_builtin_services",
