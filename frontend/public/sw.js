@@ -1,9 +1,18 @@
 // Service Worker for WintEHR
 // Provides caching for better performance and offline capabilities
+//
+// __BUILD_HASH__ is substituted at build time by scripts/postbuild-sw.js
+// so the cache names change on every deploy. The activate handler
+// deletes any cache not in the current set, which means a redeploy
+// reliably invalidates stale `/static/*.js` entries and ends the
+// stuck-on-old-bundle failure mode. In dev (`npm start`) the token
+// remains literal — that's fine because index.js unregisters the SW
+// entirely in development.
 
-const CACHE_NAME = 'medgen-emr-v1.0.1';
-const STATIC_CACHE_NAME = 'medgen-static-v1.0.1';
-const API_CACHE_NAME = 'medgen-api-v1.0.1';
+const BUILD_HASH = '__BUILD_HASH__';
+const CACHE_NAME = `medgen-emr-${BUILD_HASH}`;
+const STATIC_CACHE_NAME = `medgen-static-${BUILD_HASH}`;
+const API_CACHE_NAME = `medgen-api-${BUILD_HASH}`;
 
 // Static assets to cache
 const STATIC_ASSETS = [
