@@ -110,6 +110,10 @@ import ImmunizationDialogEnhanced from '../dialogs/ImmunizationDialogEnhanced';
 import ProcedureDialogEnhanced from '../dialogs/ProcedureDialogEnhanced';
 import CarePlanDialog from '../dialogs/CarePlanDialog';
 import DocumentReferenceDialog from '../dialogs/DocumentReferenceDialog';
+// Phase 4.4 (#116): new medications and immunizations originate in the
+// Order Composer; the legacy per-resource dialogs above are retained
+// only for EDIT actions invoked with an existing resource.
+import OrderComposer from '../OrderComposer/OrderComposer';
 import CollapsibleFilterPanel from '../CollapsibleFilterPanel';
 // Modern theme utilities
 import { 
@@ -442,12 +446,29 @@ const ChartReviewTabOptimized = ({
     return alerts;
   }, [processedData, dismissedAlerts]);
   
+  // Phase 4.4: "new medication" and "new immunization" buttons route to
+  // the Order Composer (universal new-order surface). Edit actions
+  // (resource is non-null) keep using the per-resource dialogs because
+  // those are designed for single-resource edits with the original
+  // FHIR state pre-populated.
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerInitialTab, setComposerInitialTab] = useState('med');
+
   // Handler functions - memoized to prevent re-renders
   const handleOpenDialog = useCallback((type, resource = null) => {
+    // New-medication and new-immunization originate in the composer
+    // (no per-type dialog); edit-medication/edit-immunization still
+    // use the legacy per-resource dialogs since those carry rich
+    // mode-of-edit logic the composer doesn't (yet) replicate.
+    if (!resource && (type === 'medication' || type === 'immunization')) {
+      setComposerInitialTab(type === 'medication' ? 'med' : 'immunization');
+      setComposerOpen(true);
+      return;
+    }
     setSelectedResource(resource);
     setOpenDialogs(prev => ({ ...prev, [type]: true }));
   }, []);
-  
+
   const handleCloseDialog = useCallback((type) => {
     setOpenDialogs(prev => ({ ...prev, [type]: false }));
     setSelectedResource(null);
@@ -1586,6 +1607,17 @@ const ChartReviewTabOptimized = ({
         immunization={selectedResource}
         patientId={patientId}
         onSave={handleResourceSaved}
+      />
+
+      {/* Phase 4.4: new medications/immunizations originate here. The
+          legacy MedicationDialogEnhanced + ImmunizationDialogEnhanced
+          above are still mounted to service edit actions invoked with
+          an existing resource. */}
+      <OrderComposer
+        open={composerOpen}
+        onClose={() => setComposerOpen(false)}
+        patientId={patientId}
+        initialTab={composerInitialTab}
       />
       
       <ProcedureDialogEnhanced

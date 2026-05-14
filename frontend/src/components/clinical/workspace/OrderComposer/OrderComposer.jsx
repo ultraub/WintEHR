@@ -192,14 +192,17 @@ const CompactCDSCard = ({ card }) => {
  * so the provider lifecycle aligns with dialog open/close (each open
  * gets a fresh bundle).
  */
-const OrderComposerInner = ({ open, onClose, patientId, onSigned }) => {
+const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) => {
   const theme = useTheme();
   const { user } = useAuth();
   const { publish } = useClinicalWorkflow();
   const { drafts, clearDrafts } = useDraftOrderBundle();
 
   // Default to medications — highest-volume tab in real CPOE use.
-  const [activeTab, setActiveTab] = useState('med');
+  // Callers (e.g. ChartReview's "Add medication" button) can override
+  // via `initialTab` to land on a specific tab when they open the
+  // composer with a context already in mind.
+  const [activeTab, setActiveTab] = useState(initialTab || 'med');
   const [signing, setSigning] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
 
@@ -475,6 +478,8 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned }) => {
  * @param {string} props.patientId — Bare FHIR id (no `Patient/` prefix).
  * @param {string} [props.encounterId]
  * @param {(createdResources: FHIR.Resource[]) => void} [props.onSigned]
+ * @param {'med'|'lab'|'imaging'|'procedure'|'immunization'|'nursing'|'diet'|'referral'|'codestatus'} [props.initialTab]
+ *   — Which tab to land on when the composer opens. Defaults to 'med'.
  */
 const OrderComposer = (props) => (
   <DraftOrderBundleProvider patientId={props.patientId} encounterId={props.encounterId}>

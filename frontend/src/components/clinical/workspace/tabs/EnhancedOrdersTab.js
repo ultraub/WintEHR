@@ -88,9 +88,10 @@ import {
 } from './components/EnhancedEmptyStates';
 
 // Existing dialogs
+// CPOEDialog is retained for single-order EDIT mode only (Phase 4.4
+// deprecation). New-order entry points now route to OrderComposer.
 import CPOEDialog from '../dialogs/CPOEDialog';
 import OrderComposer from '../OrderComposer/OrderComposer';
-import QuickOrderDialog from '../dialogs/QuickOrderDialog';
 import OrderSigningDialog from '../dialogs/OrderSigningDialog';
 
 // Shared clinical components
@@ -511,7 +512,11 @@ const EnhancedOrdersTab = ({
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
-  const [quickOrderDialog, setQuickOrderDialog] = useState({ open: false, type: null });
+  // Phase 4.4 (#116): the universal new-order surface is the composer.
+  // `composerInitialTab` carries which tab to land on when a caller has
+  // a type already in mind (e.g. the SpeedDial's Medication / Lab /
+  // Imaging shortcuts and the chart-review "Add medication" button).
+  const [composerInitialTab, setComposerInitialTab] = useState('med');
   const [cpoeDialogOpen, setCpoeDialogOpen] = useState(false);
   const [cpoeEditOrder, setCpoeEditOrder] = useState(null); // Order being edited or reordered
   const [cpoeMode, setCpoeMode] = useState('add'); // 'add' or 'edit'
@@ -988,23 +993,18 @@ const EnhancedOrdersTab = ({
     });
   };
 
-  // Speed dial actions
+  // Speed-dial shortcuts route into the Order Composer pre-positioned
+  // on the type the user picked. The composer is the universal new-
+  // order surface (Phase 4.4) — these are just quick-jumps, not a
+  // separate dialog stack.
+  const openComposerOn = (tab) => {
+    setComposerInitialTab(tab);
+    setComposerOpen(true);
+  };
   const speedDialActions = [
-    { 
-      icon: <MedicationIcon />, 
-      name: 'Medication Order',
-      onClick: () => setQuickOrderDialog({ open: true, type: 'medication' })
-    },
-    { 
-      icon: <LabIcon />, 
-      name: 'Lab Order',
-      onClick: () => setQuickOrderDialog({ open: true, type: 'lab' })
-    },
-    { 
-      icon: <ImagingIcon />, 
-      name: 'Imaging Order',
-      onClick: () => setQuickOrderDialog({ open: true, type: 'imaging' })
-    }
+    { icon: <MedicationIcon />, name: 'Medication Order', onClick: () => openComposerOn('med') },
+    { icon: <LabIcon />, name: 'Lab Order', onClick: () => openComposerOn('lab') },
+    { icon: <ImagingIcon />, name: 'Imaging Order', onClick: () => openComposerOn('imaging') },
   ];
 
   if (loading && entries.length === 0) {
@@ -1101,21 +1101,10 @@ const EnhancedOrdersTab = ({
               variant="contained"
               size="small"
               startIcon={<AddIcon />}
-              onClick={() => { setCpoeEditOrder(null); setCpoeMode('add'); setCpoeDialogOpen(true); }}
+              onClick={() => openComposerOn('med')}
               sx={{ borderRadius: 0, height: 28, fontSize: '0.8125rem' }}
             >
               New Order
-            </Button>
-            {/* Phase 4.1 (#116) opt-in: composes many orders at once and
-                signs them in a single confirmation step. */}
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<AddIcon />}
-              onClick={() => setComposerOpen(true)}
-              sx={{ borderRadius: 0, height: 28, fontSize: '0.8125rem' }}
-            >
-              Compose Orders
             </Button>
             <IconButton
               size="small"
@@ -1349,7 +1338,7 @@ const EnhancedOrdersTab = ({
             }] : []),
             {
               label: 'Create New Order',
-              onClick: () => { setCpoeEditOrder(null); setCpoeMode('add'); setCpoeDialogOpen(true); },
+              onClick: () => openComposerOn('med'),
               variant: 'contained'
             }
           ]}
@@ -1415,24 +1404,18 @@ const EnhancedOrdersTab = ({
         ))}
       </SpeedDial>
 
-      {/* Dialogs */}
-      <QuickOrderDialog
-        open={quickOrderDialog.open}
-        onClose={() => setQuickOrderDialog({ open: false, type: null })}
-        patientId={patientId}
-        orderType={quickOrderDialog.type}
-        onOrderCreated={(order) => refreshSearch()}
-      />
-
-      {/* Order Composer — multi-order composition + Sign All in one
-          modal. Coexists with the legacy CPOEDialog (single-order edit
-          path stays unchanged). Both write to HAPI via fhirClient; the
-          OrderComposer handles its own create + ORDER_PLACED event
-          internally and just notifies us via onSigned so we can refresh. */}
+      {/* Order Composer — the universal new-order surface (Phase 4.4
+          deprecation). Header "New Order", empty-state "Create New
+          Order", and the speed-dial all route here with an
+          appropriate initialTab. The legacy CPOEDialog below stays
+          mounted only to service single-order EDIT actions
+          (handleOrderAction case 'edit' / 'reorder'). QuickOrderDialog
+          has been retired — the composer is the quick path now. */}
       <OrderComposer
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
         patientId={patientId}
+        initialTab={composerInitialTab}
         onSigned={() => refreshSearch?.()}
       />
 
