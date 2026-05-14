@@ -4,7 +4,15 @@
  * Provides normalized data structures for condition builders
  */
 
+import axios from 'axios';
+import { buildUrl } from '../config/apiConfig';
 import { cdsClinicalDataService } from './cdsClinicalDataService';
+
+// Reuse the same backend base path the catalog service uses for med/lab/cond.
+// The medications/lab-tests endpoints are reached via cdsClinicalDataService,
+// but imaging-studies and procedures don't have wrappers there yet — we hit
+// the FastAPI router directly via the shared apiConfig.
+const CATALOG_BASE = buildUrl('backend', '/api/catalogs');
 
 class CatalogIntegrationService {
   constructor() {
@@ -144,6 +152,68 @@ class CatalogIntegrationService {
       return normalized;
     } catch (error) {
       console.error('Failed to fetch vital signs from catalog:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get imaging study catalog. Hits the dedicated `/api/catalogs/imaging-studies`
+   * endpoint backed by the unified catalog service (FHIR-derived studies first,
+   * static fallback for common modalities). Returns the normalized shape the
+   * Order Composer's imaging tab expects.
+   */
+  async getImagingStudies(searchTerm = '', _category = null, limit = 25) {
+    const cacheKey = `imaging-studies:${searchTerm}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const params = { limit };
+      if (searchTerm) params.search = searchTerm;
+      const response = await axios.get(`${CATALOG_BASE}/imaging-studies`, { params });
+      const items = response.data || [];
+      const normalized = items.map((item) => ({
+        id: item.id || item.code,
+        code: item.code,
+        display: item.display || item.name || item.code,
+        system: item.system || 'http://loinc.org',
+        category: 'imaging',
+      }));
+      this.setCache(cacheKey, normalized);
+      return normalized;
+    } catch (error) {
+      console.warn('Failed to fetch imaging studies catalog:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get procedure catalog. Hits the `/api/catalogs/procedures` endpoint
+   * (SNOMED-first with a CPT-leaning static fallback). Returns the same
+   * normalized shape the imaging method does so the Order Composer's
+   * procedure tab can render results uniformly.
+   */
+  async getProcedures(searchTerm = '', _category = null, limit = 25) {
+    const cacheKey = `procedures:${searchTerm}:${limit}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const params = { limit };
+      if (searchTerm) params.search = searchTerm;
+      const response = await axios.get(`${CATALOG_BASE}/procedures`, { params });
+      const items = response.data || [];
+      const normalized = items.map((item) => ({
+        id: item.id || item.code,
+        code: item.code,
+        display: item.display || item.name || item.code,
+        system: item.system || 'http://snomed.info/sct',
+        category: 'procedure',
+      }));
+      this.setCache(cacheKey, normalized);
+      return normalized;
+    } catch (error) {
+      console.warn('Failed to fetch procedures catalog:', error);
       return [];
     }
   }

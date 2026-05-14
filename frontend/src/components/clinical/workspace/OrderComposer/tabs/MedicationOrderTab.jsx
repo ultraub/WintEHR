@@ -40,6 +40,7 @@ import {
 
 import catalogService from '../../../../../services/CatalogIntegrationService';
 import { useDraftOrderBundle } from '../DraftOrderBundleProvider';
+import DiagnosisPicker, { toReasonReference } from '../DiagnosisPicker';
 
 const ROUTES = [
   { value: 'PO', label: 'PO (by mouth)' },
@@ -106,6 +107,7 @@ const MedicationOrderTab = () => {
   // Workflow fields
   const [indication, setIndication] = useState('');
   const [priority, setPriority] = useState('routine');
+  const [diagnoses, setDiagnoses] = useState([]);
 
   // UI state
   const [error, setError] = useState(null);
@@ -223,13 +225,14 @@ const MedicationOrderTab = () => {
           : undefined,
       },
       reasonCode: [{ text: indication.trim() }],
+      ...(toReasonReference(diagnoses) ? { reasonReference: toReasonReference(diagnoses) } : {}),
     };
 
     addDraft(draft);
 
-    // Reset code-related fields; keep dosing/priority for the common
-    // "many meds with the same regimen" workflow (e.g. a series of meds
-    // all routine, BID, 30 days).
+    // Reset code-related fields; keep dosing/priority/diagnoses for the
+    // common "many meds with the same regimen" workflow (e.g. a series
+    // of meds all routine, BID, 30 days for the same active condition).
     setSelected(null);
     setSearch('');
     setResults([]);
@@ -240,7 +243,7 @@ const MedicationOrderTab = () => {
   }, [
     canAdd, patientId, selected, doseQty, doseUnit, route, frequency,
     durationQty, durationUnit, prn, prnReason, refills, indication,
-    priority, dispenseQuantity, addDraft,
+    priority, dispenseQuantity, diagnoses, addDraft,
   ]);
 
   return (
@@ -409,6 +412,8 @@ const MedicationOrderTab = () => {
         minRows={2}
         helperText="At least 5 characters."
       />
+
+      <DiagnosisPicker value={diagnoses} onChange={setDiagnoses} />
 
       <FormControl size="small" sx={{ maxWidth: 200 }}>
         <InputLabel>Priority</InputLabel>
