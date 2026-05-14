@@ -30,18 +30,25 @@ import {
   HealingOutlined as ProcedureIcon,
   MedicationOutlined as MedicationIcon,
   Vaccines as ImmunizationIcon,
+  LocalHospital as NursingIcon,
+  Restaurant as DietIcon,
+  ForwardToInbox as ReferralIcon,
+  Gavel as CodeStatusIcon,
 } from '@mui/icons-material';
 
 import { useDraftOrderBundle } from './DraftOrderBundleProvider';
 
 // SNOMED category codes used by the OrderComposer tabs. Lookup table
 // so summarize() doesn't grow a chain of equality checks as new tabs
-// arrive in 4.3 (nursing, diet, referral, code-status).
+// arrive (nursing, diet, referral, code-status landed in 4.3).
 const SR_CATEGORY_KIND = {
   '108252007': 'lab',
   '363679005': 'imaging',
   '33879002': 'immunization',
   '387713003': 'procedure',
+  '103735009': 'nursing',
+  '3457005': 'referral',
+  '385686007': 'code-status',
 };
 
 // Reduce a FHIR resource into a (type, label, code) display tuple. Pulled
@@ -70,6 +77,14 @@ function summarize(resource) {
       code: resource?.medicationCodeableConcept?.coding?.[0]?.code,
     };
   }
+  if (type === 'NutritionOrder') {
+    const dietRow = resource?.oralDiet?.type?.[0];
+    return {
+      kind: 'diet',
+      label: dietRow?.text || dietRow?.coding?.[0]?.display || 'Diet order',
+      code: dietRow?.coding?.[0]?.code || null,
+    };
+  }
   return {
     kind: 'other',
     label: 'Order',
@@ -83,6 +98,10 @@ const ICONS = {
   procedure: <ProcedureIcon fontSize="small" />,
   medication: <MedicationIcon fontSize="small" />,
   immunization: <ImmunizationIcon fontSize="small" />,
+  nursing: <NursingIcon fontSize="small" />,
+  diet: <DietIcon fontSize="small" />,
+  referral: <ReferralIcon fontSize="small" />,
+  'code-status': <CodeStatusIcon fontSize="small" />,
   other: null,
 };
 
