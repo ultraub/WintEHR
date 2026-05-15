@@ -93,7 +93,9 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import EnhancedDispenseDialog from './components/EnhancedDispenseDialog';
 import AdministrationDialog from './components/AdministrationDialog';
-import MedicationAdministrationRecord from '../../pharmacy/MedicationAdministrationRecord';
+// MedicationAdministrationRecord removed (#116 Phase 5.1) — the MAR moved to
+// its own first-class clinical workspace tab. PharmacyTab no longer hosts
+// administration recording; the previous tab-5 "MAR" subtab is gone.
 // Import shared clinical components
 import { 
   ClinicalResourceCard,
@@ -1151,8 +1153,8 @@ const PharmacyTab = ({
               }
               iconPosition="start"
             />
-            <Tab 
-              label="Refills" 
+            <Tab
+              label="Refills"
               icon={
                 <Badge badgeContent={pendingRefills.length} color="error">
                   <RefreshIcon />
@@ -1160,30 +1162,12 @@ const PharmacyTab = ({
               }
               iconPosition="start"
             />
-            <Tab 
-              label="MAR" 
-              icon={<PrescriptionIcon />}
-              iconPosition="start"
-            />
           </Tabs>
         </Box>
 
         {/* Content */}
         <Box sx={{ p: 2 }}>
-          {tabValue === 5 ? (
-            // Render MAR (Medication Administration Record)
-            <MedicationAdministrationRecord
-              patientId={patientId}
-              onAdministrationComplete={(type, medicationRequestId) => {
-                setSnackbar({
-                  open: true,
-                  message: `Medication ${type} recorded successfully`,
-                  severity: type === 'administered' ? 'success' : 'info'
-                });
-              }}
-              currentUser={{ id: 'current-user', name: 'Current User' }}
-            />
-          ) : viewMode === 'timeline' ? (
+          {viewMode === 'timeline' ? (
             // Timeline view - simplified without ResourceTimeline component
             <Box>
               <Typography variant="h6" gutterBottom sx={{ p: 2 }}>

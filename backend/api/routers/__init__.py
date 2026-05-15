@@ -69,6 +69,7 @@ def register_all_routers(app: FastAPI) -> None:
         from api.clinical.medication_lists_router import router as medication_lists_router
         from api.clinical.drug_safety_router import router as drug_safety_router
         from api.clinical.documentation.notes_router import router as clinical_notes_router
+        from api.clinical.administration.router import router as clinical_administration_router
 
         app.include_router(catalogs_router, tags=["Clinical Catalogs"])
         app.include_router(clinical_orders_router, prefix="/api", tags=["Clinical Orders (CPOE)"])
@@ -81,6 +82,7 @@ def register_all_routers(app: FastAPI) -> None:
         app.include_router(clinical_alerts_router, tags=["Clinical Alerts"])
         app.include_router(clinical_inbox_router, tags=["Clinical Inbox"])
         app.include_router(cds_clinical_data_router, tags=["CDS Clinical Data"])
+        app.include_router(clinical_administration_router)
         logger.info("✓ Clinical workflow routers registered")
     except Exception as e:
         logger.error(f"Failed to register clinical routers: {e}")

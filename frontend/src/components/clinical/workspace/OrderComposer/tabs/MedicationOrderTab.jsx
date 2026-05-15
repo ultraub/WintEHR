@@ -53,20 +53,23 @@ const ROUTES = [
   { value: 'SL', label: 'Sublingual' },
 ];
 
-// FHIR R4 Timing.code mapping for common frequencies. The value here is
-// the dose-events-per-day count we use to compute dispense quantity;
-// the label is what the user sees. Note PRN intentionally has 0 — PRN
-// doses don't drive a fixed dispense count.
+// FHIR R4 Timing mapping for common frequencies.
+// - `perDay`: dose-events-per-day, used to compute dispense quantity.
+// - `repeat`: the structured `Timing.repeat` written onto the order so
+//   downstream consumers (the MAR's dose_scheduler) get a machine-readable
+//   schedule rather than a free-text code. Daily-cadence codes use
+//   period=1/periodUnit='d'; hourly codes use period=<hours>/periodUnit='h'.
+//   PRN has no repeat — it's not scheduled.
 const FREQUENCIES = [
-  { value: 'QD',  label: 'Once daily',    perDay: 1 },
-  { value: 'BID', label: 'Twice daily',   perDay: 2 },
-  { value: 'TID', label: 'Three times daily', perDay: 3 },
-  { value: 'QID', label: 'Four times daily',  perDay: 4 },
-  { value: 'Q4H', label: 'Every 4 hours',  perDay: 6 },
-  { value: 'Q6H', label: 'Every 6 hours',  perDay: 4 },
-  { value: 'Q8H', label: 'Every 8 hours',  perDay: 3 },
-  { value: 'Q12H', label: 'Every 12 hours', perDay: 2 },
-  { value: 'PRN',  label: 'As needed (PRN)', perDay: 0 },
+  { value: 'QD',   label: 'Once daily',         perDay: 1, repeat: { frequency: 1, period: 1, periodUnit: 'd' } },
+  { value: 'BID',  label: 'Twice daily',        perDay: 2, repeat: { frequency: 2, period: 1, periodUnit: 'd' } },
+  { value: 'TID',  label: 'Three times daily',  perDay: 3, repeat: { frequency: 3, period: 1, periodUnit: 'd' } },
+  { value: 'QID',  label: 'Four times daily',   perDay: 4, repeat: { frequency: 4, period: 1, periodUnit: 'd' } },
+  { value: 'Q4H',  label: 'Every 4 hours',      perDay: 6, repeat: { frequency: 1, period: 4, periodUnit: 'h' } },
+  { value: 'Q6H',  label: 'Every 6 hours',      perDay: 4, repeat: { frequency: 1, period: 6, periodUnit: 'h' } },
+  { value: 'Q8H',  label: 'Every 8 hours',      perDay: 3, repeat: { frequency: 1, period: 8, periodUnit: 'h' } },
+  { value: 'Q12H', label: 'Every 12 hours',     perDay: 2, repeat: { frequency: 1, period: 12, periodUnit: 'h' } },
+  { value: 'PRN',  label: 'As needed (PRN)',    perDay: 0, repeat: null },
 ];
 
 const DOSE_UNITS = ['mg', 'mcg', 'g', 'mL', 'units', 'tablet(s)', 'capsule(s)'];
@@ -201,7 +204,16 @@ const MedicationOrderTab = () => {
           ].filter(Boolean).join(' · '),
           asNeededBoolean: prn,
           route: { text: route },
-          timing: { code: { text: effectiveFrequency } },
+          // Write both: `code.text` for human display + the structured
+          // `repeat` so the MAR dose_scheduler gets a machine-readable
+          // schedule. PRN orders carry only the code (no repeat — PRN
+          // isn't scheduled).
+          timing: {
+            code: { text: effectiveFrequency },
+            ...((FREQUENCIES.find((f) => f.value === effectiveFrequency)?.repeat)
+              ? { repeat: FREQUENCIES.find((f) => f.value === effectiveFrequency).repeat }
+              : {}),
+          },
           doseAndRate: [
             {
               doseQuantity: {
