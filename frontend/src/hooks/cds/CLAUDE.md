@@ -3,6 +3,8 @@
 **Last Updated**: 2026-05-13
 **Purpose**: How CDS Hooks 2.0 firing, card storage, and reads are wired on the React side.
 
+**Inherits** root + `frontend/CLAUDE.md` + `frontend/src/CLAUDE.md` patterns.
+
 ---
 
 ## The two patterns (and when to use which)
