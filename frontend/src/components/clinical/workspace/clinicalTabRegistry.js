@@ -31,6 +31,7 @@ import {
   Event as EncountersIcon,
   Science as ResultsIcon,
   LocalPharmacy as OrdersIcon,
+  MedicalServices as AdministrationIcon,
   Medication as PharmacyIcon,
   CameraAlt as ImagingIcon,
   Description as DocumentationIcon,
@@ -94,6 +95,14 @@ export const CLINICAL_TABS = [
     color: '#8B5CF6',
     description: 'Active and pending orders',
     loader: () => import(/* webpackChunkName: "clinical-orders" */ './tabs/EnhancedOrdersTab'),
+  },
+  {
+    id: 'administration',
+    label: 'Administration',
+    icon: AdministrationIcon,
+    color: '#0EA5E9',
+    description: 'Medication Administration Record (MAR)',
+    loader: () => import(/* webpackChunkName: "clinical-administration" */ './AdministrationRecord/AdministrationRecord'),
   },
   {
     id: 'pharmacy',
