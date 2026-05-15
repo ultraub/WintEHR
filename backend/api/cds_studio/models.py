@@ -6,7 +6,7 @@ Pydantic models for CDS Studio API requests and responses.
 
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, model_validator
 from enum import Enum
 
 # Import HookType from canonical source (CDS Hooks models)
@@ -128,20 +128,25 @@ class CreateExternalServiceRequest(BaseModel):
     status: Optional[str] = Field("draft", description="Service status")
     version_notes: Optional[str] = Field(None, description="Version or import notes")
 
-    @validator('base_url', always=True)
-    def derive_base_url(cls, v, values):
+    @model_validator(mode='after')
+    def derive_base_url(self):
         """
-        Automatically derive base_url from url if not provided
+        Automatically derive base_url from url if not provided.
+
+        Pydantic V2 note: V1 used `@validator('base_url', always=True)`.
+        V2 field_validators don't fire on omitted fields; use a
+        model_validator(mode='after') to reach both "supplied" and
+        "omitted" cases.
 
         Example:
             url: "https://sandbox-services.cds-hooks.org/patient-greeting"
             base_url: "https://sandbox-services.cds-hooks.org" (auto-derived)
         """
-        if v is None and 'url' in values:
+        if self.base_url is None and self.url:
             from urllib.parse import urlparse
-            parsed = urlparse(values['url'])
-            return f"{parsed.scheme}://{parsed.netloc}"
-        return v
+            parsed = urlparse(self.url)
+            self.base_url = f"{parsed.scheme}://{parsed.netloc}"
+        return self
 
 
 # ============================================================================

@@ -4,7 +4,7 @@ Implements CDS Hooks 2.0 specification data models
 """
 
 from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from datetime import datetime
 from enum import Enum
 
@@ -168,14 +168,16 @@ class CDSHookRequest(BaseModel):
     fhirAuthorization: Optional[FHIRAuthorization] = Field(None, description="FHIR authorization")
     prefetch: Optional[Dict[str, Any]] = Field(None, description="Prefetched FHIR resources")
     
-    @validator('fhirServer')
+    @field_validator('fhirServer')
+    @classmethod
     def validate_https(cls, v):
         """CDS Hooks 2.0 requires HTTPS for fhirServer"""
         if v and not v.startswith('https://'):
             raise ValueError('fhirServer must use HTTPS scheme in CDS Hooks 2.0')
         return v
-    
-    @validator('hookInstance')
+
+    @field_validator('hookInstance')
+    @classmethod
     def validate_hook_instance(cls, v):
         """Validate hookInstance is a valid UUID format"""
         import uuid
@@ -239,7 +241,8 @@ class Card(BaseModel):
     selectionBehavior: Optional[SelectionBehavior] = Field(None, description="Selection behavior")
     overrideReasons: Optional[List[OverrideReason]] = Field(None, description="Reasons for overriding (CDS Hooks 2.0)")
     
-    @validator('uuid')
+    @field_validator('uuid')
+    @classmethod
     def validate_uuid(cls, v):
         """Validate UUID format"""
         import uuid
@@ -345,17 +348,19 @@ class FeedbackItem(BaseModel):
     acceptedSuggestions: Optional[List[AcceptedSuggestion]] = Field(None, description="Accepted suggestions (when outcome is accepted)")
     overrideReason: Optional[FeedbackOverrideReason] = Field(None, description="Override reason (when outcome is overridden)")
     
-    @validator('acceptedSuggestions')
-    def validate_accepted_suggestions(cls, v, values):
+    @field_validator('acceptedSuggestions')
+    @classmethod
+    def validate_accepted_suggestions(cls, v, info: ValidationInfo):
         """Accepted suggestions only valid when outcome is accepted"""
-        if v and values.get('outcome') != FeedbackOutcome.ACCEPTED:
+        if v and info.data.get('outcome') != FeedbackOutcome.ACCEPTED:
             raise ValueError('acceptedSuggestions can only be provided when outcome is accepted')
         return v
-    
-    @validator('overrideReason')
-    def validate_override_reason(cls, v, values):
+
+    @field_validator('overrideReason')
+    @classmethod
+    def validate_override_reason(cls, v, info: ValidationInfo):
         """Override reason only valid when outcome is overridden"""
-        if v and values.get('outcome') != FeedbackOutcome.OVERRIDDEN:
+        if v and info.data.get('outcome') != FeedbackOutcome.OVERRIDDEN:
             raise ValueError('overrideReason can only be provided when outcome is overridden')
         return v
 
