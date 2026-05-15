@@ -58,6 +58,10 @@ import {
   MedicationOutlined as MedicationIcon,
   Science as LabIcon,
   Vaccines as ImmunizationIcon,
+  LocalHospital as NursingIcon,
+  Restaurant as DietIcon,
+  ForwardToInbox as ReferralIcon,
+  Gavel as CodeStatusTabIcon,
   ReportProblemOutlined as WarningIcon,
   WarningAmberOutlined as CriticalIcon,
 } from '@mui/icons-material';
@@ -70,23 +74,35 @@ import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 
 import { DraftOrderBundleProvider, useDraftOrderBundle } from './DraftOrderBundleProvider';
 import DraftOrderList from './DraftOrderList';
+import OrderSetSelector from './ordersets/OrderSetSelector';
 import LabOrderTab from './tabs/LabOrderTab';
 import ImagingOrderTab from './tabs/ImagingOrderTab';
 import ProcedureOrderTab from './tabs/ProcedureOrderTab';
 import MedicationOrderTab from './tabs/MedicationOrderTab';
 import ImmunizationOrderTab from './tabs/ImmunizationOrderTab';
+import NursingOrderTab from './tabs/NursingOrderTab';
+import DietOrderTab from './tabs/DietOrderTab';
+import ReferralOrderTab from './tabs/ReferralOrderTab';
+import CodeStatusOrderTab from './tabs/CodeStatusOrderTab';
 
 // Tab order is intentional: most common ordering use cases first.
-// Medications and labs are the high-volume tabs in real outpatient
-// CPOE; imaging, procedure, immunization are lower-volume but
-// frequent enough to keep at the top level (vs hiding behind a "more"
-// dropdown).
+// Medications and labs lead because they're the high-volume tabs in
+// real outpatient/inpatient CPOE. Imaging/procedure/immunization
+// follow. Phase 4.3 adds the operational/care-planning tabs
+// (nursing/diet/referral/code-status) at the end — they fire less
+// often but matter when a patient is admitted or has a goals-of-care
+// transition. The Tabs container is `scrollable` so the 9 tabs stay
+// usable on narrower viewports.
 const TABS = [
   { id: 'med', label: 'Medications', icon: <MedicationIcon fontSize="small" />, Comp: MedicationOrderTab },
   { id: 'lab', label: 'Labs', icon: <LabIcon fontSize="small" />, Comp: LabOrderTab },
   { id: 'imaging', label: 'Imaging', icon: <ImagingIcon fontSize="small" />, Comp: ImagingOrderTab },
   { id: 'procedure', label: 'Procedure', icon: <ProcedureIcon fontSize="small" />, Comp: ProcedureOrderTab },
   { id: 'immunization', label: 'Immunizations', icon: <ImmunizationIcon fontSize="small" />, Comp: ImmunizationOrderTab },
+  { id: 'nursing', label: 'Nursing', icon: <NursingIcon fontSize="small" />, Comp: NursingOrderTab },
+  { id: 'diet', label: 'Diet', icon: <DietIcon fontSize="small" />, Comp: DietOrderTab },
+  { id: 'referral', label: 'Referral', icon: <ReferralIcon fontSize="small" />, Comp: ReferralOrderTab },
+  { id: 'codestatus', label: 'Code Status', icon: <CodeStatusTabIcon fontSize="small" />, Comp: CodeStatusOrderTab },
 ];
 
 // Compact CDS card variant for the OrderComposer right pane.
@@ -317,6 +333,7 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned }) => {
             </Typography>
           </Stack>
           <Box sx={{ flex: 1 }} />
+          <OrderSetSelector />
           <IconButton onClick={onClose} disabled={signing} size="small">
             <CloseIcon fontSize="small" />
           </IconButton>
@@ -325,6 +342,9 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned }) => {
         <Tabs
           value={activeTab}
           onChange={(_e, v) => setActiveTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{
             borderBottom: '1px solid',
             borderColor: 'divider',
