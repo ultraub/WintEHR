@@ -14,34 +14,20 @@ import {
   useMediaQuery
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import {
-  Dashboard as SummaryIcon,
-  Assignment as ChartReviewIcon,
-  Event as EncountersIcon,
-  Science as ResultsIcon,
-  LocalPharmacy as OrdersIcon,
-  Medication as PharmacyIcon,
-  CameraAlt as ImagingIcon,
-  Description as DocumentationIcon,
-  AccountTree as CarePlanIcon,
-  Timeline as TimelineIcon
-} from '@mui/icons-material';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import { LAYOUT_HEIGHTS, Z_INDEX } from '../theme/clinicalThemeConstants';
+import { CLINICAL_TABS } from '../workspace/clinicalTabRegistry';
 
-// Navigation items configuration
-const NAVIGATION_ITEMS = [
-  { id: 'summary', label: 'Summary', icon: SummaryIcon, badge: null, color: '#6366F1' },
-  { id: 'chart-review', label: 'Chart Review', icon: ChartReviewIcon, badge: null, color: '#10B981' },
-  { id: 'encounters', label: 'Encounters', icon: EncountersIcon, badge: null, color: '#3B82F6' },
-  { id: 'results', label: 'Results', icon: ResultsIcon, badge: null, color: '#F59E0B' },
-  { id: 'orders', label: 'Orders', icon: OrdersIcon, badge: null, color: '#8B5CF6' },
-  { id: 'pharmacy', label: 'Pharmacy', icon: PharmacyIcon, badge: null, color: '#14B8A6' },
-  { id: 'imaging', label: 'Imaging', icon: ImagingIcon, badge: null, color: '#EF4444' },
-  { id: 'documentation', label: 'Documentation', icon: DocumentationIcon, badge: null, color: '#78716C' },
-  { id: 'care-plan', label: 'Care Plan', icon: CarePlanIcon, badge: null, color: '#EC4899' },
-  { id: 'timeline', label: 'Timeline', icon: TimelineIcon, badge: null, color: '#06B6D4' },
-];
+// Horizontal tab strip — derived from the single tab registry. `badge`
+// starts null; dynamic notification counts get layered on at render
+// time below.
+const NAVIGATION_ITEMS = CLINICAL_TABS.map((t) => ({
+  id: t.id,
+  label: t.label,
+  icon: t.icon,
+  color: t.color,
+  badge: null,
+}));
 
 const ClinicalTabs = ({
   activeTab,

@@ -23,16 +23,6 @@ import {
   useMediaQuery
 } from '@mui/material';
 import {
-  Dashboard as SummaryIcon,
-  Assignment as ChartReviewIcon,
-  Event as EncountersIcon,
-  Science as ResultsIcon,
-  LocalPharmacy as OrdersIcon,
-  Medication as PharmacyIcon,
-  CameraAlt as ImagingIcon,
-  Description as DocumentationIcon,
-  AccountTree as CarePlanIcon,
-  Timeline as TimelineIcon,
   ChevronLeft as CollapseIcon,
   ChevronRight as ExpandIcon,
   Notifications as AlertsIcon,
@@ -47,84 +37,24 @@ import {
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import { useSMART } from '../../../contexts/SMARTContext';
 import SMARTAppLauncher from '../../smart/SMARTAppLauncher';
+import { CLINICAL_TABS } from '../workspace/clinicalTabRegistry';
 
 // Sidebar width constants
 const SIDEBAR_WIDTH = 280;
 const SIDEBAR_COLLAPSED_WIDTH = 72;
 
-// Navigation items configuration
-const NAVIGATION_ITEMS = [
-  {
-    id: 'summary',
-    label: 'Summary',
-    icon: SummaryIcon,
-    badge: null,
-    description: 'Patient overview and key metrics'
-  },
-  {
-    id: 'chart-review',
-    label: 'Chart Review',
-    icon: ChartReviewIcon,
-    badge: null,
-    description: 'Problems, medications, allergies, vitals'
-  },
-  {
-    id: 'encounters',
-    label: 'Encounters',
-    icon: EncountersIcon,
-    badge: null,
-    description: 'Visit history and notes'
-  },
-  {
-    id: 'results',
-    label: 'Results',
-    icon: ResultsIcon,
-    badge: 'new',
-    description: 'Lab results and reports'
-  },
-  {
-    id: 'orders',
-    label: 'Orders',
-    icon: OrdersIcon,
-    badge: 3,
-    description: 'Active and pending orders'
-  },
-  {
-    id: 'pharmacy',
-    label: 'Pharmacy',
-    icon: PharmacyIcon,
-    badge: null,
-    description: 'Medication management'
-  },
-  {
-    id: 'imaging',
-    label: 'Imaging',
-    icon: ImagingIcon,
-    badge: 2,
-    description: 'Radiology and DICOM viewer'
-  },
-  {
-    id: 'documentation',
-    label: 'Documentation',
-    icon: DocumentationIcon,
-    badge: null,
-    description: 'Clinical notes and forms'
-  },
-  {
-    id: 'care-plan',
-    label: 'Care Plan',
-    icon: CarePlanIcon,
-    badge: null,
-    description: 'Treatment plans and goals'
-  },
-  {
-    id: 'timeline',
-    label: 'Timeline',
-    icon: TimelineIcon,
-    badge: null,
-    description: 'Clinical history timeline'
-  }
-];
+// Sidebar nav items — derived from the single tab registry. `badge`
+// starts null; the render path layers dynamic notification counts on.
+// (The previous hardcoded list carried placeholder static badges —
+// results:'new', orders:3, imaging:2 — which were demo cruft, not real
+// counts. Dropped.)
+const NAVIGATION_ITEMS = CLINICAL_TABS.map((t) => ({
+  id: t.id,
+  label: t.label,
+  icon: t.icon,
+  badge: null,
+  description: t.description,
+}));
 
 const ClinicalSidebar = ({
   open,

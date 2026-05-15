@@ -15,16 +15,6 @@ import {
   Typography
 } from '@mui/material';
 import {
-  Dashboard as DashboardIcon,
-  FolderOpen as ChartIcon,
-  EventNote as EncountersIcon,
-  Science as ResultsIcon,
-  LocalPharmacy as PharmacyIcon,
-  Description as DocumentationIcon,
-  AccountTree as CarePlanIcon,
-  ListAlt as OrdersIcon,
-  Timeline as TimelineIcon,
-  Image as ImagingIcon,
   ChevronLeft as ChevronLeftIcon
 } from '@mui/icons-material';
 
@@ -37,49 +27,7 @@ import TabErrorBoundary from './workspace/TabErrorBoundary';
 import { useKeyboardNavigation } from '../../hooks/useKeyboardNavigation';
 import KeyboardShortcutsDialog from './shared/dialogs/KeyboardShortcutsDialog';
 import CDSPresentation, { PRESENTATION_MODES } from './cds/CDSPresentation';
-
-// Tab Components - Lazy Loaded for Performance with webpack magic comments
-// Using optimized/enhanced versions where available
-const SummaryTab = React.lazy(() => import(
-  /* webpackChunkName: "clinical-summary" */
-  './workspace/tabs/SummaryTab'
-));
-const ChartReviewTab = React.lazy(() => import(
-  /* webpackChunkName: "clinical-chart-review" */
-  './workspace/tabs/ChartReviewTabOptimized'
-));
-const EncountersTab = React.lazy(() => import(
-  /* webpackChunkName: "clinical-encounters" */
-  './workspace/tabs/EncountersTab'
-));
-const ResultsTab = React.lazy(() => import(
-  /* webpackChunkName: "clinical-results" */
-  './workspace/tabs/ResultsTabOptimized'
-));
-const OrdersTab = React.lazy(() => import(
-  /* webpackChunkName: "clinical-orders" */
-  './workspace/tabs/EnhancedOrdersTab'
-));
-const PharmacyTab = React.lazy(() => import(
-  /* webpackChunkName: "clinical-pharmacy" */
-  './workspace/tabs/PharmacyTab'
-));
-const DocumentationTab = React.lazy(() => import(
-  /* webpackChunkName: "clinical-documentation" */
-  './workspace/tabs/DocumentationTabEnhanced'
-));
-const CarePlanTab = React.lazy(() => import(
-  /* webpackChunkName: "clinical-care-plan" */
-  './workspace/tabs/CarePlanTabEnhanced'
-));
-const TimelineTab = React.lazy(() => import(
-  /* webpackChunkName: "clinical-timeline" */
-  './workspace/tabs/TimelineTabModern'
-));
-const ImagingTab = React.lazy(() => import(
-  /* webpackChunkName: "clinical-imaging" */
-  './workspace/tabs/ImagingTab'
-));
+import { buildTabContentConfig } from './workspace/clinicalTabRegistry';
 
 // Tab Loading Component
 const TabLoadingFallback = () => (
@@ -88,20 +36,10 @@ const TabLoadingFallback = () => (
   </Box>
 );
 
-// Tab Configuration - matching the sidebar navigation
-// Note: Using lazy-loaded optimized components defined above
-const TAB_CONFIG = [
-  { id: 'summary', label: 'Summary', icon: DashboardIcon, component: SummaryTab },
-  { id: 'chart-review', label: 'Chart Review', icon: ChartIcon, component: ChartReviewTab }, // Uses ChartReviewTabOptimized
-  { id: 'encounters', label: 'Encounters', icon: EncountersIcon, component: EncountersTab },
-  { id: 'results', label: 'Results', icon: ResultsIcon, component: ResultsTab }, // Uses ResultsTabOptimized
-  { id: 'orders', label: 'Orders', icon: OrdersIcon, component: OrdersTab }, // Uses EnhancedOrdersTab
-  { id: 'pharmacy', label: 'Pharmacy', icon: PharmacyIcon, component: PharmacyTab },
-  { id: 'imaging', label: 'Imaging', icon: ImagingIcon, component: ImagingTab },
-  { id: 'documentation', label: 'Documentation', icon: DocumentationIcon, component: DocumentationTab }, // Uses DocumentationTabEnhanced
-  { id: 'care-plan', label: 'Care Plan', icon: CarePlanIcon, component: CarePlanTab }, // Uses CarePlanTabEnhanced
-  { id: 'timeline', label: 'Timeline', icon: TimelineIcon, component: TimelineTab } // Uses TimelineTabModern
-];
+// Tab content config — lazy-loaded components, ordered by the single
+// source of truth in `clinicalTabRegistry`. Adding a tab is one entry
+// there; this file picks it up automatically.
+const TAB_CONFIG = buildTabContentConfig();
 
 const ClinicalWorkspaceEnhanced = ({ 
   patient,

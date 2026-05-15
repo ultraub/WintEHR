@@ -21,20 +21,14 @@ import { usePatientData } from '../../../hooks/usePatientData';
 import { useResponsive } from '../../../hooks/useResponsive';
 import { MedicalThemeContext } from '../../../App';
 import { LAYOUT_HEIGHTS, Z_INDEX } from '../theme/clinicalThemeConstants';
+import { CLINICAL_TABS } from '../workspace/clinicalTabRegistry';
 
-// Module configuration
-const MODULES = {
-  summary: { id: 'summary', label: 'Summary', index: 0 },
-  'chart-review': { id: 'chart-review', label: 'Chart Review', index: 1 },
-  encounters: { id: 'encounters', label: 'Encounters', index: 2 },
-  results: { id: 'results', label: 'Results', index: 3 },
-  orders: { id: 'orders', label: 'Orders', index: 4 },
-  pharmacy: { id: 'pharmacy', label: 'Pharmacy', index: 5 },
-  imaging: { id: 'imaging', label: 'Imaging', index: 6 },
-  documentation: { id: 'documentation', label: 'Documentation', index: 7 },
-  'care-plan': { id: 'care-plan', label: 'Care Plan', index: 8 },
-  timeline: { id: 'timeline', label: 'Timeline', index: 9 }
-};
+// Module configuration — id → {id, label, index}, derived from the single
+// tab registry. `index` is the registry's array position, so tab order
+// is owned in one place.
+const MODULES = Object.fromEntries(
+  CLINICAL_TABS.map((t, index) => [t.id, { id: t.id, label: t.label, index }]),
+);
 
 const EnhancedClinicalLayout = ({
   children,
