@@ -88,6 +88,8 @@ const MARGrid = ({
   onCellClick,
   pendingRequestIds,
   tick,
+  filterHidEverything = false,
+  activeFilterLabel = '',
 }) => {
   const theme = useTheme();
 
@@ -116,6 +118,21 @@ const MARGrid = ({
   const cellsByRow = useMemo(() => bucketByColumn(scheduledRows, columns), [scheduledRows, columns]);
 
   if (rows.length === 0) {
+    // Distinguish "the filter hid them" from "there genuinely are none" —
+    // an empty grid that's actually a filter artifact reads as a bug.
+    if (filterHidEverything) {
+      return (
+        <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
+          <Typography variant="body2">
+            No doses match the &ldquo;{activeFilterLabel}&rdquo; filter right now.
+          </Typography>
+          <Typography variant="caption">
+            There are scheduled doses in this window — switch the filter to
+            &ldquo;All&rdquo; to see them.
+          </Typography>
+        </Box>
+      );
+    }
     return (
       <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
         <Typography variant="body2">No scheduled medication doses in this window.</Typography>

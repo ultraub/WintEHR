@@ -37,7 +37,11 @@ const AdministrationRecord = ({ patientId, currentPatient }) => {
 
   const [now, setNow] = useState(() => new Date());
   const [windowPresetId, setWindowPresetId] = useState('shift');
-  const [statusFilter, setStatusFilter] = useState('due');
+  // Default to "All" — the grid should show the whole shift on open, the
+  // way a paper/eMAR does. "Due Now" is a focus tool the nurse reaches
+  // for, not the landing view: defaulting to it makes the grid look empty
+  // on every patient whose next dose isn't within the ±30-min due window.
+  const [statusFilter, setStatusFilter] = useState('all');
   const [density, setDensity] = useState('comfortable');
   const [popover, setPopover] = useState({ anchorEl: null, row: null, prn: null });
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
@@ -156,6 +160,16 @@ const AdministrationRecord = ({ patientId, currentPatient }) => {
             onCellClick={handleCellClick}
             pendingRequestIds={pendingRequestIds}
             tick={tick}
+            /* When the status filter hid everything but the window does
+               have doses, MARGrid should say "filter hides them", not
+               "none scheduled" — pass the hint so its empty state is
+               accurate. */
+            filterHidEverything={
+              statusFilter !== 'all'
+              && (data.scheduled || []).length > 0
+              && filteredScheduled.length === 0
+            }
+            activeFilterLabel={statusFilter}
           />
           <PRNPane prnOrders={data.prn_orders || []} onGiveNow={handlePrnGive} />
         </>
