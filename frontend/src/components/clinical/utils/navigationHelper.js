@@ -2,21 +2,22 @@
  * Navigation Helper for Clinical Workspace
  * Centralizes navigation logic and tab mappings
  * Part of Phase 3.1 - Fix Navigation Issues
+ *
+ * TAB_IDS / TAB_DISPLAY_NAMES / tab validity are now derived from the
+ * single tab registry (`workspace/clinicalTabRegistry`) — adding a tab
+ * there flows through here automatically. RESOURCE_TYPE_TO_TAB below is
+ * a separate concern (which tab owns a given FHIR resource type) and
+ * stays hand-maintained.
  */
 
-// Standard tab identifiers matching TAB_CONFIG in ClinicalWorkspaceEnhanced
-export const TAB_IDS = {
-  SUMMARY: 'summary',
-  CHART_REVIEW: 'chart-review',
-  ENCOUNTERS: 'encounters',
-  RESULTS: 'results',
-  ORDERS: 'orders',
-  PHARMACY: 'pharmacy',
-  IMAGING: 'imaging',
-  DOCUMENTATION: 'documentation',
-  CARE_PLAN: 'care-plan',
-  TIMELINE: 'timeline'
-};
+import {
+  TAB_IDS,
+  TAB_DISPLAY_NAMES,
+  isKnownTabId,
+} from '../workspace/clinicalTabRegistry';
+
+// Re-export so existing importers of `navigationHelper` keep working.
+export { TAB_IDS, TAB_DISPLAY_NAMES };
 
 // Resource type to tab mapping
 export const RESOURCE_TYPE_TO_TAB = {
@@ -52,20 +53,6 @@ export const RESOURCE_TYPE_TO_TAB = {
   'Procedure': TAB_IDS.CHART_REVIEW,
   'ImagingStudy': TAB_IDS.IMAGING,
   'Media': TAB_IDS.IMAGING
-};
-
-// Tab display names
-export const TAB_DISPLAY_NAMES = {
-  [TAB_IDS.SUMMARY]: 'Summary',
-  [TAB_IDS.CHART_REVIEW]: 'Chart Review',
-  [TAB_IDS.ENCOUNTERS]: 'Encounters',
-  [TAB_IDS.RESULTS]: 'Results',
-  [TAB_IDS.ORDERS]: 'Orders',
-  [TAB_IDS.PHARMACY]: 'Pharmacy',
-  [TAB_IDS.IMAGING]: 'Imaging',
-  [TAB_IDS.DOCUMENTATION]: 'Documentation',
-  [TAB_IDS.CARE_PLAN]: 'Care Plan',
-  [TAB_IDS.TIMELINE]: 'Timeline'
 };
 
 /**
@@ -156,7 +143,7 @@ export const getTabDisplayName = (tabId) => {
  * @returns {boolean} Whether the tab ID is valid
  */
 export const isValidTab = (tabId) => {
-  return Object.values(TAB_IDS).includes(tabId);
+  return isKnownTabId(tabId);
 };
 
 /**
