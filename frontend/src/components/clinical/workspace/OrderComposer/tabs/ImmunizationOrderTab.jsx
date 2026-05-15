@@ -42,13 +42,14 @@ import {
 
 import catalogService from '../../../../../services/CatalogIntegrationService';
 import { useDraftOrderBundle } from '../DraftOrderBundleProvider';
+import DiagnosisPicker, { toReasonReference } from '../DiagnosisPicker';
 
 const CVX_SYSTEM = 'http://hl7.org/fhir/sid/cvx';
 
 // SNOMED CT category coding for an immunization order. Matches the
-// shape OrderEntryForm uses for lab/imaging/procedure so the right
-// pane's icon-and-label heuristic in DraftOrderList resolves the new
-// kind correctly without code changes there.
+// shape the other order tabs use so the right pane's icon-and-label
+// heuristic in DraftOrderList resolves the new kind correctly without
+// code changes there.
 const IMMUNIZATION_CATEGORY_CODING = {
   system: 'http://snomed.info/sct',
   code: '33879002',
@@ -71,6 +72,7 @@ const ImmunizationOrderTab = () => {
   const [selected, setSelected] = useState(null);
   const [indication, setIndication] = useState('');
   const [priority, setPriority] = useState('routine');
+  const [diagnoses, setDiagnoses] = useState([]);
   const [error, setError] = useState(null);
 
   // CVX vaccine catalog comes from the system ValueSet
@@ -129,6 +131,7 @@ const ImmunizationOrderTab = () => {
         text: selected.display,
       },
       reasonCode: [{ text: indication.trim() }],
+      ...(toReasonReference(diagnoses) ? { reasonReference: toReasonReference(diagnoses) } : {}),
     };
 
     addDraft(draft);
@@ -137,7 +140,7 @@ const ImmunizationOrderTab = () => {
     setSearch('');
     setResults([]);
     setIndication('');
-  }, [canAdd, patientId, priority, selected, indication, addDraft]);
+  }, [canAdd, patientId, priority, selected, indication, diagnoses, addDraft]);
 
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
@@ -206,6 +209,8 @@ const ImmunizationOrderTab = () => {
         minRows={2}
         helperText="At least 5 characters."
       />
+
+      <DiagnosisPicker value={diagnoses} onChange={setDiagnoses} />
 
       <FormControl size="small" sx={{ maxWidth: 200 }}>
         <InputLabel>Priority</InputLabel>

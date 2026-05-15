@@ -633,10 +633,13 @@ class UnifiedCatalogService:
                 ]
             for study in static_studies[:limit - len(results)]:
                 results.append(ImagingStudyCatalogItem(
-                    id=study['id'], display_name=study['display_name'],
-                    modality=study['modality'], body_site=study.get('body_site'),
-                    typical_duration=study.get('typical_duration'),
-                    contrast_required=study.get('contrast_required', False)
+                    id=study['id'],
+                    study_name=study['display_name'],
+                    study_code=study['id'],
+                    modality=study['modality'],
+                    body_site=study.get('body_site'),
+                    duration_minutes=study.get('typical_duration'),
+                    contrast_required=study.get('contrast_required', False),
                 ))
 
         return results
