@@ -38,6 +38,21 @@ ADMINISTRABLE_STATUSES = frozenset({"active", "completed"})
 # scheduled time. Adjust later if a specific facility policy demands tighter.
 ADMIN_MATCH_WINDOW = timedelta(minutes=60)
 
+# ServiceRequest.category codings the Order Composer emits for the three
+# non-medication task types the MAR Tasks pane (#116 Phase 5.2) records
+# against. Matching is tolerant: a code OR a lower-cased category text.
+# Immunization orders use SNOMED 33879002 (ImmunizationOrderTab); lab
+# orders SNOMED 108252007; procedure orders SNOMED 387713003.
+TASK_CATEGORY_IMMUNIZATION = frozenset({"33879002", "immunization"})
+TASK_CATEGORY_SPECIMEN = frozenset({"108252007", "laboratory", "laboratory-procedure"})
+TASK_CATEGORY_PROCEDURE = frozenset({"387713003", "procedure"})
+
+# FHIR R4 `Immunization` has no `basedOn` element (it was added in R5).
+# To still link a recorded Immunization back to its ordering ServiceRequest
+# we carry the reference on this custom extension. Procedure (`basedOn`) and
+# Specimen (`request`) use their native R4 elements — no extension needed.
+IMMUNIZATION_ORDER_EXTENSION = "http://wintehr.local/fhir/StructureDefinition/immunization-order"
+
 
 @dataclass(frozen=True)
 class AdminRecord:
@@ -67,6 +82,22 @@ class ScheduledTaskBundle:
     prn_orders: list[dict[str, Any]]
     # Admins that didn't match any scheduled time (late-charted unsolicited doses)
     unscheduled_admins: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class AdministrationTasksBundle:
+    """Non-medication recording tasks for the MAR Tasks pane (#116 Phase 5.2).
+
+    Each list holds the active ServiceRequest orders of one task type, with a
+    `fulfilled` flag set when a recording resource already references the
+    order. The frontend renders pending tasks as actionable cards and
+    fulfilled ones as a muted "done" row.
+    """
+
+    patient_id: str
+    immunizations: list[dict[str, Any]]
+    specimens: list[dict[str, Any]]
+    procedures: list[dict[str, Any]]
 
 
 async def get_scheduled_tasks(
@@ -134,6 +165,57 @@ async def get_scheduled_tasks(
         scheduled=sorted(scheduled, key=lambda s: (s["scheduled_time"], s["medication_request_id"])),
         prn_orders=prn_orders,
         unscheduled_admins=unscheduled_admins,
+    )
+
+
+async def get_administration_tasks(patient_id: str) -> AdministrationTasksBundle:
+    """Build the Tasks-pane payload: pending non-medication recording tasks.
+
+    Parallel-queries the patient's ServiceRequests and the three recording
+    resource types (Immunization / Specimen / Procedure), buckets the
+    ServiceRequests by category coding, and marks each order fulfilled when a
+    recording resource already links back to it. Pure read — no DB writes.
+    """
+    hapi = HAPIFHIRClient()
+
+    sr_bundle, imm_bundle, spec_bundle, proc_bundle = await _parallel_search(
+        hapi,
+        ("ServiceRequest", {"patient": f"Patient/{patient_id}", "_count": 200}),
+        ("Immunization", {"patient": f"Patient/{patient_id}", "_count": 200}),
+        ("Specimen", {"patient": f"Patient/{patient_id}", "_count": 200}),
+        ("Procedure", {"patient": f"Patient/{patient_id}", "_count": 200}),
+    )
+
+    # ServiceRequest id -> id of the recording resource that fulfils it.
+    # Procedure links via `basedOn`, Specimen via `request` (both native R4
+    # elements); Immunization has no R4 order element so it links via the
+    # `IMMUNIZATION_ORDER_EXTENSION` extension.
+    imm_by_order = _immunization_fulfillment_map(imm_bundle)
+    spec_by_order = _fulfillment_map(spec_bundle, "request")
+    proc_by_order = _fulfillment_map(proc_bundle, "basedOn")
+
+    immunizations: list[dict[str, Any]] = []
+    specimens: list[dict[str, Any]] = []
+    procedures: list[dict[str, Any]] = []
+
+    for entry in _entries(sr_bundle):
+        sr = entry.get("resource") or {}
+        if sr.get("status") not in ADMINISTRABLE_STATUSES:
+            # Unsigned (draft) or revoked orders are not actionable tasks.
+            continue
+        codes = _sr_category_codes(sr)
+        if codes & TASK_CATEGORY_IMMUNIZATION:
+            immunizations.append(_render_task(sr, imm_by_order, "immunization"))
+        elif codes & TASK_CATEGORY_SPECIMEN:
+            specimens.append(_render_task(sr, spec_by_order, "specimen"))
+        elif codes & TASK_CATEGORY_PROCEDURE:
+            procedures.append(_render_task(sr, proc_by_order, "procedure"))
+
+    return AdministrationTasksBundle(
+        patient_id=patient_id,
+        immunizations=_sort_tasks(immunizations),
+        specimens=_sort_tasks(specimens),
+        procedures=_sort_tasks(procedures),
     )
 
 
@@ -321,3 +403,97 @@ def _indication_text(med_request: dict[str, Any]) -> Optional[str]:
     reason_code = (med_request.get("reasonCode") or [{}])[0]
     text = reason_code.get("text") or (reason_code.get("coding") or [{}])[0].get("display")
     return text or None
+
+
+def _sr_category_codes(sr: dict[str, Any]) -> set[str]:
+    """Collect every category coding `code` plus lower-cased category `text`."""
+    codes: set[str] = set()
+    for cat in sr.get("category") or []:
+        for coding in cat.get("coding") or []:
+            code = coding.get("code")
+            if code:
+                codes.add(code)
+        text = cat.get("text")
+        if text:
+            codes.add(text.strip().lower())
+    return codes
+
+
+def _fulfillment_map(bundle: dict[str, Any], ref_field: str) -> dict[str, str]:
+    """Map ServiceRequest id -> id of a resource whose `ref_field` points at it.
+
+    `ref_field` is `basedOn` (Immunization/Procedure) or `request` (Specimen);
+    both are lists of FHIR References.
+    """
+    out: dict[str, str] = {}
+    for entry in _entries(bundle):
+        res = entry.get("resource") or {}
+        res_id = res.get("id")
+        if not res_id:
+            continue
+        for ref in res.get(ref_field) or []:
+            target = (ref or {}).get("reference") or ""
+            if target.startswith("ServiceRequest/"):
+                # First fulfilment wins — a re-recorded order is rare and the
+                # pane only needs *a* link to flip the card to "done".
+                out.setdefault(target.split("/", 1)[1], res_id)
+    return out
+
+
+def _immunization_fulfillment_map(bundle: dict[str, Any]) -> dict[str, str]:
+    """Map ServiceRequest id -> Immunization id via `IMMUNIZATION_ORDER_EXTENSION`.
+
+    Separate from `_fulfillment_map` because R4 Immunization carries the order
+    link on an extension rather than a `basedOn`/`request` element.
+    """
+    out: dict[str, str] = {}
+    for entry in _entries(bundle):
+        res = entry.get("resource") or {}
+        res_id = res.get("id")
+        if not res_id:
+            continue
+        for ext in res.get("extension") or []:
+            if ext.get("url") != IMMUNIZATION_ORDER_EXTENSION:
+                continue
+            target = (ext.get("valueReference") or {}).get("reference") or ""
+            if target.startswith("ServiceRequest/"):
+                out.setdefault(target.split("/", 1)[1], res_id)
+    return out
+
+
+def _render_task(
+    sr: dict[str, Any],
+    fulfillment_map: dict[str, str],
+    task_type: str,
+) -> dict[str, Any]:
+    sr_id = sr.get("id")
+    code = sr.get("code") or {}
+    first_coding = (code.get("coding") or [{}])[0]
+    code_display = (
+        code.get("text")
+        or first_coding.get("display")
+        or "(unspecified)"
+    )
+    fulfillment_id = fulfillment_map.get(sr_id)
+    return {
+        "service_request_id": sr_id,
+        "task_type": task_type,
+        "code": first_coding.get("code"),
+        "code_system": first_coding.get("system"),
+        "code_display": code_display,
+        "ordered_datetime": sr.get("authoredOn"),
+        "priority": sr.get("priority"),
+        "order_status": sr.get("status"),
+        "fulfilled": fulfillment_id is not None,
+        "fulfillment_id": fulfillment_id,
+    }
+
+
+def _sort_tasks(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Pending tasks first, each group most-recently-ordered first."""
+    def _ordered(t: dict[str, Any]) -> str:
+        return t.get("ordered_datetime") or ""
+
+    pending = sorted((t for t in tasks if not t["fulfilled"]), key=_ordered, reverse=True)
+    done = sorted((t for t in tasks if t["fulfilled"]), key=_ordered, reverse=True)
+    return pending + done

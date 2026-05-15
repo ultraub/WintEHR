@@ -27,6 +27,7 @@ import FilterBar, { WINDOW_PRESETS } from './FilterBar';
 import MARGrid from './MARGrid';
 import PRNPane from './PRNPane';
 import QuickAdminPopover from './QuickAdminPopover';
+import TaskPane from './TaskPane';
 import { classifyCell } from './MARCell';
 import { useScheduledTasks } from './useScheduledTasks';
 
@@ -137,42 +138,54 @@ const AdministrationRecord = ({ patientId, currentPatient }) => {
         </Alert>
       )}
 
-      {error && (
-        <Alert severity="error" sx={{ m: 2 }}>
-          Failed to load administration data: {error.message}
-        </Alert>
-      )}
+      {effectivePatientId && (
+        <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+          {/* Left column — medication time grid + PRN pane. */}
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            {error && (
+              <Alert severity="error" sx={{ m: 2 }}>
+                Failed to load administration data: {error.message}
+              </Alert>
+            )}
 
-      {loading && !data && (
-        <Stack direction="row" alignItems="center" justifyContent="center" sx={{ py: 6, gap: 1 }}>
-          <CircularProgress size={20} />
-          <Typography variant="body2" color="text.secondary">Loading administration record…</Typography>
-        </Stack>
-      )}
+            {loading && !data && (
+              <Stack direction="row" alignItems="center" justifyContent="center" sx={{ py: 6, gap: 1 }}>
+                <CircularProgress size={20} />
+                <Typography variant="body2" color="text.secondary">Loading administration record…</Typography>
+              </Stack>
+            )}
 
-      {data && (
-        <>
-          <MARGrid
-            scheduledRows={filteredScheduled}
-            windowStart={windowStart}
-            windowEnd={windowEnd}
-            density={density}
-            onCellClick={handleCellClick}
-            pendingRequestIds={pendingRequestIds}
-            tick={tick}
-            /* When the status filter hid everything but the window does
-               have doses, MARGrid should say "filter hides them", not
-               "none scheduled" — pass the hint so its empty state is
-               accurate. */
-            filterHidEverything={
-              statusFilter !== 'all'
-              && (data.scheduled || []).length > 0
-              && filteredScheduled.length === 0
-            }
-            activeFilterLabel={statusFilter}
-          />
-          <PRNPane prnOrders={data.prn_orders || []} onGiveNow={handlePrnGive} />
-        </>
+            {data && (
+              <>
+                <MARGrid
+                  scheduledRows={filteredScheduled}
+                  windowStart={windowStart}
+                  windowEnd={windowEnd}
+                  density={density}
+                  onCellClick={handleCellClick}
+                  pendingRequestIds={pendingRequestIds}
+                  tick={tick}
+                  /* When the status filter hid everything but the window does
+                     have doses, MARGrid should say "filter hides them", not
+                     "none scheduled" — pass the hint so its empty state is
+                     accurate. */
+                  filterHidEverything={
+                    statusFilter !== 'all'
+                    && (data.scheduled || []).length > 0
+                    && filteredScheduled.length === 0
+                  }
+                  activeFilterLabel={statusFilter}
+                />
+                <PRNPane prnOrders={data.prn_orders || []} onGiveNow={handlePrnGive} />
+              </>
+            )}
+          </Box>
+
+          {/* Right column — non-medication recording tasks (Phase 5.2). */}
+          <Box sx={{ width: 320, flexShrink: 0, borderLeft: 1, borderColor: 'divider', alignSelf: 'stretch' }}>
+            <TaskPane patientId={effectivePatientId} />
+          </Box>
+        </Box>
       )}
 
       <QuickAdminPopover

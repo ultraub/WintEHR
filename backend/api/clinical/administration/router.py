@@ -1,17 +1,26 @@
 """
-Administration Record (MAR) router — #116 Phase 5.1.
+Administration Record (MAR) router — #116 Phase 5.1 + 5.2.
 
-Two endpoints:
+Endpoints (all under `/api/clinical/administration`):
 
-- `GET /api/clinical/administration/scheduled-tasks?patient_id=...&window_start=...&window_end=...`
-  Returns the MAR payload: scheduled doses (with admin matches), PRN orders,
-  unscheduled admins. Pure read, no DB writes.
+- `GET /scheduled-tasks?patient_id=...&window_start=...&window_end=...`
+  MAR grid payload: scheduled doses (with admin matches), PRN orders,
+  unscheduled admins. Pure read.
 
-- `POST /api/clinical/administration/record`
-  Creates a MedicationAdministration resource in HAPI. Refuses orders where
-  `status` is not in `ADMINISTRABLE_STATUSES` (mirrors the pharmacy dispense
-  gate from PR #139 — same philosophy: a draft order is not yet a real
-  instruction and must not produce a recorded administration).
+- `GET /tasks?patient_id=...`  (Phase 5.2)
+  Tasks-pane payload: pending non-medication recording tasks, bucketed into
+  immunization / specimen / procedure ServiceRequest orders.
+
+- `POST /record`
+  Creates a MedicationAdministration against a signed MedicationRequest.
+
+- `POST /record/immunization`, `/record/specimen`, `/record/procedure`  (Phase 5.2)
+  Records a non-medication clinical event (Immunization / Specimen /
+  Procedure) against its signed ServiceRequest order.
+
+Every record endpoint refuses orders whose `status` is not in
+`ADMINISTRABLE_STATUSES` (mirrors the pharmacy dispense gate from PR #139 —
+a draft order is not yet a real instruction and must not produce a record).
 """
 
 from __future__ import annotations
@@ -26,7 +35,12 @@ from pydantic import BaseModel, Field
 
 from services.hapi_fhir_client import HAPIFHIRClient
 
-from .service import ADMINISTRABLE_STATUSES, get_scheduled_tasks
+from .service import (
+    ADMINISTRABLE_STATUSES,
+    IMMUNIZATION_ORDER_EXTENSION,
+    get_administration_tasks,
+    get_scheduled_tasks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +138,25 @@ async def scheduled_tasks_endpoint(
         "scheduled": bundle.scheduled,
         "prn_orders": bundle.prn_orders,
         "unscheduled_admins": bundle.unscheduled_admins,
+    }
+
+
+@router.get("/tasks")
+async def administration_tasks_endpoint(
+    patient_id: str = Query(..., description="Bare patient FHIR id (no 'Patient/' prefix)"),
+) -> dict[str, Any]:
+    """Tasks-pane payload: pending non-medication recording tasks (#116 Phase 5.2).
+
+    Returns active ServiceRequest orders bucketed into immunization /
+    specimen / procedure tasks, each flagged `fulfilled` when a recording
+    resource already links back to the order.
+    """
+    bundle = await get_administration_tasks(patient_id)
+    return {
+        "patient_id": bundle.patient_id,
+        "immunizations": bundle.immunizations,
+        "specimens": bundle.specimens,
+        "procedures": bundle.procedures,
     }
 
 
@@ -269,3 +302,264 @@ async def record_administration_endpoint(body: RecordAdministrationRequest) -> R
         status=fhir_status,
         effective_datetime=effective,
     )
+
+
+# =====================================================================
+# Phase 5.2 — non-medication recording (Immunization / Specimen / Procedure)
+# =====================================================================
+
+
+class RecordImmunizationRequest(BaseModel):
+    """Body for POST /record/immunization."""
+
+    service_request_id: str = Field(..., description="The signed ServiceRequest immunization order")
+    status: Literal["completed", "not-done", "entered-in-error"] = "completed"
+    occurrence_datetime: Optional[datetime] = Field(None, description="When given; defaults to now")
+    lot_number: Optional[str] = None
+    expiration_date: Optional[str] = Field(None, description="Vaccine lot expiration (FHIR date)")
+    route: Optional[str] = Field(None, description="Route, e.g. IM/SC/IN")
+    site: Optional[str] = Field(None, description="Body site, e.g. left deltoid")
+    dose_value: Optional[float] = Field(None, description="Dose quantity")
+    dose_unit: Optional[str] = Field(None, description="Dose unit, e.g. mL")
+    performer_reference: Optional[str] = Field(None, description="Practitioner/{id}; defaults to current user")
+    reaction: Optional[str] = Field(None, description="Free-text adverse reaction, if any")
+    status_reason: Optional[str] = Field(None, description="Required when status='not-done'")
+    notes: Optional[str] = None
+
+
+class RecordSpecimenRequest(BaseModel):
+    """Body for POST /record/specimen."""
+
+    service_request_id: str = Field(..., description="The signed ServiceRequest lab order")
+    specimen_type: Optional[str] = Field(None, description="Specimen type text; defaults to the order's code")
+    collected_datetime: Optional[datetime] = Field(None, description="When collected; defaults to now")
+    collector_reference: Optional[str] = Field(None, description="Practitioner/{id}; defaults to current user")
+    body_site: Optional[str] = Field(None, description="Collection body site")
+    container: Optional[str] = Field(None, description="Container type, e.g. EDTA tube")
+    quantity_value: Optional[float] = Field(None, description="Collected quantity")
+    quantity_unit: Optional[str] = Field(None, description="Quantity unit, e.g. mL")
+    notes: Optional[str] = None
+
+
+class RecordProcedureRequest(BaseModel):
+    """Body for POST /record/procedure."""
+
+    service_request_id: str = Field(..., description="The signed ServiceRequest procedure order")
+    status: Literal["completed", "in-progress", "not-done"] = "completed"
+    performed_datetime: Optional[datetime] = Field(None, description="When performed; defaults to now")
+    performer_reference: Optional[str] = Field(None, description="Practitioner/{id}; defaults to current user")
+    outcome: Optional[str] = Field(None, description="Procedure outcome, e.g. successful")
+    complication: Optional[str] = Field(None, description="Free-text complication, if any")
+    status_reason: Optional[str] = Field(None, description="Required when status='not-done'")
+    notes: Optional[str] = None
+
+
+class RecordTaskResponse(BaseModel):
+    """Shared response for the three Phase 5.2 record endpoints."""
+
+    resource_id: str
+    resource_type: str
+    status: str
+
+
+async def _read_administrable_service_request(
+    hapi: HAPIFHIRClient,
+    service_request_id: str,
+) -> dict[str, Any]:
+    """Read a ServiceRequest and enforce the administrability status gate.
+
+    Mirrors the MedicationRequest gate in `record_administration_endpoint`:
+    a draft (unsigned) or revoked order must not produce a recorded event.
+    """
+    service_request = await hapi.read("ServiceRequest", service_request_id)
+    if not service_request:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=f"ServiceRequest/{service_request_id} not found",
+        )
+    order_status = service_request.get("status")
+    if order_status not in ADMINISTRABLE_STATUSES:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail=(
+                f"Cannot record against ServiceRequest in status '{order_status}'. "
+                f"The order must be signed (status='active') before recording."
+            ),
+        )
+    return service_request
+
+
+async def _create_or_500(hapi: HAPIFHIRClient, resource_type: str, resource: dict[str, Any]) -> dict[str, Any]:
+    """Write a resource to HAPI, mapping any failure to a 500 (logged)."""
+    try:
+        return await hapi.create(resource_type, resource)
+    except Exception as exc:
+        logger.error("Failed to create %s: %s", resource_type, exc, exc_info=True)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to record {resource_type}: {exc}",
+        ) from exc
+
+
+@router.post(
+    "/record/immunization",
+    response_model=RecordTaskResponse,
+    status_code=http_status.HTTP_201_CREATED,
+)
+async def record_immunization_endpoint(body: RecordImmunizationRequest) -> RecordTaskResponse:
+    """Record an `Immunization` against a signed immunization ServiceRequest."""
+    hapi = HAPIFHIRClient()
+    service_request = await _read_administrable_service_request(hapi, body.service_request_id)
+
+    if body.status == "not-done" and not body.status_reason:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="A status_reason is required when status='not-done'.",
+        )
+
+    occurrence = body.occurrence_datetime or datetime.now(timezone.utc)
+    if occurrence.tzinfo is None:
+        occurrence = occurrence.replace(tzinfo=timezone.utc)
+
+    immunization: dict[str, Any] = {
+        "resourceType": "Immunization",
+        "status": body.status,
+        # The order's `code` carries the CVX coding the prescriber chose.
+        "vaccineCode": service_request.get("code") or {"text": "Unspecified vaccine"},
+        "patient": service_request.get("subject") or {},
+        "occurrenceDateTime": occurrence.isoformat(),
+        "recorded": datetime.now(timezone.utc).isoformat(),
+        # R4 Immunization has no `basedOn`; carry the order link on an extension.
+        "extension": [{
+            "url": IMMUNIZATION_ORDER_EXTENSION,
+            "valueReference": {"reference": f"ServiceRequest/{body.service_request_id}"},
+        }],
+    }
+    if service_request.get("encounter"):
+        immunization["encounter"] = service_request["encounter"]
+    if body.lot_number:
+        immunization["lotNumber"] = body.lot_number
+    if body.expiration_date:
+        immunization["expirationDate"] = body.expiration_date
+    if body.route:
+        immunization["route"] = {"text": body.route}
+    if body.site:
+        immunization["site"] = {"text": body.site}
+    if body.dose_value is not None and body.dose_unit:
+        immunization["doseQuantity"] = {
+            "value": body.dose_value,
+            "unit": body.dose_unit,
+            "system": "http://unitsofmeasure.org",
+            "code": body.dose_unit,
+        }
+    immunization["performer"] = [{
+        "actor": {"reference": body.performer_reference or "Practitioner/demo-physician"},
+    }]
+    if body.status == "not-done":
+        immunization["statusReason"] = {"text": body.status_reason}
+
+    # FHIR R4 Immunization.reaction.detail references an Observation; for the
+    # educational use case a free-text reaction is recorded as a note rather
+    # than spawning a dangling Observation reference.
+    notes: list[dict[str, Any]] = []
+    if body.reaction:
+        notes.append({"text": f"Reaction: {body.reaction}"})
+    if body.notes:
+        notes.append({"text": body.notes})
+    if notes:
+        immunization["note"] = notes
+
+    created = await _create_or_500(hapi, "Immunization", immunization)
+    new_id = created.get("id")
+    logger.info("Recorded Immunization/%s for ServiceRequest/%s", new_id, body.service_request_id)
+    return RecordTaskResponse(resource_id=new_id, resource_type="Immunization", status=body.status)
+
+
+@router.post(
+    "/record/specimen",
+    response_model=RecordTaskResponse,
+    status_code=http_status.HTTP_201_CREATED,
+)
+async def record_specimen_endpoint(body: RecordSpecimenRequest) -> RecordTaskResponse:
+    """Record a `Specimen` collection against a signed lab ServiceRequest."""
+    hapi = HAPIFHIRClient()
+    service_request = await _read_administrable_service_request(hapi, body.service_request_id)
+
+    collected = body.collected_datetime or datetime.now(timezone.utc)
+    if collected.tzinfo is None:
+        collected = collected.replace(tzinfo=timezone.utc)
+
+    specimen: dict[str, Any] = {
+        "resourceType": "Specimen",
+        "status": "available",
+        "type": {"text": body.specimen_type} if body.specimen_type else (service_request.get("code") or {}),
+        "subject": service_request.get("subject") or {},
+        "receivedTime": datetime.now(timezone.utc).isoformat(),
+        "request": [{"reference": f"ServiceRequest/{body.service_request_id}"}],
+    }
+    collection: dict[str, Any] = {"collectedDateTime": collected.isoformat()}
+    collection["collector"] = {
+        "reference": body.collector_reference or "Practitioner/demo-physician",
+    }
+    if body.body_site:
+        collection["bodySite"] = {"text": body.body_site}
+    if body.quantity_value is not None and body.quantity_unit:
+        collection["quantity"] = {"value": body.quantity_value, "unit": body.quantity_unit}
+    specimen["collection"] = collection
+    if body.container:
+        specimen["container"] = [{"type": {"text": body.container}}]
+    if body.notes:
+        specimen["note"] = [{"text": body.notes}]
+
+    created = await _create_or_500(hapi, "Specimen", specimen)
+    new_id = created.get("id")
+    logger.info("Recorded Specimen/%s for ServiceRequest/%s", new_id, body.service_request_id)
+    return RecordTaskResponse(resource_id=new_id, resource_type="Specimen", status="available")
+
+
+@router.post(
+    "/record/procedure",
+    response_model=RecordTaskResponse,
+    status_code=http_status.HTTP_201_CREATED,
+)
+async def record_procedure_endpoint(body: RecordProcedureRequest) -> RecordTaskResponse:
+    """Record a `Procedure` against a signed procedure ServiceRequest."""
+    hapi = HAPIFHIRClient()
+    service_request = await _read_administrable_service_request(hapi, body.service_request_id)
+
+    if body.status == "not-done" and not body.status_reason:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="A status_reason is required when status='not-done'.",
+        )
+
+    performed = body.performed_datetime or datetime.now(timezone.utc)
+    if performed.tzinfo is None:
+        performed = performed.replace(tzinfo=timezone.utc)
+
+    procedure: dict[str, Any] = {
+        "resourceType": "Procedure",
+        "status": body.status,
+        "code": service_request.get("code") or {"text": "Unspecified procedure"},
+        "subject": service_request.get("subject") or {},
+        "performedDateTime": performed.isoformat(),
+        "basedOn": [{"reference": f"ServiceRequest/{body.service_request_id}"}],
+    }
+    if service_request.get("encounter"):
+        procedure["encounter"] = service_request["encounter"]
+    procedure["performer"] = [{
+        "actor": {"reference": body.performer_reference or "Practitioner/demo-physician"},
+    }]
+    if body.outcome:
+        procedure["outcome"] = {"text": body.outcome}
+    if body.complication:
+        procedure["complication"] = [{"text": body.complication}]
+    if body.status == "not-done":
+        procedure["statusReason"] = {"text": body.status_reason}
+    if body.notes:
+        procedure["note"] = [{"text": body.notes}]
+
+    created = await _create_or_500(hapi, "Procedure", procedure)
+    new_id = created.get("id")
+    logger.info("Recorded Procedure/%s for ServiceRequest/%s", new_id, body.service_request_id)
+    return RecordTaskResponse(resource_id=new_id, resource_type="Procedure", status=body.status)
