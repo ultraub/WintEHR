@@ -1,17 +1,30 @@
 // Service Worker for WintEHR
 // Provides caching for better performance and offline capabilities
+//
+// __BUILD_HASH__ is substituted at build time by scripts/postbuild-sw.js
+// so the cache names change on every deploy. The activate handler
+// deletes any cache not in the current set, which means a redeploy
+// reliably invalidates stale `/static/*.js` entries and ends the
+// stuck-on-old-bundle failure mode. In dev (`npm start`) the token
+// remains literal — that's fine because index.js unregisters the SW
+// entirely in development.
 
-const CACHE_NAME = 'medgen-emr-v1.0.1';
-const STATIC_CACHE_NAME = 'medgen-static-v1.0.1';
-const API_CACHE_NAME = 'medgen-api-v1.0.1';
+const BUILD_HASH = '__BUILD_HASH__';
+const CACHE_NAME = `medgen-emr-${BUILD_HASH}`;
+const STATIC_CACHE_NAME = `medgen-static-${BUILD_HASH}`;
+const API_CACHE_NAME = `medgen-api-${BUILD_HASH}`;
 
-// Static assets to cache
+// Static assets to pre-cache on install. Keep this list to URLs that
+// are guaranteed to exist at this exact path on every deploy. CRA emits
+// content-hashed bundle filenames (e.g. /static/js/main.c5926f3a.js)
+// that change between deploys — pre-caching them with stale literals
+// causes `cache.addAll()` to reject on the first 404, which aborts the
+// install handler before `skipWaiting()` runs and pins the browser to
+// the prior SW indefinitely. Hashed bundles get cached lazily via the
+// `cacheFirst` fetch handler instead.
 const STATIC_ASSETS = [
   '/',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
   '/manifest.json',
-  // Add other static assets as needed
 ];
 
 // API endpoints to cache
@@ -87,22 +100,21 @@ const networkFirst = async (request) => {
   }
 };
 
-// Install event - cache static assets
+// Install event - cache static assets.
+// `skipWaiting()` runs unconditionally so a pre-cache miss (e.g. a
+// listed asset has been renamed on this deploy) doesn't trap the new
+// SW in the waiting state and leave the previous SW serving stale
+// bundles forever.
 self.addEventListener('install', (event) => {
   console.log('Service Worker installing...');
-  
+  self.skipWaiting();
   event.waitUntil(
     caches.open(STATIC_CACHE_NAME)
-      .then((cache) => {
-        console.log('Caching static assets...');
-        return cache.addAll(STATIC_ASSETS);
-      })
-      .then(() => {
-        console.log('Static assets cached successfully');
-        return self.skipWaiting();
-      })
+      .then((cache) => cache.addAll(STATIC_ASSETS))
+      .then(() => console.log('Static assets cached successfully'))
       .catch((error) => {
-        console.error('Error caching static assets:', error);
+        // Non-fatal — assets get cached lazily via the fetch handler.
+        console.warn('Pre-cache failed (continuing anyway):', error);
       })
   );
 });

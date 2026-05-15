@@ -233,9 +233,48 @@ async def test_execute_falls_back_to_coding_display_when_no_text(service):
 
 @pytest.mark.asyncio
 async def test_execute_truncates_long_summary(service):
+    # Two long names whose comma-joined length pushes past the 80-char
+    # truncation threshold the service enforces. The previous version of
+    # this test used a single 77-char name — below the threshold — so
+    # the assertion that the summary ended with "..." was guaranteed to
+    # fail. Truncation kicks in only when the joined code list itself
+    # exceeds 80 chars; assemble two drafts to actually exercise that
+    # branch.
+    long_a = "Comprehensive metabolic panel including extended electrolytes A"
+    long_b = "Comprehensive metabolic panel including extended electrolytes B"
+    res_a = {
+        "resourceType": "ServiceRequest", "id": "draft-a",
+        "code": {"text": long_a},
+    }
+    res_b = {
+        "resourceType": "ServiceRequest", "id": "draft-b",
+        "code": {"text": long_b},
+    }
+    context = {
+        "selections": [
+            make_selection("ServiceRequest", "draft-a"),
+            make_selection("ServiceRequest", "draft-b"),
+        ],
+        "draftOrders": make_draft_orders(res_a, res_b),
+    }
+    cards = await service.execute(context, {})
+    assert len(cards) == 1
+    summary_codes_part = cards[0].summary.split("Order context: ", 1)[1]
+    # Service truncates the codes list to 77 chars + "..." (total 80)
+    # when the joined string exceeds 80.
+    assert len(summary_codes_part) <= 80
+    assert summary_codes_part.endswith("...")
+
+
+@pytest.mark.asyncio
+async def test_execute_does_not_truncate_short_summary(service):
+    # Mirror of the long-summary case: a short code that fits under the
+    # threshold must NOT get a trailing "..." appended. Locks in the
+    # non-truncation path so a future tightening of the threshold can't
+    # silently start truncating routine orders.
     res = {
         "resourceType": "ServiceRequest", "id": "draft-1",
-        "code": {"text": "A very long test name that goes on and on and on and on and on and on and on"},
+        "code": {"text": "CBC"},
     }
     context = {
         "selections": [make_selection("ServiceRequest", "draft-1")],
@@ -243,10 +282,9 @@ async def test_execute_truncates_long_summary(service):
     }
     cards = await service.execute(context, {})
     assert len(cards) == 1
-    # CDS Hooks spec recommends summary <= ~140 chars; service truncates code list at 80
     summary_codes_part = cards[0].summary.split("Order context: ", 1)[1]
-    assert len(summary_codes_part) <= 80
-    assert summary_codes_part.endswith("...")
+    assert summary_codes_part == "CBC"
+    assert "..." not in summary_codes_part
 
 
 # ---------------------------------------------------------------------
