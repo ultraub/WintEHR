@@ -2,7 +2,7 @@
 
 The Medication Administration Record. Nurse-side surface for charting
 "I gave the 0800 metformin", complementing the Order Composer's CPOE
-side. #116 Phase 5.1.
+side. #116 Phase 5.1 (medication grid) + 5.2 (non-medication Tasks pane).
 
 **Inherits** root + `frontend/CLAUDE.md` + `frontend/src/CLAUDE.md` patterns.
 
@@ -10,16 +10,37 @@ side. #116 Phase 5.1.
 
 ```
 AdministrationRecord.jsx  ──┐    (tab shell — wires data + UI)
-                            │
+                            │    2-column: grid (left) + Tasks pane (right)
                             ├─ FilterBar.jsx       (status / window / density)
                             ├─ MARGrid.jsx         (time-axis CSS grid)
                             │   ├─ MedRowHeader.jsx   (left rail, 200px)
                             │   └─ MARCell.jsx        (per-cell state machine)
                             ├─ PRNPane.jsx         (PRN cards below grid)
-                            └─ QuickAdminPopover.jsx (click-to-document)
+                            ├─ QuickAdminPopover.jsx (click-to-document)
+                            └─ TaskPane.jsx        (Phase 5.2 — right column)
+                                └─ dialogs/        (Immunization / Specimen /
+                                                    Procedure recording dialogs)
 
-useScheduledTasks.js  ──── data hook (fetch, WebSocket live updates, tick)
+useScheduledTasks.js     ── grid data hook (fetch, WebSocket updates, tick)
+useAdministrationTasks.js ─ Tasks-pane data hook (fetch + WebSocket refresh)
 ```
+
+## Tasks pane — non-medication recording (Phase 5.2)
+
+Where the grid charts medication doses, `TaskPane` charts the other
+shift work: immunizations, specimen collections, procedures. It reads
+`GET /api/clinical/administration/tasks`, which returns active
+ServiceRequest orders bucketed by category coding (immunization
+`33879002`, lab `108252007`, procedure `387713003`), each flagged
+`fulfilled` when a recording resource (`Immunization`/`Specimen`/
+`Procedure`) already links back to the order.
+
+Each pending order is a tappable card → a recording dialog under
+`dialogs/`. The dialog POSTs to `POST .../administration/record/{type}`,
+which builds the FHIR resource with `basedOn` (Immunization/Procedure)
+or `request` (Specimen) → the order, and enforces the same
+`ADMINISTRABLE_STATUSES` gate. These dialogs are deliberately lean — the
+full `ImmunizationDialogEnhanced` stepper is retired in Phase 5.3.
 
 ## Cell state grammar (the visual language)
 
@@ -77,10 +98,12 @@ Action types and the FHIR statuses they map to:
 | `held` | `on-hold` | `statusReason` (required) |
 | `refused` | `not-done` | `statusReason` (required) |
 
-## What's deliberately out of scope for 5.1
+## What's deliberately out of scope
 
-- **Non-medication tasks** (immunization recording, specimen collection,
-  procedure performance) — Phase 5.2.
+- **Retiring `ImmunizationDialogEnhanced`** (the 3-step stepper still used
+  by Chart Review's edit path) — Phase 5.3.
+- **Ad-hoc recording with no order** — every Tasks-pane card has a
+  ServiceRequest; orderless recording stays on the legacy dialog.
 - **Drag-to-reschedule** — out of scope, app is modal-first.
 - **Advanced `Timing.repeat` shapes**: `dayOfWeek`, `timeOfDay`,
   `when` event-coded timing (mealtime-relative), taper schedules across

@@ -45,6 +45,10 @@ export const CLINICAL_EVENTS = {
   PROCEDURE_COMPLETED: 'procedure.completed',
   PROCEDURE_CANCELLED: 'procedure.cancelled',
   PROCEDURE_UPDATED: 'procedure.updated',
+  PROCEDURE_PERFORMED: 'procedure.performed',
+
+  // Specimen events
+  SPECIMEN_COLLECTED: 'specimen.collected',
 
   // Observation events
   OBSERVATION_RECORDED: 'observation.recorded',
