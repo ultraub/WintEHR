@@ -3,7 +3,7 @@
  * Handles FHIR data fetching and aggregation for UI Composer
  */
 
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import { 
   extractPatientDemographics,
   extractConditionInfo,

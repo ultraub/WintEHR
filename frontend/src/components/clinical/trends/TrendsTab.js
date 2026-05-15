@@ -22,7 +22,7 @@ import { useClinical } from '../../../contexts/ClinicalContext';
 import VitalSignsTrends from '../../VitalSignsTrends';
 import LabTrends from '../charts/LabTrends';
 import VitalsOverview from '../charts/VitalsOverview';
-import { fhirClient } from '../../../services/fhirClient';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 
 const TabPanel = ({ children, value, index, ...other }) => {
   return (
