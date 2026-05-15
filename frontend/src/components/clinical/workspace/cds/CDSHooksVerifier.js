@@ -60,7 +60,7 @@ import {
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
-import { fhirClient } from '../../../../services/fhirClient';
+import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { cdsHooksTester } from '../../../../core/cds/cdsHooksTester';
 
