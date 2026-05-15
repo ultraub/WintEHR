@@ -183,9 +183,51 @@ def test_prn_returns_empty_schedule():
     assert doses == []
 
 
-def test_missing_timing_repeat_returns_empty():
+# ---------------------------------------------------------------------
+# timing.code.text fallback — the Order Composer shape
+# ---------------------------------------------------------------------
+
+def test_code_text_bid_fallback_produces_schedule():
+    # The Order Composer writes timing.code.text='BID', not timing.repeat.
+    # Without the fallback the MAR would be empty for every composer order.
     rx = _med()
-    rx["dosageInstruction"][0]["timing"] = {"code": {"text": "BID"}}  # no .repeat
+    rx["dosageInstruction"][0]["timing"] = {"code": {"text": "BID"}}
+    doses = compute_due_times(rx, WINDOW_START, WINDOW_END)
+    assert [d.scheduled_time.hour for d in doses] == [8, 20]
+
+
+def test_code_text_q8h_fallback_produces_hourly_schedule():
+    rx = _med(authoredOn="2026-05-14T08:00:00+00:00")
+    rx["dosageInstruction"][0]["timing"] = {"code": {"text": "Q8H"}}
+    doses = compute_due_times(rx, WINDOW_START, WINDOW_END)
+    assert [d.scheduled_time.hour for d in doses] == [0, 8, 16]
+
+
+def test_code_text_fallback_is_case_insensitive():
+    rx = _med()
+    rx["dosageInstruction"][0]["timing"] = {"code": {"text": "  tid  "}}
+    doses = compute_due_times(rx, WINDOW_START, WINDOW_END)
+    assert [d.scheduled_time.hour for d in doses] == [8, 14, 20]
+
+
+def test_unrecognized_code_text_returns_empty():
+    rx = _med()
+    rx["dosageInstruction"][0]["timing"] = {"code": {"text": "every blue moon"}}
+    doses = compute_due_times(rx, WINDOW_START, WINDOW_END)
+    assert doses == []
+
+
+def test_structured_repeat_wins_over_code_text():
+    # When both are present, the structured repeat is authoritative.
+    rx = _med(repeat={"frequency": 4, "period": 1, "periodUnit": "d"})  # QID
+    rx["dosageInstruction"][0]["timing"]["code"] = {"text": "BID"}
+    doses = compute_due_times(rx, WINDOW_START, WINDOW_END)
+    assert [d.scheduled_time.hour for d in doses] == [6, 12, 18, 22]  # QID, not BID
+
+
+def test_no_timing_at_all_returns_empty():
+    rx = _med()
+    rx["dosageInstruction"][0]["timing"] = {}  # no repeat, no code
     doses = compute_due_times(rx, WINDOW_START, WINDOW_END)
     assert doses == []
 

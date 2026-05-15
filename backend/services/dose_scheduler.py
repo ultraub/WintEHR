@@ -53,6 +53,25 @@ _DAILY_ANCHORS = {
     6: [2, 6, 10, 14, 18, 22],    # q4h
 }
 
+# Fallback: the Order Composer's MedicationOrderTab writes the frequency as
+# a plain string code on `timing.code.text` ("BID", "Q8H", ...) rather than
+# the structured `timing.repeat`. Without this map, every composer-created
+# med would render "No scheduled doses" on the MAR — the order→administration
+# loop would never light up. Each entry is a synthetic `repeat` dict that
+# `_extract_repeat` returns when `timing.repeat` is absent. Keys are matched
+# case-insensitively against the trimmed code text.
+_CODE_TEXT_TO_REPEAT = {
+    "qd":   {"frequency": 1, "period": 1, "periodUnit": "d"},
+    "daily": {"frequency": 1, "period": 1, "periodUnit": "d"},
+    "bid":  {"frequency": 2, "period": 1, "periodUnit": "d"},
+    "tid":  {"frequency": 3, "period": 1, "periodUnit": "d"},
+    "qid":  {"frequency": 4, "period": 1, "periodUnit": "d"},
+    "q4h":  {"frequency": 1, "period": 4, "periodUnit": "h"},
+    "q6h":  {"frequency": 1, "period": 6, "periodUnit": "h"},
+    "q8h":  {"frequency": 1, "period": 8, "periodUnit": "h"},
+    "q12h": {"frequency": 1, "period": 12, "periodUnit": "h"},
+}
+
 
 @dataclass(frozen=True)
 class ScheduledDose:
@@ -98,12 +117,23 @@ def compute_due_times(
     timing = instr.get("timing") or {}
     repeat = timing.get("repeat") or {}
     if not repeat:
-        logger.info(
-            "MedicationRequest/%s has no timing.repeat — schedule omitted "
-            "(may be a free-text timing like timing.code.text='BID')",
-            rx_id,
-        )
-        return []
+        # Fallback for the Order Composer shape: timing.code.text carries a
+        # frequency string ("BID", "Q8H", ...) instead of a structured
+        # repeat. Translate it so composer-created meds appear on the grid.
+        code_text = ((timing.get("code") or {}).get("text") or "").strip().lower()
+        repeat = _CODE_TEXT_TO_REPEAT.get(code_text)
+        if repeat:
+            logger.info(
+                "MedicationRequest/%s using timing.code.text=%r fallback schedule",
+                rx_id, code_text,
+            )
+        else:
+            logger.info(
+                "MedicationRequest/%s has no timing.repeat and no recognized "
+                "timing.code.text (%r) — schedule omitted",
+                rx_id, code_text,
+            )
+            return []
 
     frequency = repeat.get("frequency")
     period = repeat.get("period")
