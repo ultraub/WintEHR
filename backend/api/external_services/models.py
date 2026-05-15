@@ -5,7 +5,7 @@ Pydantic models for external FHIR service registration and management.
 """
 
 from typing import Optional, List, Dict, Any, Literal
-from pydantic import BaseModel, Field, HttpUrl, validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 from datetime import datetime
 from enum import Enum
 
@@ -137,7 +137,8 @@ class BatchCDSHooksServiceCreate(ExternalServiceCreate):
         description="Multiple CDS Hooks configurations for different hook types"
     )
 
-    @validator('cds_configs')
+    @field_validator('cds_configs')
+    @classmethod
     def validate_unique_hook_types(cls, v):
         """Ensure hook types are unique within the service"""
         hook_types = [config.hook_type for config in v]
@@ -155,7 +156,8 @@ class IncrementalHookAdd(BaseModel):
     """
     cds_config: CDSHookConfig = Field(..., description="New hook configuration to add")
 
-    @validator('cds_config')
+    @field_validator('cds_config')
+    @classmethod
     def validate_hook_config(cls, v):
         """Ensure hook configuration is valid"""
         if not v.hook_type:
