@@ -37,6 +37,7 @@ from services.hapi_fhir_client import HAPIFHIRClient
 
 from .service import (
     ADMINISTRABLE_STATUSES,
+    IMMUNIZATION_ORDER_EXTENSION,
     get_administration_tasks,
     get_scheduled_tasks,
 )
@@ -428,7 +429,11 @@ async def record_immunization_endpoint(body: RecordImmunizationRequest) -> Recor
         "patient": service_request.get("subject") or {},
         "occurrenceDateTime": occurrence.isoformat(),
         "recorded": datetime.now(timezone.utc).isoformat(),
-        "basedOn": [{"reference": f"ServiceRequest/{body.service_request_id}"}],
+        # R4 Immunization has no `basedOn`; carry the order link on an extension.
+        "extension": [{
+            "url": IMMUNIZATION_ORDER_EXTENSION,
+            "valueReference": {"reference": f"ServiceRequest/{body.service_request_id}"},
+        }],
     }
     if service_request.get("encounter"):
         immunization["encounter"] = service_request["encounter"]

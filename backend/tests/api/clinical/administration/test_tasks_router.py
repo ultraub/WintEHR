@@ -103,14 +103,23 @@ async def test_tasks_buckets_by_category(client):
 
 @pytest.mark.asyncio
 async def test_tasks_marks_fulfilled_orders(client):
-    """An Immunization whose basedOn points at the order → that task is fulfilled."""
+    """An Immunization whose order extension points at the order → fulfilled.
+
+    R4 Immunization has no `basedOn`; the order link rides on a custom
+    extension, so fulfilment detection reads that.
+    """
+    from api.clinical.administration.service import IMMUNIZATION_ORDER_EXTENSION
+
     with patch("api.clinical.administration.service.HAPIFHIRClient") as MockHapi:
         instance = MockHapi.return_value
         instance.search = AsyncMock(side_effect=[
             bundle(service_request("sr-imm", "immunization")),
             bundle({
                 "resourceType": "Immunization", "id": "imm-99",
-                "basedOn": [{"reference": "ServiceRequest/sr-imm"}],
+                "extension": [{
+                    "url": IMMUNIZATION_ORDER_EXTENSION,
+                    "valueReference": {"reference": "ServiceRequest/sr-imm"},
+                }],
             }),
             bundle(),
             bundle(),
@@ -121,6 +130,34 @@ async def test_tasks_marks_fulfilled_orders(client):
     task = resp.json()["immunizations"][0]
     assert task["fulfilled"] is True
     assert task["fulfillment_id"] == "imm-99"
+
+
+@pytest.mark.asyncio
+async def test_procedure_and_specimen_fulfilment_use_native_elements(client):
+    """Procedure links via basedOn, Specimen via request — both native R4."""
+    with patch("api.clinical.administration.service.HAPIFHIRClient") as MockHapi:
+        instance = MockHapi.return_value
+        instance.search = AsyncMock(side_effect=[
+            bundle(
+                service_request("sr-spec", "specimen"),
+                service_request("sr-proc", "procedure"),
+            ),
+            bundle(),
+            bundle({
+                "resourceType": "Specimen", "id": "spec-1",
+                "request": [{"reference": "ServiceRequest/sr-spec"}],
+            }),
+            bundle({
+                "resourceType": "Procedure", "id": "proc-1",
+                "basedOn": [{"reference": "ServiceRequest/sr-proc"}],
+            }),
+        ])
+        resp = client.get("/api/clinical/administration/tasks", params={"patient_id": "123"})
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["specimens"][0]["fulfilled"] is True
+    assert payload["procedures"][0]["fulfilled"] is True
 
 
 @pytest.mark.asyncio
@@ -143,7 +180,10 @@ async def test_tasks_skips_draft_orders(client):
 # ---------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_record_immunization_creates_resource_with_basedon(client):
+async def test_record_immunization_creates_resource_with_order_extension(client):
+    """R4 Immunization links to its order via an extension, not `basedOn`."""
+    from api.clinical.administration.service import IMMUNIZATION_ORDER_EXTENSION
+
     with patch("api.clinical.administration.router.HAPIFHIRClient") as MockHapi:
         instance = MockHapi.return_value
         instance.read = AsyncMock(return_value=service_request("sr-imm", "immunization"))
@@ -168,7 +208,9 @@ async def test_record_immunization_creates_resource_with_basedon(client):
     sent = instance.create.call_args.args[1]
     assert instance.create.call_args.args[0] == "Immunization"
     assert sent["status"] == "completed"
-    assert sent["basedOn"][0]["reference"] == "ServiceRequest/sr-imm"
+    assert "basedOn" not in sent  # not a valid R4 Immunization element
+    order_ext = [e for e in sent["extension"] if e["url"] == IMMUNIZATION_ORDER_EXTENSION]
+    assert order_ext[0]["valueReference"]["reference"] == "ServiceRequest/sr-imm"
     assert sent["vaccineCode"]["coding"][0]["code"] == "140"
     assert sent["lotNumber"] == "LOT-42"
     assert sent["doseQuantity"]["value"] == 0.5

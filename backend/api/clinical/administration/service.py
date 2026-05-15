@@ -47,6 +47,12 @@ TASK_CATEGORY_IMMUNIZATION = frozenset({"33879002", "immunization"})
 TASK_CATEGORY_SPECIMEN = frozenset({"108252007", "laboratory", "laboratory-procedure"})
 TASK_CATEGORY_PROCEDURE = frozenset({"387713003", "procedure"})
 
+# FHIR R4 `Immunization` has no `basedOn` element (it was added in R5).
+# To still link a recorded Immunization back to its ordering ServiceRequest
+# we carry the reference on this custom extension. Procedure (`basedOn`) and
+# Specimen (`request`) use their native R4 elements — no extension needed.
+IMMUNIZATION_ORDER_EXTENSION = "http://wintehr.local/fhir/StructureDefinition/immunization-order"
+
 
 @dataclass(frozen=True)
 class AdminRecord:
@@ -181,8 +187,10 @@ async def get_administration_tasks(patient_id: str) -> AdministrationTasksBundle
     )
 
     # ServiceRequest id -> id of the recording resource that fulfils it.
-    # Immunization/Procedure link via `basedOn`, Specimen via `request`.
-    imm_by_order = _fulfillment_map(imm_bundle, "basedOn")
+    # Procedure links via `basedOn`, Specimen via `request` (both native R4
+    # elements); Immunization has no R4 order element so it links via the
+    # `IMMUNIZATION_ORDER_EXTENSION` extension.
+    imm_by_order = _immunization_fulfillment_map(imm_bundle)
     spec_by_order = _fulfillment_map(spec_bundle, "request")
     proc_by_order = _fulfillment_map(proc_bundle, "basedOn")
 
@@ -428,6 +436,27 @@ def _fulfillment_map(bundle: dict[str, Any], ref_field: str) -> dict[str, str]:
             if target.startswith("ServiceRequest/"):
                 # First fulfilment wins — a re-recorded order is rare and the
                 # pane only needs *a* link to flip the card to "done".
+                out.setdefault(target.split("/", 1)[1], res_id)
+    return out
+
+
+def _immunization_fulfillment_map(bundle: dict[str, Any]) -> dict[str, str]:
+    """Map ServiceRequest id -> Immunization id via `IMMUNIZATION_ORDER_EXTENSION`.
+
+    Separate from `_fulfillment_map` because R4 Immunization carries the order
+    link on an extension rather than a `basedOn`/`request` element.
+    """
+    out: dict[str, str] = {}
+    for entry in _entries(bundle):
+        res = entry.get("resource") or {}
+        res_id = res.get("id")
+        if not res_id:
+            continue
+        for ext in res.get("extension") or []:
+            if ext.get("url") != IMMUNIZATION_ORDER_EXTENSION:
+                continue
+            target = (ext.get("valueReference") or {}).get("reference") or ""
+            if target.startswith("ServiceRequest/"):
                 out.setdefault(target.split("/", 1)[1], res_id)
     return out
 
