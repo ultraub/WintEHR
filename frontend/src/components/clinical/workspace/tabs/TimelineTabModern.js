@@ -890,8 +890,10 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         setLoadingError(null);
         
         const promises = Array.from(selectedTypes).map(async (resourceType) => {
-          // Get the correct HAPI FHIR search parameter name for date filtering and sorting
-          // Each resource type has specific valid search parameters
+          // Each FHIR resource type names its date search parameter differently;
+          // sending the wrong one makes HAPI reject the whole query (HAPI-0524).
+          // A few types (e.g. Coverage) have no date parameter at all — `null`
+          // means "skip date filtering and date sorting for this type".
           const dateParam = (() => {
             switch (resourceType) {
               case 'Condition': return 'recorded-date';
@@ -903,7 +905,11 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
               case 'Immunization': return 'date';
               case 'DocumentReference': return 'date';
               case 'DiagnosticReport': return 'date';
-              case 'AllergyIntolerance': return 'recorded-date';
+              case 'CarePlan': return 'date';
+              case 'AllergyIntolerance': return 'date';
+              case 'ImagingStudy': return 'started';
+              case 'Goal': return 'start-date';
+              case 'Coverage': return null; // no date search parameter
               default: return 'date';
             }
           })();
@@ -911,10 +917,10 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
           const params = {
             patient: patientId,
             _count: 100, // Load more resources for better timeline
-            _sort: `-${dateParam}` // Use the same valid parameter for sorting (descending)
+            ...(dateParam ? { _sort: `-${dateParam}` } : {})
           };
 
-          if (dateRange.start && dateRange.end) {
+          if (dateParam && dateRange.start && dateRange.end) {
             // Use array for proper FHIR query encoding (avoids URL-encoding & in values)
             params[dateParam] = [
               `ge${dateRange.start.toISOString().split('T')[0]}`,
