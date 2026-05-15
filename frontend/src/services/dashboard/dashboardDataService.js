@@ -302,12 +302,21 @@ class DashboardDataService {
         _count: 100
       });
 
-      // Get fall incidents from AdverseEvent or Flag resources
-      const falls = await fhirClient.search('Flag', {
-        code: 'fall-risk,patient-fall',
+      // Get fall incidents from Flag resources. Flag has no `code` search
+      // parameter in FHIR R4, so fetch by date and filter on code client-side.
+      const flagsForFalls = await fhirClient.search('Flag', {
         date: `ge${thirtyDaysAgo.toISOString()}`,
         _count: 100
       });
+      const isFallFlag = (flag) => {
+        const codeText = flag.code?.text?.toLowerCase() || '';
+        const codings = flag.code?.coding || [];
+        return codeText.includes('fall') ||
+               codings.some(c =>
+                 (c.code || '').toLowerCase().includes('fall') ||
+                 (c.display || '').toLowerCase().includes('fall'));
+      };
+      const fallFlags = (flagsForFalls.resources || []).filter(isFallFlag);
 
       // Get medication errors from AdverseEvent
       const medErrors = await fhirClient.search('AdverseEvent', {
@@ -325,7 +334,7 @@ class DashboardDataService {
 
       // Calculate rates
       const haiCount = infections.total || 0;
-      const fallCount = falls.total || 0;
+      const fallCount = fallFlags.length;
       const medErrorCount = medErrors.total || 0;
       const pressureInjuryCount = pressureInjuries.total || 0;
 
