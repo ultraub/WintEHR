@@ -13,9 +13,6 @@ JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES
 JWT_ACCESS_TOKEN_EXPIRE_DELTA = timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
 JWT_REFRESH_TOKEN_EXPIRE_DELTA = timedelta(days=7)  # 7 days
 
-# Use secure database authentication (automatically enabled in production)
-USE_SECURE_AUTH = os.getenv("USE_SECURE_AUTH", "false").lower() == "true" or JWT_ENABLED
-
 # Training mode users
 # ✅ Updated to use FHIR Practitioner IDs (matches Practitioner resources in HAPI FHIR)
 # These IDs correspond to Practitioner resources created by create_demo_practitioners.py
