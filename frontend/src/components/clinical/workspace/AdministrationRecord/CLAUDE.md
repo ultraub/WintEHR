@@ -37,10 +37,21 @@ ServiceRequest orders bucketed by category coding (immunization
 
 Each pending order is a tappable card → a recording dialog under
 `dialogs/`. The dialog POSTs to `POST .../administration/record/{type}`,
-which builds the FHIR resource with `basedOn` (Immunization/Procedure)
-or `request` (Specimen) → the order, and enforces the same
-`ADMINISTRABLE_STATUSES` gate. These dialogs are deliberately lean — the
-full `ImmunizationDialogEnhanced` stepper is retired in Phase 5.3.
+which builds the FHIR resource linked back to the order and enforces the
+same `ADMINISTRABLE_STATUSES` gate. Order links: Procedure uses native
+`basedOn`, Specimen uses native `request`; **R4 Immunization has no order
+element** (added in R5), so it carries the link on a custom
+`immunization-order` extension.
+
+`ImmunizationAdminDialog` is dual-mode (Phase 5.3): the `task` prop drives
+**record mode** (Tasks pane, POSTs to the backend); the `immunization`
+prop drives **edit mode** (Chart Review's edit-an-existing path, hands a
+merged resource to an `onSave` callback). It replaced the retired
+1,569-line `ImmunizationDialogEnhanced` — immunization *ordering* moved to
+the Order Composer, so that dialog's CDS / forecast machinery was dead
+weight. Edit mode spreads the original resource so fields the lean form
+doesn't manage (`performer`, `location`, `protocolApplied`, `reaction`)
+survive an edit.
 
 ## Cell state grammar (the visual language)
 
@@ -100,10 +111,9 @@ Action types and the FHIR statuses they map to:
 
 ## What's deliberately out of scope
 
-- **Retiring `ImmunizationDialogEnhanced`** (the 3-step stepper still used
-  by Chart Review's edit path) — Phase 5.3.
 - **Ad-hoc recording with no order** — every Tasks-pane card has a
-  ServiceRequest; orderless recording stays on the legacy dialog.
+  ServiceRequest. Chart Review's "add immunization" routes to the Order
+  Composer; only its *edit* path uses `ImmunizationAdminDialog` directly.
 - **Drag-to-reschedule** — out of scope, app is modal-first.
 - **Advanced `Timing.repeat` shapes**: `dayOfWeek`, `timeOfDay`,
   `when` event-coded timing (mealtime-relative), taper schedules across

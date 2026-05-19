@@ -4,19 +4,19 @@
  *
  * Decision recap (from the plan): the Order Composer is the CPOE
  * surface — prescribers compose intent. Nurses record the actual
- * administration via the existing ImmunizationDialogEnhanced (which
- * Phase 5 will migrate into a unified Administration Record / MAR).
+ * administration in the MAR Tasks pane via ImmunizationAdminDialog
+ * (Phase 5.2).
  *
  * So this tab produces a `ServiceRequest` whose:
  * - `code` carries the CVX coding of the vaccine to give
- * - `category` is "immunization" so downstream surfaces (the future
- *   MAR's scheduled-task list) can recognize it
+ * - `category` is "immunization" so downstream surfaces (the
+ *   MAR Tasks pane) can recognize it
  * - `status='draft'` until Sign All flips it to active
  *
- * The route / site / dose / lot / reaction fields students fill on
- * the existing ImmunizationDialogEnhanced explicitly DO NOT belong
- * here — those are facts about the administration event, captured
- * by the nurse when (and if) the order is acted on.
+ * The route / site / dose / lot / reaction fields explicitly DO NOT
+ * belong here — those are facts about the administration event,
+ * captured by the nurse in ImmunizationAdminDialog when (and if) the
+ * order is acted on.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';

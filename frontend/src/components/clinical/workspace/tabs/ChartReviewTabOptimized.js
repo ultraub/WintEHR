@@ -106,7 +106,7 @@ import ResourceDataGrid from '../../../common/ResourceDataGrid';
 import ConditionDialogEnhanced from '../dialogs/ConditionDialogEnhanced';
 import MedicationDialogEnhanced from '../dialogs/MedicationDialogEnhanced';
 import AllergyDialogEnhanced from '../dialogs/AllergyDialogEnhanced';
-import ImmunizationDialogEnhanced from '../dialogs/ImmunizationDialogEnhanced';
+import ImmunizationAdminDialog from '../AdministrationRecord/dialogs/ImmunizationAdminDialog';
 import ProcedureDialogEnhanced from '../dialogs/ProcedureDialogEnhanced';
 import CarePlanDialog from '../dialogs/CarePlanDialog';
 import DocumentReferenceDialog from '../dialogs/DocumentReferenceDialog';
@@ -1601,7 +1601,7 @@ const ChartReviewTabOptimized = ({
         onSave={handleResourceSaved}
       />
       
-      <ImmunizationDialogEnhanced
+      <ImmunizationAdminDialog
         open={openDialogs.immunization}
         onClose={() => handleCloseDialog('immunization')}
         immunization={selectedResource}
@@ -1609,10 +1609,11 @@ const ChartReviewTabOptimized = ({
         onSave={handleResourceSaved}
       />
 
-      {/* Phase 4.4: new medications/immunizations originate here. The
-          legacy MedicationDialogEnhanced + ImmunizationDialogEnhanced
-          above are still mounted to service edit actions invoked with
-          an existing resource. */}
+      {/* Phase 4.4: new medications/immunizations originate here. Edit
+          actions invoked with an existing resource still use the
+          per-resource dialogs above (MedicationDialogEnhanced; the
+          immunization edit path uses ImmunizationAdminDialog in edit
+          mode since Phase 5.3 retired ImmunizationDialogEnhanced). */}
       <OrderComposer
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
