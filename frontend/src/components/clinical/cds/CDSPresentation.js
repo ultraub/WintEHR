@@ -167,7 +167,25 @@ const CDSPresentation = ({
   const [showSnoozeDialog, setShowSnoozeDialog] = useState(false);
   const [alertToSnooze, setAlertToSnooze] = useState(null);
   const [snoozeDuration, setSnoozeDuration] = useState(60); // Default 60 minutes
-  
+
+  // Re-hydrate dismissed + snoozed sets from localStorage when patientId
+  // resolves. The useState() lazy initializers above only run on the
+  // first render; if patientId was undefined then (the parent hadn't
+  // resolved the current patient yet), the initial empty Set/Map sticks
+  // and previously-acknowledged alerts re-pop on every patient view.
+  // This effect closes that gap and also re-loads correctly when the
+  // user switches between patients.
+  useEffect(() => {
+    if (!patientId) return;
+    setDismissedAlerts(cdsAlertPersistence.getDismissedAlerts(patientId));
+    const persistedSnoozes = cdsAlertPersistence.getSnoozedAlerts(patientId);
+    const snoozedMap = new Map();
+    persistedSnoozes.forEach((snoozeUntil, alertId) => {
+      snoozedMap.set(alertId, new Date(snoozeUntil));
+    });
+    setSnoozedAlerts(snoozedMap);
+  }, [patientId]);
+
   // State for tracking acknowledged alerts in modal mode
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState(new Set());
 

@@ -48,25 +48,30 @@ class CDSAlertPersistenceService {
     try {
       const key = this.getStorageKey(patientId, 'dismissed');
       const stored = localStorage.getItem(key);
-      const dismissals = stored ? JSON.parse(stored) : [];
-      
-      // Check if already dismissed
-      if (dismissals.some(d => d.alertId === alertId)) {
-        return;
-      }
-      
+      const existing = stored ? JSON.parse(stored) : [];
+
+      // Replace any existing entry for this alertId. The previous "skip if
+      // already dismissed" check silently no-op'd on dupes — but an
+      // EXPIRED entry counts as a dupe, so once the 24h TTL elapsed the
+      // user could never re-acknowledge the alert (the write was dropped,
+      // the entry stayed expired, getDismissedAlerts kept filtering it
+      // out, and the alert kept re-appearing on every page view).
+      // Replacing instead of skipping refreshes `expiresAt` and is also
+      // the right behavior if `reason` or `permanent` changed.
+      const dismissals = existing.filter(d => d.alertId !== alertId);
+
       const dismissal = {
         alertId,
         reason,
         dismissedAt: Date.now(),
-        permanent
+        permanent,
       };
-      
+
       // If not permanent, set expiration (24 hours by default)
       if (!permanent) {
         dismissal.expiresAt = Date.now() + (24 * 60 * 60 * 1000);
       }
-      
+
       dismissals.push(dismissal);
       localStorage.setItem(key, JSON.stringify(dismissals));
     } catch (e) {
