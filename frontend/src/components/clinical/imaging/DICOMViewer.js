@@ -172,9 +172,9 @@ const DICOMViewer = ({ study, onClose }) => {
   };
 
   /**
-   * Extract study directory from study object.
-   * Uses studyDirectory property if available, otherwise falls back to standard format.
-   * Backend expects format: study_{id}
+   * Extract the StudyInstanceUID from the FHIR ImagingStudy resource.
+   * Uses studyDirectory if already resolved by ImagingTab; otherwise reads
+   * identifier[], preferring the entry with use = "official".
    */
   const extractStudyDirectory = (studyObj) => {
     // Primary: Use studyDirectory property (set by ImagingTab during loading)
@@ -182,9 +182,12 @@ const DICOMViewer = ({ study, onClose }) => {
       return studyObj.studyDirectory;
     }
 
-    // Fallback: Use standard format matching backend convention
-    if (studyObj?.id) {
-      return `study_${studyObj.id}`;
+    // Resolve from FHIR identifier array
+    const identifiers = studyObj?.identifier || [];
+    const officialIdentifier = identifiers.find(id => id.use === 'official');
+    const chosenIdentifier = officialIdentifier || identifiers[0];
+    if (chosenIdentifier?.value) {
+      return chosenIdentifier.value;
     }
 
     return null;
@@ -193,7 +196,14 @@ const DICOMViewer = ({ study, onClose }) => {
   const loadInstanceImage = async (instance) => {
     try {
       const studyDir = extractStudyDirectory(study);
-      const url = `/dicom/studies/${studyDir}/instances/${instance.instanceNumber}/image?window_center=${windowCenter}&window_width=${windowWidth}`;
+      const seriesUid = instance.seriesInstanceUID;
+      const sopUid = instance.sopInstanceUID;
+
+      if (!seriesUid || !sopUid) {
+        throw new Error('Instance is missing seriesInstanceUID or sopInstanceUID');
+      }
+
+      const url = `/dicom/studies/${studyDir}/series/${seriesUid}/instances/${sopUid}/image?window_center=${windowCenter}&window_width=${windowWidth}`;
       const dicomEndpoints = resolveDicomEndpoints();
 
       const response = await apiClient.get(url, {

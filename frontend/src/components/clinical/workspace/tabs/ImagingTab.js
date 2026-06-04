@@ -594,9 +594,13 @@ const ImagingTab = ({
           });
         }
 
-        // Use standardized directory naming: study_{id}
+        // Use StudyInstanceUID from FHIR identifier array.
+        // Prefer identifier with use = "official"; fall back to identifier[0].value.
         if (!studyDirectory) {
-          studyDirectory = `study_${study.id}`;
+          const identifiers = study.identifier || [];
+          const officialIdentifier = identifiers.find(id => id.use === 'official');
+          const chosenIdentifier = officialIdentifier || identifiers[0];
+          studyDirectory = chosenIdentifier?.value || `study_${study.id}`;
         }
 
         return {
@@ -1033,8 +1037,8 @@ const ImagingTab = ({
 
   /**
    * Extract study directory from study object.
-   * Uses studyDirectory property if available, otherwise falls back to standard format.
-   * Backend expects format: study_{id}
+   * Uses studyDirectory property if available, otherwise reads the FHIR identifier array,
+   * preferring the entry with use = "official".
    */
   const extractStudyDirectory = (studyObj) => {
     // Primary: Use studyDirectory property (set during loading)
@@ -1042,9 +1046,12 @@ const ImagingTab = ({
       return studyObj.studyDirectory;
     }
 
-    // Fallback: Use standard format matching backend convention
-    if (studyObj?.id) {
-      return `study_${studyObj.id}`;
+    // Resolve from FHIR identifier array
+    const identifiers = studyObj?.identifier || [];
+    const officialIdentifier = identifiers.find(id => id.use === 'official');
+    const chosenIdentifier = officialIdentifier || identifiers[0];
+    if (chosenIdentifier?.value) {
+      return chosenIdentifier.value;
     }
 
     return null;

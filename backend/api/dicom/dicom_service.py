@@ -32,8 +32,8 @@ DICOM_BASE_DIR = Path(__file__).parent.parent.parent / "data" / "generated_dicom
 
 # QIDO-RS and WADO configuration
 # Default values for localhost development
-_DEFAULT_QIDO_URL = "https://localhost:8443/dcm4chee-arc/aets/DCM4CHEE/rs"
-_DEFAULT_WADO_URL = "https://localhost:8443/dcm4chee-arc/aets/DCM4CHEE/wado"
+_DEFAULT_QIDO_URL = "http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs"
+_DEFAULT_WADO_URL = "http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/wado"
 
 DICOM_QIDO_URL = os.getenv("DICOM_QIDO_URL", _DEFAULT_QIDO_URL)
 DICOM_WADO_URL = os.getenv("DICOM_WADO_URL", _DEFAULT_WADO_URL)
@@ -500,279 +500,315 @@ class DICOMService:
 
 @router.get("/studies")
 async def list_dicom_studies(
-    patient_id: Optional[str] = Query(None, description="Filter by PatientID (QIDO-RS only, if configured)"),
-    study_uid: Optional[str] = Query(None, description="Filter by StudyInstanceUID (QIDO-RS only, if configured)"),
-    modality: Optional[str] = Query(None, description="Filter by Modality (QIDO-RS only, if configured)"),
+    patient_id: Optional[str] = Query(None, description="Filter by PatientID"),
+    study_uid: Optional[str] = Query(None, description="Filter by StudyInstanceUID"),
+    modality: Optional[str] = Query(None, description="Filter by Modality"),
     limit: int = Query(100, description="Maximum number of results")
 ):
     """
-    List available DICOM studies from local filesystem or configured DICOM server.
+    List available DICOM studies from DICOM server via QIDO-RS.
     
-    Automatically uses DICOM server (QIDO-RS) when QIDO/WADO URLs are available.
-    Falls back to local filesystem if those values are empty.
+    Requires DICOM_QIDO_URL and DICOM_WADO_URL to be configured.
     
     Query Parameters:
-        patient_id: Filter by PatientID (QIDO-RS only, if server configured)
-        study_uid: Filter by StudyInstanceUID (QIDO-RS only, if server configured)
-        modality: Filter by Modality (QIDO-RS only, if server configured)
+        patient_id: Filter by PatientID
+        study_uid: Filter by StudyInstanceUID
+        modality: Filter by Modality
         limit: Maximum number of results
     """
     try:
-        studies = []
-        use_server = _is_dicom_server_configured()
-        
-        # Query QIDO-RS if endpoints are configured
-        if use_server:
-            logger.info(f"Querying QIDO-RS for studies (patient_id={patient_id}, modality={modality})")
-            qido_studies = DICOMService.query_qido_studies(
-                patient_id=patient_id,
-                study_instance_uid=study_uid,
-                modality=modality,
-                limit=limit
+        if not _is_dicom_server_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="DICOM server not configured. Set DICOM_QIDO_URL and DICOM_WADO_URL environment variables."
             )
-            
-            # Parse QIDO-RS response (DICOM JSON format)
-            for study in qido_studies:
-                # DICOM JSON format uses tag hex keys, extract values carefully
-                study_info = {
-                    "studyInstanceUID": DICOMService._get_dicom_json_value(study, "00200010", "StudyInstanceUID", ""),
-                    "studyDescription": DICOMService._get_dicom_json_value(study, "00081030", "StudyDescription", ""),
-                    "modality": DICOMService._get_dicom_json_value(study, "00080061", "Modality", ""),
-                    "patientName": DICOMService._get_dicom_json_value(study, "00100010", "PatientName", ""),
-                    "patientID": DICOMService._get_dicom_json_value(study, "00100020", "PatientID", ""),
-                    "studyDate": DICOMService._get_dicom_json_value(study, "00080020", "StudyDate", ""),
-                    "source": "dicom-server"
-                }
-                studies.append(study_info)
-            
-            logger.info(f"Found {len(studies)} studies from QIDO-RS")
         
-        else:
-            # Use local filesystem
-            if DICOM_BASE_DIR.exists():
-                for study_dir in DICOM_BASE_DIR.iterdir():
-                    if study_dir.is_dir():
-                        dicom_files = DICOMService.find_dicom_files(study_dir)
-                        
-                        if dicom_files:
-                            # Read metadata from first file to get study info
-                            first_file_metadata = DICOMService.read_dicom_metadata(dicom_files[0])
-                            
-                            study_info = {
-                                "studyInstanceUID": first_file_metadata["studyInstanceUID"],
-                                "studyDescription": first_file_metadata["studyDescription"],
-                                "modality": first_file_metadata["modality"],
-                                "patientName": first_file_metadata["patientName"],
-                                "patientID": first_file_metadata["patientID"],
-                                "studyDate": first_file_metadata["studyDate"],
-                                "numberOfInstances": len(dicom_files),
-                                "studyDirectory": study_dir.name,
-                                "source": "local-filesystem"
-                            }
-                            
-                            studies.append(study_info)
-                            
-                            if len(studies) >= limit:
-                                break
-            
-            logger.info(f"Found {len(studies)} studies from local filesystem")
+        logger.info(f"Querying QIDO-RS for studies (patient_id={patient_id}, modality={modality})")
+        qido_studies = DICOMService.query_qido_studies(
+            patient_id=patient_id,
+            study_instance_uid=study_uid,
+            modality=modality,
+            limit=limit
+        )
         
-        return {"studies": studies, "source": "dicom-server" if use_server else "local-filesystem", "endpoints_configured": use_server}
+        studies = []
+        # Parse QIDO-RS response (DICOM JSON format)
+        for study in qido_studies:
+            # DICOM JSON format uses tag hex keys, extract values carefully
+            study_info = {
+                "studyInstanceUID": DICOMService._get_dicom_json_value(study, "00200010", "StudyInstanceUID", ""),
+                "studyDescription": DICOMService._get_dicom_json_value(study, "00081030", "StudyDescription", ""),
+                "modality": DICOMService._get_dicom_json_value(study, "00080061", "Modality", ""),
+                "patientName": DICOMService._get_dicom_json_value(study, "00100010", "PatientName", ""),
+                "patientID": DICOMService._get_dicom_json_value(study, "00100020", "PatientID", ""),
+                "studyDate": DICOMService._get_dicom_json_value(study, "00080020", "StudyDate", ""),
+                "source": "dicom-server"
+            }
+            studies.append(study_info)
+        
+        logger.info(f"Found {len(studies)} studies from QIDO-RS")
+        return {"studies": studies, "source": "dicom-server"}
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to list DICOM studies: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list DICOM studies: {e}")
+        raise HTTPException(status_code=503, detail=f"Failed to query DICOM server: {e}")
 
-def validate_study_dir(study_dir: str) -> Path:
+def validate_uid(uid: str, uid_type: str = "study") -> str:
     """
-    Validate and sanitize study directory to prevent path traversal attacks.
+    Validate DICOM UID format.
     
-    Security: Ensures the study_dir doesn't contain path traversal sequences
-    and resolves to a path within DICOM_BASE_DIR.
+    Args:
+        uid: DICOM UID to validate
+        uid_type: Type of UID (study, series, instance)
+    
+    Returns:
+        Validated UID
     """
-    # Reject obvious path traversal attempts
-    if '..' in study_dir or study_dir.startswith('/') or study_dir.startswith('\\'):
-        raise HTTPException(
-            status_code=400, 
-            detail="Invalid study directory: path traversal not allowed"
-        )
-    
-    # Resolve the full path and verify it's within DICOM_BASE_DIR
-    study_path = (DICOM_BASE_DIR / study_dir).resolve()
-    
-    # Ensure the resolved path is still within DICOM_BASE_DIR
-    try:
-        study_path.relative_to(DICOM_BASE_DIR.resolve())
-    except ValueError:
+    if not uid or len(uid.strip()) == 0:
         raise HTTPException(
             status_code=400,
-            detail="Invalid study directory: path outside allowed directory"
+            detail=f"Invalid {uid_type} UID: empty or missing"
         )
     
-    return study_path
+    # Basic UID format validation (should be numeric with dots)
+    if not all(c.isdigit() or c == '.' for c in uid):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {uid_type} UID format: contains non-numeric characters"
+        )
+    
+    return uid.strip()
 
 
-@router.get("/studies/{study_dir}/metadata")
-async def get_study_metadata(study_dir: str):
-    """Get metadata for all instances in a study."""
+@router.get("/studies/{study_uid}/metadata")
+async def get_study_metadata(
+    study_uid: str,
+    series_uid: Optional[str] = Query(None, description="Filter by SeriesInstanceUID")
+):
+    """
+    Get metadata for instances in a study via WADO-RS.
+    Optionally filter by series.
+    """
     try:
-        study_path = validate_study_dir(study_dir)
+        study_uid = validate_uid(study_uid, "study")
         
-        if not study_path.exists():
-            raise HTTPException(status_code=404, detail="Study directory not found")
+        if not _is_dicom_server_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="DICOM server not configured"
+            )
         
-        dicom_files = DICOMService.find_dicom_files(study_path)
+        logger.info(f"Fetching metadata for study {study_uid}")
         
-        if not dicom_files:
-            raise HTTPException(status_code=404, detail="No DICOM files found in study")
+        # Query WADO for studies to list series
+        wado_studies_url = urljoin(_get_wado_url(), f"studies/{study_uid}")
+        
+        response = requests.get(
+            wado_studies_url,
+            headers={"Accept": "application/dicom+json"},
+            verify=False,
+            timeout=30
+        )
+        response.raise_for_status()
+        study_data = response.json() if response.content else {}
         
         instances = []
-        for file_path in dicom_files:
-            metadata = DICOMService.read_dicom_metadata(file_path)
-            instances.append(metadata)
         
-        # Sort by instance number
-        instances.sort(key=lambda x: x.get("instanceNumber", 0))
+        # Extract all instances from all series (or filter by series_uid)
+        if "Series" in study_data or "00540081" in study_data:
+            # Handle both DICOM JSON formats
+            series_list = study_data.get("Series", study_data.get("00540081", []))
+            
+            for series in series_list:
+                series_uid_value = DICOMService._get_dicom_json_value(series, "0020000E", "SeriesInstanceUID", "")
+                
+                # Skip if filtering by series UID and this isn't it
+                if series_uid and series_uid_value != series_uid:
+                    continue
+                
+                # Extract instances from series
+                if "Instances" in series or "00540050" in series:
+                    instance_list = series.get("Instances", series.get("00540050", []))
+                    
+                    for instance in instance_list:
+                        metadata = {
+                            "studyInstanceUID": study_uid,
+                            "seriesInstanceUID": series_uid_value,
+                            "sopInstanceUID": DICOMService._get_dicom_json_value(instance, "00080018", "SOPInstanceUID", ""),
+                            "instanceNumber": DICOMService._get_dicom_json_value(instance, "00200013", "InstanceNumber", "1"),
+                            "modality": DICOMService._get_dicom_json_value(series, "00080060", "Modality", ""),
+                        }
+                        instances.append(metadata)
         
-        return {"instances": instances}
+        logger.info(f"Found {len(instances)} instances for study {study_uid}")
+        return {"instances": instances, "studyInstanceUID": study_uid}
         
     except HTTPException:
         raise
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch metadata from DICOM server: {e}")
+        raise HTTPException(status_code=503, detail=f"Failed to fetch metadata from DICOM server: {e}")
     except Exception as e:
+        logger.error(f"Failed to get study metadata: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get study metadata: {e}")
 
-@router.get("/studies/{study_dir}/instances/{instance_number}/image")
+@router.get("/studies/{study_uid}/series/{series_uid}/instances/{sop_instance_uid}/image")
 async def get_instance_image(
-    study_dir: str, 
-    instance_number: int,
+    study_uid: str,
+    series_uid: str,
+    sop_instance_uid: str,
     window_center: int = Query(128, description="Window center for display"),
-    window_width: int = Query(256, description="Window width for display"),
-    format: str = Query("png", description="Output format (png, jpeg)")
+    window_width: int = Query(256, description="Window width for display")
 ):
-    """Get image data for a specific DICOM instance."""
+    """
+    Get image data for a specific DICOM instance via WADO.
+    Returns PNG image with applied windowing.
+    """
     try:
-        study_path = validate_study_dir(study_dir)
+        study_uid = validate_uid(study_uid, "study")
+        series_uid = validate_uid(series_uid, "series")
+        sop_instance_uid = validate_uid(sop_instance_uid, "instance")
         
-        if not study_path.exists():
-            raise HTTPException(status_code=404, detail="Study directory not found")
+        if not _is_dicom_server_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="DICOM server not configured"
+            )
         
-        dicom_files = DICOMService.find_dicom_files(study_path)
+        logger.info(f"Fetching instance {sop_instance_uid} via WADO")
         
-        # Find the file with matching instance number
-        target_file = None
-        for file_path in dicom_files:
-            metadata = DICOMService.read_dicom_metadata(file_path)
-            if metadata.get("instanceNumber") == instance_number:
-                target_file = file_path
-                break
+        # Fetch DICOM instance from WADO
+        dicom_data = DICOMService.fetch_wado_instance(
+            study_uid, series_uid, sop_instance_uid
+        )
         
-        if not target_file:
-            raise HTTPException(status_code=404, detail=f"Instance {instance_number} not found")
+        # Parse DICOM data
+        ds = pydicom.dcmread(io.BytesIO(dicom_data), force=True)
         
-        # Extract pixel data
-        pixel_array = DICOMService.extract_pixel_data(target_file)
+        if not hasattr(ds, 'pixel_array'):
+            raise HTTPException(
+                status_code=400,
+                detail="DICOM instance has no pixel data"
+            )
         
-        # Convert to image
-        if format.lower() == "png":
-            image_data = DICOMService.convert_to_png(pixel_array, window_center, window_width)
-            media_type = "image/png"
-        else:
-            raise HTTPException(status_code=400, detail="Only PNG format is currently supported")
+        pixel_array = ds.pixel_array
         
-        return Response(content=image_data, media_type=media_type)
+        # Apply rescaling if needed
+        if hasattr(ds, 'RescaleSlope') and hasattr(ds, 'RescaleIntercept'):
+            pixel_array = pixel_array * float(ds.RescaleSlope) + float(ds.RescaleIntercept)
+        
+        # Convert to PNG
+        image_data = DICOMService.convert_to_png(pixel_array, window_center, window_width)
+        
+        logger.info(f"Successfully retrieved image for instance {sop_instance_uid}")
+        return Response(content=image_data, media_type="image/png")
         
     except HTTPException:
         raise
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch instance from DICOM server: {e}")
+        raise HTTPException(status_code=503, detail=f"Failed to fetch instance from DICOM server: {e}")
     except Exception as e:
+        logger.error(f"Failed to get instance image: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get instance image: {e}")
 
-@router.get("/studies/{study_dir}/download")
-async def download_study(study_dir: str):
-    """Download entire DICOM study as ZIP archive."""
+@router.get("/studies/{study_uid}/series/{series_uid}/download")
+async def download_series(study_uid: str, series_uid: str):
+    """
+    Download DICOM series via WADO.
+    Note: Returns series instances; full bulk ZIP download may require
+    multiple requests depending on DICOMweb server capabilities.
+    """
     try:
-        import zipfile
-        import tempfile
+        study_uid = validate_uid(study_uid, "study")
+        series_uid = validate_uid(series_uid, "series")
         
-        study_path = validate_study_dir(study_dir)
+        if not _is_dicom_server_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="DICOM server not configured"
+            )
         
-        if not study_path.exists():
-            raise HTTPException(status_code=404, detail="Study directory not found")
+        logger.info(f"Preparing series {series_uid} for download from study {study_uid}")
         
-        dicom_files = DICOMService.find_dicom_files(study_path)
+        # Build WADO URL for series
+        wado_series_url = urljoin(
+            _get_wado_url(),
+            f"studies/{study_uid}/series/{series_uid}"
+        )
         
-        if not dicom_files:
-            raise HTTPException(status_code=404, detail="No DICOM files found in study")
+        response = requests.get(
+            wado_series_url,
+            headers={"Accept": "application/dicom"},
+            verify=False,
+            timeout=60
+        )
+        response.raise_for_status()
         
-        # Create temporary ZIP file
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
-        
-        with zipfile.ZipFile(temp_file.name, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for dicom_file in dicom_files:
-                # Add file to ZIP with relative path
-                arcname = dicom_file.relative_to(study_path)
-                zip_file.write(str(dicom_file), str(arcname))
-        
-        temp_file.close()
-        
-        # Return ZIP file
-        return FileResponse(
-            path=temp_file.name,
-            filename=f"{study_dir}.zip",
-            media_type="application/zip"
+        logger.info(f"Successfully retrieved series {series_uid}")
+        return StreamingResponse(
+            iter([response.content]),
+            media_type="application/dicom",
+            headers={"Content-Disposition": f"attachment; filename=series_{series_uid}.dcm"}
         )
         
     except HTTPException:
         raise
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch series from DICOM server: {e}")
+        raise HTTPException(status_code=503, detail=f"Failed to fetch series from DICOM server: {e}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to download study: {e}")
+        logger.error(f"Failed to download series: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to download series: {e}")
 
-@router.get("/studies/{study_dir}/viewer-config")
-async def get_viewer_config(study_dir: str):
-    """Get configuration for DICOM viewer (Cornerstone 3D compatible)."""
+@router.get("/studies/{study_uid}/viewer-config")
+async def get_viewer_config(
+    study_uid: str,
+    series_uid: Optional[str] = Query(None, description="Filter by SeriesInstanceUID")
+):
+    """
+    Get configuration for DICOM viewer (Cornerstone 3D compatible).
+    Fetches instance list via WADO and generates viewer URLs.
+    """
     try:
-        study_path = validate_study_dir(study_dir)
+        study_uid = validate_uid(study_uid, "study")
         
-        if not study_path.exists():
-            raise HTTPException(status_code=404, detail="Study directory not found")
+        if not _is_dicom_server_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="DICOM server not configured"
+            )
         
-        dicom_files = DICOMService.find_dicom_files(study_path)
+        logger.info(f"Generating viewer config for study {study_uid}")
         
-        if not dicom_files:
-            raise HTTPException(status_code=404, detail="No DICOM files found in study")
+        # Get metadata which includes instance UIDs
+        metadata_response = await get_study_metadata(study_uid, series_uid)
+        instances = metadata_response.get("instances", [])
         
-        # Get metadata for all instances
-        instances = []
-        for file_path in dicom_files:
-            metadata = DICOMService.read_dicom_metadata(file_path)
-            
-            # Create image ID for Cornerstone
-            image_id = f"dicom://api/dicom/studies/{study_dir}/instances/{metadata['instanceNumber']}/image"
-            
-            instance_info = {
-                "imageId": image_id,
-                "instanceNumber": metadata["instanceNumber"],
-                "sopInstanceUID": metadata["sopInstanceUID"],
-                "rows": metadata["rows"],
-                "columns": metadata["columns"],
-                "pixelSpacing": metadata["pixelSpacing"],
-                "sliceThickness": metadata["sliceThickness"],
-                "windowCenter": metadata["windowCenter"],
-                "windowWidth": metadata["windowWidth"]
-            }
-            
-            instances.append(instance_info)
+        if not instances:
+            raise HTTPException(
+                status_code=404,
+                detail="No instances found for this study"
+            )
         
-        # Sort by instance number
-        instances.sort(key=lambda x: x["instanceNumber"])
+        # Generate Cornerstone viewer configuration
+        viewer_instances = []
+        for instance in instances:
+            instance_url = f"/api/dicom/studies/{study_uid}/series/{instance['seriesInstanceUID']}/instances/{instance['sopInstanceUID']}/image"
+            viewer_instances.append({
+                "studyInstanceUID": study_uid,
+                "seriesInstanceUID": instance['seriesInstanceUID'],
+                "sopInstanceUID": instance['sopInstanceUID'],
+                "imageUrl": instance_url,
+                "instanceNumber": instance.get('instanceNumber', '1')
+            })
         
-        # Create viewer configuration
         config = {
-            "studyInstanceUID": instances[0]["sopInstanceUID"].split('.')[:-1],  # Approximate
-            "seriesInstanceUID": f"series-{study_dir}",
-            "modality": DICOMService.read_dicom_metadata(dicom_files[0])["modality"],
-            "instances": instances,
+            "studyInstanceUID": study_uid,
+            "modality": instances[0].get("modality", ""),
+            "instances": viewer_instances,
             "viewerSettings": {
                 "enableStackScrolling": True,
                 "enableWindowLevel": True,
@@ -787,22 +823,23 @@ async def get_viewer_config(study_dir: str):
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Failed to get viewer config: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get viewer config: {e}")
 
 
 # FHIR ImagingStudy Mapping Endpoints
 
-@router.get("/studies/{study_dir}/fhir-imaging-study")
+@router.get("/studies/{study_uid}/fhir-imaging-study")
 async def get_study_as_fhir_imaging_study(
-    study_dir: str,
+    study_uid: str,
     patient_id: str = Query(..., description="FHIR Patient ID"),
     imaging_study_id: Optional[str] = Query(None, description="Optional FHIR ImagingStudy ID")
 ):
     """
-    Convert DICOM study to FHIR ImagingStudy resource.
+    Convert DICOM study to FHIR ImagingStudy resource via WADO metadata.
     
     Args:
-        study_dir: DICOM study directory
+        study_uid: DICOM StudyInstanceUID
         patient_id: FHIR Patient ID
         imaging_study_id: Optional FHIR ImagingStudy ID
         
@@ -810,106 +847,183 @@ async def get_study_as_fhir_imaging_study(
         FHIR ImagingStudy resource
     """
     try:
-        study_path = validate_study_dir(study_dir)
+        study_uid = validate_uid(study_uid, "study")
         
-        if not study_path.exists():
-            raise HTTPException(status_code=404, detail="Study directory not found")
+        if not _is_dicom_server_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="DICOM server not configured"
+            )
         
-        dicom_files = DICOMService.find_dicom_files(study_path)
+        logger.info(f"Converting study {study_uid} to FHIR ImagingStudy for patient {patient_id}")
         
-        if not dicom_files:
-            raise HTTPException(status_code=404, detail="No DICOM files found in study")
+        # Fetch metadata for the study
+        metadata_response = await get_study_metadata(study_uid)
+        instances = metadata_response.get("instances", [])
         
-        # Use first DICOM file to create ImagingStudy
-        first_file = dicom_files[0]
-        imaging_study = DICOMService.dicom_file_to_imaging_study(
-            first_file, patient_id, imaging_study_id
-        )
+        if not instances:
+            raise HTTPException(
+                status_code=404,
+                detail="No instances found in study"
+            )
         
+        # Build basic FHIR ImagingStudy from metadata
+        imaging_study = {
+            "resourceType": "ImagingStudy",
+            "id": imaging_study_id or study_uid.replace(".", "-"),
+            "status": "available",
+            "subject": {
+                "reference": f"Patient/{patient_id}"
+            },
+            "studyInstanceUID": study_uid,
+            "series": []
+        }
+        
+        # Group instances by series
+        series_map = {}
+        for instance in instances:
+            series_uid = instance.get("seriesInstanceUID", "")
+            if series_uid not in series_map:
+                series_map[series_uid] = {
+                    "uid": series_uid,
+                    "modality": instance.get("modality", ""),
+                    "instances": []
+                }
+            series_map[series_uid]["instances"].append(instance)
+        
+        # Convert series to FHIR format
+        for series_uid, series_data in series_map.items():
+            series_fhir = {
+                "uid": series_uid,
+                "modality": {"system": "http://dicom.nema.org/resources/ontology/DCM", "code": series_data["modality"]},
+                "instance": [
+                    {
+                        "uid": inst.get("sopInstanceUID", ""),
+                        "number": inst.get("instanceNumber", 1)
+                    }
+                    for inst in series_data["instances"]
+                ]
+            }
+            imaging_study["series"].append(series_fhir)
+        
+        logger.info(f"Successfully converted study to FHIR ImagingStudy with {len(imaging_study['series'])} series")
         return imaging_study
         
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Failed to convert to FHIR ImagingStudy: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to convert to FHIR ImagingStudy: {e}")
 
 
-@router.get("/studies/{study_dir}/instances/{instance_number}/metadata/extended")
-async def get_instance_extended_metadata(study_dir: str, instance_number: int):
+@router.get("/studies/{study_uid}/instances/{sop_instance_uid}/metadata/extended")
+async def get_instance_extended_metadata(
+    study_uid: str,
+    series_uid: str = Query(..., description="SeriesInstanceUID"),
+    sop_instance_uid: str = Query(..., description="SOPInstanceUID")
+):
     """
-    Get comprehensive DICOM metadata for an instance (FHIR-relevant fields).
+    Get comprehensive DICOM metadata for an instance (FHIR-relevant fields) via WADO.
     
     Args:
-        study_dir: DICOM study directory
-        instance_number: DICOM instance number
+        study_uid: DICOM StudyInstanceUID
+        series_uid: DICOM SeriesInstanceUID
+        sop_instance_uid: DICOM SOPInstanceUID
         
     Returns:
         Extended metadata dictionary with FHIR-relevant fields
     """
     try:
-        study_path = validate_study_dir(study_dir)
+        study_uid = validate_uid(study_uid, "study")
+        series_uid = validate_uid(series_uid, "series")
+        sop_instance_uid = validate_uid(sop_instance_uid, "instance")
         
-        if not study_path.exists():
-            raise HTTPException(status_code=404, detail="Study directory not found")
+        if not _is_dicom_server_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="DICOM server not configured"
+            )
         
-        dicom_files = DICOMService.find_dicom_files(study_path)
+        logger.info(f"Fetching extended metadata for instance {sop_instance_uid} via WADO")
         
-        # Find file with matching instance number
-        target_file = None
-        for file_path in dicom_files:
-            metadata = DICOMService.read_dicom_metadata(file_path)
-            if metadata.get("instanceNumber") == instance_number:
-                target_file = file_path
-                break
+        # Fetch DICOM instance metadata via WADO
+        metadata = DICOMService.fetch_wado_metadata(
+            study_uid, series_uid, sop_instance_uid
+        )
         
-        if not target_file:
-            raise HTTPException(status_code=404, detail=f"Instance {instance_number} not found")
-        
-        # Extract extended metadata
-        extended_metadata = DICOMService.extract_dicom_metadata_extended(target_file)
-        
-        return extended_metadata
+        logger.info(f"Successfully retrieved extended metadata for instance {sop_instance_uid}")
+        return metadata
         
     except HTTPException:
         raise
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch metadata from DICOM server: {e}")
+        raise HTTPException(status_code=503, detail=f"Failed to fetch metadata from DICOM server: {e}")
     except Exception as e:
+        logger.error(f"Failed to get extended metadata: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get extended metadata: {e}")
 
 
-@router.get("/studies/{study_dir}/instances/{instance_number}/fhir-info")
-async def get_instance_fhir_info(study_dir: str, instance_number: int):
+@router.get("/studies/{study_uid}/instances/{sop_instance_uid}/fhir-info")
+async def get_instance_fhir_info(
+    study_uid: str,
+    series_uid: str = Query(..., description="SeriesInstanceUID"),
+    sop_instance_uid: str = Query(..., description="SOPInstanceUID")
+):
     """
-    Get FHIR-specific information for a DICOM instance (series and instance level data).
+    Get FHIR-specific information for a DICOM instance (series and instance level data) via WADO.
     
     Args:
-        study_dir: DICOM study directory
-        instance_number: DICOM instance number
+        study_uid: DICOM StudyInstanceUID
+        series_uid: DICOM SeriesInstanceUID
+        sop_instance_uid: DICOM SOPInstanceUID
         
     Returns:
         Dictionary with series and instance FHIR information
     """
     try:
-        study_path = validate_study_dir(study_dir)
+        study_uid = validate_uid(study_uid, "study")
+        series_uid = validate_uid(series_uid, "series")
+        sop_instance_uid = validate_uid(sop_instance_uid, "instance")
         
-        if not study_path.exists():
-            raise HTTPException(status_code=404, detail="Study directory not found")
+        if not _is_dicom_server_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="DICOM server not configured"
+            )
         
-        dicom_files = DICOMService.find_dicom_files(study_path)
+        logger.info(f"Fetching FHIR info for instance {sop_instance_uid}")
         
-        # Find file with matching instance number
-        target_file = None
-        for file_path in dicom_files:
-            metadata = DICOMService.read_dicom_metadata(file_path)
-            if metadata.get("instanceNumber") == instance_number:
-                target_file = file_path
-                break
+        # Fetch metadata via WADO
+        metadata = DICOMService.fetch_wado_metadata(
+            study_uid, series_uid, sop_instance_uid
+        )
         
-        if not target_file:
-            raise HTTPException(status_code=404, detail=f"Instance {instance_number} not found")
+        # Extract FHIR-relevant fields
+        fhir_info = {
+            "series": {
+                "uid": series_uid,
+                "modality": metadata.get("Modality", ""),
+                "description": metadata.get("SeriesDescription", "")
+            },
+            "instance": {
+                "uid": sop_instance_uid,
+                "classUID": metadata.get("SOPClassUID", ""),
+                "number": metadata.get("InstanceNumber", 1)
+            }
+        }
         
-        # Extract FHIR info
-        series_info = DICOMService.get_dicom_series_info(target_file)
-        instance_info = DICOMService.get_dicom_instance_info(target_file)
+        logger.info(f"Successfully retrieved FHIR info for instance {sop_instance_uid}")
+        return fhir_info
+        
+    except HTTPException:
+        raise
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch metadata from DICOM server: {e}")
+        raise HTTPException(status_code=503, detail=f"Failed to fetch metadata from DICOM server: {e}")
+    except Exception as e:
+        logger.error(f"Failed to get FHIR info: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get FHIR info: {e}")
         
         return {
             "series": series_info,
@@ -922,33 +1036,49 @@ async def get_instance_fhir_info(study_dir: str, instance_number: int):
         raise HTTPException(status_code=500, detail=f"Failed to get FHIR info: {e}")
 
 
-@router.get("/studies/{study_dir}/validate-fhir")
-async def validate_study_for_fhir(study_dir: str):
+@router.get("/studies/{study_uid}/validate-fhir")
+async def validate_study_for_fhir(study_uid: str):
     """
-    Validate that DICOM study can be mapped to FHIR ImagingStudy resources.
+    Validate that DICOM study can be mapped to FHIR ImagingStudy resources via WADO.
     
     Args:
-        study_dir: DICOM study directory
+        study_uid: DICOM StudyInstanceUID
         
     Returns:
-        Validation results for each file in the study
+        Validation results indicating FHIR compatibility
     """
     try:
-        study_path = validate_study_dir(study_dir)
+        study_uid = validate_uid(study_uid, "study")
         
-        if not study_path.exists():
-            raise HTTPException(status_code=404, detail="Study directory not found")
+        if not _is_dicom_server_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="DICOM server not configured"
+            )
         
-        dicom_files = DICOMService.find_dicom_files(study_path)
+        logger.info(f"Validating study {study_uid} for FHIR compatibility")
         
-        if not dicom_files:
-            raise HTTPException(status_code=404, detail="No DICOM files found in study")
+        # Fetch metadata for all instances
+        metadata_response = await get_study_metadata(study_uid)
+        instances = metadata_response.get("instances", [])
         
-        # Validate each file
+        if not instances:
+            raise HTTPException(
+                status_code=404,
+                detail="No instances found in study"
+            )
+        
+        # Check for required FHIR fields
+        required_fields = ["studyInstanceUID", "seriesInstanceUID", "sopInstanceUID", "modality"]
         validation_results = []
-        for file_path in dicom_files:
-            result = DICOMService.validate_dicom_for_fhir(file_path)
-            result["filePath"] = str(file_path.relative_to(study_path))
+        
+        for instance in instances:
+            missing_fields = [f for f in required_fields if not instance.get(f)]
+            result = {
+                "sopInstanceUID": instance.get("sopInstanceUID", ""),
+                "valid": len(missing_fields) == 0,
+                "missingFields": missing_fields
+            }
             validation_results.append(result)
         
         # Summary
@@ -958,9 +1088,9 @@ async def validate_study_for_fhir(study_dir: str):
         return {
             "valid": valid_count == total_count,
             "summary": {
-                "totalFiles": total_count,
-                "validFiles": valid_count,
-                "invalidFiles": total_count - valid_count
+                "totalInstances": total_count,
+                "validInstances": valid_count,
+                "invalidInstances": total_count - valid_count
             },
             "results": validation_results
         }
@@ -968,4 +1098,5 @@ async def validate_study_for_fhir(study_dir: str):
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Failed to validate DICOM for FHIR: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to validate DICOM for FHIR: {e}")
