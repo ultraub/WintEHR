@@ -36,6 +36,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { apiClient } from '../../../services/api';
 import { EXTENSION_URLS } from '../../../constants/fhirExtensions';
+import { getDicomQidoUrl, getDicomWadoUrl } from '../../../config/apiConfig';
 
 const DICOMViewer = ({ study, onClose }) => {
   const theme = useTheme();
@@ -61,6 +62,13 @@ const DICOMViewer = ({ study, onClose }) => {
   const animationRef = useRef(null);
   const lastPanRef = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
+
+  const resolveDicomEndpoints = useCallback(() => {
+    return {
+      qido: study?.dicomEndpoints?.qido || getDicomQidoUrl(),
+      wado: study?.dicomEndpoints?.wado || getDicomWadoUrl()
+    };
+  }, [study]);
 
   // Load DICOM study data
   useEffect(() => {
@@ -119,8 +127,15 @@ const DICOMViewer = ({ study, onClose }) => {
         throw new Error('Unable to determine study directory');
       }
 
+      const dicomEndpoints = resolveDicomEndpoints();
+
       // Load study metadata (backend endpoint is at /dicom not /api/dicom)
-      const metadataResponse = await apiClient.get(`/dicom/studies/${studyDir}/metadata`);
+      const metadataResponse = await apiClient.get(`/dicom/studies/${studyDir}/metadata`, {
+        headers: {
+          'X-DICOM-QIDO-URL': dicomEndpoints.qido,
+          'X-DICOM-WADO-URL': dicomEndpoints.wado
+        }
+      });
       const instancesData = metadataResponse.data.instances;
 
       if (!instancesData || instancesData.length === 0) {
@@ -130,7 +145,12 @@ const DICOMViewer = ({ study, onClose }) => {
       setInstances(instancesData);
 
       // Load viewer config
-      const configResponse = await apiClient.get(`/dicom/studies/${studyDir}/viewer-config`);
+      const configResponse = await apiClient.get(`/dicom/studies/${studyDir}/viewer-config`, {
+        headers: {
+          'X-DICOM-QIDO-URL': dicomEndpoints.qido,
+          'X-DICOM-WADO-URL': dicomEndpoints.wado
+        }
+      });
       setViewerConfig(configResponse.data);
       
       // Set initial window/level from first instance
@@ -174,8 +194,15 @@ const DICOMViewer = ({ study, onClose }) => {
     try {
       const studyDir = extractStudyDirectory(study);
       const url = `/dicom/studies/${studyDir}/instances/${instance.instanceNumber}/image?window_center=${windowCenter}&window_width=${windowWidth}`;
+      const dicomEndpoints = resolveDicomEndpoints();
 
-      const response = await apiClient.get(url, { responseType: 'blob' });
+      const response = await apiClient.get(url, {
+        responseType: 'blob',
+        headers: {
+          'X-DICOM-QIDO-URL': dicomEndpoints.qido,
+          'X-DICOM-WADO-URL': dicomEndpoints.wado
+        }
+      });
       const imageBlob = response.data;
       const imageUrl = URL.createObjectURL(imageBlob);
       

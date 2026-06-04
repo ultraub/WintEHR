@@ -82,7 +82,7 @@ import { EXTENSION_URLS } from '../../../../constants/fhirExtensions';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import websocketService from '../../../../services/websocket';
-// apiConfig import removed — using fhirClient for FHIR queries
+import { getDicomQidoUrl, getDicomWadoUrl } from '../../../../config/apiConfig';
 import {
   ClinicalResourceCard,
   ClinicalSummaryCard,
@@ -546,30 +546,52 @@ const ImagingTab = ({
         endpointMap.set(`Endpoint/${ep.id}`, ep);
       });
 
+      const defaultQidoEndpoint = getDicomQidoUrl();
+      const defaultWadoEndpoint = getDicomWadoUrl();
+
       // Enrich studies with directory information from Endpoint
       const enrichedStudies = imagingStudies.map(study => {
         let studyDirectory = null;
+        let qidoEndpoint = defaultQidoEndpoint;
+        let wadoEndpoint = defaultWadoEndpoint;
 
         // Check if study has endpoint reference
-        if (study.endpoint && study.endpoint.length > 0) {
-          const endpointRef = study.endpoint[0].reference;
-          const endpoint = endpointMap.get(endpointRef);
+        if (study.endpoint?.length > 0) {
+          const resolvedEndpoints = study.endpoint
+            .map(ref => endpointMap.get(ref.reference))
+            .filter(Boolean);
 
-          if (endpoint?.address) {
-            // Extract directory name from endpoint address
-            // Address format: http://localhost:8000/dicom/studies/study_xxx/metadata
-            // We need to extract "study_xxx" (second-to-last segment)
-            const pathParts = endpoint.address.split('/').filter(p => p && p !== '');
+          // Capture QIDO/WADO sources when available, with configured defaults as fallback.
+          resolvedEndpoints.forEach(endpoint => {
+            const connectionCodes = endpoint.connectionType?.coding?.map(c => c.code) || [];
+            const address = endpoint.address;
 
-            // Check if address ends with /metadata - if so, get the segment before it
-            const lastSegment = pathParts[pathParts.length - 1];
-            if (lastSegment === 'metadata') {
-              studyDirectory = pathParts[pathParts.length - 2];
-            } else {
-              // Otherwise use the last segment (e.g., for file:// paths)
-              studyDirectory = lastSegment;
+            if (!address) {
+              return;
             }
-          }
+
+            if (connectionCodes.includes('dicom-qido-rs') || /\/rs\/?$/i.test(address)) {
+              qidoEndpoint = address;
+            }
+
+            if (
+              connectionCodes.includes('dicom-wado-rs') ||
+              connectionCodes.includes('dicom-wado-uri') ||
+              /\/wado\/?$/i.test(address)
+            ) {
+              wadoEndpoint = address;
+            }
+
+            // Keep legacy support for backend /dicom/studies/{studyDir}/metadata style addresses.
+            if (address.includes('/dicom/studies/')) {
+              const pathParts = address.split('/').filter(p => p && p !== '');
+              const metadataIndex = pathParts.lastIndexOf('metadata');
+
+              if (metadataIndex > 0) {
+                studyDirectory = pathParts[metadataIndex - 1];
+              }
+            }
+          });
         }
 
         // Use standardized directory naming: study_{id}
@@ -579,7 +601,11 @@ const ImagingTab = ({
 
         return {
           ...study,
-          studyDirectory
+          studyDirectory,
+          dicomEndpoints: {
+            qido: qidoEndpoint,
+            wado: wadoEndpoint
+          }
         };
       });
 
