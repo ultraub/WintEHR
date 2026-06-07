@@ -17,7 +17,9 @@ import os
 from PIL import Image
 import numpy as np
 import requests
-from urllib.parse import urljoin
+from urllib.parse import urljoin, unquote
+from requests_toolbelt.multipart import decoder
+import cgi
 import logging
 
 from database import get_db_session
@@ -191,7 +193,7 @@ class DICOMService:
             # Build WADO URL according to standard
             wado_instance_url = urljoin(
                 wado_url,
-                f"?requestType=WADO&studyUID={study_instance_uid}&seriesUID={series_instance_uid}&objectUID={sop_instance_uid}"
+                f"studies/{study_instance_uid}/series/{series_instance_uid}/instances/{sop_instance_uid}"
             )
             
             logger.info(f"Fetching DICOM instance via WADO: {wado_instance_url[:80]}...")
@@ -203,8 +205,15 @@ class DICOMService:
             )
             response.raise_for_status()
             
-            logger.info(f"Successfully fetched {len(response.content)} bytes via WADO")
-            return response.content
+            response_content = []
+            multipart_data = decoder.MultipartDecoder.from_response(response)
+
+            for part in multipart_data.parts:
+                response_content.append(part.content)
+            response_content = b"".join(response_content)
+
+            logger.info(f"Successfully fetched {len(response_content)} bytes via WADO")
+            return response_content
             
         except requests.RequestException as e:
             logger.error(f"WADO fetch failed: {e}")
@@ -566,20 +575,23 @@ def validate_uid(uid: str, uid_type: str = "study") -> str:
     Returns:
         Validated UID
     """
+
     if not uid or len(uid.strip()) == 0:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid {uid_type} UID: empty or missing"
         )
     
+    uid = unquote(uid).strip()
+
     # Basic UID format validation (should be numeric with dots)
-    if not all(c.isdigit() or c == '.' for c in uid):
+    if not all(c.isdigit() or c == '.' or c == ":" or c.isalpha() for c in uid):
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid {uid_type} UID format: contains non-numeric characters"
+            detail=f"{uid} -- Invalid {uid_type} UID format: contains non-numeric characters"
         )
     
-    return uid.strip()
+    return uid
 
 
 @router.get("/studies/{study_uid}/metadata")
@@ -603,8 +615,8 @@ async def get_study_metadata(
         logger.info(f"Fetching metadata for study {study_uid}")
         
         # Query WADO for studies to list series
-        wado_studies_url = urljoin(_get_wado_url(), f"studies/{study_uid}")
-        
+        wado_studies_url = urljoin(_get_wado_url(), f"studies/{study_uid}/instances")
+
         response = requests.get(
             wado_studies_url,
             headers={"Accept": "application/dicom+json"},
@@ -616,32 +628,21 @@ async def get_study_metadata(
         
         instances = []
         
-        # Extract all instances from all series (or filter by series_uid)
-        if "Series" in study_data or "00540081" in study_data:
-            # Handle both DICOM JSON formats
-            series_list = study_data.get("Series", study_data.get("00540081", []))
+        for instance in study_data:
+            series_uid_value = DICOMService._get_dicom_json_value(instance, "0020000E", "SeriesInstanceUID", "")
             
-            for series in series_list:
-                series_uid_value = DICOMService._get_dicom_json_value(series, "0020000E", "SeriesInstanceUID", "")
-                
-                # Skip if filtering by series UID and this isn't it
-                if series_uid and series_uid_value != series_uid:
-                    continue
-                
-                # Extract instances from series
-                if "Instances" in series or "00540050" in series:
-                    instance_list = series.get("Instances", series.get("00540050", []))
-                    
-                    for instance in instance_list:
-                        metadata = {
-                            "studyInstanceUID": study_uid,
-                            "seriesInstanceUID": series_uid_value,
-                            "sopInstanceUID": DICOMService._get_dicom_json_value(instance, "00080018", "SOPInstanceUID", ""),
-                            "instanceNumber": DICOMService._get_dicom_json_value(instance, "00200013", "InstanceNumber", "1"),
-                            "modality": DICOMService._get_dicom_json_value(series, "00080060", "Modality", ""),
-                        }
-                        instances.append(metadata)
-        
+            # Skip if filtering by series UID and this isn't it
+            if series_uid and series_uid_value != series_uid:
+                continue
+            metadata = {
+                "studyInstanceUID": study_uid,
+                "seriesInstanceUID": series_uid_value,
+                "sopInstanceUID": DICOMService._get_dicom_json_value(instance, "00080018", "SOPInstanceUID", ""),
+                "instanceNumber": DICOMService._get_dicom_json_value(instance, "00200013", "InstanceNumber", "1"),
+                "modality": DICOMService._get_dicom_json_value(instance, "00080060", "Modality", ""),
+            }
+            instances.append(metadata)
+    
         logger.info(f"Found {len(instances)} instances for study {study_uid}")
         return {"instances": instances, "studyInstanceUID": study_uid}
         
@@ -654,6 +655,7 @@ async def get_study_metadata(
         logger.error(f"Failed to get study metadata: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get study metadata: {e}")
 
+## 
 @router.get("/studies/{study_uid}/series/{series_uid}/instances/{sop_instance_uid}/image")
 async def get_instance_image(
     study_uid: str,
@@ -916,124 +918,124 @@ async def get_study_as_fhir_imaging_study(
         raise HTTPException(status_code=500, detail=f"Failed to convert to FHIR ImagingStudy: {e}")
 
 
-@router.get("/studies/{study_uid}/instances/{sop_instance_uid}/metadata/extended")
-async def get_instance_extended_metadata(
-    study_uid: str,
-    series_uid: str = Query(..., description="SeriesInstanceUID"),
-    sop_instance_uid: str = Query(..., description="SOPInstanceUID")
-):
-    """
-    Get comprehensive DICOM metadata for an instance (FHIR-relevant fields) via WADO.
+# @router.get("/studies/{study_uid}/instances/{sop_instance_uid}/metadata/extended")
+# async def get_instance_extended_metadata(
+#     study_uid: str,
+#     series_uid: str = Query(..., description="SeriesInstanceUID"),
+#     sop_instance_uid: str = Query(..., description="SOPInstanceUID")
+# ):
+#     """
+#     Get comprehensive DICOM metadata for an instance (FHIR-relevant fields) via WADO.
     
-    Args:
-        study_uid: DICOM StudyInstanceUID
-        series_uid: DICOM SeriesInstanceUID
-        sop_instance_uid: DICOM SOPInstanceUID
+#     Args:
+#         study_uid: DICOM StudyInstanceUID
+#         series_uid: DICOM SeriesInstanceUID
+#         sop_instance_uid: DICOM SOPInstanceUID
         
-    Returns:
-        Extended metadata dictionary with FHIR-relevant fields
-    """
-    try:
-        study_uid = validate_uid(study_uid, "study")
-        series_uid = validate_uid(series_uid, "series")
-        sop_instance_uid = validate_uid(sop_instance_uid, "instance")
+#     Returns:
+#         Extended metadata dictionary with FHIR-relevant fields
+#     """
+#     try:
+#         study_uid = validate_uid(study_uid, "study")
+#         series_uid = validate_uid(series_uid, "series")
+#         sop_instance_uid = validate_uid(sop_instance_uid, "instance")
         
-        if not _is_dicom_server_configured():
-            raise HTTPException(
-                status_code=503,
-                detail="DICOM server not configured"
-            )
+#         if not _is_dicom_server_configured():
+#             raise HTTPException(
+#                 status_code=503,
+#                 detail="DICOM server not configured"
+#             )
         
-        logger.info(f"Fetching extended metadata for instance {sop_instance_uid} via WADO")
+#         logger.info(f"Fetching extended metadata for instance {sop_instance_uid} via WADO")
         
-        # Fetch DICOM instance metadata via WADO
-        metadata = DICOMService.fetch_wado_metadata(
-            study_uid, series_uid, sop_instance_uid
-        )
+#         # Fetch DICOM instance metadata via WADO
+#         metadata = DICOMService.fetch_wado_metadata(
+#             study_uid, series_uid, sop_instance_uid
+#         )
         
-        logger.info(f"Successfully retrieved extended metadata for instance {sop_instance_uid}")
-        return metadata
+#         logger.info(f"Successfully retrieved extended metadata for instance {sop_instance_uid}")
+#         return metadata
         
-    except HTTPException:
-        raise
-    except requests.RequestException as e:
-        logger.error(f"Failed to fetch metadata from DICOM server: {e}")
-        raise HTTPException(status_code=503, detail=f"Failed to fetch metadata from DICOM server: {e}")
-    except Exception as e:
-        logger.error(f"Failed to get extended metadata: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get extended metadata: {e}")
+#     except HTTPException:
+#         raise
+#     except requests.RequestException as e:
+#         logger.error(f"Failed to fetch metadata from DICOM server: {e}")
+#         raise HTTPException(status_code=503, detail=f"Failed to fetch metadata from DICOM server: {e}")
+#     except Exception as e:
+#         logger.error(f"Failed to get extended metadata: {e}")
+#         raise HTTPException(status_code=500, detail=f"Failed to get extended metadata: {e}")
 
 
-@router.get("/studies/{study_uid}/instances/{sop_instance_uid}/fhir-info")
-async def get_instance_fhir_info(
-    study_uid: str,
-    series_uid: str = Query(..., description="SeriesInstanceUID"),
-    sop_instance_uid: str = Query(..., description="SOPInstanceUID")
-):
-    """
-    Get FHIR-specific information for a DICOM instance (series and instance level data) via WADO.
+# @router.get("/studies/{study_uid}/instances/{sop_instance_uid}/fhir-info")
+# async def get_instance_fhir_info(
+#     study_uid: str,
+#     series_uid: str = Query(..., description="SeriesInstanceUID"),
+#     sop_instance_uid: str = Query(..., description="SOPInstanceUID")
+# ):
+#     """
+#     Get FHIR-specific information for a DICOM instance (series and instance level data) via WADO.
     
-    Args:
-        study_uid: DICOM StudyInstanceUID
-        series_uid: DICOM SeriesInstanceUID
-        sop_instance_uid: DICOM SOPInstanceUID
+#     Args:
+#         study_uid: DICOM StudyInstanceUID
+#         series_uid: DICOM SeriesInstanceUID
+#         sop_instance_uid: DICOM SOPInstanceUID
         
-    Returns:
-        Dictionary with series and instance FHIR information
-    """
-    try:
-        study_uid = validate_uid(study_uid, "study")
-        series_uid = validate_uid(series_uid, "series")
-        sop_instance_uid = validate_uid(sop_instance_uid, "instance")
+#     Returns:
+#         Dictionary with series and instance FHIR information
+#     """
+#     try:
+#         study_uid = validate_uid(study_uid, "study")
+#         series_uid = validate_uid(series_uid, "series")
+#         sop_instance_uid = validate_uid(sop_instance_uid, "instance")
         
-        if not _is_dicom_server_configured():
-            raise HTTPException(
-                status_code=503,
-                detail="DICOM server not configured"
-            )
+#         if not _is_dicom_server_configured():
+#             raise HTTPException(
+#                 status_code=503,
+#                 detail="DICOM server not configured"
+#             )
         
-        logger.info(f"Fetching FHIR info for instance {sop_instance_uid}")
+#         logger.info(f"Fetching FHIR info for instance {sop_instance_uid}")
         
-        # Fetch metadata via WADO
-        metadata = DICOMService.fetch_wado_metadata(
-            study_uid, series_uid, sop_instance_uid
-        )
+#         # Fetch metadata via WADO
+#         metadata = DICOMService.fetch_wado_metadata(
+#             study_uid, series_uid, sop_instance_uid
+#         )
         
-        # Extract FHIR-relevant fields
-        fhir_info = {
-            "series": {
-                "uid": series_uid,
-                "modality": metadata.get("Modality", ""),
-                "description": metadata.get("SeriesDescription", "")
-            },
-            "instance": {
-                "uid": sop_instance_uid,
-                "classUID": metadata.get("SOPClassUID", ""),
-                "number": metadata.get("InstanceNumber", 1)
-            }
-        }
+#         # Extract FHIR-relevant fields
+#         fhir_info = {
+#             "series": {
+#                 "uid": series_uid,
+#                 "modality": metadata.get("Modality", ""),
+#                 "description": metadata.get("SeriesDescription", "")
+#             },
+#             "instance": {
+#                 "uid": sop_instance_uid,
+#                 "classUID": metadata.get("SOPClassUID", ""),
+#                 "number": metadata.get("InstanceNumber", 1)
+#             }
+#         }
         
-        logger.info(f"Successfully retrieved FHIR info for instance {sop_instance_uid}")
-        return fhir_info
+#         logger.info(f"Successfully retrieved FHIR info for instance {sop_instance_uid}")
+#         return fhir_info
         
-    except HTTPException:
-        raise
-    except requests.RequestException as e:
-        logger.error(f"Failed to fetch metadata from DICOM server: {e}")
-        raise HTTPException(status_code=503, detail=f"Failed to fetch metadata from DICOM server: {e}")
-    except Exception as e:
-        logger.error(f"Failed to get FHIR info: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get FHIR info: {e}")
+#     except HTTPException:
+#         raise
+#     except requests.RequestException as e:
+#         logger.error(f"Failed to fetch metadata from DICOM server: {e}")
+#         raise HTTPException(status_code=503, detail=f"Failed to fetch metadata from DICOM server: {e}")
+#     except Exception as e:
+#         logger.error(f"Failed to get FHIR info: {e}")
+#         raise HTTPException(status_code=500, detail=f"Failed to get FHIR info: {e}")
         
-        return {
-            "series": series_info,
-            "instance": instance_info
-        }
+#         return {
+#             "series": series_info,
+#             "instance": instance_info
+#         }
         
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get FHIR info: {e}")
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Failed to get FHIR info: {e}")
 
 
 @router.get("/studies/{study_uid}/validate-fhir")

@@ -79,8 +79,8 @@ class ApiConfig {
    * Build DICOMWeb endpoint configuration
    */
   buildDicomConfig() {
-    const defaultQido = 'https://localhost:8443/dcm4chee-arc/aets/DCM4CHEE/rs/';
-    const defaultWado = 'https://localhost:8443/dcm4chee-arc/aets/DCM4CHEE/wado/';
+    const defaultQido = 'http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/';
+    const defaultWado = 'http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/wado/';
 
     return {
       qidoUrl: process.env.REACT_APP_DICOM_QIDO_URL || defaultQido,

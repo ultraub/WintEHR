@@ -582,15 +582,15 @@ const ImagingTab = ({
               wadoEndpoint = address;
             }
 
-            // Keep legacy support for backend /dicom/studies/{studyDir}/metadata style addresses.
-            if (address.includes('/dicom/studies/')) {
-              const pathParts = address.split('/').filter(p => p && p !== '');
-              const metadataIndex = pathParts.lastIndexOf('metadata');
+            // // Keep legacy support for backend /dicom/studies/{studyDir}/metadata style addresses.
+            // if (address.includes('/dicom/studies/')) {
+            //   const pathParts = address.split('/').filter(p => p && p !== '');
+            //   const metadataIndex = pathParts.lastIndexOf('metadata');
 
-              if (metadataIndex > 0) {
-                studyDirectory = pathParts[metadataIndex - 1];
-              }
-            }
+            //   if (metadataIndex > 0) {
+            //     studyDirectory = pathParts[metadataIndex - 1];
+            //   }
+            // }
           });
         }
 
@@ -1041,10 +1041,10 @@ const ImagingTab = ({
    * preferring the entry with use = "official".
    */
   const extractStudyDirectory = (studyObj) => {
-    // Primary: Use studyDirectory property (set during loading)
-    if (studyObj?.studyDirectory) {
-      return studyObj.studyDirectory;
-    }
+    // // Primary: Use studyDirectory property (set during loading)
+    // if (studyObj?.studyDirectory) {
+    //   return studyObj.studyDirectory;
+    // }
 
     // Resolve from FHIR identifier array
     const identifiers = studyObj?.identifier || [];
@@ -1056,7 +1056,7 @@ const ImagingTab = ({
 
     return null;
   };
-  
+
   // Data grid columns configuration
   const tableColumns = [
     {
