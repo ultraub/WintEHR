@@ -1000,7 +1000,10 @@ const ImagingTab = ({
   const handleStudyDownload = async (study) => {
     try {
       // Extract study directory
-      const studyDir = extractStudyDirectory(study);
+      const studyDir = extractStudyIdentifier(study);
+
+      console.log(studyDir)
+      console.log(study)
       if (!studyDir) {
         // Unable to determine study directory
         setSnackbar({
@@ -1012,7 +1015,7 @@ const ImagingTab = ({
       }
 
       // Download study as ZIP
-      const response = await fetch(`/api/dicom/studies/${studyDir}/download`);
+      const response = await fetch(`/dicom/studies/${studyDir}/download`);
       const blob = await response.blob();
 
       // Create download link
@@ -1040,7 +1043,7 @@ const ImagingTab = ({
    * Uses studyDirectory property if available, otherwise reads the FHIR identifier array,
    * preferring the entry with use = "official".
    */
-  const extractStudyDirectory = (studyObj) => {
+  const extractStudyIdentifier = (studyObj) => {
     // // Primary: Use studyDirectory property (set during loading)
     // if (studyObj?.studyDirectory) {
     //   return studyObj.studyDirectory;

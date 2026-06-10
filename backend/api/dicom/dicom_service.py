@@ -14,6 +14,7 @@ import pydicom
 import json
 import io
 import os
+import zipfile
 from PIL import Image
 import numpy as np
 import requests
@@ -764,6 +765,78 @@ async def download_series(study_uid: str, series_uid: str):
     except Exception as e:
         logger.error(f"Failed to download series: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to download series: {e}")
+
+@router.get("/studies/{study_uid}/download")
+async def download_study(study_uid: str):
+    """
+    Download DICOM study via WADO.
+    Note: Returns study instances; full bulk ZIP download may require
+    multiple requests depending on DICOMweb server capabilities.
+    """
+    try:
+        study_uid = validate_uid(study_uid, "study")
+        
+        if not _is_dicom_server_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="DICOM server not configured"
+            )
+        
+        logger.info(f"Preparing for download of study {study_uid}")
+        
+        # Build WADO URL for study
+        wado_study_url = urljoin(
+            _get_wado_url(),
+            f"studies/{study_uid}"
+        )
+        
+        response = requests.get(
+            wado_study_url,
+            verify=False,
+            timeout=60
+        )
+        response.raise_for_status()
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+            multipart_data = decoder.MultipartDecoder.from_response(response)
+            part_index = 1
+
+            # Need to check for files as well as parts
+            if multipart_data.parts:
+                for part in multipart_data.parts:
+                    filename = None
+                    content_disposition = part.headers.get(b"Content-Disposition", b"").decode("utf-8", errors="ignore")
+                    if content_disposition:
+                        _, params = cgi.parse_header(content_disposition)
+                        filename = params.get("filename") or params.get("name")
+
+                    if not filename:
+                        filename = f"{part_index}.dcm"
+
+                    archive.writestr(filename, part.content)
+                    part_index += 1
+            else:
+                archive.writestr(f"study_{study_uid}.dcm", response.content)
+
+        zip_buffer.seek(0)
+        response_content = zip_buffer.getvalue()
+
+        logger.info(f"Successfully retrieved study {study_uid}")
+        return StreamingResponse(
+            iter([response_content]),
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename=study_{study_uid}.zip"}
+        )
+        
+    except HTTPException:
+        raise
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch study from DICOM server: {e}")
+        raise HTTPException(status_code=503, detail=f"Failed to fetch study from DICOM server: {e}")
+    except Exception as e:
+        logger.error(f"Failed to download study: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to download study: {e}")
 
 @router.get("/studies/{study_uid}/viewer-config")
 async def get_viewer_config(
