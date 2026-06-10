@@ -5,6 +5,23 @@
 import axios from 'axios';
 
 /**
+ * 
+ * @param {study} studyObj 
+ * @returns identifier
+ */
+export const extractStudyIdentifier = (studyObj) => {
+    // Resolve from FHIR identifier array
+    const identifiers = studyObj?.identifier || [];
+    const officialIdentifier = identifiers.find(id => id.use === 'official');
+    const chosenIdentifier = officialIdentifier || identifiers[0];
+    if (chosenIdentifier?.value) {
+      return chosenIdentifier.value;
+    }
+
+    return null;
+  };
+
+/**
  * Download a DICOM study as a zip file
  * @param {Object} study - FHIR ImagingStudy resource
  * @param {Function} onProgress - Progress callback (0-100)
@@ -15,7 +32,7 @@ export const downloadDICOMStudy = async (study, onProgress) => {
     // Notify start
     if (onProgress) onProgress(0);
     
-    const studyId = study.id || study.identifier?.[0]?.value;
+    const studyId = extractStudyIdentifier(study);
     if (!studyId) {
       throw new Error('Study ID not found');
     }
@@ -23,7 +40,7 @@ export const downloadDICOMStudy = async (study, onProgress) => {
     // Request DICOM download from backend
     const response = await axios({
       method: 'GET',
-      url: `/api/dicom/studies/${studyId}/download`,
+      url: `/dicom/studies/${studyId}/download`,
       responseType: 'blob',
       onDownloadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {

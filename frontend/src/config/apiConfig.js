@@ -15,6 +15,8 @@
  * - REACT_APP_FHIR_ENDPOINT: FHIR server endpoint (leave empty for proxy)
  * - REACT_APP_CDS_HOOKS_URL: CDS Hooks service URL (leave empty for proxy)
  * - REACT_APP_WEBSOCKET_URL: WebSocket connection URL (auto-derived if empty)
+ * - REACT_APP_DICOM_QIDO_URL: DICOM QIDO-RS base endpoint
+ * - REACT_APP_DICOM_WADO_URL: DICOM WADO base endpoint
  * - NODE_ENV: Node environment (development/production)
  *
  * Usage:
@@ -54,6 +56,9 @@ class ApiConfig {
       // WebSocket endpoints
       websocket: this.buildWebSocketConfig(),
 
+      // DICOMWeb endpoints
+      dicom: this.buildDicomConfig(),
+
       // Other service endpoints
       emr: this.buildEmrConfig()
     };
@@ -63,9 +68,24 @@ class ApiConfig {
       console.log('[ApiConfig] Configuration initialized:', {
         backend: this._config.backend.baseUrl || '(relative)',
         fhir: this._config.fhir.baseUrl,
-        cdsHooks: this._config.cdsHooks.baseUrl || '(relative)'
+        cdsHooks: this._config.cdsHooks.baseUrl || '(relative)',
+        dicomQido: this._config.dicom.qidoUrl,
+        dicomWado: this._config.dicom.wadoUrl
       });
     }
+  }
+
+  /**
+   * Build DICOMWeb endpoint configuration
+   */
+  buildDicomConfig() {
+    const defaultQido = 'http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/';
+    const defaultWado = 'http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/wado/';
+
+    return {
+      qidoUrl: process.env.REACT_APP_DICOM_QIDO_URL || defaultQido,
+      wadoUrl: process.env.REACT_APP_DICOM_WADO_URL || defaultWado
+    };
   }
 
   /**
@@ -233,6 +253,20 @@ class ApiConfig {
   }
 
   /**
+   * Get DICOM QIDO endpoint URL
+   */
+  getDicomQidoUrl() {
+    return this._config.dicom.qidoUrl;
+  }
+
+  /**
+   * Get DICOM WADO endpoint URL
+   */
+  getDicomWadoUrl() {
+    return this._config.dicom.wadoUrl;
+  }
+
+  /**
    * Get EMR service URL
    */
   getEmrUrl() {
@@ -288,6 +322,8 @@ export const getFhirUrl = () => apiConfig.getFhirUrl();
 export const getCdsHooksUrl = () => apiConfig.getCdsHooksUrl();
 export const getCdsHooksServicesUrl = () => apiConfig.getCdsHooksServicesUrl();
 export const getWebSocketUrl = () => apiConfig.getWebSocketUrl();
+export const getDicomQidoUrl = () => apiConfig.getDicomQidoUrl();
+export const getDicomWadoUrl = () => apiConfig.getDicomWadoUrl();
 export const getEmrUrl = () => apiConfig.getEmrUrl();
 export const isDevelopment = () => apiConfig.isDevelopment();
 export const isProduction = () => apiConfig.isProduction();
