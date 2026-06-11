@@ -571,6 +571,18 @@ if [ "$SKIP_DATA" = false ]; then
         echo "   Imaging studies will be available without DICOM files"
     fi
 
+    # Load the generated DICOM into the dcm4chee VNA via STOW-RS. The imaging
+    # viewer proxies to dcm4chee's DICOMweb endpoints, so without this step the
+    # Imaging tab lists studies but renders no images.
+    echo -e "${BLUE}🏥 Uploading DICOM studies to dcm4chee (STOW-RS)...${NC}"
+    if docker exec emr-backend \
+        python scripts/active/stow_dicom_to_dcm4chee.py; then
+        echo -e "${GREEN}✅ DICOM studies uploaded to dcm4chee${NC}"
+    else
+        echo -e "${YELLOW}⚠️  DICOM STOW had issues (non-critical)${NC}"
+        echo "   Imaging studies may list without viewable images"
+    fi
+
     # Create DICOM Endpoint resources and link to ImagingStudy resources.
     # The FHIR Endpoint.address must be an absolute URL that the browser can
     # resolve — not the container-internal http://localhost:8000. Derive from

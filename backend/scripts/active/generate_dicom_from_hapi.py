@@ -64,31 +64,51 @@ class HAPIFHIRDicomGenerator:
         }
 
     def fetch_imaging_studies(self, max_count=None, patient_id=None):
-        """Fetch ImagingStudy resources from HAPI FHIR"""
+        """Fetch ImagingStudy resources from HAPI FHIR.
+
+        Follows Bundle `next` links so that every ImagingStudy is processed,
+        not just the first page. Without pagination a default `_count` (200)
+        silently caps generation, leaving later studies with no pixel data.
+        `max_count`, when given, is an upper bound on the number returned.
+        """
         logger.info("📡 Fetching ImagingStudy resources from HAPI FHIR...")
 
-        params = {'_count': max_count or 100}
+        # Page size: large but bounded; HAPI caps the effective page size itself.
+        page_size = min(max_count, 200) if max_count else 200
+        params = {'_count': page_size}
         if patient_id:
             params['patient'] = patient_id
 
+        studies = []
+        url = '/ImagingStudy'
         try:
-            response = self.client.get('/ImagingStudy', params=params)
-            response.raise_for_status()
-            bundle = response.json()
+            while url:
+                response = self.client.get(url, params=params)
+                response.raise_for_status()
+                bundle = response.json()
 
-            if bundle.get('resourceType') != 'Bundle':
-                logger.error("Invalid response from HAPI FHIR")
-                return []
+                if bundle.get('resourceType') != 'Bundle':
+                    logger.error("Invalid response from HAPI FHIR")
+                    return studies
 
-            entries = bundle.get('entry', [])
-            studies = [entry['resource'] for entry in entries if 'resource' in entry]
+                entries = bundle.get('entry', [])
+                studies.extend(e['resource'] for e in entries if 'resource' in e)
+
+                if max_count and len(studies) >= max_count:
+                    studies = studies[:max_count]
+                    break
+
+                # Follow the absolute `next` link; params are already encoded in it.
+                url = next((l['url'] for l in bundle.get('link', [])
+                            if l.get('relation') == 'next'), None)
+                params = None
 
             logger.info(f"✅ Found {len(studies)} ImagingStudy resources")
             return studies
 
         except httpx.HTTPError as e:
             logger.error(f"❌ Failed to fetch ImagingStudy resources: {e}")
-            return []
+            return studies
 
     def get_patient_name(self, patient_ref):
         """Get patient name from HAPI FHIR"""
@@ -127,8 +147,14 @@ class HAPIFHIRDicomGenerator:
         patient_name = self.get_patient_name(patient_ref)
         patient_id = patient_ref.replace('Patient/', '').split('?')[0]
 
-        # Get study metadata
-        study_uid = study.get('identifier', [{}])[0].get('value', generate_uid())
+        # Get study metadata. FHIR ImagingStudy identifiers express the DICOM
+        # StudyInstanceUID as urn:oid:<oid>; strip the prefix so the DICOM tag
+        # holds a valid bare OID (a urn:oid: value violates the UI VR and is
+        # rejected on STOW into a PACS such as dcm4chee).
+        raw_study_uid = study.get('identifier', [{}])[0].get('value', '') or ''
+        if raw_study_uid.startswith('urn:oid:'):
+            raw_study_uid = raw_study_uid[len('urn:oid:'):]
+        study_uid = raw_study_uid or generate_uid()
         study_date = study.get('started', datetime.now().isoformat())[:10].replace('-', '')
         study_time = datetime.now().strftime('%H%M%S')
         description = study.get('description', 'Medical Imaging Study')

@@ -63,7 +63,8 @@ Exception — terminology load: `download_umls.py`, `extract_vocabularies.py`,
 | Script | Purpose | In `deploy.sh`? |
 |---|---|---|
 | `load_cds_services_to_hapi.py` | Converts built-in CDS services to FHIR `PlanDefinition`s, posts to HAPI | yes |
-| `generate_dicom_from_hapi.py` | Fetches `ImagingStudy` from HAPI, generates multi-slice DICOM into `/app/data/generated_dicoms/` | yes |
+| `generate_dicom_from_hapi.py` | Fetches `ImagingStudy` from HAPI (paginated), generates multi-slice DICOM into `/app/data/generated_dicoms/` | yes |
+| `stow_dicom_to_dcm4chee.py` | STOWs generated DICOM into the dcm4chee VNA (normalizes `urn:oid:` study UID); the viewer proxies to dcm4chee, so without this the Imaging tab shows no images | yes |
 | `create_dicom_endpoints.py` | Scans generated DICOM dirs, creates FHIR `Endpoint`s, links `ImagingStudy` | yes |
 | `create_demo_practitioners.py` | Creates `Practitioner` resources for demo/nurse/pharmacist/admin | yes |
 | `build_terminology_index.py` | Builds local SQLite terminology index for `/api/catalogs/*` autocomplete | yes (terminology phase) |
@@ -97,8 +98,10 @@ Exception — terminology load: `download_umls.py`, `extract_vocabularies.py`,
   and reference links. No script touches `hfj_*` directly.
 - **DICOM ordering dependency:** `generate_dicom_from_hapi.py` needs
   `ImagingStudy` resources to already exist (loaded by the Synthea pipeline);
-  `create_dicom_endpoints.py` needs the DICOM files to already exist. Run them
-  in pipeline order.
+  `stow_dicom_to_dcm4chee.py` and `create_dicom_endpoints.py` need the DICOM
+  files to already exist. Pipeline order: generate → STOW → endpoints. The
+  viewer (`api/dicom/dicom_service.py`) is a read-only proxy to dcm4chee, so the
+  STOW step is what makes images actually render.
 - **`cql_bridge_poc.py` has a hard-coded host** — the one place in this tree
   that violates env-driven URLs. It is a POC, not deploy code; leave it or pass
   a patient id, but do not copy its URL pattern.
@@ -126,7 +129,7 @@ Exception — terminology load: `download_umls.py`, `extract_vocabularies.py`,
 |---|---|
 | Patient load fails | `docker compose logs emr-backend`; re-run `synthea_to_hapi_pipeline.py <count> <state>` manually |
 | Synthea bundle rejected by HAPI | Pipeline rewrites `collection`→`transaction` and fixes `ifNoneExist`; check that conversion step |
-| Imaging tab shows no images | `ImagingStudy` exists but no DICOM/`Endpoint` — run `generate_dicom_from_hapi.py` then `create_dicom_endpoints.py` |
+| Imaging tab shows no images | DICOM not in dcm4chee — run `generate_dicom_from_hapi.py` → `stow_dicom_to_dcm4chee.py` → `create_dicom_endpoints.py`. The viewer proxies to dcm4chee; local files alone don't render. |
 | CDS service missing from CDS Studio | `load_cds_services_to_hapi.py` did not run / failed (non-critical in `deploy.sh`) |
 | Catalog autocomplete falls back / sparse | Terminology index not built — `build_terminology_index.py` needs vocab files in `/tmp`; restart `emr-backend` after build |
 | Same CDS card appears N times | Orphan visual-builder `PlanDefinition`s — `expunge_orphan_visual_plan_definitions.py` |

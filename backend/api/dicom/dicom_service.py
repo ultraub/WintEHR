@@ -585,6 +585,12 @@ def validate_uid(uid: str, uid_type: str = "study") -> str:
     
     uid = unquote(uid).strip()
 
+    # FHIR ImagingStudy identifiers carry the DICOM UID as urn:oid:<oid>, but
+    # dcm4chee stores and is queried by the bare OID. Normalize so proxied
+    # QIDO/WADO calls match what was stored (Synthea -> dcm4chee imaging).
+    if uid.startswith("urn:oid:"):
+        uid = uid[len("urn:oid:"):]
+
     # Basic UID format validation (should be numeric with dots)
     if not all(c.isdigit() or c == '.' or c == ":" or c.isalpha() for c in uid):
         raise HTTPException(
