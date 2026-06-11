@@ -673,12 +673,21 @@ async def get_study_metadata(
             # Skip if filtering by series UID and this isn't it
             if series_uid and series_uid_value != series_uid:
                 continue
+            try:
+                number_of_frames = int(
+                    DICOMService._get_dicom_json_value(instance, "00280008", "NumberOfFrames", 1) or 1
+                )
+            except (TypeError, ValueError):
+                number_of_frames = 1
             metadata = {
                 "studyInstanceUID": study_uid,
                 "seriesInstanceUID": series_uid_value,
                 "sopInstanceUID": DICOMService._get_dicom_json_value(instance, "00080018", "SOPInstanceUID", ""),
                 "instanceNumber": DICOMService._get_dicom_json_value(instance, "00200013", "InstanceNumber", "1"),
                 "modality": DICOMService._get_dicom_json_value(instance, "00080060", "Modality", ""),
+                # Number of frames in this instance (e.g. ultrasound/echo cine
+                # loops have many); 1 for single-frame. Drives frame playback.
+                "numberOfFrames": number_of_frames,
             }
             instances.append(metadata)
     
@@ -701,11 +710,13 @@ async def get_instance_image(
     series_uid: str,
     sop_instance_uid: str,
     window_center: int = Query(128, description="Window center for display"),
-    window_width: int = Query(256, description="Window width for display")
+    window_width: int = Query(256, description="Window width for display"),
+    frame: int = Query(1, ge=1, description="1-based frame number for multi-frame instances")
 ):
     """
     Get image data for a specific DICOM instance via WADO.
-    Returns PNG image with applied windowing.
+    Returns PNG image with applied windowing (grayscale single-frame), or a
+    PACS-rendered JPEG of the requested frame (color / multi-frame, e.g. echo).
     """
     try:
         study_uid = validate_uid(study_uid, "study")
@@ -750,8 +761,8 @@ async def get_instance_image(
                     f"falling back to WADO-RS rendered"
                 )
 
-        rendered = DICOMService.fetch_wado_rendered(study_uid, series_uid, sop_instance_uid)
-        logger.info(f"Returned PACS-rendered image for instance {sop_instance_uid}")
+        rendered = DICOMService.fetch_wado_rendered(study_uid, series_uid, sop_instance_uid, frame=frame)
+        logger.info(f"Returned PACS-rendered image for instance {sop_instance_uid} frame {frame}")
         return Response(content=rendered["content"], media_type=rendered["content_type"])
         
     except HTTPException:
