@@ -15,6 +15,7 @@ import httpx
 import hmac
 import hashlib
 import json
+import uuid
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 
@@ -150,10 +151,13 @@ class RemoteServiceProvider(BaseServiceProvider):
             # Extract cards from response
             cards = response_data.get("cards", [])
 
-            # Convert dict cards to Card objects
+            # Convert dict cards to Card objects. Card.uuid is optional per the
+            # CDS Hooks spec and many external services omit it; generate a stable
+            # one so the card validates and downstream feedback has an id.
             card_objects = []
             for card in cards:
                 if isinstance(card, dict):
+                    card.setdefault("uuid", str(uuid.uuid4()))
                     card_objects.append(Card(**card))
                 else:
                     card_objects.append(card)
@@ -237,46 +241,39 @@ class RemoteServiceProvider(BaseServiceProvider):
             return
 
         try:
-            from sqlalchemy import select, update
-            from api.external_services.models import ExternalService
+            from sqlalchemy import text
 
-            # Get current service record
-            result = await self.db.execute(
-                select(ExternalService).where(ExternalService.service_id == service_id)
-            )
-            service = result.scalar_one_or_none()
-
-            if not service:
-                logger.warning(f"  Service {service_id} not found in database")
-                return
-
-            # Increment failure count
-            new_failure_count = (service.consecutive_failures or 0) + 1
-
-            # Check if threshold exceeded
-            auto_disabled = new_failure_count >= self.failure_threshold
-
-            # Update service record
-            await self.db.execute(
-                update(ExternalService)
-                .where(ExternalService.service_id == service_id)
-                .values(
-                    consecutive_failures=new_failure_count,
-                    last_failure_at=datetime.utcnow(),
-                    auto_disabled=auto_disabled,
-                    auto_disabled_at=datetime.utcnow() if auto_disabled else None,
-                    last_error_message=error_message
-                )
-            )
+            # The failure counters live on the parent external_services.services
+            # row; service_id here is the CDS service id stored on the child
+            # external_services.cds_hooks.hook_service_id. Update via that join.
+            row = (await self.db.execute(text("""
+                UPDATE external_services.services AS s
+                SET consecutive_failures = COALESCE(s.consecutive_failures, 0) + 1,
+                    last_failure_at = NOW(),
+                    last_error_message = :err,
+                    auto_disabled = (COALESCE(s.consecutive_failures, 0) + 1 >= :threshold),
+                    auto_disabled_at = CASE
+                        WHEN COALESCE(s.consecutive_failures, 0) + 1 >= :threshold THEN NOW()
+                        ELSE s.auto_disabled_at END,
+                    status = CASE
+                        WHEN COALESCE(s.consecutive_failures, 0) + 1 >= :threshold THEN 'suspended'
+                        ELSE s.status END,
+                    updated_at = NOW()
+                FROM external_services.cds_hooks AS ch
+                WHERE ch.service_id = s.id AND ch.hook_service_id = :sid
+                RETURNING s.consecutive_failures, s.auto_disabled
+            """), {"err": error_message, "threshold": self.failure_threshold, "sid": service_id})).first()
             await self.db.commit()
 
-            if auto_disabled:
+            if row is None:
+                logger.warning(f"  Service {service_id} not found in external_services registry")
+            elif row.auto_disabled:
                 logger.error(
-                    f"  🚨 Service {service_id} auto-disabled after {new_failure_count} consecutive failures"
+                    f"  🚨 Service {service_id} auto-disabled after {row.consecutive_failures} consecutive failures"
                 )
             else:
                 logger.warning(
-                    f"  Failure count for {service_id}: {new_failure_count}/{self.failure_threshold}"
+                    f"  Failure count for {service_id}: {row.consecutive_failures}/{self.failure_threshold}"
                 )
 
         except Exception as e:
@@ -293,18 +290,17 @@ class RemoteServiceProvider(BaseServiceProvider):
             return
 
         try:
-            from sqlalchemy import update
-            from api.external_services.models import ExternalService
+            from sqlalchemy import text
 
-            await self.db.execute(
-                update(ExternalService)
-                .where(ExternalService.service_id == service_id)
-                .values(
-                    consecutive_failures=0,
-                    last_failure_at=None,
-                    last_error_message=None
-                )
-            )
+            await self.db.execute(text("""
+                UPDATE external_services.services AS s
+                SET consecutive_failures = 0,
+                    last_failure_at = NULL,
+                    last_error_message = NULL,
+                    updated_at = NOW()
+                FROM external_services.cds_hooks AS ch
+                WHERE ch.service_id = s.id AND ch.hook_service_id = :sid
+            """), {"sid": service_id})
             await self.db.commit()
 
             logger.debug(f"  Reset failure count for {service_id}")

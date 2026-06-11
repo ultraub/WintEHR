@@ -231,7 +231,7 @@ class OverrideReason(BaseModel):
 
 class Card(BaseModel):
     """CDS Hook card - CDS Hooks 2.0"""
-    uuid: str = Field(..., description="Card UUID (required in 2.0)")
+    uuid: Optional[str] = Field(None, description="Card UUID (optional per the CDS Hooks spec; auto-generated for external cards that omit it)")
     summary: str = Field(..., max_length=140, description="Brief summary")
     indicator: IndicatorType = Field(..., description="Urgency indicator")
     source: Source = Field(..., description="Source information")
@@ -244,7 +244,9 @@ class Card(BaseModel):
     @field_validator('uuid')
     @classmethod
     def validate_uuid(cls, v):
-        """Validate UUID format"""
+        """Validate UUID format when provided. uuid is optional per the spec."""
+        if v is None:
+            return v
         import uuid
         try:
             uuid.UUID(v)
