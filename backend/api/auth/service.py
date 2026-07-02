@@ -9,7 +9,7 @@ from fastapi import Depends, HTTPException, status, Header, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import get_db_session
+from database import get_db_session, get_db_context
 from .config import JWT_ENABLED, TRAINING_USERS, TRAINING_PASSWORD, JWT_ACCESS_TOKEN_EXPIRE_DELTA
 from .jwt_handler import create_access_token, verify_token, verify_password
 from .models import User, TokenResponse, SimpleAuthResponse
@@ -230,10 +230,9 @@ async def get_current_user(
             return user
 
     # Fall back to legacy auth service
-    db = await get_db_session().__anext__()
-    auth_service = AuthService(db)
-
-    user = await auth_service.get_current_user_from_token(token)
+    async with get_db_context() as db:
+        auth_service = AuthService(db)
+        user = await auth_service.get_current_user_from_token(token)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -42,7 +42,7 @@ Backend and HAPI both run against the same Postgres; Redis caches sessions.
 A single `docker-compose.yml` (profiles `dev` / `prod`) orchestrates `hapi-fhir`,
 `postgres`, `redis`, `backend-dev|prod`, `frontend-dev|prod`, `nginx`.
 
-- **HAPI FHIR** (`hapiproject/hapi:v8.6.0-1`, built with a local overlay in
+- **HAPI FHIR** (`hapiproject/hapi:v8.8.0-1`, built with a local overlay in
   `deploy/hapi-overlay/`) stores all FHIR resources in `hfj_*` tables.
 - **Backend** adds business logic, then delegates storage to HAPI.
 - **PostgreSQL** holds HAPI's `hfj_*` tables plus custom schemas for auth, CDS
@@ -113,7 +113,7 @@ module's deltas on top of this file.
 
 ## Tech stack
 
-- **Backend**: FastAPI (Python 3.9+), HAPI FHIR JPA v8.6.0-1, PostgreSQL 15 with
+- **Backend**: FastAPI (Python 3.9+), HAPI FHIR JPA v8.8.0-1, PostgreSQL 15 with
   async SQLAlchemy, Redis 7, Pydantic V2, pytest.
 - **Frontend**: React 18, MUI v5, React Router v6, Context API, CRA + CRACO.
 

@@ -225,49 +225,49 @@ export const PRESENTATION_MODES = {
 export const DEFAULT_OVERRIDE_REASONS = [
   {
     code: 'patient-preference',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Patient preference or contraindication',
     category: 'clinical'
   },
   {
     code: 'clinical-judgment',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Clinical judgment based on patient context',
     category: 'clinical'
   },
   {
     code: 'alternative-treatment',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Alternative treatment selected',
     category: 'clinical'
   },
   {
     code: 'risk-benefit',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Risk-benefit analysis favors override',
     category: 'clinical'
   },
   {
     code: 'false-positive',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Alert appears to be false positive',
     category: 'system'
   },
   {
     code: 'not-applicable',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Alert not applicable to this patient',
     category: 'system'
   },
   {
     code: 'emergency',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Emergency situation requires override',
     category: 'clinical'
   },
   {
     code: 'other',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Other reason (see comments)',
     category: 'other'
   }

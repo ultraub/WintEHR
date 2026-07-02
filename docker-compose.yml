@@ -60,7 +60,7 @@ x-hapi-fhir-common: &hapi-fhir-common
   # Custom HAPI build that adds POST /admin/cr/flush-caches for clearing
   # the cqf-fhir-cr in-memory caches when a student edits a ValueSet.
   # See deploy/hapi-overlay/ for the Dockerfile + Java source. The base
-  # is hapiproject/hapi:v8.6.0-1 — we pin the same upstream tag via
+  # is hapiproject/hapi:v8.8.0-1 — we pin the same upstream tag via
   # the HAPI_VERSION build arg so behavior matches the official image
   # except for our admin endpoint.
   build:
