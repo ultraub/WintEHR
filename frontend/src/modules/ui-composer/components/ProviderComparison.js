@@ -28,6 +28,7 @@ import {
   Error as ErrorIcon,
   Speed as SpeedIcon
 } from '@mui/icons-material';
+import api from '../../../services/api';
 
 const PROVIDERS = {
   anthropic: { name: 'Claude', color: '#8B5CF6' },
@@ -49,9 +50,8 @@ const ProviderComparison = ({ request, context, onProviderSelect }) => {
 
   const checkProviderAvailability = async () => {
     try {
-      const response = await fetch('/api/ui-composer/providers/status');
-      const data = await response.json();
-      setAvailableProviders(data);
+      const response = await api.get('/api/ui-composer/providers/status');
+      setAvailableProviders(response.data);
     } catch (err) {
       setError('Failed to check provider availability');
     }
@@ -70,18 +70,13 @@ const ProviderComparison = ({ request, context, onProviderSelect }) => {
     setError(null);
     
     try {
-      const response = await fetch('/api/ui-composer/compare', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          request,
-          context,
-          providers: selectedProviders
-        })
+      const response = await api.post('/api/ui-composer/compare', {
+        request,
+        context,
+        providers: selectedProviders
       });
-      
-      const data = await response.json();
-      setComparisonResults(data);
+
+      setComparisonResults(response.data);
     } catch (err) {
       setError('Comparison failed: ' + err.message);
     } finally {

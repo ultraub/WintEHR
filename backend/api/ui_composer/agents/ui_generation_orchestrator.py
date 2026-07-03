@@ -3,6 +3,7 @@ UI Generation Orchestrator
 Main orchestrator that coordinates the entire query-driven UI generation pipeline
 """
 
+import os
 import logging
 import asyncio
 from typing import Dict, Any, Optional
@@ -19,11 +20,11 @@ logger = logging.getLogger(__name__)
 class UIGenerationOrchestrator:
     """Orchestrates the complete UI generation pipeline from query to component"""
     
-    def __init__(self, base_url: str = "http://localhost:8000/fhir/R4"):
-        self.base_url = base_url
+    def __init__(self, base_url: Optional[str] = None):
+        self.base_url = base_url or f"{os.getenv('BACKEND_BASE_URL', 'http://localhost:8000')}/fhir/R4"
         self.query_planner = FHIRQueryPlannerAgent()
         self.query_builder = FHIRQueryBuilder()
-        self.query_orchestrator = QueryOrchestrator(base_url)
+        self.query_orchestrator = QueryOrchestrator(self.base_url)
         self.relationship_mapper = DataRelationshipMapper()
         self.component_generator = QueryDrivenGenerator()
     
