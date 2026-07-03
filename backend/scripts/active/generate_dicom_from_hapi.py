@@ -24,6 +24,11 @@ import httpx
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+# Make the backend package importable when run as a script (scripts/active/ ->
+# backend/) so the FHIR<->DICOM UID conversion is shared, not copy-pasted.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from api.dicom.uid_utils import dicom_uid_from_fhir_identifier  # noqa: E402
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -147,14 +152,18 @@ class HAPIFHIRDicomGenerator:
         patient_name = self.get_patient_name(patient_ref)
         patient_id = patient_ref.replace('Patient/', '').split('?')[0]
 
-        # Get study metadata. FHIR ImagingStudy identifiers express the DICOM
-        # StudyInstanceUID as urn:oid:<oid>; strip the prefix so the DICOM tag
-        # holds a valid bare OID (a urn:oid: value violates the UI VR and is
-        # rejected on STOW into a PACS such as dcm4chee).
-        raw_study_uid = study.get('identifier', [{}])[0].get('value', '') or ''
-        if raw_study_uid.startswith('urn:oid:'):
-            raw_study_uid = raw_study_uid[len('urn:oid:'):]
-        study_uid = raw_study_uid or generate_uid()
+        # Get study metadata. The HL7 DICOM<->FHIR mapping expresses the
+        # StudyInstanceUID as urn:oid:<uid> in ImagingStudy.identifier; recover
+        # the bare UID for the DICOM tag (the UI VR forbids the urn: prefix).
+        # The UID itself is unchanged — see api/dicom/uid_utils.py.
+        study_uid = dicom_uid_from_fhir_identifier(
+            study.get('identifier', [{}])[0].get('value', ''))
+        if not study_uid:
+            study_uid = generate_uid()
+            logger.warning(
+                "ImagingStudy %s has no DICOM UID identifier — minting new "
+                "StudyInstanceUID %s (it will not match the FHIR resource)",
+                study.get('id', '?'), study_uid)
         study_date = study.get('started', datetime.now().isoformat())[:10].replace('-', '')
         study_time = datetime.now().strftime('%H%M%S')
         description = study.get('description', 'Medical Imaging Study')

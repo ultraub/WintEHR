@@ -64,7 +64,7 @@ Exception — terminology load: `download_umls.py`, `extract_vocabularies.py`,
 |---|---|---|
 | `load_cds_services_to_hapi.py` | Converts built-in CDS services to FHIR `PlanDefinition`s, posts to HAPI | yes |
 | `generate_dicom_from_hapi.py` | Fetches `ImagingStudy` from HAPI (paginated), generates multi-slice DICOM into `/app/data/generated_dicoms/` | yes |
-| `stow_dicom_to_dcm4chee.py` | STOWs generated DICOM into the dcm4chee VNA (normalizes `urn:oid:` study UID); the viewer proxies to dcm4chee, so without this the Imaging tab shows no images | yes |
+| `stow_dicom_to_dcm4chee.py` | STOWs generated DICOM into the dcm4chee VNA byte-identical (repairs, with a logged warning, legacy files whose StudyInstanceUID still carries FHIR's `urn:oid:` encoding — see `api/dicom/uid_utils.py`); the viewer proxies to dcm4chee, so without this the Imaging tab shows no images | yes |
 | `create_dicom_endpoints.py` | Scans generated DICOM dirs, creates FHIR `Endpoint`s, links `ImagingStudy` | yes |
 | `create_demo_practitioners.py` | Creates `Practitioner` resources for demo/nurse/pharmacist/admin | yes |
 | `build_terminology_index.py` | Builds local SQLite terminology index for `/api/catalogs/*` autocomplete | yes (terminology phase) |

@@ -7,9 +7,13 @@ a DICOMweb server (QIDO/WADO). `generate_dicom_from_hapi.py` only writes .dcm
 files to /app/data/generated_dicoms/ — it does not load them into the PACS, so
 without this step the Imaging tab lists studies but renders no images.
 
-This script uploads every generated study into dcm4chee via STOW-RS, normalizing
-the StudyInstanceUID to a bare OID (FHIR ImagingStudy identifiers carry it as
-urn:oid:<oid>, which is not a valid DICOM UI value). STOW is idempotent — dcm4chee
+This script uploads every generated study into dcm4chee via STOW-RS. Files are
+uploaded byte-identical, with one exception: files written by the pre-fix
+generator carry FHIR's urn:oid: URN encoding inside the StudyInstanceUID tag,
+which the DICOM UI VR forbids. Those legacy files are repaired in flight —
+same UID, minus the URN prefix — and each repair is logged so the mutation is
+visible (see api/dicom/uid_utils.py for the encoding rationale). Freshly
+generated files are never modified. STOW is idempotent — dcm4chee
 de-duplicates by SOPInstanceUID — so re-running is safe.
 
 Usage:
@@ -28,8 +32,14 @@ import sys
 import uuid
 import warnings
 from io import BytesIO
+from pathlib import Path
 
 import requests
+
+# Make the backend package importable when run as a script (scripts/active/ ->
+# backend/) so the FHIR<->DICOM UID conversion is shared, not copy-pasted.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from api.dicom.uid_utils import dicom_uid_from_fhir_identifier  # noqa: E402
 
 warnings.filterwarnings("ignore")
 
@@ -44,31 +54,44 @@ except ImportError:
     DICOM_AVAILABLE = False
 
 
-def normalize_uid(value):
-    """Strip a urn:oid: prefix so the value is a bare DICOM OID."""
-    value = str(value or "").strip()
-    return value[len("urn:oid:"):] if value.startswith("urn:oid:") else value
-
-
 def stow_url_from_qido(qido_url):
     """Derive the STOW-RS studies endpoint from the configured QIDO base."""
     return qido_url.rstrip("/") + "/studies"
 
 
 def stow_study(study_dir, stow_url, timeout=120):
-    """STOW every instance in a study directory as one multipart/related POST."""
+    """STOW every instance in a study directory as one multipart/related POST.
+
+    Files upload byte-identical. The sole exception is the legacy repair: a
+    StudyInstanceUID tag still carrying FHIR's urn:oid: prefix (written by the
+    pre-fix generator, invalid per the UI VR) is rewritten to the bare UID —
+    the identical identifier without the URN encoding — and the repair is
+    logged per study.
+    """
     files = sorted(glob.glob(os.path.join(study_dir, "*", "*.dcm")))
     if not files:
         return None, 0, "no .dcm files"
 
-    parts, study_uid = [], None
+    parts, study_uid, repaired = [], None, 0
     for path in files:
-        ds = pydicom.dcmread(path, force=True)
-        ds.StudyInstanceUID = normalize_uid(ds.StudyInstanceUID)
-        study_uid = ds.StudyInstanceUID
-        buf = BytesIO()
-        ds.save_as(buf, write_like_original=False)
-        parts.append(buf.getvalue())
+        with open(path, "rb") as f:
+            raw = f.read()
+        ds = pydicom.dcmread(BytesIO(raw), force=True)
+        bare_uid = dicom_uid_from_fhir_identifier(ds.StudyInstanceUID)
+        if bare_uid != str(ds.StudyInstanceUID):
+            ds.StudyInstanceUID = bare_uid
+            buf = BytesIO()
+            ds.save_as(buf, write_like_original=False)
+            raw = buf.getvalue()
+            repaired += 1
+        study_uid = bare_uid
+        parts.append(raw)
+
+    if repaired:
+        logger.warning(
+            "Repaired legacy urn:oid:-prefixed StudyInstanceUID in %d/%d "
+            "files under %s (UID value unchanged: %s)",
+            repaired, len(files), os.path.basename(study_dir), study_uid)
 
     boundary = "DCMBOUND" + uuid.uuid4().hex
     body = b""
