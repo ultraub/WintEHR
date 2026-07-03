@@ -136,7 +136,7 @@ class MedicationListManagementService {
       this.notifyListUpdated(patientId, this.LIST_TYPES.ACTIVE_PRESCRIPTIONS, 'add', medicationRequest);
 
     } catch (error) {
-      // Error handling for prescription workflow
+      console.error('medicationListManagementService: new-prescription workflow failed:', error);
     }
   }
 
@@ -170,7 +170,7 @@ class MedicationListManagementService {
       }
 
     } catch (error) {
-      // Error handling for status update
+      console.error('medicationListManagementService: prescription status update failed:', error);
     }
   }
 
@@ -511,7 +511,7 @@ class MedicationListManagementService {
         });
 
       } catch (error) {
-        // Skip invalid medication entry
+        console.warn('medicationListManagementService: skipping unreadable medication list entry:', error);
       }
     }
 

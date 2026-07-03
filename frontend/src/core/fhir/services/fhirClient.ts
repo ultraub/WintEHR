@@ -314,7 +314,7 @@ class FHIRClient {
           try {
             return await interceptor(error);
           } catch (e) {
-            // Continue to next interceptor
+            console.warn('fhirClient: error interceptor threw, continuing to next interceptor:', e);
           }
         }
 
@@ -743,7 +743,7 @@ class FHIRClient {
           await this.search(request.resourceType as any, request.params);
         }
       } catch (error) {
-        // Prefetch failed for resource type
+        console.warn(`fhirClient: prefetch failed for ${request.resourceType}:`, error);
       }
     });
 
@@ -1793,7 +1793,7 @@ class FHIRClient {
           });
         }
       } catch (error) {
-        // Error searching for critical values
+        console.error('fhirClient: critical-value search failed for a definition:', error);
       }
     }
 
