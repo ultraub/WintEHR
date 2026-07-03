@@ -117,7 +117,6 @@ resource-created / updated / deleted / clinical-event messages.
 | Endpoint 404s | Re-derive resolved URL: router `APIRouter(...)` line + `routers/__init__.py` registration |
 | New router unreachable | Not added to `register_all_routers` |
 | A whole domain's routes missing | Its `try/except` block in `routers/__init__.py` swallowed an import error — grep backend logs for `Failed to register` |
-| Endpoint returns mock data | Imported `get_db_session` from `api/dependencies.py` (yields `AsyncMock`) — use `from database import get_db_session` |
 | Import error `fhir.core.storage` / `FHIRStorageEngine` | Removed — use `HAPIFHIRClient` |
 | CDS code referencing `service_executor` / `rules_engine` | Removed in v3.1 — use `orchestrator/` + `conditions/` |
 
