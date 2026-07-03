@@ -1,7 +1,14 @@
 # WintEHR Automated One-Shot Production Deployment
 
 **Last Updated**: 2025-10-13
-**Status**: Production Ready
+**Status**: ⚠️ Historical design document
+
+> **⚠️ The tooling this document describes does not exist in the repo.**
+> `deploy-azure-production.sh` and `config.azure-prod.yaml` were removed /
+> never shipped. The actual deployment path is `./deploy.sh` (dev and
+> `--environment prod`) — see `docs/DEPLOYMENT.md` and
+> `docs/AZURE_DEPLOYMENT.md`. This file is kept as a design reference for the
+> wipe-and-redeploy workflow only.
 
 ---
 

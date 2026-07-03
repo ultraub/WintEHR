@@ -947,22 +947,17 @@ cp config.example.yaml config.yaml
 - **SSL**: Let's Encrypt automatic certificate
 - **Firewall**: Azure NSG with ports 80, 443, 22 open
 
-**Deployment**:
+**Deployment** (on the VM — see `docs/AZURE_DEPLOYMENT.md` for full setup):
 ```bash
-# One-command automated deployment
-cp config.azure-prod.yaml config.yaml
-# Edit: Set domain, Azure details
-./deploy-azure-production.sh --yes
+# Configure, then deploy the prod profile
+cp .env.example .env    # set DOMAIN, passwords, PATIENT_COUNT, RESTART_POLICY
+./deploy.sh --environment prod
 
 # What this does:
-# 1. Wipes server completely (fresh start)
-# 2. Clones latest code from GitHub
-# 3. Builds Docker images (backend + frontend)
-# 4. Deploys all services with health checks
-# 5. Generates 100+ synthetic patients with DICOM
-# 6. Obtains Let's Encrypt SSL certificate
-# 7. Configures nginx with HTTPS
-# 8. Verifies deployment success
+# 1. Builds Docker images (backend + frontend + HAPI overlay)
+# 2. Starts the prod compose profile (data tier not published to the host)
+# 3. Generates synthetic patients via Synthea and loads them into HAPI
+# 4. Configures nginx with HTTPS (Let's Encrypt via certbot)
 ```
 
 **Access**:

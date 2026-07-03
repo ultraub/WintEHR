@@ -10,6 +10,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Router groups whose registration failed at startup (import error inside the
+# try/except blocks below). Exposed via /health so a silently-skipped group
+# surfaces as more than 404s. Reset on each register_all_routers call.
+FAILED_ROUTER_GROUPS = []
+
 
 def register_all_routers(app: FastAPI) -> None:
     """
@@ -21,7 +26,8 @@ def register_all_routers(app: FastAPI) -> None:
     - Administrative Functions
     - Integration Services
     """
-    
+    FAILED_ROUTER_GROUPS.clear()
+
     # 1. Core FHIR APIs - HAPI FHIR Proxy
     # Proxy forwards /fhir/R4/* requests to HAPI FHIR JPA Server at http://hapi-fhir:8080
     try:
@@ -39,6 +45,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ FHIR utility routers registered")
     except Exception as e:
         logger.error(f"Failed to register FHIR routers: {e}")
+        FAILED_ROUTER_GROUPS.append("FHIR routers")
     
     # 2. Authentication & Authorization
     try:
@@ -47,6 +54,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Authentication router registered")
     except Exception as e:
         logger.error(f"Failed to register auth router: {e}")
+        FAILED_ROUTER_GROUPS.append("auth router")
 
     # 2b. SMART on FHIR Authorization
     try:
@@ -55,6 +63,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ SMART on FHIR router registered")
     except Exception as e:
         logger.error(f"Failed to register SMART router: {e}")
+        FAILED_ROUTER_GROUPS.append("SMART router")
 
     # 3. Clinical Workflows
     try:
@@ -86,6 +95,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Clinical workflow routers registered")
     except Exception as e:
         logger.error(f"Failed to register clinical routers: {e}")
+        FAILED_ROUTER_GROUPS.append("clinical routers")
     
     # 4. Clinical Canvas (AI-powered UI generation)
     try:
@@ -95,6 +105,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Clinical Canvas router registered")
     except Exception as e:
         logger.error(f"Failed to register Clinical Canvas router: {e}")
+        FAILED_ROUTER_GROUPS.append("Clinical Canvas router")
     
     # 5. Integration Services
     try:
@@ -124,6 +135,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Integration service routers registered")
     except Exception as e:
         logger.error(f"Failed to register integration routers: {e}")
+        FAILED_ROUTER_GROUPS.append("integration routers")
     
     # 6. Quality & Analytics
     try:
@@ -135,6 +147,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Quality & Analytics routers registered")
     except Exception as e:
         logger.error(f"Failed to register quality/analytics routers: {e}")
+        FAILED_ROUTER_GROUPS.append("quality/analytics routers")
 
     # 6b. Scheduling & Appointments
     try:
@@ -143,6 +156,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Scheduling router registered")
     except Exception as e:
         logger.error(f"Failed to register scheduling router: {e}")
+        FAILED_ROUTER_GROUPS.append("scheduling router")
 
     # 6c. Questionnaires & Forms
     try:
@@ -151,6 +165,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Questionnaires router registered")
     except Exception as e:
         logger.error(f"Failed to register questionnaires router: {e}")
+        FAILED_ROUTER_GROUPS.append("questionnaires router")
 
     # 7. Imaging & DICOM Services
     try:
@@ -162,6 +177,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Imaging routers registered")
     except Exception as e:
         logger.error(f"Failed to register imaging routers: {e}")
+        FAILED_ROUTER_GROUPS.append("imaging routers")
     
     # 8. Provider Directory
     try:
@@ -171,6 +187,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Provider directory router registered")
     except Exception as e:
         logger.error(f"Failed to register provider router: {e}")
+        FAILED_ROUTER_GROUPS.append("provider router")
     
     # 9. Monitoring & Performance
     try:
@@ -179,6 +196,7 @@ def register_all_routers(app: FastAPI) -> None:
         logger.info("✓ Monitoring router registered")
     except Exception as e:
         logger.error(f"Failed to register monitoring router: {e}")
+        FAILED_ROUTER_GROUPS.append("monitoring router")
     
     # 10. Debug Tools (development only)
     try:
@@ -189,5 +207,6 @@ def register_all_routers(app: FastAPI) -> None:
             logger.info("✓ Debug router registered (DEBUG mode)")
     except Exception as e:
         logger.error(f"Failed to register debug router: {e}")
+        FAILED_ROUTER_GROUPS.append("debug router")
     
     logger.info("Router registration complete")
