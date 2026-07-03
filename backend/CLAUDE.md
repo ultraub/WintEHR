@@ -102,7 +102,7 @@ live in named schemas.
 | `auth.*` | Authentication |
 | `cds_hooks.*` | CDS Studio visual-builder configs + execution logs |
 | `dicom.*` | DICOM file metadata |
-| `audit.*` | Audit trail |
+| `audit.*` | Legacy audit-trail schema — **no writers remain**; audit events are FHIR `AuditEvent` resources in HAPI (`api/services/audit_event_service.py`) |
 
 ```sql
 -- Resource counts (the only correct way — there is no fhir.resources table)

@@ -25,6 +25,7 @@ import json
 
 from database import get_db_session
 from api.auth.service import get_current_user_or_demo
+from api.external_services.registration import insert_cds_hook_service_records
 from api.auth.models import User
 
 from .visual_service_config import (
@@ -1295,42 +1296,19 @@ async def register_external_service(
         → base_url: "https://sandbox-services.cds-hooks.org" (auto-derived)
     """
     try:
-        # Generate UUIDs for service records
-        service_uuid = str(uuid.uuid4())
-        cds_hook_uuid = str(uuid.uuid4())
-
-        # Insert into external_services.services table
-        service_insert = text("""
-            INSERT INTO external_services.services
-            (id, name, service_type, base_url, discovery_endpoint, auth_type, created_at)
-            VALUES (:id, :name, :service_type, :base_url, :discovery_endpoint, :auth_type, NOW())
-        """)
-
-        await db.execute(service_insert, {
-            "id": service_uuid,
-            "name": registration.title,
-            "service_type": "cds_hooks",
-            "base_url": registration.base_url,  # Auto-derived by Pydantic validator
-            "discovery_endpoint": f"{registration.base_url}/cds-services",
-            "auth_type": "none" if not registration.credentials_id else "bearer"
-        })
-
-        # Insert into external_services.cds_hooks table
-        cds_hook_insert = text("""
-            INSERT INTO external_services.cds_hooks
-            (id, service_id, hook_type, hook_service_id, title, description, prefetch_template, created_at)
-            VALUES (:id, :service_id, :hook_type, :hook_service_id, :title, :description, :prefetch_template, NOW())
-        """)
-
-        await db.execute(cds_hook_insert, {
-            "id": cds_hook_uuid,
-            "service_id": service_uuid,
-            "hook_type": registration.hook_type,
-            "hook_service_id": registration.service_id,
-            "title": registration.title,
-            "description": registration.description,
-            "prefetch_template": json.dumps(registration.prefetch_template) if registration.prefetch_template else None
-        })
+        # Both external_services rows via the shared helper (also sets
+        # status='active' — the raw insert here used to leave the schema
+        # default 'pending')
+        service_uuid, _ = await insert_cds_hook_service_records(
+            db,
+            name=registration.title,
+            base_url=registration.base_url,  # Auto-derived by Pydantic validator
+            hook_type=registration.hook_type,
+            hook_service_id=registration.service_id,
+            description=registration.description,
+            prefetch_template=registration.prefetch_template,
+            has_credentials=bool(registration.credentials_id),
+        )
 
         await db.commit()
 
