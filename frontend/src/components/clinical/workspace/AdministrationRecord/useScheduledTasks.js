@@ -25,6 +25,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { buildUrl } from '../../../../config/apiConfig';
+import api from '../../../../services/api';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 
@@ -63,21 +64,17 @@ export function useScheduledTasks({ patientId, windowStart, windowEnd }) {
     setLoading(true);
     setError(null);
     try {
-      const url = new URL(
-        buildUrl('backend', '/api/clinical/administration/scheduled-tasks'),
-        window.location.origin,
-      );
-      url.searchParams.set('patient_id', patientId);
-      url.searchParams.set('window_start', windowStart.toISOString());
-      url.searchParams.set('window_end', windowEnd.toISOString());
-      const res = await fetch(url.toString(), { signal: controller.signal });
-      if (!res.ok) {
-        throw new Error(`MAR fetch failed: ${res.status} ${res.statusText}`);
-      }
-      const payload = await res.json();
-      setData(payload);
+      const res = await api.get(buildUrl('backend', '/api/clinical/administration/scheduled-tasks'), {
+        params: {
+          patient_id: patientId,
+          window_start: windowStart.toISOString(),
+          window_end: windowEnd.toISOString(),
+        },
+        signal: controller.signal,
+      });
+      setData(res.data);
     } catch (err) {
-      if (err.name === 'AbortError') return;
+      if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') return;
       console.error('useScheduledTasks: fetch failed', err);
       setError(err);
     } finally {

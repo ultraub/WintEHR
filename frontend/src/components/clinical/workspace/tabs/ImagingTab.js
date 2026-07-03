@@ -83,6 +83,7 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import websocketService from '../../../../services/websocket';
 import { getDicomQidoUrl, getDicomWadoUrl } from '../../../../config/apiConfig';
+import api from '../../../../services/api';
 import {
   ClinicalResourceCard,
   ClinicalSummaryCard,
@@ -1015,8 +1016,8 @@ const ImagingTab = ({
       }
 
       // Download study as ZIP
-      const response = await fetch(`/dicom/studies/${studyDir}/download`);
-      const blob = await response.blob();
+      const response = await api.get(`/dicom/studies/${studyDir}/download`, { responseType: 'blob' });
+      const blob = response.data;
 
       // Create download link
       const url = window.URL.createObjectURL(blob);

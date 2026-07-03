@@ -36,6 +36,7 @@ import {
 } from '@mui/material';
 
 import { buildUrl } from '../../../../config/apiConfig';
+import api from '../../../../services/api';
 
 const HOLD_REASONS = [
   'NPO for procedure',
@@ -138,15 +139,9 @@ const QuickAdminPopover = ({
         ...(reason ? { reason } : {}),
         ...(notes ? { notes } : {}),
       };
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+      await api.post(url, body).catch((err) => {
+        throw new Error(err.response?.data?.detail || err.message);
       });
-      if (!res.ok) {
-        const errPayload = await res.json().catch(() => ({}));
-        throw new Error(errPayload.detail || `Server returned ${res.status}`);
-      }
       onSubmitDone?.();
       onClose?.();
     } catch (err) {
