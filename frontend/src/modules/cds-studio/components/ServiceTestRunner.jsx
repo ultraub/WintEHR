@@ -24,6 +24,7 @@ import {
   ExpandMore as ExpandIcon
 } from '@mui/icons-material';
 import cdsStudioApi from '../services/cdsStudioApi';
+import { fhirClient } from '../../../core/fhir/services/fhirClient';
 
 const ServiceTestRunner = ({ serviceId }) => {
   const [patients, setPatients] = useState([]);
@@ -42,17 +43,13 @@ const ServiceTestRunner = ({ serviceId }) => {
   const loadPatients = async () => {
     try {
       setLoadingPatients(true);
-      // Fetch patients from FHIR server
-      const response = await fetch('/fhir/Patient?_count=50');
-      const bundle = await response.json();
-
-      if (bundle.entry) {
-        const patientList = bundle.entry.map(entry => ({
-          id: entry.resource.id,
-          display: formatPatientName(entry.resource)
-        }));
-        setPatients(patientList);
-      }
+      // Fetch patients via the canonical FHIR client
+      const result = await fhirClient.search('Patient', { _count: 50 });
+      const patientList = (result.resources || []).map(patient => ({
+        id: patient.id,
+        display: formatPatientName(patient)
+      }));
+      setPatients(patientList);
     } catch (err) {
       console.error('Failed to load patients:', err);
       setError('Failed to load patient list');

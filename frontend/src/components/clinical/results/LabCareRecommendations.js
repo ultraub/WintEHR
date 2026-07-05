@@ -89,7 +89,7 @@ const LabCareRecommendations = ({ patientId, observations, carePlanId, onRecomme
       );
       setRecommendations(recs);
     } catch (error) {
-      // Error handled silently, component shows loading state
+      console.error('LabCareRecommendations: failed to generate care recommendations:', error);
     } finally {
       setLoading(false);
     }
@@ -101,9 +101,9 @@ const LabCareRecommendations = ({ patientId, observations, carePlanId, onRecomme
         patient: patientId,
         status: 'active'
       });
-      setCareTeams(response.entry?.map(e => e.resource) || []);
+      setCareTeams(response.resources || []);
     } catch (error) {
-      // Error handled silently, care teams remain empty
+      console.error('LabCareRecommendations: failed to load care teams:', error);
     }
   };
 
@@ -168,7 +168,7 @@ const LabCareRecommendations = ({ patientId, observations, carePlanId, onRecomme
       setRecommendations(prev => prev.filter(r => r !== recommendation));
       
     } catch (error) {
-      // Error handled silently, user sees button return to normal state
+      console.error('LabCareRecommendations: failed to apply recommendation:', error);
     } finally {
       setApplyingRecommendation(null);
     }
@@ -312,7 +312,7 @@ const LabCareRecommendations = ({ patientId, observations, carePlanId, onRecomme
         }]
       );
     } catch (error) {
-      // Error handled silently, care plan update fails gracefully
+      console.error('LabCareRecommendations: failed to update care plan:', error);
     }
   };
 
@@ -345,7 +345,7 @@ const LabCareRecommendations = ({ patientId, observations, carePlanId, onRecomme
       setSelectedRecommendation(null);
       
     } catch (error) {
-      // Error handled silently, dialog remains open for retry
+      console.error('LabCareRecommendations: dialog action failed (dialog stays open for retry):', error);
     }
   };
 
