@@ -108,10 +108,14 @@ class WebSocketService {
       
       // Send any queued messages
       this.flushMessageQueue();
-      
+
       // Start heartbeat
       this.startHeartbeat();
-      
+
+      // Re-establish server-side subscriptions — they don't survive a new
+      // socket, and without this a reconnect permanently kills live updates
+      this.resubscribeAll();
+
       // Notify connection listeners
       this.notifyConnectionListeners('connected');
     };
@@ -172,17 +176,23 @@ class WebSocketService {
         // Subscription confirmed
         break;
       case 'update':
-        // Handle FHIR resource updates from other users
+        // FHIR resource updates broadcast by the backend. The server sends
+        // { action, resource_type, resource_id, patient_id, resource };
+        // clinical events carry event_type inside resource. Derive the local
+        // event name from whichever is present.
         if (messageData) {
-          // Resource update received
-          const { event_type, patient_id, resource_type, resource } = messageData;
-          
-          // Dispatch as a clinical event
-          if (event_type && resource) {
-            this.dispatch(event_type, {
+          const { action, event_type, patient_id, resource_type, resource_id, resource } = messageData;
+          const derivedType = event_type
+            || resource?.event_type
+            || (['created', 'updated', 'deleted'].includes(action) ? `resource.${action}` : null);
+
+          if (derivedType) {
+            this.dispatch(derivedType, {
               patientId: patient_id,
-              resource: resource,
+              resourceId: resource_id,
               resourceType: resource_type,
+              resource: resource,
+              details: resource?.details,
               fromWebSocket: true // Mark as coming from WebSocket
             });
           }
@@ -207,7 +217,9 @@ class WebSocketService {
     
     const subscriptionId = `patient-${patientId}-${Date.now()}`;
     const message = {
-      type: 'subscription',
+      // NB: the server's message type is 'subscribe' — 'subscription' lands
+      // in its unknown-type branch and silently registers nothing
+      type: 'subscribe',
       data: {
         subscription_id: subscriptionId,
         patient_ids: [patientId],
@@ -263,7 +275,7 @@ class WebSocketService {
     
     const subscriptionId = `room-${roomName}-${Date.now()}`;
     const message = {
-      type: 'subscription',
+      type: 'subscribe',
       data: {
         subscription_id: subscriptionId,
         room: roomName
@@ -303,6 +315,25 @@ class WebSocketService {
     if (this.activeSubscriptions) {
       this.activeSubscriptions.delete(subscriptionId);
     }
+  }
+
+  /**
+   * Re-send every active server-side subscription (after (re)connect)
+   */
+  resubscribeAll() {
+    if (!this.activeSubscriptions || this.activeSubscriptions.size === 0) {
+      return;
+    }
+    this.activeSubscriptions.forEach((info, subscriptionId) => {
+      const data = info.room
+        ? { subscription_id: subscriptionId, room: info.room }
+        : {
+            subscription_id: subscriptionId,
+            patient_ids: [info.patientId],
+            resource_types: info.resourceTypes || []
+          };
+      this.send({ type: 'subscribe', data });
+    });
   }
 
   /**
@@ -451,6 +482,10 @@ class WebSocketService {
       this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
       this.maxReconnectDelay
     );
+
+    // Let the status chip show "reconnecting" instead of flapping
+    // between connected/disconnected
+    this.notifyConnectionListeners('reconnecting');
 
     this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null;

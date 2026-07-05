@@ -11,15 +11,79 @@ for R4 compliance.
 
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import StreamingResponse
+import asyncio
 import httpx
 import logging
 import os
 import json
 from typing import Optional, List, Dict, Any
 
+from api.websocket.fhir_notifications import notification_service
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _extract_patient_id(resource: Dict[str, Any]) -> Optional[str]:
+    """Best-effort patient id from a FHIR resource (subject/patient reference)."""
+    if resource.get("resourceType") == "Patient":
+        return resource.get("id")
+    for field in ("subject", "patient"):
+        ref = (resource.get(field) or {}).get("reference", "")
+        if ref.startswith("Patient/"):
+            return ref.split("/", 1)[1]
+    return None
+
+
+def _notify_fhir_write(method: str, path: str, response: httpx.Response) -> None:
+    """Schedule a WebSocket broadcast for a successful write through the proxy.
+
+    This is the single funnel for frontend-originated FHIR writes (order
+    signing, dialog saves, ...), so hooking it here gives connected clients
+    live resource updates without per-caller wiring. Only plain `{Type}` /
+    `{Type}/{id}` paths broadcast — searches, operations ($...), history and
+    Bundle posts are skipped. Fire-and-forget: never blocks or fails the
+    proxied response.
+    """
+    try:
+        segments = [s for s in path.split("/") if s]
+        if not segments or len(segments) > 2 or "$" in path:
+            return
+        resource_type = segments[0]
+        if not resource_type[:1].isupper() or resource_type == "Bundle":
+            return
+
+        action = {"POST": "created", "PUT": "updated", "PATCH": "updated", "DELETE": "deleted"}[method]
+        resource_id = segments[1] if len(segments) == 2 else None
+        resource_data: Dict[str, Any] = {}
+        patient_id = None
+
+        if action != "deleted":
+            try:
+                parsed = response.json()
+            except Exception:
+                parsed = None
+            if isinstance(parsed, dict) and parsed.get("resourceType") == resource_type:
+                resource_data = parsed
+                resource_id = parsed.get("id") or resource_id
+                patient_id = _extract_patient_id(parsed)
+
+        if not resource_id:
+            return
+
+        if action == "created":
+            coro = notification_service.notify_resource_created(
+                resource_type, resource_id, resource_data, patient_id=patient_id)
+        elif action == "updated":
+            coro = notification_service.notify_resource_updated(
+                resource_type, resource_id, resource_data, patient_id=patient_id)
+        else:
+            coro = notification_service.notify_resource_deleted(
+                resource_type, resource_id, patient_id=patient_id)
+        asyncio.create_task(coro)
+    except Exception as exc:  # noqa: BLE001 — broadcasting must never break the proxy
+        logger.warning(f"FHIR write broadcast skipped: {exc}")
 
 
 def create_operation_outcome(
@@ -144,6 +208,11 @@ async def proxy_to_hapi_fhir(path: str, request: Request):
                 headers=headers,
                 content=body
             )
+
+            # Broadcast successful writes so connected clients see live
+            # updates (fire-and-forget; see _notify_fhir_write)
+            if request.method in ("POST", "PUT", "PATCH", "DELETE") and response.status_code < 300:
+                _notify_fhir_write(request.method, path, response)
 
             # Prepare response headers — strip hop-by-hop and encoding headers
             # that conflict when nginx proxies to us (causes "Content-Length and

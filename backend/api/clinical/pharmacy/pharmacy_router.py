@@ -12,6 +12,7 @@ import logging
 from services.hapi_fhir_client import HAPIFHIRClient
 from pydantic import BaseModel
 from api.cds_hooks.constants import ExtensionURLs
+from api.websocket.fhir_notifications import notification_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/clinical/pharmacy", tags=["pharmacy"])
@@ -263,6 +264,17 @@ async def dispense_medication(dispense_request: MedicationDispenseRequest):
         med_request["status"] = "completed"
         await hapi_client.update("MedicationRequest", dispense_request.medication_request_id, med_request)
 
+        # Broadcast so open pharmacy queues refresh live (failure-proof —
+        # notification_service never raises into the write path)
+        patient_ref = (med_request.get("subject") or {}).get("reference", "")
+        await notification_service.notify_clinical_event(
+            event_type="medication.dispensed",
+            resource_type="MedicationDispense",
+            resource_id=created_dispense.get("id"),
+            patient_id=patient_ref.replace("Patient/", "") or None,
+            details={"medication_request_id": dispense_request.medication_request_id},
+        )
+
         return {
             "message": "Medication dispensed successfully",
             "dispense_id": created_dispense.get("id"),
@@ -358,6 +370,16 @@ async def update_pharmacy_status(
 
         # Update the resource in HAPI FHIR
         await hapi_client.update("MedicationRequest", medication_request_id, med_request)
+
+        # Broadcast the status change (failure-proof)
+        patient_ref = (med_request.get("subject") or {}).get("reference", "")
+        await notification_service.notify_clinical_event(
+            event_type="medication.status.changed",
+            resource_type="MedicationRequest",
+            resource_id=medication_request_id,
+            patient_id=patient_ref.replace("Patient/", "") or None,
+            details={"status": status_update.status},
+        )
 
         return {
             "message": f"Pharmacy status updated to {status_update.status}",
