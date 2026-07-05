@@ -1,5 +1,12 @@
 # WintEHR Release Notes
 
+> **Historical note (July 2026):** v1.0.0 shipped with an in-house FHIR
+> storage engine. The platform has since migrated to a **HAPI FHIR JPA server**
+> as the FHIR store, with the FastAPI backend acting as an intelligent proxy —
+> the "FHIR Implementation" bullets below describe the retired engine, not the
+> current architecture. For the current design see `CLAUDE.md` and
+> `docs/SYSTEM_ARCHITECTURE.md`.
+
 ## Version 1.0.0 - Initial Release
 **Release Date:** August 6, 2025
 

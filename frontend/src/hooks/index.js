@@ -11,7 +11,6 @@
  * - cds: Clinical decision support hooks and actions
  * - search: Advanced search for orders and imaging
  * - ui: UI utilities, performance, navigation
- * - queries: React Query hooks for FHIR operations
  *
  * @module hooks
  *
@@ -22,9 +21,6 @@
  *
  * // Import from root (all hooks available)
  * import { usePatientData, useMedicationLists } from '@/hooks';
- *
- * // Import React Query hooks
- * import { useConditions, useCreateMedication } from '@/hooks/queries';
  */
 
 // ============================================================================
@@ -114,8 +110,3 @@ export {
   useStableReferences,
   useMigrations,
 } from './ui';
-
-// ============================================================================
-// React Query Hooks (re-export for convenience)
-// ============================================================================
-export * from './queries';

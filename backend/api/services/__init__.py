@@ -1,14 +1,11 @@
 """
 API Services Module
 
-Audit Services:
-- audit_service.py (database table approach) -> uses audit.events table
-- audit_event_service.py (FHIR resource approach) -> uses HAPI FHIR AuditEvent resources
+Audit: `audit_event_service.py` — writes FHIR R4 `AuditEvent` resources into
+HAPI. (The legacy `audit_service.py` SQL writer to `audit.events` was removed;
+the `audit.*` schema still exists in postgres-init but has no writers.)
 """
 
 from .audit_event_service import AuditEventService, AuditEventType
 
-# Legacy import for backward compatibility - will be removed after migration
-from .audit_service import AuditService
-
-__all__ = ['AuditEventService', 'AuditEventType', 'AuditService']
+__all__ = ['AuditEventService', 'AuditEventType']

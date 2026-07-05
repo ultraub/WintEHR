@@ -44,6 +44,7 @@ import {
 } from '@mui/material';
 
 import { buildUrl } from '../../../../../config/apiConfig';
+import api from '../../../../../services/api';
 import { useClinicalWorkflow } from '../../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../../constants/clinicalEvents';
 
@@ -203,19 +204,12 @@ const ImmunizationAdminDialog = ({
       ...(notDone ? { status_reason: statusReason } : {}),
       ...(notes ? { notes } : {}),
     };
-    const res = await fetch(
-      buildUrl('backend', '/api/clinical/administration/record/immunization'),
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
-    );
-    if (!res.ok) {
-      const payload = await res.json().catch(() => ({}));
-      throw new Error(payload.detail || `Server returned ${res.status}`);
-    }
-    const created = await res.json().catch(() => ({}));
+    const res = await api
+      .post(buildUrl('backend', '/api/clinical/administration/record/immunization'), body)
+      .catch((err) => {
+        throw new Error(err.response?.data?.detail || err.message);
+      });
+    const created = res.data ?? {};
     safePublish(CLINICAL_EVENTS.IMMUNIZATION_ADMINISTERED, {
       patientId,
       immunizationId: created.resource_id,

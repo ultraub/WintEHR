@@ -1229,21 +1229,25 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
       }));
     
     return {
+      // The card is titled "Active Problems" and its count is active-filtered —
+      // the list must be too. Copy before sorting: these arrays live in the
+      // shared FHIR cache and in-place sort mutates it.
       recentConditions: conditions
+        .filter(isConditionActive)
         .sort((a, b) => new Date(b.recordedDate || 0) - new Date(a.recordedDate || 0))
         .slice(0, 5),
-      
+
       recentMedications: medications
         .filter(isMedicationActive)
         .sort((a, b) => new Date(b.authoredOn || 0) - new Date(a.authoredOn || 0))
         .slice(0, 5),
-      
+
       recentLabs: observations
         .filter(isObservationLaboratory)
         .sort((a, b) => new Date(b.effectiveDateTime || b.issued || 0) - new Date(a.effectiveDateTime || a.issued || 0))
         .slice(0, 5),
-      
-      recentEncounters: encounters
+
+      recentEncounters: [...encounters]
         .sort((a, b) => new Date(b.period?.start || 0) - new Date(a.period?.start || 0))
         .slice(0, 5),
         
@@ -1599,7 +1603,11 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                   {recentLabs.length > 0 ? (
                     recentLabs.slice(0, density === 'compact' ? 3 : 5).map((lab) => {
                       const interpretation = getObservationInterpretation(lab);
-                      const interpCode = interpretation?.coding?.[0]?.code || interpretation;
+                      // interpretation is a CodeableConcept — extract a string
+                      // (rendering the object as a Chip label crashes React)
+                      const interpCode = typeof interpretation === 'string'
+                        ? interpretation
+                        : interpretation?.coding?.[0]?.code || interpretation?.text || null;
                       const isAbnormal = interpCode === 'H' || interpCode === 'L' || interpCode === 'HH' || interpCode === 'LL';
                       
                       return (
@@ -1628,9 +1636,9 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                                   {getResourceDisplayText(lab)}
                                 </Typography>
                                 {isAbnormal && (
-                                  <Chip 
-                                    label={interpretation} 
-                                    size="small" 
+                                  <Chip
+                                    label={interpCode}
+                                    size="small"
                                     color="error"
                                     sx={{ height: 16, fontSize: '0.7rem' }}
                                   />

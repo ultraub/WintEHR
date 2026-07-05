@@ -101,9 +101,12 @@ resource-created / updated / deleted / clinical-event messages.
 
 ## Cross-cutting services
 
-- `services/audit_service.py` — `AuditService` + `AuditEventType` constants.
-  Audit logging is a learning feature (event trail), **not** HIPAA PHI auditing —
-  this platform handles only synthetic Synthea data.
+- `services/audit_event_service.py` — `AuditEventService` + `AuditEventType`
+  constants; writes FHIR R4 `AuditEvent` resources into HAPI. (The legacy
+  SQL writer `audit_service.py` → `audit.events` was removed — that schema
+  has no writers now.) Audit logging is a learning feature (event trail),
+  **not** HIPAA PHI auditing — this platform handles only synthetic Synthea
+  data.
 - `services/notification_service.py` — critical-value, task, appointment, and
   medication notifications (wrapped for clinical use by
   `clinical/notifications_helper.py`).
@@ -117,7 +120,6 @@ resource-created / updated / deleted / clinical-event messages.
 | Endpoint 404s | Re-derive resolved URL: router `APIRouter(...)` line + `routers/__init__.py` registration |
 | New router unreachable | Not added to `register_all_routers` |
 | A whole domain's routes missing | Its `try/except` block in `routers/__init__.py` swallowed an import error — grep backend logs for `Failed to register` |
-| Endpoint returns mock data | Imported `get_db_session` from `api/dependencies.py` (yields `AsyncMock`) — use `from database import get_db_session` |
 | Import error `fhir.core.storage` / `FHIRStorageEngine` | Removed — use `HAPIFHIRClient` |
 | CDS code referencing `service_executor` / `rules_engine` | Removed in v3.1 — use `orchestrator/` + `conditions/` |
 

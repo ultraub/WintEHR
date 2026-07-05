@@ -1,15 +1,20 @@
 # WintEHR Testing Checklist
 
-**Version**: 1.1
-**Last Updated**: 2025-12-11
+**Version**: 1.2
+**Last Updated**: 2026-07-03
 **Purpose**: Comprehensive workflow verification for reviewers
 
 ---
 
 ## ⚠️ KNOWN ISSUES - READ BEFORE TESTING
 
-> **Important**: A comprehensive code verification has identified integration issues.
-> See `docs/WORKFLOW_VERIFICATION_REPORT.md` for full details.
+> **Important**: The bug findings below were produced by the v1.1 code
+> verification (2025-12-11; see `docs/WORKFLOW_VERIFICATION_REPORT.md`).
+> A v1.2 code-level review (2026-07-03) re-checked the four "critical" items
+> against the current tree — statuses updated below. The order workflow has
+> been substantially rebuilt since v1.1 (Order Composer + draft-order bundle,
+> #116/#139/#156), so per-item ORD-* annotations in section 3.2 are **stale**
+> until a fresh runtime verification pass is done.
 
 ### Test Status Summary
 
@@ -18,18 +23,26 @@
 | Authentication | ✅ Works | Demo mode only |
 | Patient Management | ✅ Works | May be slow |
 | Chart Review | ✅ Works | |
-| **Orders (CPOE)** | ❌ **BROKEN** | Drug safety checks fail silently |
-| Results | ⚠️ Partial | Critical values don't alert |
-| **Pharmacy** | ⚠️ Partial | Refills fail with 404 |
-| Imaging | ⚠️ Fragile | May fail on some studies |
-| CDS Hooks | ⚠️ Partial | Feedback not logged |
+| Orders (CPOE) | ⚠️ Re-verify | v1.1 findings predate the Order Composer rebuild — treat ORD-* notes as stale |
+| Results | ⚠️ Partial | Critical values don't alert (v1.1 finding, not re-verified) |
+| Pharmacy | ⚠️ Retest | Refill endpoints now exist (see PHR-1 below) — retest the UI flow |
+| Imaging | ⚠️ Fragile | May fail on some studies (IMG-3); IMG-1 is fixed |
+| CDS Hooks | ⚠️ Partial | Feedback not logged (v1.1 finding, not re-verified) |
 | FHIR Explorer | ✅ Works | |
 
-### Critical Bugs Affecting Tests
-1. **ORD-1**: Drug interaction endpoint wrong - safety checks always fail silently
-2. **ORD-2**: Orders bypass backend API - no audit, no safety logic
-3. **PHR-1**: Refill endpoints don't exist - 404 errors guaranteed
-4. **IMG-1**: Path traversal security vulnerability in DICOM service
+### Critical Bugs — status as of 2026-07-03 (code-level check)
+1. **ORD-1** (drug-interaction endpoint wrong): **stale** — written against the
+   pre-Order-Composer workflow; needs runtime re-verification.
+2. **ORD-2** (orders bypass backend API): **stale** — same; the ordering path
+   was rebuilt around the Order Composer since v1.1.
+3. **PHR-1** (refill endpoints don't exist): **fixed at the API level** —
+   `pharmacy_router.py` now implements `GET /refills`, `POST /refills/request`,
+   `POST /refills/{task_id}/approve`, `POST /refills/{task_id}/reject`.
+   The UI flow still needs a retest.
+4. **IMG-1** (path traversal in DICOM service): **fixed** — `validate_uid()`
+   in `api/dicom/dicom_service.py` rejects any character outside
+   digits/`.`/`:`/alpha, so `/`, `\`, and `..` segments cannot reach a path;
+   UIDs are only interpolated into remote WADO/QIDO URLs.
 
 ---
 
@@ -118,7 +131,10 @@ HAPI FHIR: http://localhost:8888/fhir
 
 ### 3.2 Orders Tab (CPOE)
 
-> ⚠️ **KNOWN ISSUES**: Orders workflow has critical integration bugs. See ORD-1 through ORD-10 in verification report.
+> ⚠️ **STALE FINDINGS**: The ORD-1 … ORD-10 annotations below date to v1.1
+> (2025-12) and predate the Order Composer rebuild (#116/#139/#156). Do not
+> assume the ❌ items still fail — re-verify against the current workflow and
+> update this section with what you find.
 
 #### Medication Orders
 - [ ] **Create medication order** - Click "New Medication Order"
@@ -208,7 +224,8 @@ HAPI FHIR: http://localhost:8888/fhir
 
 ### 3.4 Pharmacy Tab (Pharmacist Role)
 
-> ⚠️ **KNOWN ISSUES**: Pharmacy has incomplete implementation. Refill workflow will fail.
+> ℹ️ Refill endpoints were added since v1.1 (`/api/clinical/pharmacy/refills*`).
+> The refill items below need a fresh UI retest.
 
 - [ ] **View prescription queue** - Open Pharmacy tab
   - Expected: Pending prescriptions listed
@@ -222,19 +239,20 @@ HAPI FHIR: http://localhost:8888/fhir
   - Expected: Stock level displayed
 - [ ] **View pharmacy metrics** - Check dashboard
   - Expected: Turnaround times, volumes displayed
-- [ ] ❌ **Approve refill request** - Approve pending refill
+- [ ] ⚠️ **Approve refill request** - Approve pending refill
   - Expected: Refill approved, prescription renewed
-  - ❌ **WILL FAIL - PHR-1**: Refill endpoint doesn't exist - returns 404
-- [ ] ❌ **Reject refill request** - Reject pending refill
+  - ⚠️ **RETEST**: backend endpoint now exists (`POST /refills/{task_id}/approve`); v1.1's 404 should be resolved
+- [ ] ⚠️ **Reject refill request** - Reject pending refill
   - Expected: Refill rejected with reason
-  - ❌ **WILL FAIL - PHR-1**: Refill endpoint doesn't exist - returns 404
+  - ⚠️ **RETEST**: backend endpoint now exists (`POST /refills/{task_id}/reject`); v1.1's 404 should be resolved
 - [ ] ⚠️ **MAR tab** - Record medication administration
   - Expected: Administration recorded
   - ⚠️ **KNOWN BUG PHR-3**: No backend support - form does nothing
 
 ### 3.5 Imaging Tab
 
-> ⚠️ **SECURITY WARNING**: Path traversal vulnerability exists (IMG-1). Fix before production.
+> ℹ️ IMG-1 (path traversal) is fixed — `validate_uid()` blocks path
+> separators. IMG-3 (directory naming mismatch) may still affect some studies.
 
 - [ ] **View imaging studies** - Open Imaging tab
   - Expected: Available studies listed

@@ -8,6 +8,12 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '../../../../../test-utils/test-utils';
 import TaskPane from '../TaskPane';
+import api from '../../../../../services/api';
+
+jest.mock('../../../../../services/api', () => ({
+  __esModule: true,
+  default: { get: jest.fn(), post: jest.fn() },
+}));
 
 const tasksPayload = {
   patient_id: 'p1',
@@ -32,9 +38,7 @@ const tasksPayload = {
 };
 
 beforeEach(() => {
-  global.fetch = jest.fn(() =>
-    Promise.resolve({ ok: true, json: () => Promise.resolve(tasksPayload) }),
-  );
+  api.get.mockResolvedValue({ data: tasksPayload });
 });
 
 afterEach(() => {

@@ -20,7 +20,7 @@ import logging
 from database import get_db_session
 from api.auth.service import get_current_user
 from api.auth.models import User
-from api.services.audit_service import AuditService, AuditEventType
+from api.services.audit_event_service import AuditEventService, AuditEventType
 
 from .service import ExternalServiceRegistry
 from .models import (
@@ -69,11 +69,9 @@ async def get_service_registry(
     return ExternalServiceRegistry(db)
 
 
-async def get_audit_service(
-    db: AsyncSession = Depends(get_db_session)
-) -> AuditService:
-    """Get audit service instance"""
-    return AuditService(db)
+async def get_audit_service() -> AuditEventService:
+    """Get audit event service instance (writes FHIR AuditEvent to HAPI)"""
+    return AuditEventService()
 
 
 # ============================================================================
@@ -102,7 +100,7 @@ async def get_audit_service(
 async def register_service(
     service_data: ExternalServiceCreate,
     registry: ExternalServiceRegistry = Depends(get_service_registry),
-    audit: AuditService = Depends(get_audit_service),
+    audit: AuditEventService = Depends(get_audit_service),
     current_user: User = Depends(get_current_user)
 ) -> ExternalServiceResponse:
     """Register new external service"""
@@ -152,7 +150,7 @@ async def register_service(
 async def register_cds_hooks_service(
     service_data: CDSHooksServiceCreate,
     registry: ExternalServiceRegistry = Depends(get_service_registry),
-    audit: AuditService = Depends(get_audit_service),
+    audit: AuditEventService = Depends(get_audit_service),
     current_user: User = Depends(get_current_user)
 ):
     """Register CDS Hooks service (creates PlanDefinition in HAPI)"""
@@ -168,7 +166,7 @@ async def register_cds_hooks_service(
 async def register_smart_app(
     service_data: SMARTAppCreate,
     registry: ExternalServiceRegistry = Depends(get_service_registry),
-    audit: AuditService = Depends(get_audit_service),
+    audit: AuditEventService = Depends(get_audit_service),
     current_user: User = Depends(get_current_user)
 ):
     """Register SMART on FHIR application"""
@@ -184,7 +182,7 @@ async def register_smart_app(
 async def register_subscription(
     service_data: SubscriptionCreate,
     registry: ExternalServiceRegistry = Depends(get_service_registry),
-    audit: AuditService = Depends(get_audit_service),
+    audit: AuditEventService = Depends(get_audit_service),
     current_user: User = Depends(get_current_user)
 ):
     """Register FHIR subscription webhook (creates Subscription in HAPI)"""
@@ -200,7 +198,7 @@ async def register_subscription(
 async def register_cql_library(
     service_data: CQLLibraryCreate,
     registry: ExternalServiceRegistry = Depends(get_service_registry),
-    audit: AuditService = Depends(get_audit_service),
+    audit: AuditEventService = Depends(get_audit_service),
     current_user: User = Depends(get_current_user)
 ):
     """Register CQL library service (creates Library in HAPI)"""
@@ -238,7 +236,7 @@ async def register_cql_library(
 async def register_cds_hooks_batch(
     service_data: BatchCDSHooksServiceCreate,
     registry: ExternalServiceRegistry = Depends(get_service_registry),
-    audit: AuditService = Depends(get_audit_service),
+    audit: AuditEventService = Depends(get_audit_service),
     current_user: User = Depends(get_current_user)
 ) -> BatchCDSHooksServiceResponse:
     """Register CDS Hooks service with multiple hook types"""
@@ -308,7 +306,7 @@ async def add_hook_to_service(
     service_id: str = Path(..., description="Existing service ID"),
     hook_data: IncrementalHookAdd = ...,
     registry: ExternalServiceRegistry = Depends(get_service_registry),
-    audit: AuditService = Depends(get_audit_service),
+    audit: AuditEventService = Depends(get_audit_service),
     current_user: User = Depends(get_current_user)
 ) -> CDSHooksServiceResponse:
     """Add new hook to existing CDS service"""
@@ -485,7 +483,7 @@ async def update_service(
     service_id: str = Path(..., description="Service ID"),
     update_data: ExternalServiceUpdate = None,
     registry: ExternalServiceRegistry = Depends(get_service_registry),
-    audit: AuditService = Depends(get_audit_service),
+    audit: AuditEventService = Depends(get_audit_service),
     current_user: User = Depends(get_current_user)
 ) -> ExternalServiceResponse:
     """Update external service"""
@@ -527,7 +525,7 @@ async def update_service(
 async def delete_service(
     service_id: str = Path(..., description="Service ID"),
     registry: ExternalServiceRegistry = Depends(get_service_registry),
-    audit: AuditService = Depends(get_audit_service),
+    audit: AuditEventService = Depends(get_audit_service),
     current_user: User = Depends(get_current_user)
 ):
     """Delete external service"""

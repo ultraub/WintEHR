@@ -19,6 +19,8 @@ export const CLINICAL_EVENTS = {
   CONDITION_UPDATED: 'condition.updated',
   CONDITION_RESOLVED: 'condition.resolved',
   CONDITION_DELETED: 'condition.deleted',
+  PROBLEM_ADDED: 'problem.added',
+  PROBLEM_RESOLVED: 'problem.resolved',
 
   // Medication events
   MEDICATION_PRESCRIBED: 'medication.prescribed',
@@ -27,6 +29,12 @@ export const CLINICAL_EVENTS = {
   MEDICATION_DISPENSED: 'medication.dispensed',
   MEDICATION_ADMINISTERED: 'medication.administered',
   MEDICATION_REFILLED: 'medication.refilled',
+  MEDICATION_STATUS_CHANGED: 'medication.status.changed',
+  PRESCRIPTION_VERIFIED: 'prescription.verified',
+
+  // MAR (medication administration record) events
+  MAR_ADMINISTRATION_RECORDED: 'mar.administration.recorded',
+  MAR_DOSE_MISSED: 'mar.dose.missed',
 
   // Allergy events
   ALLERGY_ADDED: 'allergy.added',
@@ -55,6 +63,8 @@ export const CLINICAL_EVENTS = {
   OBSERVATION_UPDATED: 'observation.updated',
   VITAL_SIGNS_RECORDED: 'vital.signs.recorded',
   LAB_RESULT_READY: 'lab.result.ready',
+  RESULT_RECEIVED: 'result.received',
+  RESULT_ACKNOWLEDGED: 'result.acknowledged',
 
   // Diagnostic Report events
   DIAGNOSTIC_REPORT_CREATED: 'diagnostic.report.created',
@@ -82,6 +92,7 @@ export const CLINICAL_EVENTS = {
   ORDER_STATUS_CHANGED: 'order.status.changed',
 
   // Encounter events
+  ENCOUNTER_CREATED: 'encounter.created',
   ENCOUNTER_STARTED: 'encounter.started',
   ENCOUNTER_UPDATED: 'encounter.updated',
   ENCOUNTER_FINISHED: 'encounter.finished',
@@ -91,6 +102,8 @@ export const CLINICAL_EVENTS = {
   DOCUMENT_UPDATED: 'document.updated',
   DOCUMENT_SIGNED: 'document.signed',
   NOTE_CREATED: 'note.created',
+  DOCUMENTATION_CREATED: 'documentation.created',
+  DOCUMENTATION_SHARED: 'documentation.shared',
 
   // Care Plan events
   CARE_PLAN_CREATED: 'care.plan.created',
@@ -101,11 +114,13 @@ export const CLINICAL_EVENTS = {
   ALERT_TRIGGERED: 'alert.triggered',
   ALERT_ACKNOWLEDGED: 'alert.acknowledged',
   CDS_ALERT_FIRED: 'cds.alert.fired',
+  CRITICAL_ALERT: 'alert.critical',
 
   // Tab/View events
   TAB_CHANGED: 'tab.changed',
   VIEW_REFRESHED: 'view.refreshed',
   MODULE_SELECTED: 'module.selected',
+  TAB_UPDATE: 'tab.update',
 
   // Batch operation events
   BATCH_OPERATION_STARTED: 'batch.operation.started',
@@ -115,6 +130,8 @@ export const CLINICAL_EVENTS = {
   // Workflow events
   WORKFLOW_STARTED: 'workflow.started',
   WORKFLOW_COMPLETED: 'workflow.completed',
+  WORKFLOW_NOTIFICATION: 'workflow.notification',
+  QUALITY_DOCUMENTATION_INITIATED: 'quality.documentation.initiated',
   TASK_ASSIGNED: 'task.assigned',
   TASK_COMPLETED: 'task.completed',
 

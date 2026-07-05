@@ -5,6 +5,7 @@
  */
 
 import { getBackendUrl } from '../config/apiConfig';
+import api from './api';
 
 // Use centralized configuration for API base URL
 const API_BASE = getBackendUrl();
@@ -27,10 +28,8 @@ class FHIRSchemaService {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/fhir-schemas-v2/capability-statement`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
-      const data = await response.json();
+      const response = await api.get(`${API_BASE}/api/fhir-schemas-v2/capability-statement`);
+      const data = response.data;
       this.capabilityStatementCache = {
         data,
         timestamp: Date.now()
@@ -41,15 +40,13 @@ class FHIRSchemaService {
       console.error('Error fetching capability statement:', error);
       // Fall back to direct HAPI FHIR metadata endpoint (proxied through backend)
       try {
-        const response = await fetch(`${API_BASE}/fhir/metadata`);
-        if (response.ok) {
-          const data = await response.json();
-          this.capabilityStatementCache = {
-            data,
-            timestamp: Date.now()
-          };
-          return data;
-        }
+        const response = await api.get(`${API_BASE}/fhir/metadata`);
+        const data = response.data;
+        this.capabilityStatementCache = {
+          data,
+          timestamp: Date.now()
+        };
+        return data;
       } catch (e) {
         console.error('Error fetching metadata directly:', e);
       }
@@ -68,22 +65,21 @@ class FHIRSchemaService {
     try {
       // Try new capability-based endpoint first
       if (this.useCapabilityStatement) {
-        const response = await fetch(`${API_BASE}/api/fhir-schemas-v2/resources`);
-        if (response.ok) {
-          const data = await response.json();
+        try {
+          const response = await api.get(`${API_BASE}/api/fhir-schemas-v2/resources`);
           this.resourceListCache = {
-            data,
+            data: response.data,
             timestamp: Date.now()
           };
-          return data;
+          return response.data;
+        } catch (v2Error) {
+          // fall through to the original endpoint
         }
       }
-      
+
       // Fall back to original endpoint
-      const response = await fetch(`${API_BASE}/api/fhir-schemas/resources`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
-      const data = await response.json();
+      const response = await api.get(`${API_BASE}/api/fhir-schemas/resources`);
+      const data = response.data;
       this.resourceListCache = {
         data,
         timestamp: Date.now()
@@ -110,29 +106,24 @@ class FHIRSchemaService {
     try {
       // Try new capability-based endpoint first
       if (this.useCapabilityStatement) {
-        const response = await fetch(`${API_BASE}/api/fhir-schemas-v2/resource/${resourceType}`);
-        if (response.ok) {
-          const data = await response.json();
+        try {
+          const response = await api.get(`${API_BASE}/api/fhir-schemas-v2/resource/${resourceType}`);
           this.schemaCache.set(cacheKey, {
-            data,
+            data: response.data,
             timestamp: Date.now()
           });
-          return data;
-        }
-        // Check for 404 specifically
-        if (response.status === 404) {
-          throw new Error(`404: No data found for resource type ${resourceType}`);
+          return response.data;
+        } catch (v2Error) {
+          // 404 means the resource type genuinely has no schema — don't fall back
+          if (v2Error.response?.status === 404) {
+            throw new Error(`404: No data found for resource type ${resourceType}`);
+          }
         }
       }
-      
+
       // Fall back to original endpoint
-      const response = await fetch(`${API_BASE}/api/fhir-schemas/resource/${resourceType}`);
-      if (!response.ok) {
-        // Include status code in error message for better handling
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
+      const response = await api.get(`${API_BASE}/api/fhir-schemas/resource/${resourceType}`);
+      const data = response.data;
       this.schemaCache.set(cacheKey, {
         data,
         timestamp: Date.now()
@@ -157,10 +148,8 @@ class FHIRSchemaService {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/fhir-schemas/resource/${resourceType}/full`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
-      const data = await response.json();
+      const response = await api.get(`${API_BASE}/api/fhir-schemas/resource/${resourceType}/full`);
+      const data = response.data;
       this.schemaCache.set(cacheKey, {
         data,
         timestamp: Date.now()
@@ -178,12 +167,10 @@ class FHIRSchemaService {
    */
   async searchSchemas(query, limit = 20) {
     try {
-      const response = await fetch(
+      const response = await api.get(
         `${API_BASE}/api/fhir-schemas/search?q=${encodeURIComponent(query)}&limit=${limit}`
       );
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
-      return await response.json();
+      return response.data;
     } catch (error) {
       console.error('Error searching schemas:', error);
       throw error;
@@ -202,10 +189,8 @@ class FHIRSchemaService {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/fhir-schemas/element-types`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
-      const data = await response.json();
+      const response = await api.get(`${API_BASE}/api/fhir-schemas/element-types`);
+      const data = response.data;
       this.schemaCache.set(cacheKey, {
         data,
         timestamp: Date.now()
@@ -226,17 +211,17 @@ class FHIRSchemaService {
     try {
       // Try v2 endpoint first
       if (this.useCapabilityStatement) {
-        const response = await fetch(`${API_BASE}/api/fhir-schemas-v2/stats`);
-        if (response.ok) {
-          return await response.json();
+        try {
+          const response = await api.get(`${API_BASE}/api/fhir-schemas-v2/stats`);
+          return response.data;
+        } catch (v2Error) {
+          // fall through to the v1 endpoint
         }
       }
-      
+
       // Fall back to v1 endpoint
-      const response = await fetch(`${API_BASE}/api/fhir-schemas/stats`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
-      return await response.json();
+      const response = await api.get(`${API_BASE}/api/fhir-schemas/stats`);
+      return response.data;
     } catch (error) {
       console.error('Error fetching schema stats:', error);
       // Return default stats on error
@@ -265,10 +250,8 @@ class FHIRSchemaService {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/fhir-schemas-v2/resource/${resourceType}/interactions`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
-      const data = await response.json();
+      const response = await api.get(`${API_BASE}/api/fhir-schemas-v2/resource/${resourceType}/interactions`);
+      const data = response.data;
       this.schemaCache.set(cacheKey, {
         data,
         timestamp: Date.now()
@@ -293,10 +276,8 @@ class FHIRSchemaService {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/fhir-schemas-v2/search-parameters/${resourceType}`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
-      const data = await response.json();
+      const response = await api.get(`${API_BASE}/api/fhir-schemas-v2/search-parameters/${resourceType}`);
+      const data = response.data;
       this.schemaCache.set(cacheKey, {
         data,
         timestamp: Date.now()

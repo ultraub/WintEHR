@@ -74,6 +74,7 @@ import { printBatchLabels } from '../services/prescriptionLabelService';
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
 import websocketService from '../services/websocket';
+import api from '../services/api';
 import { readPharmacyStatusExtension } from '../core/pharmacy/pharmacyStatus';
 
 // Queue column configuration (should match PharmacyQueue.js)
@@ -335,8 +336,9 @@ const PharmacyPage = () => {
         break;
         
       case CLINICAL_EVENTS.ORDER_PLACED:
-        // Only handle medication orders
-        if (eventData.category === 'medication') {
+        // Only handle medication orders (match on resourceType — OrderComposer
+        // drafts don't carry a category)
+        if (eventData.resourceType === 'MedicationRequest' || eventData.category === 'medication') {
           handleRefresh(); // Refresh to get the new order
         }
         break;
@@ -365,7 +367,9 @@ const PharmacyPage = () => {
         });
         
         // Handle medication events regardless of patient
-        if (eventType === CLINICAL_EVENTS.ORDER_PLACED && event.category !== 'medication') {
+        if (eventType === CLINICAL_EVENTS.ORDER_PLACED &&
+            event.resourceType !== 'MedicationRequest' &&
+            event.category !== 'medication') {
           return; // Skip non-medication orders
         }
         
@@ -412,33 +416,25 @@ const PharmacyPage = () => {
   const handleStatusChange = useCallback(async (medicationRequestId, newStatus, category) => {
     try {
       // Update pharmacy status via API
-      const response = await fetch(`/api/clinical/pharmacy/status/${medicationRequestId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: newStatus,
-          updated_by: 'current-pharmacist', // This would come from auth context
-          notes: `Status changed to ${newStatus} via pharmacy queue`
-        })
+      await api.put(`/api/clinical/pharmacy/status/${medicationRequestId}`, {
+        status: newStatus,
+        updated_by: 'current-pharmacist', // This would come from auth context
+        notes: `Status changed to ${newStatus} via pharmacy queue`
       });
 
-      if (response.ok) {
-        // Publish workflow event
-        publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
-          type: 'pharmacy_status_change',
-          medicationRequestId,
-          newStatus,
-          category,
-          timestamp: new Date().toISOString()
-        });
+      // Publish workflow event
+      publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
+        type: 'pharmacy_status_change',
+        medicationRequestId,
+        newStatus,
+        category,
+        timestamp: new Date().toISOString()
+      });
 
-        // Refresh queue to show changes
-        handleRefresh();
-      }
+      // Refresh queue to show changes
+      handleRefresh();
     } catch (error) {
-      
+      console.error('Failed to update pharmacy status:', error);
     }
   }, [publish, handleRefresh, CLINICAL_EVENTS.WORKFLOW_NOTIFICATION]);
 

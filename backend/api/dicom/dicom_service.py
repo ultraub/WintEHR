@@ -25,6 +25,7 @@ import logging
 
 from database import get_db_session
 from services.dicom_mapping_service import DICOMToImagingStudyMapper, DICOMImagingStudyService
+from api.dicom.uid_utils import dicom_uid_from_fhir_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -384,7 +385,45 @@ class DICOMService:
             
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to extract pixel data: {e}")
-    
+
+    @staticmethod
+    def fetch_wado_rendered(
+        study_instance_uid: str,
+        series_instance_uid: str,
+        sop_instance_uid: str,
+        frame: int = 1,
+        qido_url: Optional[str] = None,
+    ) -> dict:
+        """Fetch a PACS-rendered frame for an instance via WADO-RS `rendered`.
+
+        dcm4chee decodes the pixel data server-side — including JPEG, color
+        (YBR/RGB), and multi-frame — and returns a browser-displayable still.
+        Used as a fallback when local grayscale windowing can't handle the
+        instance (e.g. color/multi-frame ultrasound). We render a single frame
+        (default frame 1) rather than the whole multi-frame object: the
+        instance-level `rendered` returns the full cine as one large animated
+        GIF (seconds, multi-MB), whereas a single frame is a fast ~50 KB JPEG.
+        Returns {"content": bytes, "content_type": str}.
+        """
+        if qido_url is None:
+            qido_url = _get_qido_url()
+        rendered_url = urljoin(
+            qido_url.rstrip("/") + "/",
+            f"studies/{study_instance_uid}/series/{series_instance_uid}"
+            f"/instances/{sop_instance_uid}/frames/{frame}/rendered",
+        )
+        resp = requests.get(
+            rendered_url,
+            headers={"Accept": "image/*"},
+            verify=False,
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return {
+            "content": resp.content,
+            "content_type": resp.headers.get("Content-Type", "image/jpeg"),
+        }
+
     @staticmethod
     def convert_to_png(pixel_array: np.ndarray, window_center: int = 128, window_width: int = 256) -> bytes:
         """Convert DICOM pixel array to PNG image."""
@@ -585,6 +624,12 @@ def validate_uid(uid: str, uid_type: str = "study") -> str:
     
     uid = unquote(uid).strip()
 
+    # Callers that read the UID from a FHIR ImagingStudy identifier may pass
+    # FHIR's URN encoding (urn:oid:<uid>). Recover the bare UID — the only
+    # form the DICOM UI VR permits in DICOMweb requests. The UID itself is
+    # never altered; see api/dicom/uid_utils.py for the full rationale.
+    uid = dicom_uid_from_fhir_identifier(uid)
+
     # Basic UID format validation (should be numeric with dots)
     if not all(c.isdigit() or c == '.' or c == ":" or c.isalpha() for c in uid):
         raise HTTPException(
@@ -635,12 +680,21 @@ async def get_study_metadata(
             # Skip if filtering by series UID and this isn't it
             if series_uid and series_uid_value != series_uid:
                 continue
+            try:
+                number_of_frames = int(
+                    DICOMService._get_dicom_json_value(instance, "00280008", "NumberOfFrames", 1) or 1
+                )
+            except (TypeError, ValueError):
+                number_of_frames = 1
             metadata = {
                 "studyInstanceUID": study_uid,
                 "seriesInstanceUID": series_uid_value,
                 "sopInstanceUID": DICOMService._get_dicom_json_value(instance, "00080018", "SOPInstanceUID", ""),
                 "instanceNumber": DICOMService._get_dicom_json_value(instance, "00200013", "InstanceNumber", "1"),
                 "modality": DICOMService._get_dicom_json_value(instance, "00080060", "Modality", ""),
+                # Number of frames in this instance (e.g. ultrasound/echo cine
+                # loops have many); 1 for single-frame. Drives frame playback.
+                "numberOfFrames": number_of_frames,
             }
             instances.append(metadata)
     
@@ -663,11 +717,13 @@ async def get_instance_image(
     series_uid: str,
     sop_instance_uid: str,
     window_center: int = Query(128, description="Window center for display"),
-    window_width: int = Query(256, description="Window width for display")
+    window_width: int = Query(256, description="Window width for display"),
+    frame: int = Query(1, ge=1, description="1-based frame number for multi-frame instances")
 ):
     """
     Get image data for a specific DICOM instance via WADO.
-    Returns PNG image with applied windowing.
+    Returns PNG image with applied windowing (grayscale single-frame), or a
+    PACS-rendered JPEG of the requested frame (color / multi-frame, e.g. echo).
     """
     try:
         study_uid = validate_uid(study_uid, "study")
@@ -689,24 +745,32 @@ async def get_instance_image(
         
         # Parse DICOM data
         ds = pydicom.dcmread(io.BytesIO(dicom_data), force=True)
-        
-        if not hasattr(ds, 'pixel_array'):
-            raise HTTPException(
-                status_code=400,
-                detail="DICOM instance has no pixel data"
-            )
-        
-        pixel_array = ds.pixel_array
-        
-        # Apply rescaling if needed
-        if hasattr(ds, 'RescaleSlope') and hasattr(ds, 'RescaleIntercept'):
-            pixel_array = pixel_array * float(ds.RescaleSlope) + float(ds.RescaleIntercept)
-        
-        # Convert to PNG
-        image_data = DICOMService.convert_to_png(pixel_array, window_center, window_width)
-        
-        logger.info(f"Successfully retrieved image for instance {sop_instance_uid}")
-        return Response(content=image_data, media_type="image/png")
+
+        samples = int(getattr(ds, "SamplesPerPixel", 1) or 1)
+        frames = int(getattr(ds, "NumberOfFrames", 1) or 1)
+
+        # Grayscale single-frame (e.g. CT): window/level locally so the viewer's
+        # window_center/width controls stay interactive. Color or multi-frame
+        # instances (e.g. ultrasound/echo cine loops) can't be windowed as
+        # grayscale — defer to the PACS renderer below, which decodes JPEG/color
+        # and returns an animated GIF for cine.
+        if samples == 1 and frames == 1 and hasattr(ds, "pixel_array"):
+            try:
+                pixel_array = ds.pixel_array
+                if hasattr(ds, 'RescaleSlope') and hasattr(ds, 'RescaleIntercept'):
+                    pixel_array = pixel_array * float(ds.RescaleSlope) + float(ds.RescaleIntercept)
+                image_data = DICOMService.convert_to_png(pixel_array, window_center, window_width)
+                logger.info(f"Successfully retrieved image for instance {sop_instance_uid}")
+                return Response(content=image_data, media_type="image/png")
+            except Exception as conv_err:
+                logger.info(
+                    f"Local windowing unavailable for {sop_instance_uid} ({conv_err}); "
+                    f"falling back to WADO-RS rendered"
+                )
+
+        rendered = DICOMService.fetch_wado_rendered(study_uid, series_uid, sop_instance_uid, frame=frame)
+        logger.info(f"Returned PACS-rendered image for instance {sop_instance_uid} frame {frame}")
+        return Response(content=rendered["content"], media_type=rendered["content_type"])
         
     except HTTPException:
         raise
@@ -989,126 +1053,6 @@ async def get_study_as_fhir_imaging_study(
     except Exception as e:
         logger.error(f"Failed to convert to FHIR ImagingStudy: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to convert to FHIR ImagingStudy: {e}")
-
-
-# @router.get("/studies/{study_uid}/instances/{sop_instance_uid}/metadata/extended")
-# async def get_instance_extended_metadata(
-#     study_uid: str,
-#     series_uid: str = Query(..., description="SeriesInstanceUID"),
-#     sop_instance_uid: str = Query(..., description="SOPInstanceUID")
-# ):
-#     """
-#     Get comprehensive DICOM metadata for an instance (FHIR-relevant fields) via WADO.
-    
-#     Args:
-#         study_uid: DICOM StudyInstanceUID
-#         series_uid: DICOM SeriesInstanceUID
-#         sop_instance_uid: DICOM SOPInstanceUID
-        
-#     Returns:
-#         Extended metadata dictionary with FHIR-relevant fields
-#     """
-#     try:
-#         study_uid = validate_uid(study_uid, "study")
-#         series_uid = validate_uid(series_uid, "series")
-#         sop_instance_uid = validate_uid(sop_instance_uid, "instance")
-        
-#         if not _is_dicom_server_configured():
-#             raise HTTPException(
-#                 status_code=503,
-#                 detail="DICOM server not configured"
-#             )
-        
-#         logger.info(f"Fetching extended metadata for instance {sop_instance_uid} via WADO")
-        
-#         # Fetch DICOM instance metadata via WADO
-#         metadata = DICOMService.fetch_wado_metadata(
-#             study_uid, series_uid, sop_instance_uid
-#         )
-        
-#         logger.info(f"Successfully retrieved extended metadata for instance {sop_instance_uid}")
-#         return metadata
-        
-#     except HTTPException:
-#         raise
-#     except requests.RequestException as e:
-#         logger.error(f"Failed to fetch metadata from DICOM server: {e}")
-#         raise HTTPException(status_code=503, detail=f"Failed to fetch metadata from DICOM server: {e}")
-#     except Exception as e:
-#         logger.error(f"Failed to get extended metadata: {e}")
-#         raise HTTPException(status_code=500, detail=f"Failed to get extended metadata: {e}")
-
-
-# @router.get("/studies/{study_uid}/instances/{sop_instance_uid}/fhir-info")
-# async def get_instance_fhir_info(
-#     study_uid: str,
-#     series_uid: str = Query(..., description="SeriesInstanceUID"),
-#     sop_instance_uid: str = Query(..., description="SOPInstanceUID")
-# ):
-#     """
-#     Get FHIR-specific information for a DICOM instance (series and instance level data) via WADO.
-    
-#     Args:
-#         study_uid: DICOM StudyInstanceUID
-#         series_uid: DICOM SeriesInstanceUID
-#         sop_instance_uid: DICOM SOPInstanceUID
-        
-#     Returns:
-#         Dictionary with series and instance FHIR information
-#     """
-#     try:
-#         study_uid = validate_uid(study_uid, "study")
-#         series_uid = validate_uid(series_uid, "series")
-#         sop_instance_uid = validate_uid(sop_instance_uid, "instance")
-        
-#         if not _is_dicom_server_configured():
-#             raise HTTPException(
-#                 status_code=503,
-#                 detail="DICOM server not configured"
-#             )
-        
-#         logger.info(f"Fetching FHIR info for instance {sop_instance_uid}")
-        
-#         # Fetch metadata via WADO
-#         metadata = DICOMService.fetch_wado_metadata(
-#             study_uid, series_uid, sop_instance_uid
-#         )
-        
-#         # Extract FHIR-relevant fields
-#         fhir_info = {
-#             "series": {
-#                 "uid": series_uid,
-#                 "modality": metadata.get("Modality", ""),
-#                 "description": metadata.get("SeriesDescription", "")
-#             },
-#             "instance": {
-#                 "uid": sop_instance_uid,
-#                 "classUID": metadata.get("SOPClassUID", ""),
-#                 "number": metadata.get("InstanceNumber", 1)
-#             }
-#         }
-        
-#         logger.info(f"Successfully retrieved FHIR info for instance {sop_instance_uid}")
-#         return fhir_info
-        
-#     except HTTPException:
-#         raise
-#     except requests.RequestException as e:
-#         logger.error(f"Failed to fetch metadata from DICOM server: {e}")
-#         raise HTTPException(status_code=503, detail=f"Failed to fetch metadata from DICOM server: {e}")
-#     except Exception as e:
-#         logger.error(f"Failed to get FHIR info: {e}")
-#         raise HTTPException(status_code=500, detail=f"Failed to get FHIR info: {e}")
-        
-#         return {
-#             "series": series_info,
-#             "instance": instance_info
-#         }
-        
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Failed to get FHIR info: {e}")
 
 
 @router.get("/studies/{study_uid}/validate-fhir")

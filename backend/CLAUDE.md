@@ -19,7 +19,7 @@ deltas are below.
   before wiring any frontend call (see "Routing" below).
 - `services/hapi_fhir_client.py` — `HAPIFHIRClient`: the only sanctioned path to
   FHIR data. Methods: `search`, `read`, `create`, `update`, `delete`,
-  `search_with_includes`, `operation` (for `$everything` etc.), `bulk_patch`.
+  `search_with_includes`, `operation` (for `$everything` etc.).
 - `database.py` — `get_db_session` (the real one) + `get_db_context`.
 
 ---
@@ -43,10 +43,6 @@ registration, some carry no prefix at all. The resolved path is
 
 When in doubt, grep `api/routers/__init__.py` for the `include_router` call —
 that, plus the `APIRouter(...)` line in the router file, gives the truth.
-
-**`api/dependencies.py` is dead code.** Its `get_db_session` yields an
-`AsyncMock()`. Routers import `from database import get_db_session` — the real
-one. Do not import from `api/dependencies.py`.
 
 ---
 
@@ -102,7 +98,7 @@ live in named schemas.
 | `auth.*` | Authentication |
 | `cds_hooks.*` | CDS Studio visual-builder configs + execution logs |
 | `dicom.*` | DICOM file metadata |
-| `audit.*` | Audit trail |
+| `audit.*` | Legacy audit-trail schema — **no writers remain**; audit events are FHIR `AuditEvent` resources in HAPI (`api/services/audit_event_service.py`) |
 
 ```sql
 -- Resource counts (the only correct way — there is no fhir.resources table)
@@ -137,7 +133,6 @@ Key env vars: `DATABASE_URL`, `HAPI_FHIR_URL`, `REDIS_URL`, `JWT_ENABLED`,
 |---|---|
 | Frontend call 404s | Prefix mismatch — re-derive the resolved path from `api/routers/__init__.py` + the router's `APIRouter(...)` line |
 | New router never reachable | Not added to `register_all_routers` in `api/routers/__init__.py` |
-| Endpoint returns mock/empty data with no error | Something imported `get_db_session` from `api/dependencies.py` (yields `AsyncMock`) instead of `database.py` |
 | `register_all_routers` silently skips a group | Each numbered block is wrapped in `try/except` that logs and continues — check backend logs for `Failed to register ...` |
 | FHIR write "succeeds" but data missing | Wrote to a custom table instead of HAPI — all FHIR resources go through `HAPIFHIRClient` |
 | Import error for `FHIRStorageEngine` / `fhir.core.storage` | Both removed; use `HAPIFHIRClient` |

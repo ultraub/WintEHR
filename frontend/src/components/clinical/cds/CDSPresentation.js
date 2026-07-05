@@ -66,42 +66,42 @@ export const PRESENTATION_MODES = {
 export const OVERRIDE_REASONS = {
   PATIENT_PREFERENCE: {
     code: 'patient-preference',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Patient preference or contraindication'
   },
   CLINICAL_JUDGMENT: {
     code: 'clinical-judgment',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Clinical judgment based on patient context'
   },
   ALTERNATIVE_TREATMENT: {
     code: 'alternative-treatment',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Alternative treatment selected'
   },
   RISK_BENEFIT: {
     code: 'risk-benefit',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Risk-benefit analysis favors override'
   },
   FALSE_POSITIVE: {
     code: 'false-positive',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Alert appears to be false positive'
   },
   NOT_APPLICABLE: {
     code: 'not-applicable',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Alert not applicable to this patient'
   },
   EMERGENCY: {
     code: 'emergency',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Emergency situation requires override'
   },
   OTHER: {
     code: 'other',
-    system: 'https://winterhr.com/cds-hooks/override-reasons',
+    system: 'https://wintehr.com/cds-hooks/override-reasons',
     display: 'Other reason (see comments)'
   }
 };
@@ -253,7 +253,7 @@ const CDSPresentation = ({
         outcome: 'overridden',
         overrideReason: {
           code: 'user-override',
-          system: 'https://winterhr.com/cds-hooks/override-reasons',
+          system: 'https://wintehr.com/cds-hooks/override-reasons',
           display: reason || 'Alert dismissed by user'
         }
       });
@@ -316,7 +316,7 @@ const CDSPresentation = ({
         outcome: 'overridden',
         overrideReason: {
           code: 'snoozed',
-          system: 'https://winterhr.com/cds-hooks/override-reasons',
+          system: 'https://wintehr.com/cds-hooks/override-reasons',
           display: `Alert snoozed for ${durationMinutes} minutes`
         }
       });

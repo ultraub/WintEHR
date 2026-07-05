@@ -16,10 +16,15 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import QueryStudioEnhanced from '../QueryStudioEnhanced';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { cdsClinicalDataService } from '../../../../services/cdsClinicalDataService';
+import api from '../../../../services/api';
 
 // Mock dependencies
 jest.mock('../../../../core/fhir/services/fhirClient');
 jest.mock('../../../../services/cdsClinicalDataService');
+jest.mock('../../../../services/api', () => ({
+  __esModule: true,
+  default: { get: jest.fn(), post: jest.fn() },
+}));
 jest.mock('@monaco-editor/react', () => ({
   __esModule: true,
   default: ({ value, onChange }) => (
@@ -31,8 +36,6 @@ jest.mock('@monaco-editor/react', () => ({
   ),
 }));
 
-// Mock fetch for distinct values API
-global.fetch = jest.fn();
 
 describe('QueryStudioEnhanced', () => {
   const theme = createTheme();
@@ -119,14 +122,13 @@ describe('QueryStudioEnhanced', () => {
   describe('Distinct Values Integration', () => {
     test('fetches distinct values when parameter is selected', async () => {
       // Mock distinct values API response
-      fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
+      api.get.mockResolvedValueOnce({
+        data: {
           values: [
             { value: 'male', display: 'Male', usage_count: 100 },
             { value: 'female', display: 'Female', usage_count: 120 }
           ]
-        })
+        }
       });
       
       renderComponent();
@@ -148,14 +150,14 @@ describe('QueryStudioEnhanced', () => {
       fireEvent.change(firstParamInput, { target: { value: 'gender' } });
       
       await waitFor(() => {
-        expect(fetch).toHaveBeenCalledWith(
+        expect(api.get).toHaveBeenCalledWith(
           expect.stringContaining('/api/fhir/search-values/Patient/gender')
         );
       });
     });
     
     test('falls back to catalog when distinct values API fails', async () => {
-      fetch.mockRejectedValueOnce(new Error('API Error'));
+      api.get.mockRejectedValueOnce(new Error('API Error'));
       
       renderComponent();
       

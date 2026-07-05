@@ -4,7 +4,26 @@
  * Handles all communication with the CDS Studio backend API.
  */
 
+import api from '../../../services/api';
+
 const API_BASE = '/api/cds-studio';
+
+/**
+ * Issue a request through the shared axios client (auth header injected by
+ * its interceptor) and unwrap the JSON body. On failure, surface the
+ * backend's `detail` message when present, else the fallback message with
+ * the HTTP status.
+ */
+async function request(method, url, data, fallbackMessage) {
+  try {
+    const response = await api.request({ method, url, data });
+    return response.data;
+  } catch (error) {
+    const detail = error.response?.data?.detail;
+    const status = error.response?.status;
+    throw new Error(detail || (status ? `${fallbackMessage}: ${status}` : fallbackMessage));
+  }
+}
 
 class CDSStudioAPI {
   /**
@@ -18,39 +37,15 @@ class CDSStudioAPI {
     if (filters.status) params.append('status', filters.status);
     if (filters.search) params.append('search', filters.search);
 
-    const response = await fetch(`${API_BASE}/services?${params}`, {
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to list services: ${response.statusText}`);
-    }
-
-    return response.json();
+    return request('get', `${API_BASE}/services?${params}`, undefined, 'Failed to list services');
   }
 
   async getServiceConfiguration(serviceId) {
-    const response = await fetch(`${API_BASE}/services/${serviceId}/config`, {
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get service configuration: ${response.statusText}`);
-    }
-
-    return response.json();
+    return request('get', `${API_BASE}/services/${serviceId}/config`, undefined, 'Failed to get service configuration');
   }
 
   async getConfigurationView(serviceId) {
-    const response = await fetch(`${API_BASE}/services/${serviceId}/config/view`, {
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get configuration view: ${response.statusText}`);
-    }
-
-    return response.json();
+    return request('get', `${API_BASE}/services/${serviceId}/config/view`, undefined, 'Failed to get configuration view');
   }
 
   /**
@@ -58,39 +53,11 @@ class CDSStudioAPI {
    */
 
   async createBuiltInService(serviceData) {
-    const response = await fetch(`${API_BASE}/services/built-in`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
-      body: JSON.stringify(serviceData)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to create built-in service');
-    }
-
-    return response.json();
+    return request('post', `${API_BASE}/services/built-in`, serviceData, 'Failed to create built-in service');
   }
 
   async createExternalService(serviceData) {
-    const response = await fetch(`${API_BASE}/services/external`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
-      body: JSON.stringify(serviceData)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to create external service');
-    }
-
-    return response.json();
+    return request('post', `${API_BASE}/services/external`, serviceData, 'Failed to create external service');
   }
 
   /**
@@ -98,21 +65,7 @@ class CDSStudioAPI {
    */
 
   async testService(serviceId, testRequest) {
-    const response = await fetch(`${API_BASE}/services/${serviceId}/test`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
-      body: JSON.stringify(testRequest)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to test service');
-    }
-
-    return response.json();
+    return request('post', `${API_BASE}/services/${serviceId}/test`, testRequest, 'Failed to test service');
   }
 
   /**
@@ -120,15 +73,7 @@ class CDSStudioAPI {
    */
 
   async getServiceMetrics(serviceId) {
-    const response = await fetch(`${API_BASE}/services/${serviceId}/metrics`, {
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get service metrics: ${response.statusText}`);
-    }
-
-    return response.json();
+    return request('get', `${API_BASE}/services/${serviceId}/metrics`, undefined, 'Failed to get service metrics');
   }
 
   /**
@@ -136,38 +81,14 @@ class CDSStudioAPI {
    */
 
   async updateServiceStatus(serviceId, status) {
-    const response = await fetch(`${API_BASE}/services/${serviceId}/status`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
-      body: JSON.stringify({ status })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to update service status');
-    }
-
-    return response.json();
+    return request('put', `${API_BASE}/services/${serviceId}/status`, { status }, 'Failed to update service status');
   }
 
   async deleteService(serviceId, hardDelete = false) {
     const params = new URLSearchParams();
     if (hardDelete) params.append('hard_delete', 'true');
 
-    const response = await fetch(`${API_BASE}/services/${serviceId}?${params}`, {
-      method: 'DELETE',
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to delete service');
-    }
-
-    return response.json();
+    return request('delete', `${API_BASE}/services/${serviceId}?${params}`, undefined, 'Failed to delete service');
   }
 
   /**
@@ -175,36 +96,14 @@ class CDSStudioAPI {
    */
 
   async getVersionHistory(serviceId) {
-    const response = await fetch(`${API_BASE}/services/${serviceId}/versions`, {
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get version history: ${response.statusText}`);
-    }
-
-    return response.json();
+    return request('get', `${API_BASE}/services/${serviceId}/versions`, undefined, 'Failed to get version history');
   }
 
   async rollbackService(serviceId, targetVersion, notes = null) {
-    const response = await fetch(`${API_BASE}/services/${serviceId}/rollback`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        target_version: targetVersion,
-        rollback_notes: notes
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to rollback service');
-    }
-
-    return response.json();
+    return request('post', `${API_BASE}/services/${serviceId}/rollback`, {
+      target_version: targetVersion,
+      rollback_notes: notes
+    }, 'Failed to rollback service');
   }
 
   /**
@@ -212,77 +111,23 @@ class CDSStudioAPI {
    */
 
   async listCredentials() {
-    const response = await fetch(`${API_BASE}/credentials`, {
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to list credentials: ${response.statusText}`);
-    }
-
-    return response.json();
+    return request('get', `${API_BASE}/credentials`, undefined, 'Failed to list credentials');
   }
 
   async getCredential(credentialId) {
-    const response = await fetch(`${API_BASE}/credentials/${credentialId}`, {
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get credential: ${response.statusText}`);
-    }
-
-    return response.json();
+    return request('get', `${API_BASE}/credentials/${credentialId}`, undefined, 'Failed to get credential');
   }
 
   async createCredential(credentialData) {
-    const response = await fetch(`${API_BASE}/credentials`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
-      body: JSON.stringify(credentialData)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to create credential');
-    }
-
-    return response.json();
+    return request('post', `${API_BASE}/credentials`, credentialData, 'Failed to create credential');
   }
 
   async updateCredential(credentialId, credentialData) {
-    const response = await fetch(`${API_BASE}/credentials/${credentialId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
-      body: JSON.stringify(credentialData)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to update credential');
-    }
-
-    return response.json();
+    return request('put', `${API_BASE}/credentials/${credentialId}`, credentialData, 'Failed to update credential');
   }
 
   async deleteCredential(credentialId) {
-    const response = await fetch(`${API_BASE}/credentials/${credentialId}`, {
-      method: 'DELETE',
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to delete credential');
-    }
-
-    return response.json();
+    return request('delete', `${API_BASE}/credentials/${credentialId}`, undefined, 'Failed to delete credential');
   }
 
   /**
@@ -290,15 +135,7 @@ class CDSStudioAPI {
    */
 
   async getSystemMetrics(timeRange = '24h') {
-    const response = await fetch(`${API_BASE}/metrics?time_range=${timeRange}`, {
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get system metrics: ${response.statusText}`);
-    }
-
-    return response.json();
+    return request('get', `${API_BASE}/metrics?time_range=${timeRange}`, undefined, 'Failed to get system metrics');
   }
 
   /**
@@ -309,46 +146,20 @@ class CDSStudioAPI {
    */
 
   async validateCQL(cqlText, subjectRef = null) {
-    const response = await fetch('/api/cds-visual-builder/cql/validate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        cql: cqlText,
-        subject_ref: subjectRef,
-      }),
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `CQL validation failed: ${response.status}`);
-    }
-    return response.json();
+    return request('post', '/api/cds-visual-builder/cql/validate', {
+      cql: cqlText,
+      subject_ref: subjectRef,
+    }, 'CQL validation failed');
   }
 
   async deriveDataRequirements(cqlText) {
-    const response = await fetch('/api/cds-visual-builder/cql/data-requirements', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ cql: cqlText }),
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `data-requirements derivation failed: ${response.status}`);
-    }
-    return response.json();
+    return request('post', '/api/cds-visual-builder/cql/data-requirements', {
+      cql: cqlText,
+    }, 'data-requirements derivation failed');
   }
 
   async getServiceFHIRPreview(serviceId) {
-    const response = await fetch(
-      `/api/cds-visual-builder/services/${serviceId}/fhir-preview`,
-      { credentials: 'include' },
-    );
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `FHIR preview unavailable: ${response.status}`);
-    }
-    return response.json();
+    return request('get', `/api/cds-visual-builder/services/${serviceId}/fhir-preview`, undefined, 'FHIR preview unavailable');
   }
 
   /**
@@ -362,57 +173,29 @@ class CDSStudioAPI {
     if (createdBy) params.append('created_by', createdBy);
     params.append('limit', String(limit));
     params.append('skip', String(skip));
-    const response = await fetch(`${API_BASE}/value-sets?${params}`, {
-      credentials: 'include',
-    });
-    if (!response.ok) throw new Error(`Failed to list ValueSets: ${response.status}`);
-    return response.json();
+    return request('get', `${API_BASE}/value-sets?${params}`, undefined, 'Failed to list ValueSets');
   }
 
   async getValueSet(vsId) {
-    const response = await fetch(`${API_BASE}/value-sets/${vsId}`, {
-      credentials: 'include',
-    });
-    if (!response.ok) throw new Error(`Failed to load ValueSet: ${response.status}`);
-    return response.json();
+    return request('get', `${API_BASE}/value-sets/${vsId}`, undefined, 'Failed to load ValueSet');
   }
 
   async createValueSet(payload) {
-    const response = await fetch(`${API_BASE}/value-sets`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Failed to create ValueSet: ${response.status}`);
-    }
-    return response.json();
+    return request('post', `${API_BASE}/value-sets`, payload, 'Failed to create ValueSet');
   }
 
   async updateValueSet(vsId, payload) {
-    const response = await fetch(`${API_BASE}/value-sets/${vsId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Failed to update ValueSet: ${response.status}`);
-    }
-    return response.json();
+    return request('put', `${API_BASE}/value-sets/${vsId}`, payload, 'Failed to update ValueSet');
   }
 
   async deleteValueSet(vsId, { purge = false } = {}) {
     const params = purge ? '?purge=true' : '';
-    const response = await fetch(`${API_BASE}/value-sets/${vsId}${params}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    if (!response.ok && response.status !== 404) {
-      throw new Error(`Failed to delete ValueSet: ${response.status}`);
+    try {
+      await api.delete(`${API_BASE}/value-sets/${vsId}${params}`);
+    } catch (error) {
+      if (error.response?.status !== 404) {
+        throw new Error(`Failed to delete ValueSet: ${error.response?.status || error.message}`);
+      }
     }
     return true;
   }
@@ -421,12 +204,7 @@ class CDSStudioAPI {
     const params = new URLSearchParams();
     if (filter) params.append('filter_text', filter);
     params.append('count', String(count));
-    const response = await fetch(
-      `${API_BASE}/value-sets/${vsId}/expand?${params}`,
-      { credentials: 'include' },
-    );
-    if (!response.ok) throw new Error(`Failed to expand ValueSet: ${response.status}`);
-    return response.json();
+    return request('get', `${API_BASE}/value-sets/${vsId}/expand?${params}`, undefined, 'Failed to expand ValueSet');
   }
 }
 

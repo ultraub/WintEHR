@@ -134,6 +134,7 @@ import {
 import { FHIR_RESOURCES } from '../constants/fhirResources';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import { cdsClinicalDataService } from '../../../services/cdsClinicalDataService';
+import api from '../../../services/api';
 
 // Monaco Editor for syntax highlighting
 import Editor from '@monaco-editor/react';
@@ -873,29 +874,26 @@ const EnhancedParameterBuilder = ({ resource, parameters, onParametersChange }) 
     
     try {
       // Try to fetch distinct values from the API
-      const response = await fetch(
+      const response = await api.get(
         `/api/fhir/search-values/${resource}/${paramName}?limit=${QUERY_STUDIO_CONFIG.distinctValueLimit}`
       );
-      
-      if (response.ok) {
-        const data = await response.json();
-        const values = data.values?.map(item => ({
-          value: item.value || item.value_string || item.value_reference,
-          label: item.display || item.value || item.value_string,
-          count: item.usage_count,
-          description: `Used in ${item.usage_count} resources`
-        })) || [];
-        
-        // Cache the results
-        if (QUERY_STUDIO_CONFIG.cacheDistinctValues) {
-          distinctValuesCache.current.set(cacheKey, {
-            values,
-            timestamp: Date.now()
-          });
-        }
-        
-        return values;
+
+      const values = response.data.values?.map(item => ({
+        value: item.value || item.value_string || item.value_reference,
+        label: item.display || item.value || item.value_string,
+        count: item.usage_count,
+        description: `Used in ${item.usage_count} resources`
+      })) || [];
+
+      // Cache the results
+      if (QUERY_STUDIO_CONFIG.cacheDistinctValues) {
+        distinctValuesCache.current.set(cacheKey, {
+          values,
+          timestamp: Date.now()
+        });
       }
+
+      return values;
     } catch (error) {
       console.log('Distinct values API not available, using fallback');
     } finally {

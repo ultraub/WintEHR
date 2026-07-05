@@ -292,6 +292,17 @@ async def dispense_medication(dispense_request: MedicationDispenseRequest):
             details={"medication_request_id": dispense_request.medication_request_id},
         )
 
+        # Broadcast so open pharmacy queues refresh live (failure-proof —
+        # notification_service never raises into the write path)
+        patient_ref = (med_request.get("subject") or {}).get("reference", "")
+        await notification_service.notify_clinical_event(
+            event_type="medication.dispensed",
+            resource_type="MedicationDispense",
+            resource_id=created_dispense.get("id"),
+            patient_id=patient_ref.replace("Patient/", "") or None,
+            details={"medication_request_id": dispense_request.medication_request_id},
+        )
+
         return {
             "message": "Medication dispensed successfully",
             "dispense_id": created_dispense.get("id"),

@@ -16,6 +16,7 @@ import { fhirClient } from '../core/fhir/services/fhirClient';
 import { CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
 import { format, addDays, addWeeks, addMonths, parseISO, isAfter, differenceInDays } from 'date-fns';
 import { EXTENSION_URLS } from '../constants/fhirExtensions';
+import api from './api';
 
 class MedicationCRUDService {
   constructor() {
@@ -737,19 +738,8 @@ class MedicationCRUDService {
       }
 
       // Initialize lists via backend API
-      const response = await fetch(`/api/clinical/medication-lists/initialize/${patientId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      await api.post(`/api/clinical/medication-lists/initialize/${patientId}`);
 
-      if (!response.ok) {
-        throw new Error(`Failed to initialize medication lists: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
       // Fetch the created lists to update cache
       const createdLists = await this.getPatientMedicationLists(patientId);
       
@@ -770,13 +760,9 @@ class MedicationCRUDService {
         params.append('list_type', listType);
       }
 
-      const response = await fetch(`/api/clinical/medication-lists/${patientId}?${params}`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch medication lists: ${response.statusText}`);
-      }
+      const response = await api.get(`/api/clinical/medication-lists/${patientId}?${params}`);
 
-      const lists = await response.json();
+      const lists = response.data;
       
       // Update cache
       lists.forEach(list => {
@@ -813,19 +799,9 @@ class MedicationCRUDService {
       };
 
       // Add medication to list via API
-      const response = await fetch(`/api/clinical/medication-lists/${list.id}/entries`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(entryData)
-      });
+      const response = await api.post(`/api/clinical/medication-lists/${list.id}/entries`, entryData);
 
-      if (!response.ok) {
-        throw new Error(`Failed to add medication to list: ${response.statusText}`);
-      }
-
-      const result = await response.json();
+      const result = response.data;
 
       // Refresh the list in cache
       const updatedLists = await this.getPatientMedicationLists(patientId);
@@ -858,18 +834,11 @@ class MedicationCRUDService {
         throw new Error(`${listType} list not found for patient`);
       }
 
-      const response = await fetch(
-        `/api/clinical/medication-lists/${list.id}/entries/${medicationRequestId}`,
-        {
-          method: 'DELETE'
-        }
+      const response = await api.delete(
+        `/api/clinical/medication-lists/${list.id}/entries/${medicationRequestId}`
       );
 
-      if (!response.ok) {
-        throw new Error(`Failed to remove medication from list: ${response.statusText}`);
-      }
-
-      const result = await response.json();
+      const result = response.data;
 
       // Refresh the list in cache
       await this.getPatientMedicationLists(patientId);
@@ -903,23 +872,13 @@ class MedicationCRUDService {
       }
 
       // Create new list
-      const response = await fetch('/api/clinical/medication-lists', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          patient_id: patientId,
-          list_type: listType,
-          title: `${listType.charAt(0).toUpperCase() + listType.slice(1)} Medications`
-        })
+      const response = await api.post('/api/clinical/medication-lists', {
+        patient_id: patientId,
+        list_type: listType,
+        title: `${listType.charAt(0).toUpperCase() + listType.slice(1)} Medications`
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to create medication list: ${response.statusText}`);
-      }
-
-      const result = await response.json();
+      const result = response.data;
       
       // Update cache
       this.medicationLists.set(`${patientId}-${listType}`, result.resource);
@@ -936,22 +895,12 @@ class MedicationCRUDService {
    */
   async reconcileMedicationLists(patientId, sourceListIds) {
     try {
-      const response = await fetch('/api/clinical/medication-lists/reconcile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          patient_id: patientId,
-          source_lists: sourceListIds
-        })
+      const response = await api.post('/api/clinical/medication-lists/reconcile', {
+        patient_id: patientId,
+        source_lists: sourceListIds
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to reconcile medication lists: ${response.statusText}`);
-      }
-
-      const result = await response.json();
+      const result = response.data;
       
       // Notify subscribers of reconciliation
       this.notifyListUpdated(patientId, 'reconciliation', 'create', result);

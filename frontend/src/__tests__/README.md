@@ -6,20 +6,22 @@ This directory contains tests for the WintEHR frontend application. We use Jest 
 
 ## Test Structure
 
+Tests live in `__tests__/` directories next to the code they cover. The main
+clusters (verify with `find src -name "*.test.*"` — this list drifts):
+
 ```
 src/
-├── __tests__/              # App-level tests
-├── components/
-│   └── __tests__/         # Component tests
-├── services/
-│   └── __tests__/         # Service tests
-├── hooks/
-│   └── __tests__/         # Custom hook tests
-├── contexts/
-│   └── __tests__/         # Context tests
-└── test-utils/            # Testing utilities
-    └── test-utils.js      # Custom render with providers
+├── components/__tests__/                    # e.g. ErrorBoundary
+├── components/clinical/workspace/AdministrationRecord/__tests__/   # MAR grid + Tasks pane
+├── components/fhir-explorer-v4/query-building/__tests__/           # Query Studio
+├── core/fhir/services/__tests__/            # fhirClient
+├── core/fhir/utils/__tests__/ + converters/__tests__/
+├── services/__tests__/                      # service layer (CDS, medications, HTTP)
+└── test-utils/test-utils.js                 # THE custom render with providers
 ```
+
+`src/test-utils/test-utils.js` is the only test-utils module — it exports the
+custom `render` (wrapping `AppProviders`) plus the `generateMock*` helpers.
 
 ## Running Tests
 

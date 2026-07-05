@@ -3,6 +3,7 @@
  * Comprehensive medication database and search functionality for prescribing
  */
 
+import api from './api';
 
 class MedicationSearchService {
   constructor() {
@@ -209,10 +210,8 @@ class MedicationSearchService {
       // First try backend search if available
       let backendResults = [];
       try {
-        const response = await fetch(`/api/catalogs/medications?search=${encodeURIComponent(query)}&limit=${limit}`);
-        if (response.ok) {
-          backendResults = await response.json();
-        }
+        const response = await api.get(`/api/catalogs/medications?search=${encodeURIComponent(query)}&limit=${limit}`);
+        backendResults = response.data;
       } catch (error) {
         // Backend medication search unavailable, using local database
       }

@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { buildUrl } from '../../../../config/apiConfig';
+import api from '../../../../services/api';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 
@@ -49,18 +50,13 @@ export function useAdministrationTasks({ patientId }) {
     setLoading(true);
     setError(null);
     try {
-      const url = new URL(
-        buildUrl('backend', '/api/clinical/administration/tasks'),
-        window.location.origin,
-      );
-      url.searchParams.set('patient_id', patientId);
-      const res = await fetch(url.toString(), { signal: controller.signal });
-      if (!res.ok) {
-        throw new Error(`Tasks fetch failed: ${res.status} ${res.statusText}`);
-      }
-      setData(await res.json());
+      const res = await api.get(buildUrl('backend', '/api/clinical/administration/tasks'), {
+        params: { patient_id: patientId },
+        signal: controller.signal,
+      });
+      setData(res.data);
     } catch (err) {
-      if (err.name === 'AbortError') return;
+      if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') return;
       console.error('useAdministrationTasks: fetch failed', err);
       setError(err);
     } finally {

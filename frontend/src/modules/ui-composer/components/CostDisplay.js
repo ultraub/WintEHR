@@ -17,6 +17,7 @@ import {
   Info as InfoIcon 
 } from '@mui/icons-material';
 import { uiComposerService } from '../../../services/uiComposerService';
+import api from '../../../services/api';
 
 const CostDisplay = ({ sessionId, loading, onCostUpdate }) => {
   const [costData, setCostData] = useState(null);
@@ -33,18 +34,10 @@ const CostDisplay = ({ sessionId, loading, onCostUpdate }) => {
     
     setFetchingCost(true);
     try {
-      const response = await fetch(`/api/ui-composer/sessions/${sessionId}/cost`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setCostData(data);
-        if (onCostUpdate) {
-          onCostUpdate(data);
-        }
+      const response = await api.get(`/api/ui-composer/sessions/${sessionId}/cost`);
+      setCostData(response.data);
+      if (onCostUpdate) {
+        onCostUpdate(response.data);
       }
     } catch (error) {
       // Failed to fetch cost data - error handled silently

@@ -38,6 +38,7 @@ import {
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import QuestionnaireDialog from '../dialogs/QuestionnaireDialog';
+import api from '../../../../services/api';
 
 const QuestionnairesSection = ({ patientId }) => {
   const [questionnaires, setQuestionnaires] = useState([]);
@@ -54,20 +55,13 @@ const QuestionnairesSection = ({ patientId }) => {
 
     try {
       // Fetch questionnaires from backend API
-      const qResponse = await fetch('/api/questionnaires');
-      if (!qResponse.ok) {
-        throw new Error(`Failed to fetch questionnaires: ${qResponse.status}`);
-      }
-      const qData = await qResponse.json();
-      setQuestionnaires(qData.questionnaires || []);
+      const qResponse = await api.get('/api/questionnaires');
+      setQuestionnaires(qResponse.data.questionnaires || []);
 
       // Fetch completed responses for this patient
       if (patientId) {
-        const rResponse = await fetch(`/api/questionnaires/responses?patient=${patientId}`);
-        if (rResponse.ok) {
-          const rData = await rResponse.json();
-          setResponses(rData.responses || []);
-        }
+        const rResponse = await api.get(`/api/questionnaires/responses?patient=${patientId}`);
+        setResponses(rResponse.data.responses || []);
       }
     } catch (err) {
       console.error('Error loading questionnaires:', err);
@@ -84,10 +78,7 @@ const QuestionnairesSection = ({ patientId }) => {
   const handleSeed = async () => {
     setSeeding(true);
     try {
-      const response = await fetch('/api/questionnaires/seed', { method: 'POST' });
-      if (!response.ok) {
-        throw new Error(`Seed failed: ${response.status}`);
-      }
+      await api.post('/api/questionnaires/seed');
       // Reload questionnaires after seeding
       await fetchData();
     } catch (err) {

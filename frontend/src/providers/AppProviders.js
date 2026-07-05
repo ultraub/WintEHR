@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { SnackbarProvider } from 'notistack';
 import { AuthProvider } from '../contexts/AuthContext';
 import { FHIRResourceProvider } from '../contexts/FHIRResourceContext';
 import { WorkflowProvider } from '../contexts/WorkflowContext';
@@ -55,17 +56,24 @@ const CommunicationProvider = createCompoundProvider([
  */
 export const AppProviders = memo(({ children }) => {
   return (
-    <CoreDataProvider>
-      <WorkflowProvider>
-        <ClinicalDomainProvider>
-          <CommunicationProvider>
-            <ClinicalWorkflowProvider>
-              {children}
-            </ClinicalWorkflowProvider>
-          </CommunicationProvider>
-        </ClinicalDomainProvider>
-      </WorkflowProvider>
-    </CoreDataProvider>
+    <SnackbarProvider
+      maxSnack={3}
+      autoHideDuration={4000}
+      preventDuplicate
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+    >
+      <CoreDataProvider>
+        <WorkflowProvider>
+          <ClinicalDomainProvider>
+            <CommunicationProvider>
+              <ClinicalWorkflowProvider>
+                {children}
+              </ClinicalWorkflowProvider>
+            </CommunicationProvider>
+          </ClinicalDomainProvider>
+        </WorkflowProvider>
+      </CoreDataProvider>
+    </SnackbarProvider>
   );
 });
 

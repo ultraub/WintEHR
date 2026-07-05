@@ -166,7 +166,7 @@ def create_error_response(
 # HAPI FHIR base URL - use Docker service name in containers, localhost for development
 # Note: HAPI_FHIR_URL may include /fhir suffix - strip it to avoid double path
 _raw_hapi_url = os.getenv("HAPI_FHIR_URL", "http://hapi-fhir:8080/fhir")
-HAPI_FHIR_BASE_URL = _raw_hapi_url.rstrip("/fhir").rstrip("/")
+HAPI_FHIR_BASE_URL = _raw_hapi_url.rstrip("/").removesuffix("/fhir")
 
 
 @router.api_route("/fhir/R4/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
