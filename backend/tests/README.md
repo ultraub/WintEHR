@@ -1,239 +1,98 @@
 # WintEHR Backend Tests
 
-Comprehensive test suite for the HAPI-unified CDS Hooks architecture.
+Unit and integration tests for the FastAPI backend. The suite runs **without
+Docker or live services** — HAPI is mocked (`AsyncMock`) and the DB fixture is
+in-memory SQLite; the one live-service test self-skips unless configured (see
+below).
 
-## Test Structure
+## Test structure
 
 ```
 tests/
-├── conftest.py                              # Shared fixtures and test configuration
+├── conftest.py                      # Shared fixtures (in-memory SQLite, mock HAPI client)
 ├── api/
-│   └── cds_hooks/
-│       ├── test_local_provider.py          # LocalServiceProvider unit tests
-│       ├── test_remote_provider.py         # RemoteServiceProvider unit tests
-│       ├── test_cds_hooks_router.py        # API endpoint integration tests
-│       ├── test_registration.py            # External service registration tests
-│       └── test_failure_tracking.py        # Failure tracking and auto-disable tests
-└── README.md                                # This file
+│   ├── cds_hooks/                   # 14 files — the most-covered module
+│   │   ├── test_cds_hooks_router.py         # Discovery + execution endpoints
+│   │   ├── test_condition_engine.py         # Declarative condition evaluation
+│   │   ├── test_cql_backed_provider.py      # CQL service provider
+│   │   ├── test_cql_bridge.py               # $apply bridge + card translation
+│   │   ├── test_cql_dev_helper.py           # Content-hashed Library upload
+│   │   ├── test_cross_order_services.py
+│   │   ├── test_failure_tracking.py         # Remote-service auto-disable
+│   │   ├── test_local_provider.py
+│   │   ├── test_ops_reliability.py
+│   │   ├── test_order_composition_context.py
+│   │   ├── test_prefetch_engine.py
+│   │   ├── test_registration.py             # External service registration
+│   │   ├── test_remote_provider.py
+│   │   └── test_service_orchestrator.py     # Parallel dispatch
+│   ├── cds_studio/
+│   │   ├── test_cql_artifact_builder.py     # Library + PlanDefinition generation
+│   │   └── test_value_set_composer.py
+│   └── clinical/
+│       ├── administration/                  # MAR backend
+│       │   ├── test_admin_router.py
+│       │   ├── test_dose_scheduler.py       # Pure-logic scheduling tests
+│       │   └── test_tasks_router.py
+│       └── pharmacy/
+│           └── test_dispense_signing_gate.py
+├── integration/
+│   └── test_cr_cache_flush.py       # Live-service test — env-gated, self-skips
+└── services/
+    └── test_local_terminology_index.py
 ```
 
-## Running Tests
+## Running tests
 
-### Run All Tests
 ```bash
-# From backend directory
+# From the backend directory
 pytest tests/ -v
 
-# With coverage
-pytest tests/ --cov=api.cds_hooks --cov-report=html
-```
+# Skip service-dependent tests
+pytest tests/ -m "not integration"
 
-### Run Specific Test Files
-```bash
-# LocalServiceProvider tests
+# One file / class / method
 pytest tests/api/cds_hooks/test_local_provider.py -v
-
-# RemoteServiceProvider tests
-pytest tests/api/cds_hooks/test_remote_provider.py -v
-
-# API endpoint tests
-pytest tests/api/cds_hooks/test_cds_hooks_router.py -v
-
-# Registration tests
-pytest tests/api/cds_hooks/test_registration.py -v
-
-# Failure tracking tests
-pytest tests/api/cds_hooks/test_failure_tracking.py -v
-```
-
-### Run Specific Test Classes or Methods
-```bash
-# Run specific test class
-pytest tests/api/cds_hooks/test_local_provider.py::TestLocalServiceProvider -v
-
-# Run specific test method
 pytest tests/api/cds_hooks/test_local_provider.py::TestLocalServiceProvider::test_execute_with_valid_service -v
+
+# With coverage
+pytest tests/ --cov=api --cov=services --cov-report=html
 ```
 
-### Run with Markers
-```bash
-# Run only async tests
-pytest tests/ -v -m asyncio
+Markers (registered in `pytest.ini`): `asyncio`, `integration`, `unit`, `slow`,
+`external`.
 
-# Run only integration tests
-pytest tests/ -v -m integration
+### The integration test
+
+`tests/integration/test_cr_cache_flush.py` exercises the real HAPI overlay's
+`POST /admin/cr/flush-caches` endpoint. It **skips itself** unless these env
+vars are set:
+
+```
+INTEGRATION_HAPI_URL, INTEGRATION_BACKEND_URL, HAPI_ADMIN_TOKEN
 ```
 
-## Test Coverage
+## Fixtures (`conftest.py`)
 
-### LocalServiceProvider Tests (`test_local_provider.py`)
-- ✅ Dynamic class import and instantiation
-- ✅ Service execution with prefetch building
-- ✅ should_execute conditional logic
-- ✅ Error handling (ImportError, missing extensions, service exceptions)
-- ✅ Context handling (dict and object formats)
+- `test_db` — in-memory SQLite (`sqlite+aiosqlite:///:memory:`)
+- `mock_hapi_client` — `AsyncMock`ed HAPI FHIR client
+- Sample data fixtures: `sample_plan_definition`, `external_plan_definition`,
+  `sample_cds_request`, `external_service_metadata`
 
-### RemoteServiceProvider Tests (`test_remote_provider.py`)
-- ✅ API key authentication
-- ✅ OAuth2 authentication
-- ✅ HMAC signature authentication
-- ✅ Failure tracking increment
-- ✅ Auto-disable after 5 failures
-- ✅ Success resets failure count
-- ✅ Disabled service handling
-- ✅ HTTP timeout handling
-- ✅ Malformed response handling
-- ✅ HTTP error status codes
+## Conventions
 
-### CDS Hooks Router Tests (`test_cds_hooks_router.py`)
-- ✅ Service discovery from HAPI FHIR
-- ✅ Discovery filtering by service-origin
-- ✅ Empty discovery results
-- ✅ HAPI error handling in discovery
-- ✅ Built-in service execution routing
-- ✅ External service execution routing
-- ✅ Service not found handling
-- ✅ Invalid service origin handling
-- ✅ PlanDefinition to CDS service conversion
-- ✅ Extension value extraction
-- ✅ Prefetch template building
-- ✅ Execution logging and timing
+1. Tests must not require live services (except the env-gated `integration/`).
+2. Mock external dependencies — HAPI, HTTP clients, database.
+3. Router tests build a minimal FastAPI app + `TestClient` and
+   `patch(...HAPIFHIRClient)`; see `test_cds_hooks_router.py` or
+   `test_dispense_signing_gate.py` as the pattern.
+4. Async tests use `--asyncio-mode=auto` (no decorator needed).
+5. Add tests next to the module path they cover (`tests/api/<module>/...`),
+   and update the structure listing above when adding a new directory.
 
-### Registration Tests (`test_registration.py`)
-- ✅ Single hook registration
-- ✅ Batch registration (multiple hooks)
-- ✅ Incremental addition to existing service
-- ✅ PlanDefinition creation with extensions
-- ✅ Prefetch template serialization
-- ✅ Unique service ID generation
-- ✅ Input validation (fields, auth types, URLs)
-- ✅ Credentials encryption
-- ✅ Service metadata storage
+## Known coverage gaps
 
-### Failure Tracking Tests (`test_failure_tracking.py`)
-- ✅ First failure tracking
-- ✅ Consecutive failure increment
-- ✅ Auto-disable at threshold (5 failures)
-- ✅ Failure reset on success
-- ✅ Error message logging
-- ✅ Disabled service skip execution
-- ✅ Manual re-enable
-- ✅ Different failure types (connection, timeout, HTTP error, malformed)
-- ✅ Graceful degradation patterns
-
-## Test Fixtures
-
-Common fixtures defined in `conftest.py`:
-
-### Database Fixtures
-- `test_db` - In-memory SQLite database for testing
-- `event_loop` - Async event loop for async tests
-
-### Mock Fixtures
-- `mock_hapi_client` - Mocked HAPI FHIR client
-- `mock_local_service` - Mocked local CDS service
-- `async_client` - Async HTTP client for testing
-
-### Data Fixtures
-- `sample_plan_definition` - Built-in service PlanDefinition
-- `external_plan_definition` - External service PlanDefinition
-- `sample_cds_request` - CDS Hooks request
-- `external_service_metadata` - External service configuration
-
-## Test Patterns
-
-### Async Test Pattern
-```python
-@pytest.mark.asyncio
-async def test_async_operation(provider, sample_data):
-    """Test async operation"""
-    result = await provider.execute(sample_data)
-    assert result is not None
-```
-
-### Mock Pattern
-```python
-with patch('module.Class') as mock_class:
-    mock_instance = AsyncMock()
-    mock_instance.method.return_value = expected_value
-    mock_class.return_value = mock_instance
-
-    result = await function_under_test()
-
-    assert mock_instance.method.called
-```
-
-### Database Test Pattern
-```python
-def test_with_database(test_db):
-    """Test with database operations"""
-    test_db.execute = AsyncMock()
-    test_db.commit = AsyncMock()
-
-    # Test logic
-
-    assert test_db.execute.called
-    assert test_db.commit.called
-```
-
-## Testing Best Practices
-
-1. **Use fixtures** - Leverage conftest.py fixtures for common setup
-2. **Test isolation** - Each test should be independent
-3. **Mock external dependencies** - Mock HAPI FHIR, HTTP clients, database
-4. **Test error paths** - Don't just test happy paths
-5. **Descriptive names** - Test method names should clearly state what's being tested
-6. **Arrange-Act-Assert** - Structure tests in clear phases
-7. **Async awareness** - Use @pytest.mark.asyncio for async tests
-8. **Coverage** - Aim for >80% code coverage
-
-## Continuous Integration
-
-These tests are designed to run in CI/CD pipelines:
-
-```yaml
-# Example CI configuration
-test:
-  script:
-    - cd backend
-    - pip install -r requirements.txt
-    - pip install pytest pytest-asyncio pytest-cov
-    - pytest tests/ -v --cov=api.cds_hooks --cov-report=xml
-```
-
-## Contributing
-
-When adding new features to the CDS Hooks implementation:
-
-1. Write tests first (TDD approach)
-2. Ensure all existing tests pass
-3. Add new tests for new functionality
-4. Update this README if adding new test files
-5. Maintain >80% code coverage
-
-## Troubleshooting
-
-### Import Errors
-If you get import errors, make sure you're running from the backend directory:
-```bash
-cd backend
-pytest tests/
-```
-
-### Async Warnings
-If you see async warnings, ensure all async tests use `@pytest.mark.asyncio`:
-```python
-@pytest.mark.asyncio
-async def test_my_async_function():
-    ...
-```
-
-### Database Errors
-If database tests fail, check that SQLite is properly installed and the test database can be created in memory.
-
-## Resources
-
-- **Pytest Documentation**: https://docs.pytest.org/
-- **Pytest-asyncio**: https://pytest-asyncio.readthedocs.io/
-- **HAPI FHIR**: https://hapifhir.io/
-- **CDS Hooks Specification**: https://cds-hooks.org/
+Coverage is concentrated on CDS Hooks. The largest untested modules are
+`api/clinical/orders/`, most of `api/clinical/pharmacy/`, `api/auth/` +
+`api/smart/`, and `api/dicom/` — prefer adding tests there when touching that
+code.

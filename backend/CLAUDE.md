@@ -44,10 +44,6 @@ registration, some carry no prefix at all. The resolved path is
 When in doubt, grep `api/routers/__init__.py` for the `include_router` call —
 that, plus the `APIRouter(...)` line in the router file, gives the truth.
 
-**`api/dependencies.py` is dead code.** Its `get_db_session` yields an
-`AsyncMock()`. Routers import `from database import get_db_session` — the real
-one. Do not import from `api/dependencies.py`.
-
 ---
 
 ## Router / service split (owned here; child docs link up)
@@ -137,7 +133,6 @@ Key env vars: `DATABASE_URL`, `HAPI_FHIR_URL`, `REDIS_URL`, `JWT_ENABLED`,
 |---|---|
 | Frontend call 404s | Prefix mismatch — re-derive the resolved path from `api/routers/__init__.py` + the router's `APIRouter(...)` line |
 | New router never reachable | Not added to `register_all_routers` in `api/routers/__init__.py` |
-| Endpoint returns mock/empty data with no error | Something imported `get_db_session` from `api/dependencies.py` (yields `AsyncMock`) instead of `database.py` |
 | `register_all_routers` silently skips a group | Each numbered block is wrapped in `try/except` that logs and continues — check backend logs for `Failed to register ...` |
 | FHIR write "succeeds" but data missing | Wrote to a custom table instead of HAPI — all FHIR resources go through `HAPIFHIRClient` |
 | Import error for `FHIRStorageEngine` / `fhir.core.storage` | Both removed; use `HAPIFHIRClient` |

@@ -37,9 +37,8 @@ const result  = await fhirClient.search('Condition', {
 ```
 
 > `src/services/fhirService.js` **and** `src/services/fhirClient.js` are both
-> **deleted**. Never import either. ~11 files still carry a stale
-> `from '../../../services/fhirClient'` import — those imports are broken; if you
-> touch such a file, repoint it to `core/fhir/services/fhirClient`. Do not copy
+> **deleted**. Never import either — the stale imports that once pointed at
+> them have all been repointed to `core/fhir/services/fhirClient`. Do not copy
 > the dead path into new code.
 
 ---
@@ -125,8 +124,8 @@ re-add a parallel tab list anywhere.
 - Get data via contexts (`useFHIRResource`) or `fhirClient` directly — not via
   raw `axios`/`fetch` to `/fhir/...`.
 - Clinical UI uses **sharp corners** (`borderRadius` 0–4) and the severity
-  palette from `src/themes/clinicalThemeUtils.js` — see
-  `docs/CLINICAL_DESIGN_SYSTEM.md` for tokens.
+  palette from `src/themes/clinicalThemeUtils.js` — that file is the token
+  source of truth.
 - Generic React/MUI/hooks patterns are assumed known — not documented here.
 
 ---

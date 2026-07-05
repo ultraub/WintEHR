@@ -18,11 +18,13 @@ Grouped by topic (verify against the actual directory — file lists drift):
 | Entry / index | `INDEX.md` |
 | Deployment & config | `DEPLOYMENT.md`, `CLIENT_DEPLOYMENT.md`, `AZURE_DEPLOYMENT.md`, `CONFIGURATION.md`, `TERMINOLOGY_SETUP.md` |
 | Architecture | `SYSTEM_ARCHITECTURE.md`, `architecture.png`, `generate_architecture.py`, `figures/` |
-| CDS Studio & CQL | `CDS_STUDIO_*.md` (4), `CDS_VISUAL_BUILDER_DEPLOYMENT.md`, `STUDENT_CQL_PRIMER.md`, `CQL_AUTHORING_PROMPT.md` |
+| CQL authoring | `STUDENT_CQL_PRIMER.md`, `CQL_AUTHORING_PROMPT.md` |
 | Security | `SECURITY.md` |
-| Integration / tooling | `EXTERNAL_SERVICES_INTEGRATION.md`, `CODE_GRAPH_MCP.md` |
 | Testing / verification | `TESTING_CHECKLIST.md`, `WORKFLOW_VERIFICATION_REPORT.md` |
 | Change logs | `API_UPDATES_*.md` |
+
+There is no standalone CDS Studio doc set — the visual-builder/CDS reference
+lives in `backend/api/cds_hooks/CLAUDE.md` and the student-facing CQL primer.
 
 ---
 
@@ -40,7 +42,7 @@ Grouped by topic (verify against the actual directory — file lists drift):
 | Change | Update |
 |---|---|
 | Deployment / config behavior | `DEPLOYMENT.md`, `CONFIGURATION.md` (+ `deploy/CLAUDE.md`) |
-| CDS Studio / visual builder | `CDS_STUDIO_*.md` |
+| CDS Studio / visual builder | `backend/api/cds_hooks/CLAUDE.md` |
 | CQL authoring surface | `STUDENT_CQL_PRIMER.md` (+ `backend/api/cds_hooks/CLAUDE.md`) |
 | Architecture pattern | `SYSTEM_ARCHITECTURE.md` + root & module `CLAUDE.md` |
 | API endpoints | `API_UPDATES_*.md` + nearest `CLAUDE.md` |

@@ -16,36 +16,23 @@ are below.
 
 ---
 
-## Three auth services — know which one runs
+## Two auth services — know which one runs
 
-`get_auth_service()` (in `service.py`) picks the service at request time from
-`USE_SECURE_AUTH`. `USE_SECURE_AUTH` is true whenever `JWT_ENABLED` is true
-(see `config.py:17`), so flipping JWT on silently swaps the whole auth backend.
+`get_auth_service()` (in `service.py`) always returns `AuthService`. The
+DB-backed `SecureAuthService` and its `USE_SECURE_AUTH` flag were **removed in
+PR #158** — that service queried `auth.*` tables/columns that never existed,
+so enabling it crashed at runtime. Do not reintroduce it; if you see docs or
+examples referencing `secure_auth_service.py`, they are stale.
 
 | Service | File | When active | What it actually does |
 |---|---|---|---|
-| `AuthService` | `service.py` | `USE_SECURE_AUTH=false` (default) | Checks `TRAINING_USERS` dict; password must equal the literal `"password"`. In-memory sessions. |
-| `SecureAuthService` | `secure_auth_service.py` | `USE_SECURE_AUTH=true` | bcrypt + DB-backed; **see broken-schema warning below** |
+| `AuthService` | `service.py` | Always, for `/api/auth/*` | Checks `TRAINING_USERS` dict; password must equal the literal `"password"`. In-memory sessions (or a JWT when `JWT_ENABLED=true`). |
 | `PractitionerAuthService` | `practitioner_auth_service.py` | Always, for `/practitioners/*` routes only | Logs in as a real FHIR `Practitioner` from HAPI; **no password check at all** |
 
-The training-mode "production" path is not separate code — `AuthService.authenticate_user`
+The "production" JWT path is not separate code — `AuthService.authenticate_user`
 takes the same `TRAINING_USERS` / `TRAINING_PASSWORD` branch whether `JWT_ENABLED`
 is true or false. The only difference JWT makes is JWT-token vs in-memory-session
 in the response.
-
-### `SecureAuthService` does not match the real DB schema
-
-`secure_auth_service.py` queries `auth.users` columns (`full_name`, `role`,
-`permissions`, `is_locked`, `failed_login_attempts`, `last_failed_login`,
-`password_changed_at`, `must_change_password`) and tables (`auth.sessions`,
-`auth.password_history`, `auth.user_permissions`) that **do not exist**.
-`postgres-init/01-init-wintehr.sql` creates `auth.users` with only
-`id, username, email, password_hash, is_active, is_admin`, plus `auth.roles`
-and `auth.user_roles`. So `SecureAuthService` raises at runtime against the
-real schema — meaning **`JWT_ENABLED=true` is effectively broken**. Treat
-`secure_auth_service.py` as aspirational/unfinished code, not a working path.
-`USE_SECURE_AUTH` is also never read in `routers/__init__.py` or `main.py`; the
-only consumer is `get_auth_service`.
 
 ---
 
@@ -60,10 +47,8 @@ only consumer is `get_auth_service`.
 3. Otherwise → `AuthService.get_current_user_from_token` (JWT verify, or the
    `training-session-*` in-memory dict).
 
-Note `get_current_user` in `service.py` **always constructs a plain
-`AuthService`** for the fallback path — it ignores `USE_SECURE_AUTH`. A second,
-divergent `get_current_user` exists in `secure_auth_service.py`; it is **not
-the one wired into routers**. Import from `service.py`.
+`get_current_user` lives in `service.py` and is the only implementation —
+import it from there.
 
 Related dependencies in `service.py`:
 - `get_optional_current_user` — returns `None` instead of raising 401.
@@ -73,10 +58,9 @@ Related dependencies in `service.py`:
 
 `User.permissions` is a flat `List[str]` (e.g. `"prescribe"`, `"order:lab"`,
 `"admin"`). Endpoints check it directly — e.g. `router.py:94` gates `/users`
-with `if "admin" not in current_user.permissions`. The `require_permission`
-decorator in `secure_auth_service.py` is **defined but unused** (it belongs to
-the broken secure path); do not rely on it. For a new permission gate, do an
-explicit `in` check in the endpoint.
+with `if "admin" not in current_user.permissions`. There is no permission
+decorator; for a new permission gate, do an explicit `in` check in the
+endpoint.
 
 ---
 
@@ -102,9 +86,8 @@ router itself carries `prefix="/api/auth"`, so paths resolve verbatim.
 
 | Env var | Default | Effect |
 |---|---|---|
-| `JWT_ENABLED` | `false` | `true` → JWT tokens **and** forces `USE_SECURE_AUTH=true` |
-| `USE_SECURE_AUTH` | `false` | `true` → `get_auth_service` returns `SecureAuthService` (broken, see above) |
-| `JWT_SECRET_KEY` | `training-secret-key-change-in-production` | HS256 signing key |
+| `JWT_ENABLED` | `false` | `true` → login returns a JWT instead of an in-memory session token (same demo credentials either way) |
+| `JWT_SECRET_KEY` | `training-secret-key-change-in-production` | HS256 signing key. Note the deployment plumbing (`docker-compose.yml`, `.env.example`) sets `JWT_SECRET`, a **different** variable that this module never reads — see the hygiene backlog / security review. |
 | `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` (24h) | Token lifetime |
 
 `TRAINING_USERS` (`config.py:22`) hard-codes four users — `demo`, `nurse`,
@@ -149,8 +132,7 @@ attempts / 15 min, lost on restart. Not distributed.
 |---|---|
 | `401 Not authenticated` | No/blank `Authorization` header — `get_current_user` raises before any service runs |
 | `401 Invalid authentication credentials` | Token present but unresolved — wrong prefix, expired JWT, or session lost on restart (sessions are in-memory) |
-| All logins fail after enabling JWT | `JWT_ENABLED=true` forces `USE_SECURE_AUTH`, which routes to `SecureAuthService` — it crashes on the missing `auth.*` schema. Expected; this path is unfinished. |
 | Login works but `/users` returns 403 | Caller's `User.permissions` lacks `"admin"` |
 | Practitioner login "not found" | `find_practitioner` searches HAPI by ID / `family` / NPI `identifier`, `active=true` only — confirm the Practitioner exists and is active |
 | Logout doesn't invalidate a JWT | By design — JWT mode has no server-side revocation; only in-memory sessions can be dropped |
-| `jwt.JWTError` AttributeError in `verify_token` | `jwt_handler.py:49` references `jwt.JWTError`; PyJWT exposes `jwt.PyJWTError`. Expired tokens are caught by the line above, so this only fires on malformed tokens. |
+| JWT verifies locally but not on the server (or vice versa) | Signing-key mismatch — this module reads `JWT_SECRET_KEY`, while compose/`.env` set `JWT_SECRET`; if only the latter is configured, tokens are signed with the hardcoded default |
