@@ -23,6 +23,7 @@ import {
 } from '@mui/icons-material';
 import ClinicalLoadingState from '../components/clinical/shared/ClinicalLoadingState';
 import ClinicalEmptyState from '../components/clinical/shared/ClinicalEmptyState';
+import api from '../services/api';
 
 const QualityMeasuresPage = () => {
   const [summary, setSummary] = useState(null);
@@ -34,12 +35,8 @@ const QualityMeasuresPage = () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('/api/quality/measures/summary');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch quality measures: ${response.status}`);
-        }
-        const data = await response.json();
-        setSummary(data);
+        const response = await api.get('/api/quality/measures/summary');
+        setSummary(response.data);
       } catch (err) {
         console.error('Error fetching quality measures:', err);
         setError(err.message);

@@ -27,6 +27,7 @@ import {
 } from '@mui/material';
 
 import { buildUrl } from '../../../../../config/apiConfig';
+import api from '../../../../../services/api';
 import { useClinicalWorkflow } from '../../../../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../../../../constants/clinicalEvents';
 
@@ -98,19 +99,12 @@ const ProcedurePerformanceDialog = ({ open, task, patientId, onClose, onRecorded
         ...(notDone ? { status_reason: statusReason } : {}),
         ...(notes ? { notes } : {}),
       };
-      const res = await fetch(
-        buildUrl('backend', '/api/clinical/administration/record/procedure'),
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      );
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.detail || `Server returned ${res.status}`);
-      }
-      const created = await res.json().catch(() => ({}));
+      const res = await api
+        .post(buildUrl('backend', '/api/clinical/administration/record/procedure'), body)
+        .catch((err) => {
+          throw new Error(err.response?.data?.detail || err.message);
+        });
+      const created = res.data ?? {};
       publish?.(CLINICAL_EVENTS.PROCEDURE_PERFORMED, {
         patientId,
         procedureId: created.resource_id,

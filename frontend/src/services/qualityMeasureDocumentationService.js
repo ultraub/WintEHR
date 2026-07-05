@@ -4,6 +4,7 @@
  */
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
+import api from './api';
 
 export class QualityMeasureDocumentationService {
   constructor() {
@@ -17,10 +18,8 @@ export class QualityMeasureDocumentationService {
    */
   async initializeQualityMeasures() {
     try {
-      const response = await fetch('/api/quality/measures/');
-      if (response.ok) {
-        this.qualityMeasures = await response.json();
-      }
+      const response = await api.get('/api/quality/measures/');
+      this.qualityMeasures = response.data;
     } catch (error) {
       // Fallback to built-in measures
       this.qualityMeasures = this.getBuiltInQualityMeasures();

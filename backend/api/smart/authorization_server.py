@@ -230,7 +230,7 @@ class SMARTAuthorizationServer:
         self.register_app(RegisteredApp(
             client_id="demo-patient-viewer",
             name="Patient Summary Viewer",
-            redirect_uris=["http://localhost:3001/callback", f"{frontend_url}/smart-callback"],
+            redirect_uris=[f"{frontend_url}/smart-callback"],
             scopes=[
                 "launch", "launch/patient",
                 "patient/Patient.read",

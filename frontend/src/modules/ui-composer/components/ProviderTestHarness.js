@@ -33,6 +33,7 @@ import {
 import DynamicComponent from './DynamicComponent';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import api from '../../../services/api';
 
 // Test scenarios for quick testing
 const TEST_SCENARIOS = [
@@ -85,10 +86,10 @@ const ProviderTestHarness = ({ patientId }) => {
 
   const checkProviderAvailability = async () => {
     try {
-      const response = await fetch('/api/ui-composer/providers/status');
-      const data = await response.json();
+      const response = await api.get('/api/ui-composer/providers/status');
+      const data = response.data;
       setAvailableProviders(data);
-      
+
       // Select first available provider
       const firstAvailable = Object.keys(data).find(p => data[p]?.available);
       if (firstAvailable) {
@@ -110,34 +111,26 @@ const ProviderTestHarness = ({ patientId }) => {
       const context = scenario.context;
       
       // Step 1: Analyze request
-      const analyzeResponse = await fetch('/api/ui-composer/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          request,
-          context: { ...context, provider: selectedProvider },
-          method: 'development' // Use development mode for testing
-        })
+      const analyzeResponse = await api.post('/api/ui-composer/analyze', {
+        request,
+        context: { ...context, provider: selectedProvider },
+        method: 'development' // Use development mode for testing
       });
-      
-      const analyzeData = await analyzeResponse.json();
+
+      const analyzeData = analyzeResponse.data;
       
       if (!analyzeData.success) {
         throw new Error(analyzeData.error || 'Analysis failed');
       }
       
       // Step 2: Generate component with specific provider
-      const generateResponse = await fetch('/api/ui-composer/generate-with-provider', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          specification: analyzeData.specification,
-          fhir_data: {}, // Empty for testing
-          provider: selectedProvider
-        })
+      const generateResponse = await api.post('/api/ui-composer/generate-with-provider', {
+        specification: analyzeData.specification,
+        fhir_data: {}, // Empty for testing
+        provider: selectedProvider
       });
-      
-      const generateData = await generateResponse.json();
+
+      const generateData = generateResponse.data;
       
       if (!generateData.success) {
         throw new Error(generateData.error || 'Generation failed');
@@ -175,17 +168,13 @@ const ProviderTestHarness = ({ patientId }) => {
         throw new Error('Need at least 2 providers for comparison');
       }
       
-      const response = await fetch('/api/ui-composer/compare', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          request,
-          context: scenario.context,
-          providers: providers.slice(0, 3) // Limit to 3 for UI
-        })
+      const response = await api.post('/api/ui-composer/compare', {
+        request,
+        context: scenario.context,
+        providers: providers.slice(0, 3) // Limit to 3 for UI
       });
-      
-      const data = await response.json();
+
+      const data = response.data;
       
       setResults({
         type: 'comparison',

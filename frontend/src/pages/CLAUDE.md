@@ -86,9 +86,9 @@ Pages reach the backend two ways, and the choice is not arbitrary:
   Used by `Analytics`, `AuditTrailPage`, `Settings`, `Login`.
 
 Do not hit FHIR through `services/api.js` raw `fetch`, and do not invent a third
-client. Raw `fetch` exists in a few pages (`PharmacyPage`, `QualityMeasuresPage`,
-the SMART pages) for non-FHIR backend calls — keep new FHIR access on
-`fhirClient`.
+client. The only deliberate raw `fetch` calls left are in the SMART pages —
+the OAuth token exchange and the external-app simulation must not carry the
+app session header. Everything else goes through `api` / `fhirClient`.
 
 Backend endpoints these pages call resolve under `/api/...` and `/fhir/...` —
 prefixes are inconsistent backend-side, so confirm the resolved path against

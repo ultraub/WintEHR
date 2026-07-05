@@ -3,6 +3,7 @@ Query Orchestrator
 Executes complex FHIR query plans with dependency resolution and result management
 """
 
+import os
 import logging
 import asyncio
 from typing import Dict, Any, List, Optional, Set
@@ -46,8 +47,8 @@ class QueryResult:
 class QueryOrchestrator:
     """Orchestrates execution of complex FHIR query plans"""
     
-    def __init__(self, base_url: str = "http://localhost:8000/fhir/R4"):
-        self.base_url = base_url
+    def __init__(self, base_url: Optional[str] = None):
+        self.base_url = base_url or f"{os.getenv('BACKEND_BASE_URL', 'http://localhost:8000')}/fhir/R4"
         self.results_cache = {}
         self.execution_stats = {
             "total_queries": 0,

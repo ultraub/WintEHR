@@ -12,6 +12,7 @@ Educational Focus:
 
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
+import os
 import re
 import json
 import logging
@@ -400,8 +401,8 @@ class HAPIFHIRPrefetchClient:
         - Production-ready implementation
     """
 
-    def __init__(self, base_url: str = "http://hapi-fhir:8080/fhir"):
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, base_url: Optional[str] = None):
+        self.base_url = (base_url or os.getenv("HAPI_FHIR_URL", "http://hapi-fhir:8080/fhir")).rstrip("/")
 
     async def get_resource(
         self,
