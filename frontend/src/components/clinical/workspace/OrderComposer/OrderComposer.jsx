@@ -196,7 +196,7 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
   const theme = useTheme();
   const { user } = useAuth();
   const { publish } = useClinicalWorkflow();
-  const { drafts, clearDrafts } = useDraftOrderBundle();
+  const { drafts, clearDrafts, removeDraft } = useDraftOrderBundle();
 
   // Default to medications — highest-volume tab in real CPOE use.
   // Callers (e.g. ChartReview's "Add medication" button) can override
@@ -234,7 +234,8 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
     const failed = [];
     const created = [];
 
-    for (const { resource } of drafts) {
+    for (const draft of drafts) {
+      const { resource } = draft;
       try {
         const toCreate = {
           ...resource,
@@ -244,6 +245,10 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
         };
         const result = await fhirClient.create(toCreate.resourceType, toCreate);
         created.push(result);
+
+        // Drop the draft as soon as its order exists — on partial failure,
+        // retrying "Sign all" must not re-create already-signed orders
+        removeDraft(draft.localId);
 
         // Per-order Provenance for audit-trail parity with the
         // encounter signing dialog (Phase 4.1.B requirement). Records
@@ -318,7 +323,7 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
         severity: 'error',
       });
     }
-  }, [drafts, user, patientId, publish, clearDrafts, onSigned, onClose]);
+  }, [drafts, user, patientId, publish, clearDrafts, removeDraft, onSigned, onClose]);
 
   return (
     <>

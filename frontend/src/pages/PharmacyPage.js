@@ -74,6 +74,7 @@ import { printBatchLabels } from '../services/prescriptionLabelService';
 import { useFHIRResource } from '../contexts/FHIRResourceContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
 import websocketService from '../services/websocket';
+import { readPharmacyStatusExtension } from '../core/pharmacy/pharmacyStatus';
 
 // Queue column configuration (should match PharmacyQueue.js)
 const QUEUE_COLUMNS = {
@@ -137,14 +138,16 @@ const PharmacyPage = () => {
     const fetchMedicationRequests = async () => {
       try {
         setDataLoading(true);
-        const result = await fhirClient.search('MedicationRequest', { 
-          _count: 50,
-          _summary: 'true'  // Only essential fields for list view
+        // Full resources, same count as refresh: _summary strips the
+        // pharmacy-status extension the kanban columns are derived from,
+        // which made Verify actions visually revert on reload.
+        const result = await fhirClient.search('MedicationRequest', {
+          _count: 500
         });
         const resources = result.resources || [];
         setMedicationRequests(resources);
       } catch (error) {
-        
+        console.error('PharmacyPage: failed to load medication requests:', error);
         setMedicationRequests([]);
       } finally {
         setDataLoading(false);
@@ -206,30 +209,29 @@ const PharmacyPage = () => {
 
   // Helper function to determine pharmacy status
   const getPharmacyStatus = useCallback((medicationRequest) => {
-    // Check for pharmacy status extension
-    const extensions = medicationRequest.extension || [];
-    for (const ext of extensions) {
-      if (ext.url === 'http://wintehr.com/fhir/StructureDefinition/pharmacy-status') {
-        for (const subExt of ext.extension || []) {
-          if (subExt.url === 'status') {
-            return subExt.valueString;
-          }
-        }
-      }
+    // Recorded pharmacy status first. The shared reader uses the REAL
+    // extension URL (wintehr.local, from constants) — this page previously
+    // read wintehr.com, which the backend never writes, so every recorded
+    // status was invisible and cards snapped back after Verify.
+    const recorded = readPharmacyStatusExtension(medicationRequest);
+    if (recorded) {
+      // This board historically wrote its own column ids as statuses —
+      // pass those through so drag-and-drop round-trips; map canonical
+      // workflow statuses onto columns.
+      if (['newOrders', 'verification', 'dispensing', 'ready'].includes(recorded)) return recorded;
+      if (recorded === 'pending') return 'newOrders';
+      if (recorded === 'verified') return 'verification';
+      if (recorded === 'dispensed' || recorded === 'completed') return 'ready';
     }
 
-    // Default logic based on medication request status and timing
     const status = medicationRequest.status;
     if (status === 'completed') return 'ready';
     if (status === 'cancelled' || status === 'stopped') return 'ready';
-    
-    // Check how long since prescribed
-    const authoredDate = new Date(medicationRequest.authoredOn);
-    const hoursSince = (new Date() - authoredDate) / (1000 * 60 * 60);
-    
-    if (hoursSince < 1) return 'newOrders';
-    if (hoursSince < 4) return 'verification';
-    return 'dispensing';
+
+    // Nothing recorded — the order stays in New Orders. (The old time-based
+    // rules auto-advanced orders to verification/dispensing columns that
+    // nobody had actually worked.)
+    return 'newOrders';
   }, []);
 
   // Categorize queue items by pharmacy status
@@ -266,11 +268,11 @@ const PharmacyPage = () => {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const result = await fhirClient.search('MedicationRequest', { _count: 1000 });
+      const result = await fhirClient.search('MedicationRequest', { _count: 500 });
       const resources = result.resources || [];
       setMedicationRequests(resources);
     } catch (error) {
-      
+      console.error('PharmacyPage: refresh failed:', error);
     } finally {
       setRefreshing(false);
     }

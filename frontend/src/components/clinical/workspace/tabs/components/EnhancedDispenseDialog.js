@@ -409,14 +409,16 @@ const EnhancedDispenseDialog = ({
         
         if (dispenseData.lotNumber) {
           medicationDispenseData.extension.push({
-            url: 'http://wintehr.com/fhir/StructureDefinition/lot-number',
+            // wintehr.local matches the backend's ExtensionURLs.BASE_URL —
+            // the old wintehr.com domain is written nowhere else
+            url: 'http://wintehr.local/fhir/StructureDefinition/lot-number',
             valueString: dispenseData.lotNumber
           });
         }
-        
+
         if (dispenseData.expirationDate) {
           medicationDispenseData.extension.push({
-            url: 'http://wintehr.com/fhir/StructureDefinition/expiration-date',
+            url: 'http://wintehr.local/fhir/StructureDefinition/expiration-date',
             valueDate: dispenseData.expirationDate
           });
         }

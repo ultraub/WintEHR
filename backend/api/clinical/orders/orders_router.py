@@ -983,13 +983,18 @@ async def discontinue_order(
                 detail=f"Order with status '{current_status}' cannot be discontinued"
             )
 
-        # Update status to stopped
-        resource["status"] = "stopped"
-
-        # Add status reason
-        resource["statusReason"] = {
-            "text": reason
-        }
+        # Per-resource terminal status: R4 MedicationRequest discontinues to
+        # 'stopped' and carries statusReason; R4 ServiceRequest has neither —
+        # its cancellation status is 'revoked' and the reason goes in a note.
+        if resource_type == "MedicationRequest":
+            resource["status"] = "stopped"
+            resource["statusReason"] = {"text": reason}
+        else:
+            resource["status"] = "revoked"
+            resource.setdefault("note", []).append({
+                "text": f"Discontinued: {reason}",
+                "time": datetime.utcnow().isoformat(),
+            })
 
         # Add extension for discontinuation details
         if "extension" not in resource:
