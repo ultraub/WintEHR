@@ -6,33 +6,16 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useFHIRResource } from './FHIRResourceContext';
 import { useAuth } from './AuthContext';
 import websocketService from '../services/websocket';
+import { CLINICAL_EVENTS } from '../constants/clinicalEvents';
 
 const ClinicalWorkflowContext = createContext();
 
-// Clinical Event Types
-export const CLINICAL_EVENTS = {
-  ORDER_PLACED: 'order.placed',
-  ORDER_COMPLETED: 'order.completed',
-  RESULT_RECEIVED: 'result.received',
-  RESULT_ACKNOWLEDGED: 'result.acknowledged',
-  MEDICATION_DISPENSED: 'medication.dispensed',
-  MEDICATION_ADMINISTERED: 'medication.administered',
-  MEDICATION_STATUS_CHANGED: 'medication.status.changed',
-  MAR_ADMINISTRATION_RECORDED: 'mar.administration.recorded',
-  MAR_DOSE_MISSED: 'mar.dose.missed',
-  ENCOUNTER_CREATED: 'encounter.created',
-  ENCOUNTER_UPDATED: 'encounter.updated',
-  DOCUMENTATION_CREATED: 'documentation.created',
-  DOCUMENTATION_SHARED: 'documentation.shared',
-  QUALITY_DOCUMENTATION_INITIATED: 'quality.documentation.initiated',
-  PROBLEM_ADDED: 'problem.added',
-  PROBLEM_RESOLVED: 'problem.resolved',
-  CRITICAL_ALERT: 'alert.critical',
-  WORKFLOW_NOTIFICATION: 'workflow.notification',
-  TAB_UPDATE: 'tab.update',
-  IMAGING_STUDY_AVAILABLE: 'imaging.study.available',
-  CARE_PLAN_UPDATED: 'careplan.updated'
-};
+// Clinical Event Types — one catalog for the whole app.
+// constants/clinicalEvents.js is the single source of truth; this re-export
+// exists because ~28 files import CLINICAL_EVENTS from this context. Do NOT
+// redefine keys here — a second catalog is how 47 publish/subscribe sites
+// ended up on undefined event keys.
+export { CLINICAL_EVENTS };
 
 // Workflow Types
 export const WORKFLOW_TYPES = {
