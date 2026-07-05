@@ -8,8 +8,21 @@ logger = logging.getLogger(__name__)
 
 
 class FHIRNotificationService:
-    """Service for sending FHIR resource notifications via WebSocket."""
-    
+    """Service for sending FHIR resource notifications via WebSocket.
+
+    Every notify method is failure-proof: a broadcast problem is logged and
+    swallowed, because notifying must never break the write path that
+    triggered it.
+    """
+
+    async def _safe_broadcast(self, **kwargs):
+        try:
+            await manager.broadcast_resource_update(**kwargs)
+            return True
+        except Exception as exc:  # noqa: BLE001 — never break the caller's write
+            logger.warning(f"WebSocket broadcast failed (ignored): {exc}")
+            return False
+
     async def notify_resource_created(
         self,
         resource_type: str,
@@ -27,7 +40,7 @@ class FHIRNotificationService:
             if subject_ref.startswith("Patient/"):
                 patient_id = subject_ref.replace("Patient/", "")
                 
-        await manager.broadcast_resource_update(
+        await self._safe_broadcast(
             resource_type=resource_type,
             resource_id=resource_id,
             action="created",
@@ -53,7 +66,7 @@ class FHIRNotificationService:
             if subject_ref.startswith("Patient/"):
                 patient_id = subject_ref.replace("Patient/", "")
                 
-        await manager.broadcast_resource_update(
+        await self._safe_broadcast(
             resource_type=resource_type,
             resource_id=resource_id,
             action="updated",
@@ -69,7 +82,7 @@ class FHIRNotificationService:
         patient_id: Optional[str] = None
     ):
         """Notify clients about a deleted FHIR resource."""
-        await manager.broadcast_resource_update(
+        await self._safe_broadcast(
             resource_type=resource_type,
             resource_id=resource_id,
             action="deleted",
@@ -88,7 +101,7 @@ class FHIRNotificationService:
     ):
         """Notify clients about clinical events (e.g., critical lab results)."""
         # This is a specialized notification for clinical use cases
-        await manager.broadcast_resource_update(
+        await self._safe_broadcast(
             resource_type=resource_type,
             resource_id=resource_id,
             action="clinical_event",

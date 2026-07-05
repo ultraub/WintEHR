@@ -19,6 +19,7 @@ class Subscription(BaseModel):
     client_id: str
     resource_types: List[str] = []
     patient_ids: List[str] = []
+    room: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     class Config:
@@ -92,14 +93,16 @@ class ConnectionManager:
         client_id: str,
         subscription_id: str,
         resource_types: List[str] = None,
-        patient_ids: List[str] = None
+        patient_ids: List[str] = None,
+        room: Optional[str] = None
     ):
         """Create a new subscription for a client."""
         subscription = Subscription(
             id=subscription_id,
             client_id=client_id,
             resource_types=resource_types or [],
-            patient_ids=patient_ids or []
+            patient_ids=patient_ids or [],
+            room=room
         )
         
         if client_id not in self.subscriptions:
@@ -125,7 +128,12 @@ class ConnectionManager:
                 if resource_types:
                     for resource_type in resource_types:
                         await self.pool.join_room(client_id, f"patient:{patient_id}:resource:{resource_type}")
-        
+
+        # Custom rooms (e.g. "pharmacy:queue") — the frontend's
+        # subscribeToRoom sends a bare room name
+        if room:
+            await self.pool.join_room(client_id, room)
+
         # Send confirmation
         await self._send_message(
             client_id,
@@ -135,7 +143,8 @@ class ConnectionManager:
                     "action": "created",
                     "subscription_id": subscription_id,
                     "resource_types": resource_types,
-                    "patient_ids": patient_ids
+                    "patient_ids": patient_ids,
+                    "room": room
                 }
             )
         )
@@ -218,33 +227,56 @@ class ConnectionManager:
     async def handle_message(self, client_id: str, message: dict):
         """Handle incoming WebSocket messages."""
         msg_type = message.get("type")
-        
-        if msg_type == "pong":
+
+        if msg_type == "ping":
+            # Client heartbeat — reply, or the client's 10s pong timeout kills
+            # the connection every cycle and the status chip flaps forever
+            await self.pool.send_to_client(client_id, {
+                "type": "pong",
+                "timestamp": datetime.utcnow().isoformat()
+            })
+
+        elif msg_type == "pong":
             # Client responded to ping, connection is healthy
             logger.debug(f"Received pong from client {client_id}")
-            
+
         elif msg_type == "subscribe":
             data = message.get("data", {})
             await self.subscribe(
                 client_id,
                 data.get("subscription_id"),
                 data.get("resource_types"),
-                data.get("patient_ids")
+                data.get("patient_ids"),
+                room=data.get("room")
             )
-            
+
         elif msg_type == "unsubscribe":
             data = message.get("data", {})
             await self.unsubscribe(
                 client_id,
                 data.get("subscription_id")
             )
-            
+
         elif msg_type == "authenticate":
             # Authentication is handled in the WebSocket endpoint, ignore here
             logger.debug(f"Ignoring authenticate message from client {client_id} (handled by endpoint)")
-            
+
+        elif isinstance(msg_type, str) and "." in msg_type and "payload" in message:
+            # Client-published clinical event (the ClinicalWorkflowContext
+            # bridge sends {type: 'order.placed', payload: {...}}). Rebroadcast
+            # verbatim to every OTHER client: their websocket service
+            # dispatches unrecognized types straight to event listeners, so
+            # same-session pub/sub extends across browsers.
+            await self.broadcast_event_to_others(client_id, message)
+
         else:
             logger.warning(f"Unknown message type from client {client_id}: {msg_type}")
+
+    async def broadcast_event_to_others(self, sender_id: str, message: dict):
+        """Rebroadcast a client-published clinical event to all other clients."""
+        for other_id in list(self.pool.connections.keys()):
+            if other_id != sender_id:
+                await self.pool.send_to_client(other_id, message)
             
 
 # Global connection manager instance

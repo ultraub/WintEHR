@@ -34,6 +34,7 @@ from fastapi import status as http_status
 from pydantic import BaseModel, Field
 
 from services.hapi_fhir_client import HAPIFHIRClient
+from api.websocket.fhir_notifications import notification_service
 
 from .service import (
     ADMINISTRABLE_STATUSES,
@@ -295,6 +296,19 @@ async def record_administration_endpoint(body: RecordAdministrationRequest) -> R
     logger.info(
         "Recorded MedicationAdministration/%s (action=%s) for MedicationRequest/%s",
         new_id, body.action, body.medication_request_id,
+    )
+
+    # Broadcast so peer MAR views refetch live (failure-proof)
+    patient_ref = (med_admin.get("subject") or {}).get("reference", "")
+    await notification_service.notify_clinical_event(
+        event_type="medication.administered",
+        resource_type="MedicationAdministration",
+        resource_id=new_id,
+        patient_id=patient_ref.replace("Patient/", "") or None,
+        details={
+            "medication_request_id": body.medication_request_id,
+            "action": body.action,
+        },
     )
 
     return RecordAdministrationResponse(
