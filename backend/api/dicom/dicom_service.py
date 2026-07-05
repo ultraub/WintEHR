@@ -25,6 +25,7 @@ import logging
 
 from database import get_db_session
 from services.dicom_mapping_service import DICOMToImagingStudyMapper, DICOMImagingStudyService
+from api.dicom.uid_utils import dicom_uid_from_fhir_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -622,6 +623,12 @@ def validate_uid(uid: str, uid_type: str = "study") -> str:
         )
     
     uid = unquote(uid).strip()
+
+    # Callers that read the UID from a FHIR ImagingStudy identifier may pass
+    # FHIR's URN encoding (urn:oid:<uid>). Recover the bare UID — the only
+    # form the DICOM UI VR permits in DICOMweb requests. The UID itself is
+    # never altered; see api/dicom/uid_utils.py for the full rationale.
+    uid = dicom_uid_from_fhir_identifier(uid)
 
     # Basic UID format validation (should be numeric with dots)
     if not all(c.isdigit() or c == '.' or c == ":" or c.isalpha() for c in uid):
