@@ -101,9 +101,12 @@ resource-created / updated / deleted / clinical-event messages.
 
 ## Cross-cutting services
 
-- `services/audit_service.py` — `AuditService` + `AuditEventType` constants.
-  Audit logging is a learning feature (event trail), **not** HIPAA PHI auditing —
-  this platform handles only synthetic Synthea data.
+- `services/audit_event_service.py` — `AuditEventService` + `AuditEventType`
+  constants; writes FHIR R4 `AuditEvent` resources into HAPI. (The legacy
+  SQL writer `audit_service.py` → `audit.events` was removed — that schema
+  has no writers now.) Audit logging is a learning feature (event trail),
+  **not** HIPAA PHI auditing — this platform handles only synthetic Synthea
+  data.
 - `services/notification_service.py` — critical-value, task, appointment, and
   medication notifications (wrapped for clinical use by
   `clinical/notifications_helper.py`).

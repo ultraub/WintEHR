@@ -8,6 +8,7 @@ Created: 2025-10-06
 
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 import httpx
@@ -45,12 +46,17 @@ class AuditEventType:
     SECURITY_INVALID_TOKEN = "security.invalid.token"
     SECURITY_SUSPICIOUS_ACTIVITY = "security.suspicious"
 
+    # External service registry events
+    EXTERNAL_SERVICE_REGISTERED = "external.service.registered"
+    EXTERNAL_SERVICE_UPDATED = "external.service.updated"
+    EXTERNAL_SERVICE_DELETED = "external.service.deleted"
+
 
 class AuditEventService:
     """Service for logging audit events as FHIR AuditEvent resources in HAPI FHIR"""
 
-    def __init__(self, hapi_base_url: str = "http://hapi-fhir:8080/fhir"):
-        self.hapi_base_url = hapi_base_url
+    def __init__(self, hapi_base_url: Optional[str] = None):
+        self.hapi_base_url = hapi_base_url or os.getenv("HAPI_FHIR_URL", "http://hapi-fhir:8080/fhir")
 
     def _map_event_type(self, event_type: str) -> Dict[str, Any]:
         """Map internal event type to FHIR audit event type coding"""
@@ -81,6 +87,11 @@ class AuditEventService:
                 "system": "http://terminology.hl7.org/CodeSystem/audit-event-type",
                 "code": "110113",
                 "display": "Security Alert"
+            },
+            "external": {
+                "system": "http://terminology.hl7.org/CodeSystem/audit-event-type",
+                "code": "110100",
+                "display": "Application Activity"
             }
         }
 

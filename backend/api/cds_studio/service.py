@@ -11,6 +11,8 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 import asyncpg
 
+from api.external_services.registration import insert_cds_hook_service_records
+
 from .models import (
     ServiceListResponse,
     ServiceListItem,
@@ -414,40 +416,17 @@ class CDSStudioService:
             if existing:
                 raise ValueError(f"Service {request.service_id} already exists")
 
-            # Generate UUIDs for external service database records
-            from sqlalchemy import text
-            external_service_uuid = str(uuid.uuid4())
-            cds_hook_uuid = str(uuid.uuid4())
-
-            # Insert into external_services.services table (parent record)
-            await self.db.execute(text("""
-                INSERT INTO external_services.services
-                (id, name, service_type, base_url, discovery_endpoint, auth_type, status, created_at)
-                VALUES (:id, :name, :service_type, :base_url, :discovery_endpoint, :auth_type, :status, NOW())
-            """), {
-                "id": external_service_uuid,
-                "name": request.title,
-                "service_type": "cds_hooks",
-                "base_url": request.base_url,
-                "discovery_endpoint": f"{request.base_url}/cds-services",
-                "auth_type": "none" if not request.credential_id else "bearer",
-                "status": "active"
-            })
-
-            # Insert into external_services.cds_hooks table (CDS Hook details)
-            await self.db.execute(text("""
-                INSERT INTO external_services.cds_hooks
-                (id, service_id, hook_type, hook_service_id, title, description, prefetch_template, created_at)
-                VALUES (:id, :service_id, :hook_type, :hook_service_id, :title, :description, :prefetch_template, NOW())
-            """), {
-                "id": cds_hook_uuid,
-                "service_id": external_service_uuid,
-                "hook_type": request.hook_type.value,
-                "hook_service_id": request.service_id,  # This is "patient-greeting"
-                "title": request.title,
-                "description": request.description,
-                "prefetch_template": json.dumps(request.prefetch_template) if request.prefetch_template else None
-            })
+            # Both external_services rows via the shared helper
+            external_service_uuid, _ = await insert_cds_hook_service_records(
+                self.db,
+                name=request.title,
+                base_url=request.base_url,
+                hook_type=request.hook_type.value,
+                hook_service_id=request.service_id,  # This is "patient-greeting"
+                description=request.description,
+                prefetch_template=request.prefetch_template,
+                has_credentials=bool(request.credential_id),
+            )
 
             # Create PlanDefinition with external origin and link to database record
             plan_def = self._build_plan_definition(
