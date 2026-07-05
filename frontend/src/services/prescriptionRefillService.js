@@ -222,11 +222,13 @@ class PrescriptionRefillService {
         ]
       };
 
-      const result = await fhirClient.update('MedicationRequest', updatedRequest);
-      
+      // fhirClient.update takes (resourceType, id, resource) — the two-arg
+      // form passed the resource as the id and failed at runtime
+      const result = await fhirClient.update('MedicationRequest', refillRequest.id, updatedRequest);
+
       // Clear cache
       this.clearCache(refillRequest.subject?.reference?.split('/')[1]);
-      
+
       return result;
 
     } catch (error) {
@@ -240,13 +242,15 @@ class PrescriptionRefillService {
   async rejectRefillRequest(refillRequestId, rejectionData) {
     try {
       const refillRequest = await fhirClient.read('MedicationRequest', refillRequestId);
-      
+
       const updatedRequest = {
         ...refillRequest,
         status: 'cancelled',
-        statusReason: [{
+        // statusReason is a single CodeableConcept on MedicationRequest,
+        // not an array
+        statusReason: {
           text: rejectionData.reason || 'Refill request rejected'
-        }],
+        },
         note: [
           ...(refillRequest.note || []),
           {
@@ -256,7 +260,7 @@ class PrescriptionRefillService {
         ]
       };
 
-      const result = await fhirClient.update('MedicationRequest', updatedRequest);
+      const result = await fhirClient.update('MedicationRequest', refillRequest.id, updatedRequest);
       
       // Clear cache
       this.clearCache(refillRequest.subject?.reference?.split('/')[1]);

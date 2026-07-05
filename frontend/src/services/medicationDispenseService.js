@@ -15,35 +15,52 @@ class MedicationDispenseService {
   async createMedicationDispense(dispenseData) {
     // Validate required fields
     this.validateDispenseData(dispenseData);
-    
-    // If we have a prescription ID, use the pharmacy API
-    if (dispenseData.prescriptionId || dispenseData.medication_request_id) {
+
+    // Derive the prescription id from any of the shapes callers use —
+    // EnhancedDispenseDialog sends a FHIR-shaped payload where it lives in
+    // authorizingPrescription; without this derivation those dispenses
+    // skipped the backend (and its signing gate) entirely.
+    const prescriptionId = dispenseData.prescriptionId
+      || dispenseData.medication_request_id
+      || dispenseData.authorizingPrescription?.[0]?.reference?.split('/')?.[1];
+
+    if (prescriptionId) {
       try {
         const pharmacyDispenseData = {
-          medication_request_id: dispenseData.prescriptionId || dispenseData.medication_request_id,
+          medication_request_id: prescriptionId,
           quantity: dispenseData.quantity?.value || dispenseData.quantity,
-          lot_number: dispenseData.lotNumber || '',
-          expiration_date: dispenseData.expirationDate || '',
+          lot_number: dispenseData.lotNumber
+            || dispenseData.extension?.find(e => e.url?.endsWith('/lot-number'))?.valueString
+            || '',
+          expiration_date: dispenseData.expirationDate
+            || dispenseData.extension?.find(e => e.url?.endsWith('/expiration-date'))?.valueDate
+            || '',
           pharmacist_notes: dispenseData.note?.[0]?.text || dispenseData.pharmacistNotes || '',
           pharmacist_id: dispenseData.performer?.[0]?.actor?.reference?.replace('Practitioner/', '') || dispenseData.pharmacistId
         };
-        
+
         const result = await pharmacyService.dispenseMedication(pharmacyDispenseData);
-        
+
         // Get the created dispense resource
         if (result.dispense_id) {
           return await fhirClient.read('MedicationDispense', result.dispense_id);
         }
       } catch (error) {
-        console.error('Pharmacy API error, falling back to FHIR API:', error);
-        // Fall through to FHIR API
+        // 4xx means the backend REFUSED the dispense on purpose (409
+        // signing gate, 400 validation) — surface it. Falling back to a
+        // direct FHIR create here would silently bypass the gate.
+        const status = error.response?.status;
+        if (status && status < 500) {
+          throw error;
+        }
+        console.error('Pharmacy API unavailable, falling back to FHIR API:', error);
       }
     }
-    
-    // Fallback to direct FHIR API
+
+    // Fallback to direct FHIR API (no prescription link, or pharmacy API down)
     const medicationDispense = this.prepareFHIRResource(dispenseData);
     const response = await fhirClient.create('MedicationDispense', medicationDispense);
-    
+
     return response;
   }
   

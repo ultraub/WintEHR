@@ -260,9 +260,37 @@ async def dispense_medication(dispense_request: MedicationDispenseRequest):
         # Create the dispense resource in HAPI FHIR
         created_dispense = await hapi_client.create("MedicationDispense", dispense_resource)
 
-        # Update medication request status to completed
-        med_request["status"] = "completed"
-        await hapi_client.update("MedicationRequest", dispense_request.medication_request_id, med_request)
+        # Refill accounting: numberOfRepeatsAllowed counts REFILLS, so the
+        # order authorizes repeats+1 total fills. Complete the order only
+        # when the authorized fills are used up — and never mutate the
+        # ordered refill count. The fill count comes from MedicationDispense
+        # resources (including the one just created).
+        repeats = (med_request.get("dispenseRequest") or {}).get("numberOfRepeatsAllowed") or 0
+        fills = 1
+        try:
+            existing = await hapi_client.search("MedicationDispense", {
+                "prescription": f"MedicationRequest/{dispense_request.medication_request_id}",
+                "status": "completed",
+                "_summary": "count",
+            })
+            fills = max(existing.get("total", 1), 1)
+        except Exception as exc:
+            logger.warning(f"Could not count prior dispenses, assuming first fill: {exc}")
+
+        if fills >= repeats + 1:
+            med_request["status"] = "completed"
+            await hapi_client.update("MedicationRequest", dispense_request.medication_request_id, med_request)
+
+        # Broadcast so open pharmacy queues refresh live (failure-proof —
+        # notification_service never raises into the write path)
+        patient_ref = (med_request.get("subject") or {}).get("reference", "")
+        await notification_service.notify_clinical_event(
+            event_type="medication.dispensed",
+            resource_type="MedicationDispense",
+            resource_id=created_dispense.get("id"),
+            patient_id=patient_ref.replace("Patient/", "") or None,
+            details={"medication_request_id": dispense_request.medication_request_id},
+        )
 
         # Broadcast so open pharmacy queues refresh live (failure-proof —
         # notification_service never raises into the write path)
@@ -1299,7 +1327,21 @@ async def record_medication_administration(admin_request: MedicationAdministrati
                 status_code=http_status.HTTP_404_NOT_FOUND,
                 detail="Medication request not found"
             )
-        
+
+        # Same signature gate as the MAR module (ADMINISTRABLE_STATUSES in
+        # administration/service.py): charting a dose against an unsigned
+        # (draft) order bypasses the prescriber's signature. Without this,
+        # PharmacyTab's administer dialog could chart what the MAR refuses.
+        order_status = med_request.get("status")
+        if order_status not in {"active", "completed"}:
+            raise HTTPException(
+                status_code=http_status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Cannot record administration for MedicationRequest in status "
+                    f"'{order_status}'. The order must be signed (status='active') first."
+                ),
+            )
+
         current_time = admin_request.administered_at or datetime.now(timezone.utc)
         
         # Build FHIR MedicationAdministration resource

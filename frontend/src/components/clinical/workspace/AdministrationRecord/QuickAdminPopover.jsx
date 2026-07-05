@@ -37,6 +37,7 @@ import {
 
 import { buildUrl } from '../../../../config/apiConfig';
 import api from '../../../../services/api';
+import { useAuth } from '../../../../contexts/AuthContext';
 
 const HOLD_REASONS = [
   'NPO for procedure',
@@ -78,6 +79,7 @@ const QuickAdminPopover = ({
   onSubmitDone,
 }) => {
   const target = scheduledRow || prnOrder;
+  const { user } = useAuth();
 
   const defaultAction = useMemo(() => {
     if (!scheduledRow) return 'given';
@@ -129,6 +131,9 @@ const QuickAdminPopover = ({
         medication_request_id: target.medication_request_id,
         action,
         effective_datetime: new Date().toISOString(),
+        // Attribute the dose to the signed-in user — the backend's default
+        // performer is Practitioner/demo-physician otherwise
+        ...(user?.id ? { performer_reference: `Practitioner/${user.id}` } : {}),
         ...(scheduledRow ? { scheduled_time: scheduledRow.scheduled_time } : {}),
         ...(showDoseFields && doseValue ? {
           dose_value: parseFloat(doseValue),

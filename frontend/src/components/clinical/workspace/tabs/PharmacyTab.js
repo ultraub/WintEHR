@@ -83,6 +83,9 @@ import { getMedicationDosageDisplay, getMedicationName } from '../../../../core/
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { getStatusColor } from '../../../../core/fhir/utils/statusDisplayUtils';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
+import api from '../../../../services/api';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { derivePharmacyStatus, PHARMACY_WORKFLOW_STATUSES } from '../../../../core/pharmacy/pharmacyStatus';
 import { medicationListManagementService } from '../../../../services/medicationListManagementService';
 import { prescriptionRefillService } from '../../../../services/prescriptionRefillService';
 import { medicationDispenseService } from '../../../../services/medicationDispenseService';
@@ -169,21 +172,10 @@ const MedicationRequestCard = ({ medicationRequest, onStatusChange, onDispense, 
     return instruction || 'See instructions';
   };
 
-  const getPharmacyStatus = () => {
-    const status = medicationRequest.status;
-    const authoredDate = medicationRequest.authoredOn;
-    
-    if (status === 'completed') return 'completed';
-    if (status === 'cancelled' || status === 'stopped') return 'completed';
-    if (relatedDispenses.some(d => d.status === 'completed')) return 'dispensed';
-    if (relatedDispenses.some(d => d.status === 'in-progress')) return 'verified';
-    if (authoredDate && isWithinInterval(parseISO(authoredDate), {
-      start: subDays(new Date(), 1),
-      end: new Date()
-    })) return 'pending';
-    
-    return 'verified';
-  };
+  // Single shared classifier (core/pharmacy/pharmacyStatus) — the old local
+  // heuristic auto-"verified" any order older than a day, which asserted a
+  // review that never happened.
+  const getPharmacyStatus = () => derivePharmacyStatus(medicationRequest, relatedDispenses);
 
   const getSeverity = () => {
     const status = medicationRequest.status;
@@ -336,6 +328,7 @@ const PharmacyTab = ({
   const theme = useTheme();
   const { getPatientResources, isLoading, currentPatient, refreshPatientResources, resources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
+  const { user } = useAuth();
   
   // Enhanced medication hooks
   const { dispenses, createDispense, refreshDispenses } = useMedicationDispense(patientId);
@@ -618,25 +611,36 @@ const PharmacyTab = ({
 
       const oldStatus = currentRequest.status;
 
-      // Update the medication request status
-      const updatedRequest = {
-        ...currentRequest,
-        status: newStatus
-      };
+      if (PHARMACY_WORKFLOW_STATUSES.includes(newStatus)) {
+        // Pharmacy workflow states (verified/ready/…) are NOT legal FHIR
+        // MedicationRequest statuses — writing them onto the resource makes
+        // HAPI reject the update with a 422. They live on the
+        // pharmacy-status extension, owned by the backend endpoint.
+        await api.put(`/api/clinical/pharmacy/status/${requestId}`, {
+          status: newStatus,
+          updated_by: user?.id || user?.username
+        });
+      } else {
+        // A real FHIR status change (active / on-hold / cancelled / …)
+        const updatedRequest = {
+          ...currentRequest,
+          status: newStatus
+        };
 
-      await fhirClient.update('MedicationRequest', requestId, updatedRequest);
-      
-      // Update medication lists based on status change
-      try {
-        await medicationListManagementService.handlePrescriptionStatusUpdate(
-          requestId, 
-          newStatus, 
-          oldStatus
-        );
-      } catch (error) {
-        // Error updating medication lists - handle silently
+        await fhirClient.update('MedicationRequest', requestId, updatedRequest);
+
+        // Update medication lists based on status change
+        try {
+          await medicationListManagementService.handlePrescriptionStatusUpdate(
+            requestId,
+            newStatus,
+            oldStatus
+          );
+        } catch (error) {
+          console.warn('PharmacyTab: medication list sync failed after status change:', error);
+        }
       }
-      
+
       // Refresh the medication requests
       await refreshPatientResources(patientId);
 
@@ -654,43 +658,36 @@ const PharmacyTab = ({
         severity: 'success'
       });
     } catch (error) {
-      // Failed to update medication request status - handle silently
+      console.error('PharmacyTab: status update failed:', error);
       setSnackbar({
         open: true,
-        message: 'Failed to update medication request status',
+        message: `Failed to update status: ${error.response?.data?.detail || error.message}`,
         severity: 'error'
       });
     }
-  }, [medicationRequests, refreshPatientResources, publish, patientId]);
+  }, [medicationRequests, refreshPatientResources, publish, patientId, user]);
 
   // Enhanced dispensing with MedicationDispense service
   const handleDispense = useCallback(async (medicationDispenseData) => {
     try {
-      // Create the MedicationDispense resource using the enhanced service
-      const createdDispense = await medicationDispenseService.createMedicationDispense(medicationDispenseData);
-      
-      // Update the originating MedicationRequest
+      // The backend dispense endpoint requires a performing pharmacist —
+      // attribute to the signed-in user when the dialog didn't set one.
+      const dispensePayload = {
+        ...medicationDispenseData,
+        performer: medicationDispenseData.performer?.length
+          ? medicationDispenseData.performer
+          : [{ actor: { reference: `Practitioner/${user?.id || 'demo-pharmacist'}` } }]
+      };
+
+      // Create the dispense via the pharmacy API. The backend owns the
+      // signing gate AND the refill accounting (order completion when
+      // authorized fills are used up) — do not duplicate or contradict
+      // that here. The old code decremented numberOfRepeatsAllowed on the
+      // original order, silently rewriting what the prescriber authorized.
+      const createdDispense = await medicationDispenseService.createMedicationDispense(dispensePayload);
+
       const prescriptionId = medicationDispenseData.authorizingPrescription?.[0]?.reference?.split('/')[1];
-      if (prescriptionId) {
-        const currentRequest = medicationRequests.find(req => req.id === prescriptionId);
-        if (currentRequest) {
-          // Calculate remaining refills
-          const currentRefills = currentRequest.dispenseRequest?.numberOfRepeatsAllowed || 0;
-          const remainingRefills = Math.max(0, currentRefills - 1);
-          
-          const updatedRequest = {
-            ...currentRequest,
-            status: remainingRefills > 0 ? 'active' : 'completed',
-            dispenseRequest: {
-              ...currentRequest.dispenseRequest,
-              numberOfRepeatsAllowed: remainingRefills
-            }
-          };
-          
-          await fhirClient.update('MedicationRequest', prescriptionId, updatedRequest);
-        }
-      }
-      
+
       // Refresh patient resources and dispenses
       await refreshPatientResources(patientId);
       await refreshDispenses();
@@ -732,13 +729,16 @@ const PharmacyTab = ({
       setDispenseDialogOpen(false);
       
     } catch (error) {
+      // Surface the backend's reason — a 409 here means the signing gate
+      // refused an unsigned order, which the pharmacist needs to see.
+      const detail = error.response?.data?.detail;
       setSnackbar({
         open: true,
-        message: `Failed to dispense medication: ${error.message}`,
+        message: `Failed to dispense medication: ${detail || error.message}`,
         severity: 'error'
       });
     }
-  }, [patientId, medicationRequests, publish, refreshPatientResources, refreshDispenses]);
+  }, [patientId, medicationRequests, publish, refreshPatientResources, refreshDispenses, user]);
 
   // Handle medication administration
   const handleAdminister = useCallback(async (medicationRequest, mode = 'administer') => {

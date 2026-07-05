@@ -876,7 +876,10 @@ const EnhancedOrdersTab = ({
           if (window.confirm(`Are you sure you want to cancel this ${order.resourceType === 'MedicationRequest' ? 'medication' : 'order'}?`)) {
             try {
               const { fhirClient } = await import('../../../../core/fhir/services/fhirClient');
-              const updatedOrder = { ...order, status: 'cancelled' };
+              // R4 vocabulary differs by resource: MedicationRequest cancels
+              // to 'cancelled'; ServiceRequest's terminal value is 'revoked'
+              const terminalStatus = order.resourceType === 'MedicationRequest' ? 'cancelled' : 'revoked';
+              const updatedOrder = { ...order, status: terminalStatus };
               const cancelledOrder = await fhirClient.update(order.resourceType, order.id, updatedOrder);
               
               // Publish event for real-time updates
