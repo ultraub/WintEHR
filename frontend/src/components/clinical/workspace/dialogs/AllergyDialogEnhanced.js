@@ -566,16 +566,18 @@ const AllergyDialogEnhanced = ({
       };
 
       // Use the consistent save handler
-      const success = await performSave(fhirAllergy, `Allergy ${allergy ? 'updated' : 'added'} successfully`);
-      
-      if (success) {
-        // Publish event
-        publish(CLINICAL_EVENTS.ALLERGY_ADDED, {
+      const savedAllergy = await performSave(fhirAllergy, `Allergy ${allergy ? 'updated' : 'added'} successfully`);
+
+      if (savedAllergy) {
+        // Publish the SAVED resource (it carries the server id — the local
+        // fhirAllergy has none on create), keyed by add vs update
+        const eventType = allergy ? CLINICAL_EVENTS.ALLERGY_UPDATED : CLINICAL_EVENTS.ALLERGY_ADDED;
+        publish(eventType, {
           patientId,
-          allergyId: fhirAllergy.id,
-          allergy: fhirAllergy
+          allergyId: savedAllergy.id,
+          allergy: savedAllergy
         });
-        
+
         // Close dialog on success
         handleClose();
       }

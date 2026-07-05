@@ -30,6 +30,7 @@ import {
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 const DOCUMENT_TYPES = [
   { value: 'clinical-note', display: 'Clinical Note', system: 'http://loinc.org', code: '11506-3' },
@@ -51,6 +52,7 @@ const INITIAL_FORM = {
 
 const DocumentReferenceDialog = ({ open, onClose, document, patientId, onSaved }) => {
   const isViewMode = !!document;
+  const { publish } = useClinicalWorkflow();
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -103,7 +105,14 @@ const DocumentReferenceDialog = ({ open, onClose, document, patientId, onSaved }
         fhirDocRef.description = formData.description.trim();
       }
 
-      await fhirClient.create('DocumentReference', fhirDocRef);
+      const savedDocRef = await fhirClient.create('DocumentReference', fhirDocRef);
+
+      // Publish so subscribed views (Chart Review) refresh without a reload
+      await publish(CLINICAL_EVENTS.DOCUMENT_CREATED, {
+        patientId,
+        documentId: savedDocRef?.id,
+        document: savedDocRef || fhirDocRef
+      });
 
       if (onSaved) {
         onSaved();

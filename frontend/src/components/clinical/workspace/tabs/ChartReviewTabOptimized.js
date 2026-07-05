@@ -166,7 +166,7 @@ const ChartReviewTabOptimized = ({
   const { resolvedMedications, getMedicationDisplay } = useMedicationResolver(medications);
 
   // View and filter states
-  const [viewMode, setViewMode] = useState('dashboard'); // dashboard, timeline, list
+  const [viewMode] = useState('dashboard'); // locked to dashboard — the list/timeline views are unimplemented stubs
   const [dateRange, setDateRange] = useState('all'); // all, 30d, 90d, 1y
   const [showInactive, setShowInactive] = useState(true); // Changed to true - show all by default
   const [searchQuery, setSearchQuery] = useState('');
@@ -552,14 +552,30 @@ const ChartReviewTabOptimized = ({
   
   return (
     <Box sx={{ backgroundColor: theme.palette.mode === 'dark' ? 'background.default' : 'background.paper' }}>
-      {/* Collapsible Filter Panel */}
+      {/* Load failure — without this, a failed load renders as an empty patient */}
+      {error && (
+        <Alert
+          severity="error"
+          sx={{ m: 1 }}
+          action={
+            <Button color="inherit" size="small" onClick={refresh}>
+              Retry
+            </Button>
+          }
+        >
+          <AlertTitle>Failed to load chart data</AlertTitle>
+          {typeof error === 'string' ? error : 'Some clinical data could not be loaded.'}
+        </Alert>
+      )}
+
+      {/* Collapsible Filter Panel — view-mode toggle hidden: the 'list' and
+          'timeline' views are unimplemented stubs that blank the tab */}
       <CollapsibleFilterPanel
         searchQuery={searchQuery}
         onSearchChange={handleSearch}
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        showViewMode={false}
         showInactive={showInactive}
         onShowInactiveChange={setShowInactive}
         onRefresh={refresh}

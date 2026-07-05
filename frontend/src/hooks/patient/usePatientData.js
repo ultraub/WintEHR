@@ -15,7 +15,7 @@ export const usePatientData = (patientId, options = {}) => {
   const {
     currentPatient,
     setCurrentPatient,
-    getResourcesByType,
+    getPatientResources,
     isLoading: fhirLoading,
     error: fhirError,
     searchResources,
@@ -150,21 +150,25 @@ export const usePatientData = (patientId, options = {}) => {
       };
     }
 
+    // Scope to the current patient's compartment — getResourcesByType returns
+    // every cached resource of a type across ALL patients, which bleeds the
+    // previous patient's data into header counts and tab props after a switch.
+    const forPatient = (type) => getPatientResources(currentPatient.id, type) || [];
     return {
       patient: currentPatient,
-      conditions: getResourcesByType('Condition') || [],
-      medications: getResourcesByType('MedicationRequest') || [],
-      allergies: getResourcesByType('AllergyIntolerance') || [],
-      encounters: getResourcesByType('Encounter') || [],
-      observations: getResourcesByType('Observation') || [],
-      procedures: getResourcesByType('Procedure') || [],
-      immunizations: getResourcesByType('Immunization') || [],
-      carePlans: getResourcesByType('CarePlan') || [],
-      goals: getResourcesByType('Goal') || [],
-      documentReferences: getResourcesByType('DocumentReference') || [],
-      diagnosticReports: getResourcesByType('DiagnosticReport') || [],
+      conditions: forPatient('Condition'),
+      medications: forPatient('MedicationRequest'),
+      allergies: forPatient('AllergyIntolerance'),
+      encounters: forPatient('Encounter'),
+      observations: forPatient('Observation'),
+      procedures: forPatient('Procedure'),
+      immunizations: forPatient('Immunization'),
+      carePlans: forPatient('CarePlan'),
+      goals: forPatient('Goal'),
+      documentReferences: forPatient('DocumentReference'),
+      diagnosticReports: forPatient('DiagnosticReport'),
     };
-  }, [currentPatient, getResourcesByType]);
+  }, [currentPatient, getPatientResources]);
 
   // Derived data
   const derivedData = useMemo(() => {

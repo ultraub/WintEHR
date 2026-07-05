@@ -27,6 +27,7 @@ import {
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
+import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 
 const INITIAL_FORM = {
   title: '',
@@ -41,6 +42,7 @@ const INITIAL_FORM = {
 
 const CarePlanDialog = ({ open, onClose, carePlan, patientId, onSaved }) => {
   const isViewMode = !!carePlan;
+  const { publish } = useClinicalWorkflow();
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -122,7 +124,14 @@ const CarePlanDialog = ({ open, onClose, carePlan, patientId, onSaved }) => {
         }));
       }
 
-      await fhirClient.create('CarePlan', fhirCarePlan);
+      const savedCarePlan = await fhirClient.create('CarePlan', fhirCarePlan);
+
+      // Publish so subscribed views (Chart Review) refresh without a reload
+      await publish(CLINICAL_EVENTS.CARE_PLAN_CREATED, {
+        patientId,
+        carePlanId: savedCarePlan?.id,
+        carePlan: savedCarePlan || fhirCarePlan
+      });
 
       if (onSaved) {
         onSaved();

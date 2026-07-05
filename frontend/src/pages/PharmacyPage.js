@@ -334,8 +334,9 @@ const PharmacyPage = () => {
         break;
         
       case CLINICAL_EVENTS.ORDER_PLACED:
-        // Only handle medication orders
-        if (eventData.category === 'medication') {
+        // Only handle medication orders (match on resourceType — OrderComposer
+        // drafts don't carry a category)
+        if (eventData.resourceType === 'MedicationRequest' || eventData.category === 'medication') {
           handleRefresh(); // Refresh to get the new order
         }
         break;
@@ -364,7 +365,9 @@ const PharmacyPage = () => {
         });
         
         // Handle medication events regardless of patient
-        if (eventType === CLINICAL_EVENTS.ORDER_PLACED && event.category !== 'medication') {
+        if (eventType === CLINICAL_EVENTS.ORDER_PLACED &&
+            event.resourceType !== 'MedicationRequest' &&
+            event.category !== 'medication') {
           return; // Skip non-medication orders
         }
         
