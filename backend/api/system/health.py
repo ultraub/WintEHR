@@ -9,6 +9,7 @@ import os
 import psutil
 
 from database import get_db_session as get_db
+from api.routers import FAILED_ROUTER_GROUPS
 
 router = APIRouter()
 
@@ -18,8 +19,11 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "service": "WintEHR FHIR API - Hot Reload Test",
-        "version": os.getenv("VERSION", "1.0.0")
+        "service": "WintEHR FHIR API",
+        "version": os.getenv("VERSION", "1.0.0"),
+        # Router groups whose registration was silently skipped at startup —
+        # a whole domain 404ing is otherwise invisible (see api/routers/__init__.py)
+        "router_groups_failed": FAILED_ROUTER_GROUPS
     }
 
 @router.get("/health/detailed", status_code=status.HTTP_200_OK)

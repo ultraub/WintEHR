@@ -26,6 +26,21 @@ logger = logging.getLogger(__name__)
 HAPI_FHIR_BASE_URL = os.getenv('HAPI_FHIR_URL', 'http://hapi-fhir:8080/fhir')
 
 
+
+class FHIRClientError(Exception):
+    """A FHIR operation failed.
+
+    Carries the HTTP status code when the server responded (None for
+    connection-level failures) so routers can map errors to proper HTTP
+    responses instead of a blanket 500. Subclasses Exception, so existing
+    broad handlers are unaffected.
+    """
+
+    def __init__(self, message: str, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
 class HAPIFHIRClient:
     """
     Async client for HAPI FHIR JPA Server operations.
@@ -94,10 +109,10 @@ class HAPIFHIRClient:
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HAPI FHIR search error for {resource_type}: {e.response.status_code} - {e.response.text}")
-            raise Exception(f"FHIR search failed: {e.response.status_code}")
+            raise FHIRClientError(f"FHIR search failed: {e.response.status_code}", status_code=e.response.status_code)
         except httpx.RequestError as e:
             logger.error(f"HAPI FHIR connection error: {e}")
-            raise Exception(f"Failed to connect to FHIR server: {str(e)}")
+            raise FHIRClientError(f"Failed to connect to FHIR server: {str(e)}")
 
     async def read(self, resource_type: str, resource_id: str) -> Dict[str, Any]:
         """
@@ -125,12 +140,12 @@ class HAPIFHIRClient:
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 logger.warning(f"Resource not found: {resource_type}/{resource_id}")
-                raise Exception(f"{resource_type}/{resource_id} not found")
+                raise FHIRClientError(f"{resource_type}/{resource_id} not found", status_code=404)
             logger.error(f"HAPI FHIR read error: {e.response.status_code} - {e.response.text}")
-            raise Exception(f"FHIR read failed: {e.response.status_code}")
+            raise FHIRClientError(f"FHIR read failed: {e.response.status_code}", status_code=e.response.status_code)
         except httpx.RequestError as e:
             logger.error(f"HAPI FHIR connection error: {e}")
-            raise Exception(f"Failed to connect to FHIR server: {str(e)}")
+            raise FHIRClientError(f"Failed to connect to FHIR server: {str(e)}")
 
     async def create(self, resource_type: str, resource_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -169,10 +184,10 @@ class HAPIFHIRClient:
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HAPI FHIR create error for {resource_type}: {e.response.status_code} - {e.response.text}")
-            raise Exception(f"FHIR create failed: {e.response.status_code} - {e.response.text}")
+            raise FHIRClientError(f"FHIR create failed: {e.response.status_code} - {e.response.text}", status_code=e.response.status_code)
         except httpx.RequestError as e:
             logger.error(f"HAPI FHIR connection error: {e}")
-            raise Exception(f"Failed to connect to FHIR server: {str(e)}")
+            raise FHIRClientError(f"Failed to connect to FHIR server: {str(e)}")
 
     async def update(
         self,
@@ -216,10 +231,10 @@ class HAPIFHIRClient:
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HAPI FHIR update error for {resource_type}/{resource_id}: {e.response.status_code} - {e.response.text}")
-            raise Exception(f"FHIR update failed: {e.response.status_code}")
+            raise FHIRClientError(f"FHIR update failed: {e.response.status_code}", status_code=e.response.status_code)
         except httpx.RequestError as e:
             logger.error(f"HAPI FHIR connection error: {e}")
-            raise Exception(f"Failed to connect to FHIR server: {str(e)}")
+            raise FHIRClientError(f"Failed to connect to FHIR server: {str(e)}")
 
     async def delete(self, resource_type: str, resource_id: str) -> bool:
         """
@@ -248,10 +263,10 @@ class HAPIFHIRClient:
                 logger.warning(f"Resource not found for deletion: {resource_type}/{resource_id}")
                 return False
             logger.error(f"HAPI FHIR delete error: {e.response.status_code} - {e.response.text}")
-            raise Exception(f"FHIR delete failed: {e.response.status_code}")
+            raise FHIRClientError(f"FHIR delete failed: {e.response.status_code}", status_code=e.response.status_code)
         except httpx.RequestError as e:
             logger.error(f"HAPI FHIR connection error: {e}")
-            raise Exception(f"Failed to connect to FHIR server: {str(e)}")
+            raise FHIRClientError(f"Failed to connect to FHIR server: {str(e)}")
 
     async def search_with_includes(
         self,
@@ -331,10 +346,10 @@ class HAPIFHIRClient:
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HAPI FHIR search_with_includes error for {resource_type}: {e.response.status_code} - {e.response.text}")
-            raise Exception(f"FHIR search with includes failed: {e.response.status_code}")
+            raise FHIRClientError(f"FHIR search with includes failed: {e.response.status_code}", status_code=e.response.status_code)
         except httpx.RequestError as e:
             logger.error(f"HAPI FHIR connection error: {e}")
-            raise Exception(f"Failed to connect to FHIR server: {str(e)}")
+            raise FHIRClientError(f"Failed to connect to FHIR server: {str(e)}")
 
     def extract_resources_by_type(
         self,
@@ -444,10 +459,10 @@ class HAPIFHIRClient:
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HAPI FHIR operation error: {e.response.status_code} - {e.response.text}")
-            raise Exception(f"FHIR operation failed: {e.response.status_code}")
+            raise FHIRClientError(f"FHIR operation failed: {e.response.status_code}", status_code=e.response.status_code)
         except httpx.RequestError as e:
             logger.error(f"HAPI FHIR connection error: {e}")
-            raise Exception(f"Failed to connect to FHIR server: {str(e)}")
+            raise FHIRClientError(f"Failed to connect to FHIR server: {str(e)}")
 
 
 # Convenience function for dependency injection
