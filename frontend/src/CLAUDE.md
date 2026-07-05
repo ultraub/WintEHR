@@ -41,12 +41,6 @@ Named export `fhirClient` is the singleton. Core CRUD: `read`, `search`,
 (memory + session), request dedup, and retry — call it directly; do not
 hand-roll an `axios` wrapper around `/fhir`.
 
-There is a second contexts package at `contexts/fhir/`
-(`FHIRCacheContext`, `FHIRDataContext`, `FHIROperationsContext`,
-`PatientContext`) — a finer-grained decomposition. Most app code uses the
-single `FHIRResourceContext` below; prefer it unless you are specifically
-working inside `contexts/fhir/`.
-
 ---
 
 ## `useFHIRResource` (`contexts/FHIRResourceContext.js`)

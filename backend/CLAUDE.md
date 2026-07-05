@@ -19,7 +19,7 @@ deltas are below.
   before wiring any frontend call (see "Routing" below).
 - `services/hapi_fhir_client.py` — `HAPIFHIRClient`: the only sanctioned path to
   FHIR data. Methods: `search`, `read`, `create`, `update`, `delete`,
-  `search_with_includes`, `operation` (for `$everything` etc.), `bulk_patch`.
+  `search_with_includes`, `operation` (for `$everything` etc.).
 - `database.py` — `get_db_session` (the real one) + `get_db_context`.
 
 ---

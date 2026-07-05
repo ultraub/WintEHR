@@ -185,42 +185,42 @@ class CDSFeedbackService {
     const OVERRIDE_REASONS = {
       'patient-preference': {
         code: 'patient-preference',
-        system: 'https://winterhr.com/cds-hooks/override-reasons',
+        system: 'https://wintehr.com/cds-hooks/override-reasons',
         display: 'Patient preference or contraindication'
       },
       'clinical-judgment': {
         code: 'clinical-judgment',
-        system: 'https://winterhr.com/cds-hooks/override-reasons',
+        system: 'https://wintehr.com/cds-hooks/override-reasons',
         display: 'Clinical judgment based on patient context'
       },
       'alternative-treatment': {
         code: 'alternative-treatment',
-        system: 'https://winterhr.com/cds-hooks/override-reasons',
+        system: 'https://wintehr.com/cds-hooks/override-reasons',
         display: 'Alternative treatment selected'
       },
       'risk-benefit': {
         code: 'risk-benefit',
-        system: 'https://winterhr.com/cds-hooks/override-reasons',
+        system: 'https://wintehr.com/cds-hooks/override-reasons',
         display: 'Risk-benefit analysis favors override'
       },
       'false-positive': {
         code: 'false-positive',
-        system: 'https://winterhr.com/cds-hooks/override-reasons',
+        system: 'https://wintehr.com/cds-hooks/override-reasons',
         display: 'Alert appears to be false positive'
       },
       'not-applicable': {
         code: 'not-applicable',
-        system: 'https://winterhr.com/cds-hooks/override-reasons',
+        system: 'https://wintehr.com/cds-hooks/override-reasons',
         display: 'Alert not applicable to this patient'
       },
       'emergency': {
         code: 'emergency',
-        system: 'https://winterhr.com/cds-hooks/override-reasons',
+        system: 'https://wintehr.com/cds-hooks/override-reasons',
         display: 'Emergency situation requires override'
       },
       'other': {
         code: 'other',
-        system: 'https://winterhr.com/cds-hooks/override-reasons',
+        system: 'https://wintehr.com/cds-hooks/override-reasons',
         display: 'Other reason (see comments)'
       }
     };
