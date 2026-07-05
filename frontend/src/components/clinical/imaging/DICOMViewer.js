@@ -45,6 +45,9 @@ const DICOMViewer = ({ study, onClose }) => {
   const [error, setError] = useState(null);
   const [instances, setInstances] = useState([]);
   const [currentInstanceIndex, setCurrentInstanceIndex] = useState(0);
+  // 1-based frame within the current (possibly multi-frame) instance. Echo/US
+  // clips have many frames; CT slices are single-frame (frame always 1).
+  const [currentFrame, setCurrentFrame] = useState(1);
   const [currentImage, setCurrentImage] = useState(null);
   const [, setViewerConfig] = useState(null);
   
@@ -63,6 +66,9 @@ const DICOMViewer = ({ study, onClose }) => {
   const lastPanRef = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
 
+  // Frames in the current instance (≥1). >1 means a cine clip (e.g. echo).
+  const frameCount = instances[currentInstanceIndex]?.numberOfFrames || 1;
+
   const resolveDicomEndpoints = useCallback(() => {
     return {
       qido: study?.dicomEndpoints?.qido || getDicomQidoUrl(),
@@ -77,17 +83,22 @@ const DICOMViewer = ({ study, onClose }) => {
     }
   }, [study]); // Remove loadStudyData from dependencies to prevent infinite loops
 
-  // Auto-play animation
+  // Auto-play animation. For a multi-frame instance (cine clip, e.g. echo) we
+  // loop its frames; otherwise we advance through instances (e.g. CT slices).
   useEffect(() => {
-    if (isPlaying && instances.length > 1) {
+    const frames = instances[currentInstanceIndex]?.numberOfFrames || 1;
+    const canPlay = isPlaying && (frames > 1 || instances.length > 1);
+    if (canPlay) {
       animationRef.current = setInterval(() => {
-        setCurrentInstanceIndex(prev => (prev + 1) % instances.length);
+        if (frames > 1) {
+          setCurrentFrame(prev => (prev % frames) + 1);
+        } else {
+          setCurrentInstanceIndex(prev => (prev + 1) % instances.length);
+        }
       }, playSpeed);
-    } else {
-      if (animationRef.current) {
-        clearInterval(animationRef.current);
-        animationRef.current = null;
-      }
+    } else if (animationRef.current) {
+      clearInterval(animationRef.current);
+      animationRef.current = null;
     }
 
     return () => {
@@ -95,7 +106,12 @@ const DICOMViewer = ({ study, onClose }) => {
         clearInterval(animationRef.current);
       }
     };
-  }, [isPlaying, instances.length, playSpeed]);
+  }, [isPlaying, instances, currentInstanceIndex, playSpeed]);
+
+  // Reset to the first frame whenever the selected instance changes.
+  useEffect(() => {
+    setCurrentFrame(1);
+  }, [currentInstanceIndex]);
 
   // Load current instance image. `instances` is read inside the effect so it
   // MUST be in the deps — without it, this only fires when windowCenter/Width
@@ -106,7 +122,7 @@ const DICOMViewer = ({ study, onClose }) => {
     if (instances.length > 0 && currentInstanceIndex < instances.length && !error) {
       loadInstanceImage(instances[currentInstanceIndex]);
     }
-  }, [instances, currentInstanceIndex, windowCenter, windowWidth, error]);
+  }, [instances, currentInstanceIndex, currentFrame, windowCenter, windowWidth, error]);
 
   // Render current image
   useEffect(() => {
@@ -203,7 +219,8 @@ const DICOMViewer = ({ study, onClose }) => {
         throw new Error('Instance is missing seriesInstanceUID or sopInstanceUID');
       }
 
-      const url = `/dicom/studies/${studyDir}/series/${seriesUid}/instances/${sopUid}/image?window_center=${windowCenter}&window_width=${windowWidth}`;
+      const frameParam = (instance?.numberOfFrames > 1) ? currentFrame : 1;
+      const url = `/dicom/studies/${studyDir}/series/${seriesUid}/instances/${sopUid}/image?window_center=${windowCenter}&window_width=${windowWidth}&frame=${frameParam}`;
       const dicomEndpoints = resolveDicomEndpoints();
 
       const response = await apiClient.get(url, {
@@ -469,7 +486,7 @@ const DICOMViewer = ({ study, onClose }) => {
               </Tooltip>
               <Tooltip title="Play/Pause (Space)">
                 <span>
-                  <IconButton onClick={handlePlayPause} disabled={instances.length <= 1}>
+                  <IconButton onClick={handlePlayPause} disabled={instances.length <= 1 && frameCount <= 1}>
                     {isPlaying ? <PauseIcon /> : <PlayIcon />}
                   </IconButton>
                 </span>
@@ -484,10 +501,11 @@ const DICOMViewer = ({ study, onClose }) => {
             </ButtonGroup>
           </Grid>
 
-          {/* Instance Counter */}
+          {/* Instance / frame counter */}
           <Grid item>
             <Typography variant="body2">
-              {currentInstanceIndex + 1} / {instances.length}
+              {instances.length > 1 ? `Clip ${currentInstanceIndex + 1}/${instances.length}` : `${currentInstanceIndex + 1} / ${instances.length}`}
+              {frameCount > 1 ? ` · Frame ${currentFrame}/${frameCount}` : ''}
             </Typography>
           </Grid>
 
@@ -543,7 +561,7 @@ const DICOMViewer = ({ study, onClose }) => {
           </Grid>
 
           {/* Play Speed */}
-          {instances.length > 1 && (
+          {(instances.length > 1 || frameCount > 1) && (
             <Grid item>
               <FormControl size="small" sx={{ minWidth: 80 }}>
                 <InputLabel>Speed</InputLabel>
@@ -600,8 +618,9 @@ const DICOMViewer = ({ study, onClose }) => {
           onMouseLeave={handleMouseUp}
         />
 
-        {/* Instance slider overlay */}
-        {instances.length > 1 && (
+        {/* Bottom slider overlay: scrubs frames for a cine clip, otherwise
+            scrubs through instances (e.g. CT slices). */}
+        {(instances.length > 1 || frameCount > 1) && (
           <Box sx={{
             position: 'absolute',
             bottom: 20,
@@ -612,16 +631,28 @@ const DICOMViewer = ({ study, onClose }) => {
             p: 2,
             minWidth: 200
           }}>
-            <Slider
-              value={currentInstanceIndex}
-              onChange={(e, value) => setCurrentInstanceIndex(value)}
-              min={0}
-              max={instances.length - 1}
-              step={1}
-              marks
-              valueLabelDisplay="auto"
-              sx={{ color: 'white' }}
-            />
+            {frameCount > 1 ? (
+              <Slider
+                value={currentFrame}
+                onChange={(e, value) => setCurrentFrame(value)}
+                min={1}
+                max={frameCount}
+                step={1}
+                valueLabelDisplay="auto"
+                sx={{ color: 'white' }}
+              />
+            ) : (
+              <Slider
+                value={currentInstanceIndex}
+                onChange={(e, value) => setCurrentInstanceIndex(value)}
+                min={0}
+                max={instances.length - 1}
+                step={1}
+                marks
+                valueLabelDisplay="auto"
+                sx={{ color: 'white' }}
+              />
+            )}
           </Box>
         )}
       </Box>
