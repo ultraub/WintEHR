@@ -93,12 +93,7 @@ import {
   ClinicalLoadingState
 } from '../../shared';
 import ClinicalTabHeader from '../ClinicalTabHeader';
-
-// Helper functions
-const useDensity = () => {
-  const [density, setDensity] = useState('comfortable');
-  return [density, setDensity];
-};
+import { useDensity } from '../../shared/layout';
 
 // Body regions map
 const bodyRegions = {
@@ -497,7 +492,7 @@ const ImagingTab = ({
   const theme = useTheme();
   const { currentPatient } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
-  const [density, setDensity] = useDensity();
+  const [density, setDensity] = useDensity('comfortable');
   
   const [viewMode, setViewMode] = useState('timeline'); // timeline, gallery, cards, bodymap
   const [filterModality, setFilterModality] = useState('all');
