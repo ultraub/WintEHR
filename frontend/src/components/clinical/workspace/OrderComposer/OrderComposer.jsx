@@ -213,6 +213,11 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
   }, [open, initialTab]);
   const [signing, setSigning] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
+  // Critical order-select CDS cards gate "Sign all": the prescriber must
+  // explicitly acknowledge them before the orders are created. This is the
+  // archetypal CDS safety workflow — the backend blocking checker exists,
+  // and silently ignoring critical cards defeats the point of firing them.
+  const [cdsAckDialogOpen, setCdsAckDialogOpen] = useState(false);
 
   // Order-select fires continuously at the shell level with the full
   // bundle (not per-tab) — the win over CPOEDialog. Phase 4.2's
@@ -227,7 +232,7 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
 
   const ActiveTabComp = TABS.find((t) => t.id === activeTab)?.Comp || LabOrderTab;
 
-  const handleSignAll = useCallback(async () => {
+  const performSignAll = useCallback(async () => {
     if (drafts.length === 0) return;
     setSigning(true);
     const userRef = `Practitioner/${user?.id || user?.username || 'unknown'}`;
@@ -324,6 +329,25 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
       });
     }
   }, [drafts, user, patientId, publish, clearDrafts, removeDraft, onSigned, onClose]);
+
+  const criticalCards = useMemo(
+    () => orderSelectCards.filter((c) => (c.indicator || '').toLowerCase() === 'critical'),
+    [orderSelectCards],
+  );
+
+  const handleSignAll = useCallback(() => {
+    if (drafts.length === 0) return;
+    if (criticalCards.length > 0) {
+      setCdsAckDialogOpen(true);
+      return;
+    }
+    performSignAll();
+  }, [drafts.length, criticalCards.length, performSignAll]);
+
+  const handleAcknowledgeAndSign = useCallback(() => {
+    setCdsAckDialogOpen(false);
+    performSignAll();
+  }, [performSignAll]);
 
   return (
     <>
@@ -459,6 +483,34 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
             {signing
               ? 'Signing...'
               : `Sign all (${drafts.length} order${drafts.length === 1 ? '' : 's'})`}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Critical-CDS acknowledgment gate for Sign all. The prescriber sees
+          exactly which critical cards fired and must explicitly acknowledge
+          them; "Review orders" backs out without creating anything. */}
+      <Dialog open={cdsAckDialogOpen} onClose={() => setCdsAckDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CriticalIcon color="error" />
+          Critical decision-support alerts
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {criticalCards.length === 1
+              ? 'A critical alert fired for this order set. Acknowledge it to sign, or go back and revise the orders.'
+              : `${criticalCards.length} critical alerts fired for this order set. Acknowledge them to sign, or go back and revise the orders.`}
+          </Alert>
+          <Stack spacing={1}>
+            {criticalCards.map((card) => (
+              <CompactCDSCard key={card.uuid || card.summary} card={card} />
+            ))}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCdsAckDialogOpen(false)}>Review orders</Button>
+          <Button variant="contained" color="error" onClick={handleAcknowledgeAndSign} disabled={signing}>
+            Acknowledge & sign
           </Button>
         </DialogActions>
       </Dialog>
