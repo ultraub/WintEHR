@@ -127,18 +127,18 @@ export class ResultDocumentationService {
         // Custom extensions for result linking
         extension: [
           {
-            url: 'http://wintehr.com/fhir/StructureDefinition/linked-result',
+            url: 'http://wintehr.local/fhir/fhir/StructureDefinition/linked-result',
             valueReference: {
               reference: `${noteData.linkedResources.primary.resourceType}/${noteData.resultId}`,
               display: 'Linked Result'
             }
           },
           {
-            url: 'http://wintehr.com/fhir/StructureDefinition/auto-generated',
+            url: 'http://wintehr.local/fhir/fhir/StructureDefinition/auto-generated',
             valueBoolean: true
           },
           {
-            url: 'http://wintehr.com/fhir/StructureDefinition/result-urgency',
+            url: 'http://wintehr.local/fhir/fhir/StructureDefinition/result-urgency',
             valueString: noteData.urgency
           }
         ]

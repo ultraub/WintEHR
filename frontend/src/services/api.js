@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 // Use relative URL to work with proxy in development and direct routing in production
-const API_BASE_URL = process.env.REACT_APP_API_URL || '';
+import { getBackendUrl } from '../config/apiConfig';
+
+const API_BASE_URL = getBackendUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,

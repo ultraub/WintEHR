@@ -225,7 +225,7 @@ const AdministrationDialog = ({
       // Add device information as extension
       if (administrationData.deviceUsed) {
         administrationRecord.extension = [{
-          url: 'http://wintehr.com/fhir/StructureDefinition/administration-device',
+          url: 'http://wintehr.local/fhir/fhir/StructureDefinition/administration-device',
           valueString: administrationData.deviceUsed
         }];
       }
