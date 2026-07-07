@@ -47,6 +47,7 @@ archives/
 # Build artifacts
 frontend/build/
 frontend/node_modules/
+frontend/node_modules
 backend/dist/
 *.egg-info/
 synthea/build/
