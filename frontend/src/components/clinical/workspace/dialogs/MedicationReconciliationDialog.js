@@ -43,7 +43,7 @@ import {
   Refresh as RefreshIcon,
   Assessment as AnalysisIcon
 } from '@mui/icons-material';
-import { useMedicationResolver } from '../../../../hooks/useMedicationResolver';
+import { useMedicationResolver } from '../../../../core/fhir/hooks/useMedicationResolver';
 import { medicationReconciliationService } from '../../../../services/medicationReconciliationService';
 import { format, parseISO } from 'date-fns';
 import { getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';

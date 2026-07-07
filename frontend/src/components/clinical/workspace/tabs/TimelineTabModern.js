@@ -40,7 +40,6 @@ import {
   Checkbox,
   Collapse,
   Badge,
-  Slider,
   CircularProgress,
   Skeleton,
   List,
@@ -90,8 +89,6 @@ import {
   Description as PlanIcon,
   Group as TeamIcon,
   CreditCard as InsuranceIcon,
-  ZoomIn as ZoomInIcon,
-  ZoomOut as ZoomOutIcon,
   Refresh as RefreshIcon,
   ViewWeek as MultiTrackIcon,
   ViewStream as SingleTrackIcon,
@@ -105,11 +102,6 @@ import {
   History as HistoryIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
-  PlayArrow as PlayIcon,
-  Pause as PauseIcon,
-  SkipNext as SkipNextIcon,
-  SkipPrevious as SkipPrevIcon,
-  Speed as SpeedIcon,
   ShowChart as ChartIcon,
   CalendarViewMonth as CalendarViewIcon,
   AccountTree as JourneyIcon,
@@ -248,6 +240,7 @@ import { printDocument } from '../../../../core/export/printUtils';
 import { getMedicationName, getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
+import { getTabForResourceType } from '../../utils/navigationHelper';
 import { resourceBelongsToPatient } from '../../../../utils/fhir';
 import websocketService from '../../../../services/websocket';
 
@@ -847,16 +840,11 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [dayDetailsDialogOpen, setDayDetailsDialogOpen] = useState(false);
   const [selectedDayEvents, setSelectedDayEvents] = useState({ date: null, events: [] });
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [currentPlaybackIndex, setCurrentPlaybackIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(theme.palette.mode === 'dark');
   const [showLegend, setShowLegend] = useState(true);
   const [groupBy, setGroupBy] = useState('type'); // 'type', 'category', 'date', 'severity'
-  const [zoomLevel, setZoomLevel] = useState(100);
   const [selectedMilestone, setSelectedMilestone] = useState(null);
-  const [animationEnabled, setAnimationEnabled] = useState(true);
   const [selectedCategories, setSelectedCategories] = useState(new Set(['clinical', 'treatment', 'diagnostic', 'prevention', 'planning', 'documentation', 'administrative']));
   const [heatmapView, setHeatmapView] = useState('activity'); // 'activity', 'severity', 'category'
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -867,7 +855,10 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   // Refs
   const timelineRef = useRef(null);
   const containerRef = useRef(null);
-  const playbackIntervalRef = useRef(null);
+  // When true, the next data load bypasses the fhirClient cache. Set by the
+  // date-range selector and the manual refresh button — a widened range must
+  // hit the server, not be served the previously cached (narrower) window.
+  const forceNextLoadRef = useRef(false);
   
   // Animation controls
   const controls = useAnimation();
@@ -888,7 +879,9 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
       
       try {
         setLoadingError(null);
-        
+
+        const forceRefresh = forceNextLoadRef.current || !hasLoadedInitialData;
+
         const promises = Array.from(selectedTypes).map(async (resourceType) => {
           // Each FHIR resource type names its date search parameter differently;
           // sending the wrong one makes HAPI reject the whole query (HAPI-0524).
@@ -929,14 +922,15 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
           }
           
           try {
-            await searchResources(resourceType, params, !hasLoadedInitialData);
+            await searchResources(resourceType, params, forceRefresh);
           } catch (error) {
             console.error(`Timeline: Error loading ${resourceType}:`, error);
           }
         });
-        
+
         await Promise.all(promises);
-        
+
+        forceNextLoadRef.current = false;
         setHasLoadedInitialData(true);
       } catch (error) {
         console.error('Timeline: Error loading data', error);
@@ -1202,7 +1196,14 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
     
     return calendarGridData;
   }, [processedEvents, heatmapView, dateRange]);
-  
+
+  // calendarData holds EVERY day in the range (zero-count days included, so
+  // the heatmap grid can render) — only days that actually have events count.
+  const daysWithEventsCount = useMemo(
+    () => calendarData.filter(day => day.count > 0).length,
+    [calendarData]
+  );
+
   // Calculate patient journey milestones
   const patientJourneyData = useMemo(() => {
     const milestones = [];
@@ -1353,31 +1354,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
     };
   }, [processedEvents]);
   
-  // Playback functionality
-  useEffect(() => {
-    if (isPlaying && processedEvents.length > 0) {
-      playbackIntervalRef.current = setInterval(() => {
-        setCurrentPlaybackIndex(prev => {
-          if (prev >= processedEvents.length - 1) {
-            setIsPlaying(false);
-            return 0;
-          }
-          return prev + 1;
-        });
-      }, 3000 / playbackSpeed);
-    } else {
-      if (playbackIntervalRef.current) {
-        clearInterval(playbackIntervalRef.current);
-      }
-    }
-    
-    return () => {
-      if (playbackIntervalRef.current) {
-        clearInterval(playbackIntervalRef.current);
-      }
-    };
-  }, [isPlaying, playbackSpeed, processedEvents.length]);
-  
   // Handle resource updates from WebSocket
   const handleResourceUpdate = useCallback((event) => {
     if (event.patientId === patientId && selectedTypes.has(event.resourceType)) {
@@ -1402,23 +1378,32 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
     setSelectedEvent(event);
     setDetailsDialogOpen(true);
   };
-  
-  const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
+
+  const handleDateRangeChange = (value) => {
+    setDateRangeValue(value);
+    // Convert string date range to actual dates
+    const now = new Date();
+    switch (value) {
+      case '30d':
+        setDateRange({ start: subDays(now, 30), end: now });
+        break;
+      case '90d':
+        setDateRange({ start: subDays(now, 90), end: now });
+        break;
+      case '1y':
+        setDateRange({ start: subYears(now, 1), end: now });
+        break;
+      case 'all':
+      default:
+        setDateRange({ start: subYears(now, 5), end: now });
+        break;
+    }
+    // The initial load only fetched the previous window — a changed (possibly
+    // wider) range must refetch from the server, bypassing the client cache.
+    forceNextLoadRef.current = true;
+    setReloadTrigger(prev => prev + 1);
   };
-  
-  const handleSpeedChange = (event, newValue) => {
-    setPlaybackSpeed(newValue);
-  };
-  
-  const handleZoomIn = () => {
-    setZoomLevel(Math.min(200, zoomLevel + 20));
-  };
-  
-  const handleZoomOut = () => {
-    setZoomLevel(Math.max(50, zoomLevel - 20));
-  };
-  
+
   const handleToggleFullscreen = () => {
     if (!document.fullscreenElement) {
       containerRef.current?.requestFullscreen();
@@ -1668,27 +1653,11 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           dateRange={dateRangeValue}
-          onDateRangeChange={(value) => {
-            setDateRangeValue(value);
-            // Convert string date range to actual dates
-            const now = new Date();
-            switch(value) {
-              case '30d':
-                setDateRange({ start: subDays(now, 30), end: now });
-                break;
-              case '90d':
-                setDateRange({ start: subDays(now, 90), end: now });
-                break;
-              case '1y':
-                setDateRange({ start: subYears(now, 1), end: now });
-                break;
-              case 'all':
-              default:
-                setDateRange({ start: subYears(now, 5), end: now });
-                break;
-            }
+          onDateRangeChange={handleDateRangeChange}
+          onRefresh={() => {
+            forceNextLoadRef.current = true;
+            setReloadTrigger(prev => prev + 1);
           }}
-          onRefresh={() => setReloadTrigger(prev => prev + 1)}
           showCategories={false}
           onCategoriesChange={() => {}} // Not using categories in this component
           additionalFilters={
@@ -1713,26 +1682,17 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                 Filters
               </Button>
               {viewMode === 'timeline' && (
-                <>
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <Select
-                      value={groupBy}
-                      onChange={(e) => setGroupBy(e.target.value)}
-                    >
-                      <MenuItem value="type">By Type</MenuItem>
-                      <MenuItem value="category">By Category</MenuItem>
-                      <MenuItem value="severity">By Severity</MenuItem>
-                      <MenuItem value="none">No Grouping</MenuItem>
-                    </Select>
-                  </FormControl>
-                  <IconButton onClick={handleZoomOut} size="small">
-                    <ZoomOutIcon />
-                  </IconButton>
-                  <Typography variant="caption">{zoomLevel}%</Typography>
-                  <IconButton onClick={handleZoomIn} size="small">
-                    <ZoomInIcon />
-                  </IconButton>
-                </>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <Select
+                    value={groupBy}
+                    onChange={(e) => setGroupBy(e.target.value)}
+                  >
+                    <MenuItem value="type">By Type</MenuItem>
+                    <MenuItem value="category">By Category</MenuItem>
+                    <MenuItem value="severity">By Severity</MenuItem>
+                    <MenuItem value="none">No Grouping</MenuItem>
+                  </Select>
+                </FormControl>
               )}
               {viewMode === 'calendar' && (
                 <FormControl size="small" sx={{ minWidth: 120 }}>
@@ -1886,47 +1846,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                         orientation: 'top'
                       }}
                     />
-                    
-                    {/* Playback Controls */}
-                    {animationEnabled && (
-                      <Paper
-                        elevation={4}
-                        sx={{
-                          position: 'absolute',
-                          bottom: 16,
-                          left: '50%',
-                          transform: 'translateX(-50%)',
-                          p: 2,
-                          borderRadius: 2,
-                          bgcolor: alpha(theme.palette.background.paper, 0.95)
-                        }}
-                      >
-                        <Stack direction="row" alignItems="center" spacing={2}>
-                          <IconButton onClick={() => setCurrentPlaybackIndex(Math.max(0, currentPlaybackIndex - 1))}>
-                            <SkipPrevIcon />
-                          </IconButton>
-                          <IconButton onClick={handlePlayPause} color="primary">
-                            {isPlaying ? <PauseIcon /> : <PlayIcon />}
-                          </IconButton>
-                          <IconButton onClick={() => setCurrentPlaybackIndex(Math.min(processedEvents.length - 1, currentPlaybackIndex + 1))}>
-                            <SkipNextIcon />
-                          </IconButton>
-                          <Stack direction="row" alignItems="center" spacing={1}>
-                            <SpeedIcon />
-                            <Slider
-                              value={playbackSpeed}
-                              onChange={handleSpeedChange}
-                              min={0.5}
-                              max={3}
-                              step={0.5}
-                              marks
-                              sx={{ width: 100 }}
-                            />
-                            <Typography variant="caption">{playbackSpeed}x</Typography>
-                          </Stack>
-                        </Stack>
-                      </Paper>
-                    )}
                   </Box>
                 )}
               </motion.div>
@@ -2074,17 +1993,14 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                 transition={{ duration: 0.3 }}
                 style={{ height: '100%', padding: theme.spacing(2) }}
               >
-                {calendarData.length === 0 ? (
+                {daysWithEventsCount === 0 ? (
                   <ClinicalEmptyState
                     title="No events to display"
                     message="No events found in the selected date range"
                     actions={[
-                      { 
-                        label: 'Adjust Date Range', 
-                        onClick: () => {
-                          setDateRangeValue('all');
-                          setDateRange({ start: subYears(new Date(), 5), end: new Date() });
-                        }
+                      {
+                        label: 'Adjust Date Range',
+                        onClick: () => handleDateRangeChange('all')
                       }
                     ]}
                   />
@@ -2101,7 +2017,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
                       Activity Calendar
                     </Typography>
                     <Typography variant="body2" color="text.secondary" gutterBottom>
-                      {calendarData.length} days with events
+                      {daysWithEventsCount} day{daysWithEventsCount !== 1 ? 's' : ''} with events
                     </Typography>
                     <Box sx={{ flex: 1, minHeight: 500, overflow: 'auto' }}>
                       {/* Custom calendar heatmap component */}
@@ -2401,26 +2317,11 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
           </DialogContent>
           <DialogActions>
             {onNavigateToTab && selectedEvent && (
-              <Button 
+              <Button
                 onClick={() => {
-                  const resourceTypeToTab = {
-                    'Encounter': 'encounters',
-                    'MedicationRequest': 'chart-review',
-                    'MedicationStatement': 'medications',
-                    'Observation': 'results',
-                    'Condition': 'chart-review',
-                    'AllergyIntolerance': 'chart-review',
-                    'Immunization': 'chart-review',
-                    'ImagingStudy': 'imaging',
-                    'DocumentReference': 'documentation',
-                    'Goal': 'care-plan',
-                    'CarePlan': 'care-plan',
-                    'CareTeam': 'care-plan',
-                    'Procedure': 'chart-review',
-                    'DiagnosticReport': 'results'
-                  };
-                  
-                  const tab = resourceTypeToTab[selectedEvent.resourceType] || 'summary';
+                  // Single source of truth for resource-type → workspace-tab
+                  // routing (ids validated against clinicalTabRegistry).
+                  const tab = getTabForResourceType(selectedEvent.resourceType);
                   onNavigateToTab(tab, {
                     resourceId: selectedEvent.id,
                     resourceType: selectedEvent.resourceType
@@ -2460,36 +2361,13 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
               {selectedDayEvents.events.map((event, index) => {
                 const eventType = themedEventTypes[event.resourceType];
                 const navigateToResource = () => {
-                  // Determine which tab to navigate to based on resource type
-                  let targetTab = 'chart-review'; // default
-                  switch (event.resourceType) {
-                    case 'Encounter':
-                      targetTab = 'encounters';
-                      break;
-                    case 'Observation':
-                    case 'DiagnosticReport':
-                      targetTab = 'results';
-                      break;
-                    case 'MedicationRequest':
-                      targetTab = 'orders';
-                      break;
-                    case 'ImagingStudy':
-                      targetTab = 'imaging';
-                      break;
-                    case 'DocumentReference':
-                      targetTab = 'documentation';
-                      break;
-                    case 'CarePlan':
-                    case 'Goal':
-                      targetTab = 'care-plan';
-                      break;
-                    default:
-                      targetTab = 'chart-review';
-                  }
-                  
+                  // Single source of truth for resource-type → workspace-tab
+                  // routing (ids validated against clinicalTabRegistry).
+                  const targetTab = getTabForResourceType(event.resourceType);
+
                   // Close dialog and navigate
                   setDayDetailsDialogOpen(false);
-                  onNavigateToTab(targetTab, { 
+                  onNavigateToTab(targetTab, {
                     resourceId: event.id, 
                     resourceType: event.resourceType,
                     highlight: true 

@@ -14,20 +14,14 @@ import {
   IconButton,
   Tooltip,
   Divider,
-  TextField,
   InputAdornment,
-  Menu,
-  MenuItem,
-  FormControl,
-  Select,
-  InputLabel,
-  CircularProgress,
   Alert,
   Snackbar,
   Badge,
   Grid,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  Skeleton
 } from '@mui/material';
 import {
   LocalHospital as HospitalIcon,
@@ -43,15 +37,13 @@ import {
   AccessTime as TimeIcon,
   Draw as SignIcon,
   Assignment as AssignmentIcon,
-  Science as LabIcon,
-  CheckCircle as CheckCircleIcon
+  Science as LabIcon
 } from '@mui/icons-material';
 import { format, parseISO, isWithinInterval, subMonths } from 'date-fns';
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import EncounterSummaryDialogEnhanced from '../dialogs/EncounterSummaryDialogEnhanced';
-import EncounterSigningDialog from '../dialogs/EncounterSigningDialog';
 import EncounterCreationDialog from '../dialogs/EncounterCreationDialog';
 import EnhancedNoteEditor from '../dialogs/EnhancedNoteEditor';
 import Dialog from '@mui/material/Dialog';
@@ -62,7 +54,6 @@ import { printDocument, formatEncountersForPrint } from '../../../../core/export
 import { exportClinicalData, EXPORT_COLUMNS } from '../../../../core/export/exportUtils';
 import { GetApp as ExportIcon } from '@mui/icons-material';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
-import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { getEncounterClass, getCodeableConceptDisplay, getEncounterStatus } from '../../../../core/fhir/utils/fhirFieldUtils';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
 import { ClinicalResourceCard } from '../../shared/cards';
@@ -122,7 +113,7 @@ const EncountersTab = ({
   onNavigateToTab // Cross-tab navigation support
 }) => {
   const { getPatientResources, isLoading, currentPatient, resources, searchResources } = useFHIRResource();
-  const { publish, subscribe } = useClinicalWorkflow();
+  const { subscribe } = useClinicalWorkflow();
   
   const [viewMode, setViewMode] = useState('cards'); // 'cards', 'timeline', or 'table'
   const [filterType, setFilterType] = useState('all');
@@ -130,25 +121,14 @@ const EncountersTab = ({
   const [searchTerm, setSearchTerm] = useState('');
   const scrollContainerRef = useRef(null);
   const [selectedEncounter, setSelectedEncounter] = useState(null);
-  const [expandedCards, setExpandedCards] = useState(new Set());
   const [density, setDensity] = useDensity('comfortable');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
-  const [signingDialogOpen, setSigningDialogOpen] = useState(false);
-  const [newEncounterDialogOpen, setNewEncounterDialogOpen] = useState(false);
   const [encounterCreationDialogOpen, setEncounterCreationDialogOpen] = useState(false);
   const [editEncounterDialogOpen, setEditEncounterDialogOpen] = useState(false);
   const [selectedEncounterForEdit, setSelectedEncounterForEdit] = useState(null);
-  const [exportAnchorEl, setExportAnchorEl] = useState(null);
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
   const [selectedEncounterForNote, setSelectedEncounterForNote] = useState(null);
-  const [newEncounterData, setNewEncounterData] = useState({
-    type: 'AMB',
-    reasonForVisit: '',
-    provider: '',
-    startDate: new Date().toISOString().split('T')[0],
-    startTime: new Date().toTimeString().split(' ')[0].slice(0, 5)
-  });
 
   // Subscribe to encounter-related events
   useEffect(() => {
@@ -194,28 +174,8 @@ const EncountersTab = ({
     setSelectedEncounter(null);
   };
 
-  const handleSignEncounter = (encounter) => {
-    setSelectedEncounter(encounter);
-    setSigningDialogOpen(true);
-  };
 
-  const handleCloseSigningDialog = () => {
-    setSigningDialogOpen(false);
-    setSelectedEncounter(null);
-  };
 
-  const handleEncounterSigned = (signedEncounter) => {
-    setSnackbar({
-      open: true,
-      message: 'Encounter signed successfully',
-      severity: 'success'
-    });
-    
-    // Refresh encounter data
-    window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
-      detail: { patientId } 
-    }));
-  };
 
   // Handle adding note to encounter
   const handleAddNoteToEncounter = (encounter) => {
@@ -312,88 +272,6 @@ const EncountersTab = ({
     });
   };
   
-  const handleCreateEncounter = async () => {
-    try {
-      // Create FHIR Encounter resource
-      const encounter = {
-        resourceType: 'Encounter',
-        status: 'in-progress',
-        class: {
-          system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
-          code: newEncounterData.type,
-          display: newEncounterData.type === 'AMB' ? 'ambulatory' : 
-                  newEncounterData.type === 'IMP' ? 'inpatient' : 
-                  newEncounterData.type === 'EMER' ? 'emergency' : 'ambulatory'
-        },
-        type: [{
-          text: 'Office Visit'
-        }],
-        subject: {
-          reference: `Patient/${patientId}`
-        },
-        period: {
-          start: `${newEncounterData.startDate}T${newEncounterData.startTime}:00`
-        },
-        reasonCode: newEncounterData.reasonForVisit ? [{
-          text: newEncounterData.reasonForVisit
-        }] : [],
-        participant: newEncounterData.provider ? [{
-          type: [{
-            coding: [{
-              system: 'http://terminology.hl7.org/CodeSystem/v3-ParticipationType',
-              code: 'ATND',
-              display: 'attender'
-            }]
-          }],
-          individual: {
-            display: newEncounterData.provider
-          }
-        }] : []
-      };
-
-      const savedEncounter = await fhirClient.create('Encounter', encounter);
-
-      if (savedEncounter) {
-        
-        // Publish encounter created event
-        await publish(CLINICAL_EVENTS.ENCOUNTER_CREATED, {
-          encounterId: savedEncounter.id,
-          patientId,
-          type: newEncounterData.type,
-          reasonForVisit: newEncounterData.reasonForVisit,
-          provider: newEncounterData.provider,
-          timestamp: new Date().toISOString()
-        });
-        
-        // Refresh patient resources to show new encounter
-        window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
-          detail: { patientId } 
-        }));
-        
-        setNewEncounterDialogOpen(false);
-        setNewEncounterData({
-          type: 'AMB',
-          reasonForVisit: '',
-          provider: '',
-          startDate: new Date().toISOString().split('T')[0],
-          startTime: new Date().toTimeString().split(' ')[0].slice(0, 5)
-        });
-
-        setSnackbar({
-          open: true,
-          message: 'New encounter created successfully',
-          severity: 'success'
-        });
-      }
-    } catch (error) {
-      // Handle error
-      setSnackbar({
-        open: true,
-        message: 'Failed to create encounter: ' + error.message,
-        severity: 'error'
-      });
-    }
-  };
 
   // Get encounters - memoized to prevent dependency issues
   const encounters = useMemo(() => {
@@ -422,43 +300,6 @@ const EncountersTab = ({
     }
   }, [encounters.length, loadEncounters]);
 
-  // Get all clinical resources for timeline
-  const allClinicalResources = useMemo(() => {
-    const resourceTypes = ['Observation', 'MedicationRequest', 'Procedure', 'DiagnosticReport'];
-    const allResources = [];
-    
-    // Add encounters
-    encounters.forEach(enc => {
-      allResources.push({
-        ...enc,
-        resourceType: 'Encounter',
-        date: enc.actualPeriod?.start || enc.period?.start || enc.meta?.lastUpdated
-      });
-    });
-    
-    // Add other clinical resources that reference encounters
-    resourceTypes.forEach(type => {
-      const typeResources = getPatientResources(patientId, type) || [];
-      
-      typeResources.forEach(resource => {
-        if (resource.encounter?.reference || resource.context?.reference) {
-          allResources.push({
-            ...resource,
-            resourceType: type,
-            date: resource.effectiveDateTime || 
-                  resource.authoredOn || 
-                  resource.performedDateTime || 
-                  resource.issued ||
-                  resource.meta?.lastUpdated
-          });
-        }
-      });
-    });
-    
-    return allResources.sort((a, b) => 
-      new Date(b.date || 0) - new Date(a.date || 0)
-    );
-  }, [encounters, patientId, getPatientResources]);
 
   // Filter encounters - memoized for performance
   const filteredEncounters = useMemo(() => {
@@ -535,59 +376,25 @@ const EncountersTab = ({
   }, [encounters, sortedEncounters]);
 
   // Prepare metrics for MetricsBar
-  const encounterMetrics = useMemo(() => [
-    {
-      label: 'Total Visits',
-      value: encounterStats.total,
-      icon: <CalendarIcon />,
-      color: 'primary',
-      severity: 'normal'
-    },
-    {
-      label: 'In Progress',
-      value: encounterStats.inProgress,
-      icon: <TimeIcon />,
-      color: encounterStats.inProgress > 0 ? 'warning' : 'default',
-      severity: encounterStats.inProgress > 0 ? 'moderate' : 'normal'
-    },
-    {
-      label: 'Emergency',
-      value: encounterStats.emergency,
-      icon: <EmergencyIcon />,
-      color: encounterStats.emergency > 0 ? 'error' : 'default',
-      severity: encounterStats.emergency > 0 ? 'high' : 'normal'
-    },
-    {
-      label: 'Completed',
-      value: encounterStats.completed,
-      icon: <CheckCircleIcon />,
-      color: 'success',
-      severity: 'normal',
-      progress: (encounterStats.completed / Math.max(encounterStats.total, 1)) * 100
-    }
-  ], [encounterStats]);
 
   // Handle card expansion toggle
-  const handleToggleCardExpand = useCallback((encounterId, expanded) => {
-    setExpandedCards(prev => {
-      const newSet = new Set(prev);
-      if (expanded) {
-        newSet.add(encounterId);
-      } else {
-        newSet.delete(encounterId);
-      }
-      return newSet;
-    });
-  }, []);
 
   // Use context's isLoading state - this properly reflects when data is actually loading
   if (isLoading) {
+    // Skeleton rows instead of a centered spinner: the layout doesn't jump
+    // when data lands, and the user sees the shape of what's coming.
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 4 }}>
-        <CircularProgress />
-        <Typography sx={{ ml: 2 }} variant="body1" color="text.secondary">
-          Loading encounters...
-        </Typography>
+      <Box sx={{ p: 2 }}>
+        <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+          {[0, 1, 2, 3].map(i => (
+            <Skeleton key={i} variant="rounded" width="25%" height={72} />
+          ))}
+        </Stack>
+        <Stack spacing={1.5}>
+          {[0, 1, 2, 3, 4].map(i => (
+            <Skeleton key={i} variant="rounded" height={88} />
+          ))}
+        </Stack>
       </Box>
     );
   }
@@ -902,21 +709,6 @@ const EncountersTab = ({
       />
 
       {/* Export Menu */}
-      <Menu
-        anchorEl={exportAnchorEl}
-        open={Boolean(exportAnchorEl)}
-        onClose={() => setExportAnchorEl(null)}
-      >
-        <MenuItem onClick={() => { handleExportEncounters('csv'); setExportAnchorEl(null); }}>
-          Export as CSV
-        </MenuItem>
-        <MenuItem onClick={() => { handleExportEncounters('json'); setExportAnchorEl(null); }}>
-          Export as JSON
-        </MenuItem>
-        <MenuItem onClick={() => { handleExportEncounters('pdf'); setExportAnchorEl(null); }}>
-          Export as PDF
-        </MenuItem>
-      </Menu>
 
       {/* Enhanced Encounter Summary Dialog */}
       <EncounterSummaryDialogEnhanced
@@ -927,12 +719,6 @@ const EncountersTab = ({
       />
 
       {/* Encounter Signing Dialog */}
-      <EncounterSigningDialog
-        open={signingDialogOpen}
-        onClose={handleCloseSigningDialog}
-        encounter={selectedEncounter}
-        onEncounterSigned={handleEncounterSigned}
-      />
 
       {/* New Encounter Creation Dialog */}
       <EncounterCreationDialog
@@ -999,117 +785,7 @@ const EncountersTab = ({
 
       {/* Dialogs are rendered above (lines 934-965), not duplicated here */}
 
-      {/* New Encounter Dialog */}
-      <Dialog open={newEncounterDialogOpen} onClose={() => setNewEncounterDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>New Encounter</DialogTitle>
-        <DialogContent>
-          <Stack spacing={3} sx={{ mt: 2 }}>
-            <FormControl fullWidth>
-              <InputLabel>Encounter Type</InputLabel>
-              <Select
-                value={newEncounterData.type}
-                onChange={(e) => setNewEncounterData({ ...newEncounterData, type: e.target.value })}
-                label="Encounter Type"
-              >
-                <MenuItem value="AMB">Ambulatory (Office Visit)</MenuItem>
-                <MenuItem value="IMP">Inpatient</MenuItem>
-                <MenuItem value="EMER">Emergency</MenuItem>
-                <MenuItem value="HH">Home Health</MenuItem>
-              </Select>
-            </FormControl>
 
-            <TextField
-              fullWidth
-              label="Reason for Visit"
-              value={newEncounterData.reasonForVisit}
-              onChange={(e) => setNewEncounterData({ ...newEncounterData, reasonForVisit: e.target.value })}
-              multiline
-              rows={2}
-            />
-
-            <TextField
-              fullWidth
-              label="Provider"
-              value={newEncounterData.provider}
-              onChange={(e) => setNewEncounterData({ ...newEncounterData, provider: e.target.value })}
-              placeholder="Enter provider name"
-            />
-
-            <Stack direction="row" spacing={2}>
-              <TextField
-                label="Date"
-                type="date"
-                value={newEncounterData.startDate}
-                onChange={(e) => setNewEncounterData({ ...newEncounterData, startDate: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
-              <TextField
-                label="Time"
-                type="time"
-                value={newEncounterData.startTime}
-                onChange={(e) => setNewEncounterData({ ...newEncounterData, startTime: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
-            </Stack>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setNewEncounterDialogOpen(false)}>Cancel</Button>
-          <Button 
-            variant="contained" 
-            onClick={handleCreateEncounter}
-            disabled={!newEncounterData.reasonForVisit.trim()}
-          >
-            Create Encounter
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit Encounter Dialog */}
-      <Dialog
-        open={editEncounterDialogOpen}
-        onClose={handleCloseEditEncounter}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>Edit Encounter</DialogTitle>
-        <DialogContent>
-          {selectedEncounterForEdit && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body1" sx={{ mb: 2 }}>
-                Encounter editing functionality is being enhanced. For now, encounter details can be viewed but not directly edited.
-              </Typography>
-              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-                Current Encounter: {getEncounterTypeLabel(selectedEncounterForEdit)}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Status: {getEncounterStatus(selectedEncounterForEdit)}
-              </Typography>
-              {(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period?.start) && (
-                <Typography variant="body2" color="text.secondary">
-                  Date: {formatClinicalDate(selectedEncounterForEdit.actualPeriod?.start || selectedEncounterForEdit.period.start, 'withTime')}
-                </Typography>
-              )}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseEditEncounter}>
-            Close
-          </Button>
-          <Button
-            variant="contained"
-            onClick={() => {
-              handleCloseEditEncounter();
-              setEncounterCreationDialogOpen(true);
-            }}
-          >
-            Create New Encounter
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Snackbar for notifications */}
       <Snackbar

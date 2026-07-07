@@ -8,7 +8,12 @@ import { useProgressiveLoading } from '../ui/useProgressiveLoading';
 
 export const usePatientData = (patientId, options = {}) => {
   const {
-    useProgressive = true, // Enable progressive loading by default
+    // Off by default: setCurrentPatient's summary warm already batch-loads
+    // the compartment. With this on, the hook fired ~12 additional per-type
+    // searches whose params don't match the warm batch (different counts/
+    // sorts/filters), so nothing deduplicated — 20+ HAPI queries per patient
+    // open. Opt in per-consumer if a surface genuinely needs the extra types.
+    useProgressive = false,
     ...progressiveOptions
   } = options;
 

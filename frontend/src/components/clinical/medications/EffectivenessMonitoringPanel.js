@@ -22,8 +22,10 @@ import {
   Tooltip,
   Badge,
   Collapse,
+  Divider,
   LinearProgress,
-  useTheme
+  useTheme,
+  alpha
 } from '@mui/material';
 import {
   Assessment as AssessmentIcon,
@@ -40,7 +42,7 @@ import {
 import { format, parseISO, differenceInDays, isAfter } from 'date-fns';
 import { medicationEffectivenessService } from '../../../services/medicationEffectivenessService';
 import MedicationEffectivenessDialog from './MedicationEffectivenessDialog';
-import { useMedicationResolver } from '../../../hooks/useMedicationResolver';
+import { useMedicationResolver } from '../../../core/fhir/hooks/useMedicationResolver';
 
 const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }) => {
   const theme = useTheme();

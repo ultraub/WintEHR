@@ -57,6 +57,8 @@ const ResultAcknowledgmentPanel = ({ patientId, providerId, onResultSelect }) =>
   const [anchorEl, setAnchorEl] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [acknowledgingBatch, setAcknowledgingBatch] = useState(false);
+  // A failed load or acknowledgment must not look identical to success
+  const [error, setError] = useState(null);
   
   const { publish } = useClinicalWorkflow();
   const { currentPatient } = useFHIRResource();
@@ -88,8 +90,10 @@ const ResultAcknowledgmentPanel = ({ patientId, providerId, onResultSelect }) =>
       });
 
       setResults(filteredResults);
+      setError(null);
     } catch (error) {
-      // Handle error silently or add proper error handling here
+      console.error('ResultAcknowledgmentPanel: failed to load results', error);
+      setError('Failed to load results. ' + (error.message || ''));
     } finally {
       setLoading(false);
     }
@@ -115,7 +119,8 @@ const ResultAcknowledgmentPanel = ({ patientId, providerId, onResultSelect }) =>
       // Reload results
       loadResults();
     } catch (error) {
-      // Handle error silently or add proper error handling here
+      console.error('ResultAcknowledgmentPanel: acknowledge failed', error);
+      setError('Failed to acknowledge result. ' + (error.message || ''));
     }
   };
 
@@ -146,7 +151,8 @@ const ResultAcknowledgmentPanel = ({ patientId, providerId, onResultSelect }) =>
       setSelectedResults([]);
       loadResults();
     } catch (error) {
-      // Handle error silently or add proper error handling here
+      console.error('ResultAcknowledgmentPanel: batch acknowledge failed', error);
+      setError('Failed to acknowledge selected results. ' + (error.message || ''));
     } finally {
       setAcknowledgingBatch(false);
     }
@@ -177,6 +183,11 @@ const ResultAcknowledgmentPanel = ({ patientId, providerId, onResultSelect }) =>
 
   return (
     <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
       {/* Header */}
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h6">Result Acknowledgment</Typography>

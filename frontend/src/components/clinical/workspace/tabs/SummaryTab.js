@@ -72,7 +72,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useStableCallback } from '../../../../hooks/ui/useStableReferences';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { TAB_IDS } from '../../utils/navigationHelper';
-import { useMedicationResolver } from '../../../../hooks/medication/useMedicationResolver';
+import { useMedicationResolver } from '../../../../core/fhir/hooks/useMedicationResolver';
 import { printDocument, formatConditionsForPrint, formatMedicationsForPrint, formatLabResultsForPrint } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { getMedicationDosageDisplay } from '../../../../core/fhir/utils/medicationDisplayUtils';

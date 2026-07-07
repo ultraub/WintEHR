@@ -5,6 +5,14 @@
 
 This guide covers all deployment options for WintEHR, from local development to production deployment.
 
+> **Which guide do I need?** This file is the canonical operator guide.
+> - **Just trying it out** → the [README quick start](../README.md) (`./deploy.sh`, login `demo`/`password`)
+> - **Deploying into a client/on-prem environment** (hardening, networking, day-2 ops) → [CLIENT_DEPLOYMENT.md](CLIENT_DEPLOYMENT.md)
+> - **Azure VM specifics** → [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md)
+> - `AUTOMATED_DEPLOYMENT.md` (repo root) is a **historical design doc** — its scripts never shipped; don't follow it.
+>
+> When these documents disagree, this file and `./deploy.sh --help` win.
+
 ---
 
 ## Table of Contents

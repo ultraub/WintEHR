@@ -71,8 +71,8 @@ def register_all_routers(app: FastAPI) -> None:
         from api.clinical.orders.orders_router import router as clinical_orders_router
         from api.clinical.pharmacy.pharmacy_router import router as pharmacy_router
         from api.clinical.results.results_router import router as clinical_results_router
+        from api.clinical.critical_values_router import router as critical_values_router
         from api.clinical.tasks.router import router as clinical_tasks_router
-        from api.clinical.alerts.router import router as clinical_alerts_router
         from api.clinical.inbox.router import router as clinical_inbox_router
         from api.clinical.cds_clinical_data import router as cds_clinical_data_router
         from api.clinical.medication_lists_router import router as medication_lists_router
@@ -84,11 +84,11 @@ def register_all_routers(app: FastAPI) -> None:
         app.include_router(clinical_orders_router, prefix="/api", tags=["Clinical Orders (CPOE)"])
         app.include_router(pharmacy_router, tags=["Pharmacy Workflows"])
         app.include_router(clinical_results_router, tags=["Clinical Results"])
+        app.include_router(critical_values_router, tags=["Clinical Reference"])
         app.include_router(medication_lists_router, tags=["Medication Lists"])
         app.include_router(drug_safety_router, prefix="/api/clinical", tags=["Drug Safety"])
         app.include_router(clinical_notes_router, tags=["Clinical Documentation"])
         app.include_router(clinical_tasks_router, tags=["Clinical Tasks"])
-        app.include_router(clinical_alerts_router, tags=["Clinical Alerts"])
         app.include_router(clinical_inbox_router, tags=["Clinical Inbox"])
         app.include_router(cds_clinical_data_router, tags=["CDS Clinical Data"])
         app.include_router(clinical_administration_router)
@@ -169,7 +169,7 @@ def register_all_routers(app: FastAPI) -> None:
 
     # 7. Imaging & DICOM Services
     try:
-        from api.dicom.dicom_service import router as dicom_router
+        from api.dicom.router import router as dicom_router
         from api.imaging.router import router as imaging_studies_router
         
         app.include_router(dicom_router, tags=["DICOM Services"])

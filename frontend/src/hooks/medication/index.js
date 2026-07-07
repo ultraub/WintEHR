@@ -10,5 +10,5 @@ export { default as useMedicationAdministration } from './useMedicationAdministr
 export { default as useMedicationCatalog } from './useMedicationCatalog';
 export { default as useMedicationDispense } from './useMedicationDispense';
 export { default as useMedicationLists } from './useMedicationLists';
-export { default as useMedicationResolver } from './useMedicationResolver';
+export { useMedicationResolver } from '../../core/fhir/hooks/useMedicationResolver';
 export { default as useDrugSafety } from './useDrugSafety';

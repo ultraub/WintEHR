@@ -2,7 +2,7 @@
  * Clinical Workflow Context
  * Manages cross-tab communication, workflow orchestration, and clinical context sharing
  */
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFHIRResource } from './FHIRResourceContext';
 import { useAuth } from './AuthContext';
 import websocketService from '../services/websocket';
@@ -686,18 +686,20 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     );
   }, []);
 
-  const value = {
+  // Memoized: an unmemoized object identity re-rendered every consumer of
+  // this context (most of the clinical workspace) on each provider render.
+  const value = useMemo(() => ({
     // Clinical context
     clinicalContext,
     getCurrentClinicalContext,
     updateClinicalContext,
-    
+
     // Event system
     subscribe,
     publish,
     CLINICAL_EVENTS,
     WORKFLOW_TYPES,
-    
+
     // Notifications
     notifications,
     clearNotification,
@@ -705,18 +707,23 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     markNotificationRead,
     createCriticalAlert,
     createWorkflowNotification,
-    
+
     // Navigation
     navigateWithContext,
-    
+
     // Workflow states
     workflowStates,
     setWorkflowStates,
-    
+
     // WebSocket status
     wsConnected,
     wsReconnecting
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [
+    clinicalContext, subscribe, publish, notifications,
+    clearNotification, clearAllNotifications, markNotificationRead,
+    navigateWithContext, workflowStates, wsConnected, wsReconnecting
+  ]);
 
   return (
     <ClinicalWorkflowContext.Provider value={value}>

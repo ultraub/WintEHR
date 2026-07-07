@@ -6,7 +6,6 @@ import { WorkflowProvider } from '../contexts/WorkflowContext';
 import { ClinicalProvider } from '../contexts/ClinicalContext';
 import { DocumentationProvider } from '../contexts/DocumentationContext';
 import { OrderProvider } from '../contexts/OrderContext';
-import { TaskProvider } from '../contexts/TaskContext';
 import { InboxProvider } from '../contexts/InboxContext';
 import { AppointmentProvider } from '../contexts/AppointmentContext';
 import { ClinicalWorkflowProvider } from '../contexts/ClinicalWorkflowContext';
@@ -27,12 +26,13 @@ const CoreDataProvider = createCompoundProvider([
 ]);
 
 // Clinical domain providers (often update together)
+// (TaskContext was deleted with the unmounted Tasks tab — its endpoints
+// were guaranteed 404s and nothing else consumed it.)
 const ClinicalDomainProvider = createCompoundProvider([
   ClinicalProvider,
   CDSHooksProvider,  // CDS only needed in clinical context, not globally
   DocumentationProvider,
-  OrderProvider,
-  TaskProvider
+  OrderProvider
 ]);
 
 // Communication providers (notifications, appointments)
@@ -47,7 +47,7 @@ const CommunicationProvider = createCompoundProvider([
  * Reduced from 12 nested levels to 4 compound groups:
  * 1. CoreDataProvider - Auth, FHIR, Directory, CDS
  * 2. WorkflowProvider - Standalone workflow state
- * 3. ClinicalDomainProvider - Clinical, Documentation, Order, Task
+ * 3. ClinicalDomainProvider - Clinical, Documentation, Order
  * 4. CommunicationProvider - Inbox, Appointment
  * 5. ClinicalWorkflowProvider - Top-level orchestration
  * 

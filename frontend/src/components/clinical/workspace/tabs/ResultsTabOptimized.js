@@ -104,6 +104,7 @@ import {
   getReferenceId 
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
+import { classifyValueSync, getCriticalValueTable } from '../../../../services/criticalValueService';
 import CollapsibleFilterPanel from '../CollapsibleFilterPanel';
 import ClinicalTabHeader from '../ClinicalTabHeader';
 import { 
@@ -136,24 +137,35 @@ const enhanceObservationWithReferenceRange = (observation) => {
   
   const loincCode = observation.code?.coding?.[0]?.code;
   const refRange = REFERENCE_RANGES[loincCode];
-  
-  if (refRange) {
-    return {
-      ...observation,
-      referenceRange: [{
-        low: { value: refRange.low, unit: refRange.unit },
-        high: { value: refRange.high, unit: refRange.unit },
-        text: `${refRange.low}-${refRange.high} ${refRange.unit}`
-      }]
-    };
+
+  if (!refRange) {
+    return observation;
   }
-  
-  return observation;
+
+  // Only synthesize a range when the observation's unit matches the fallback's
+  // assumed unit — comparing e.g. mmol/L against a mg/dL range would produce
+  // false Critical/Abnormal verdicts. When units differ (or are absent), show
+  // no synthesized range rather than a wrong verdict.
+  const observedUnit = observation.valueQuantity?.unit || observation.valueQuantity?.code;
+  if (!observedUnit || observedUnit.toLowerCase() !== refRange.unit.toLowerCase()) {
+    return observation;
+  }
+
+  return {
+    ...observation,
+    referenceRange: [{
+      low: { value: refRange.low, unit: refRange.unit },
+      high: { value: refRange.high, unit: refRange.unit },
+      text: `${refRange.low}-${refRange.high} ${refRange.unit}`
+    }]
+  };
 };
 
-// Detect critical values by comparing value to referenceRange
-// Returns { isCritical, isAbnormal, direction } or null if no comparison possible
-const detectCriticalFromReferenceRange = (observation) => {
+// Detect abnormal (NOT critical) values by comparing value to referenceRange.
+// "Critical" is decided solely by the backend-served threshold table (R33) —
+// a reference range never invents criticality.
+// Returns { isAbnormal, direction } or null if no comparison possible
+const detectAbnormalFromReferenceRange = (observation) => {
   const value = observation.valueQuantity?.value;
   if (value === undefined || value === null) return null;
 
@@ -163,25 +175,13 @@ const detectCriticalFromReferenceRange = (observation) => {
   const low = refRange.low?.value;
   const high = refRange.high?.value;
 
-  // Calculate critical thresholds (typically 20% beyond normal range)
-  const criticalMargin = 0.2;
-  const normalRange = high && low ? high - low : 0;
-  const criticalLow = low !== undefined ? low - (normalRange * criticalMargin) : undefined;
-  const criticalHigh = high !== undefined ? high + (normalRange * criticalMargin) : undefined;
-
-  if (criticalLow !== undefined && value < criticalLow) {
-    return { isCritical: true, isAbnormal: true, direction: 'low' };
-  }
-  if (criticalHigh !== undefined && value > criticalHigh) {
-    return { isCritical: true, isAbnormal: true, direction: 'high' };
-  }
   if (low !== undefined && value < low) {
-    return { isCritical: false, isAbnormal: true, direction: 'low' };
+    return { isAbnormal: true, direction: 'low' };
   }
   if (high !== undefined && value > high) {
-    return { isCritical: false, isAbnormal: true, direction: 'high' };
+    return { isAbnormal: true, direction: 'high' };
   }
-  return { isCritical: false, isAbnormal: false, direction: null };
+  return { isAbnormal: false, direction: null };
 };
 
 // Get result status icon and color
@@ -213,22 +213,62 @@ const getResultStatus = (observation) => {
     }
   }
 
-  // Fallback: detect critical values from referenceRange
-  const detection = detectCriticalFromReferenceRange(observation);
-  if (detection) {
-    if (detection.isCritical) {
-      return detection.direction === 'high'
-        ? { icon: <HighIcon color="error" />, color: 'error', label: 'Critical High', isCritical: true }
-        : { icon: <LowIcon color="error" />, color: 'error', label: 'Critical Low', isCritical: true };
-    }
-    if (detection.isAbnormal) {
-      return detection.direction === 'high'
-        ? { icon: <HighIcon color="error" />, color: 'error', label: 'High', isCritical: false }
-        : { icon: <LowIcon color="error" />, color: 'error', label: 'Low', isCritical: false };
-    }
+  // Classify against the shared backend-served threshold table (R33).
+  // null = code unknown / unit mismatch / table not yet loaded → fall through
+  // to reference-range abnormal display without inventing "critical".
+  const loincCode = observation.code?.coding?.find(c => c.system === 'http://loinc.org')?.code
+    || observation.code?.coding?.[0]?.code;
+  const classification = classifyValueSync(
+    loincCode,
+    observation.valueQuantity?.value,
+    observation.valueQuantity?.unit
+  );
+  switch (classification) {
+    case 'critical-high':
+      return { icon: <HighIcon color="error" />, color: 'error', label: 'Critical High', isCritical: true };
+    case 'critical-low':
+      return { icon: <LowIcon color="error" />, color: 'error', label: 'Critical Low', isCritical: true };
+    case 'high':
+      return { icon: <HighIcon color="error" />, color: 'error', label: 'High', isCritical: false };
+    case 'low':
+      return { icon: <LowIcon color="error" />, color: 'error', label: 'Low', isCritical: false };
+    default:
+      break; // 'normal' or null — reference-range flags below are never suppressed
+  }
+
+  // Reference-range-based abnormal display (kept for codes not in the table)
+  const detection = detectAbnormalFromReferenceRange(observation);
+  if (detection?.isAbnormal) {
+    return detection.direction === 'high'
+      ? { icon: <HighIcon color="error" />, color: 'error', label: 'High', isCritical: false }
+      : { icon: <LowIcon color="error" />, color: 'error', label: 'Low', isCritical: false };
   }
 
   return { icon: <NormalRangeIcon />, color: 'default', label: 'Normal', isCritical: false };
+};
+
+// Get status icon and color for DiagnosticReport rows — reports carry a
+// workflow status (final/preliminary/...), not an observation interpretation
+const getReportStatus = (report) => {
+  const status = report.status || 'unknown';
+  const label = (status.charAt(0).toUpperCase() + status.slice(1)).replace(/-/g, ' ');
+
+  switch (status) {
+    case 'final':
+    case 'amended':
+    case 'corrected':
+    case 'appended':
+      return { icon: <NormalIcon color="success" />, color: 'success', label, isCritical: false };
+    case 'preliminary':
+    case 'partial':
+    case 'registered':
+      return { icon: <PendingIcon color="warning" />, color: 'warning', label, isCritical: false };
+    case 'cancelled':
+    case 'entered-in-error':
+      return { icon: <AbnormalIcon color="error" />, color: 'error', label: status === 'entered-in-error' ? 'Entered in error' : label, isCritical: false };
+    default:
+      return { icon: <PendingIcon />, color: 'default', label, isCritical: false };
+  }
 };
 
 const ResultsTabOptimized = ({
@@ -265,6 +305,23 @@ const ResultsTabOptimized = ({
     error: null,
     lastFetch: null
   });
+
+  // Load the shared critical-value threshold table once so the synchronous
+  // classification in getResultStatus has data; the flag forces one re-render
+  // (and memo recompute) when it arrives. Failure degrades fail-safe to
+  // reference-range display only.
+  const [criticalTableReady, setCriticalTableReady] = useState(false);
+  useEffect(() => {
+    let active = true;
+    getCriticalValueTable()
+      .then(() => {
+        if (active) setCriticalTableReady(true);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Fetch all data once
   const fetchAllData = useCallback(async () => {
@@ -507,7 +564,8 @@ const ResultsTabOptimized = ({
       effectiveDate: observation.effectiveDateTime ? formatClinicalDate(observation.effectiveDateTime) : 'Unknown',
       status: getResultStatus(observation)
     };
-  }, []);
+    // criticalTableReady: reclassify once the shared threshold table loads
+  }, [criticalTableReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply filters to data
   const filteredData = useMemo(() => {
@@ -579,7 +637,8 @@ const ResultsTabOptimized = ({
     }
 
     return data;
-  }, [allData, tabValue, filterPeriod, filterStatus, searchTerm]);
+    // criticalTableReady: refilter once the shared threshold table loads
+  }, [allData, tabValue, filterPeriod, filterStatus, searchTerm, criticalTableReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Paginated data
   const paginatedData = useMemo(() => {
@@ -600,6 +659,23 @@ const ResultsTabOptimized = ({
 
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // Filter changes shrink/reshape the result set — reset to the first page so
+  // the user never lands on a now-empty page N
+  const handleSearchChange = (value) => {
+    setSearchTerm(value);
+    setPage(0);
+  };
+
+  const handleFilterPeriodChange = (value) => {
+    setFilterPeriod(value);
+    setPage(0);
+  };
+
+  const handleFilterStatusChange = (value) => {
+    setFilterStatus(value);
     setPage(0);
   };
 
@@ -655,65 +731,75 @@ const ResultsTabOptimized = ({
       );
     }
 
-    if (viewMode === 'cards') {
-      // Card view using ObservationCardTemplate
-      return (
-        <Grid container spacing={1} sx={{ p: { xs: 0.5, sm: 1 } }}>
-          {paginatedData.map((item, index) => (
-            <Grid item xs={12} md={6} key={item.id}>
-              <ObservationCardTemplate
-                observation={item}
-                onEdit={() => handleViewDetails(item)}
-                onMore={() => handleViewDetails(item)}
-                isAlternate={index % 2 === 1}
-                customActions={
-                  item.basedOn?.[0]?.reference && onNavigateToTab ? (
-                    <Tooltip title="View Related Order">
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          const orderId = item.basedOn[0].reference.split('/')[1];
-                          navigateToTab(onNavigateToTab, TAB_IDS.ORDERS, {
-                            resourceId: orderId,
-                            resourceType: 'ServiceRequest',
-                            action: 'highlight'
-                          });
-                        }}
-                      >
-                        <OrderIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  ) : null
-                }
-              />
-            </Grid>
-          ))}
-        </Grid>
-      );
-    }
-
-    // Empty state
+    // Shared empty state — both cards and table views fall through here
     if (filteredData.length === 0) {
       return (
         <ClinicalEmptyState
-          title={searchTerm || filterPeriod !== 'all' || filterStatus !== 'all' ? 
+          title={searchTerm || filterPeriod !== 'all' || filterStatus !== 'all' ?
             'No results match your filters' : 'No results available'}
           message={searchTerm || filterPeriod !== 'all' || filterStatus !== 'all' ?
             'Try adjusting your search criteria or clearing filters' :
             'No test results found for this patient'}
           actions={[
             ...(searchTerm || filterPeriod !== 'all' || filterStatus !== 'all' ? [
-              { 
-                label: 'Clear Filters', 
+              {
+                label: 'Clear Filters',
                 onClick: () => {
-                  setSearchTerm('');
-                  setFilterPeriod('all');
-                  setFilterStatus('all');
+                  handleSearchChange('');
+                  handleFilterPeriodChange('all');
+                  handleFilterStatusChange('all');
                 }
               }
             ] : [])
           ]}
         />
+      );
+    }
+
+    if (viewMode === 'cards') {
+      // Card view using ObservationCardTemplate
+      return (
+        <Box>
+          <Grid container spacing={1} sx={{ p: { xs: 0.5, sm: 1 } }}>
+            {paginatedData.map((item, index) => (
+              <Grid item xs={12} md={6} key={item.id}>
+                <ObservationCardTemplate
+                  observation={item}
+                  onEdit={() => handleViewDetails(item)}
+                  onMore={() => handleViewDetails(item)}
+                  isAlternate={index % 2 === 1}
+                  customActions={
+                    item.basedOn?.[0]?.reference && onNavigateToTab ? (
+                      <Tooltip title="View Related Order">
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            const orderId = item.basedOn[0].reference.split('/')[1];
+                            navigateToTab(onNavigateToTab, TAB_IDS.ORDERS, {
+                              resourceId: orderId,
+                              resourceType: 'ServiceRequest',
+                              action: 'highlight'
+                            });
+                          }}
+                        >
+                          <OrderIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    ) : null
+                  }
+                />
+              </Grid>
+            ))}
+          </Grid>
+          <TablePagination
+            component="div"
+            count={filteredData.length}
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+          />
+        </Box>
       );
     }
 
@@ -733,20 +819,29 @@ const ResultsTabOptimized = ({
           </TableHead>
           <TableBody>
             {paginatedData.map((item, index) => {
-              const status = getResultStatus(item);
-              const value = item.valueQuantity ? 
-                `${item.valueQuantity.value} ${item.valueQuantity.unit || ''}` :
-                item.valueString || 'Pending';
-              
+              // DiagnosticReports carry a workflow status and result references,
+              // not observation-shaped value/interpretation fields — give them
+              // their own accessors instead of falling through to 'Pending'
+              const isReport = item.resourceType === 'DiagnosticReport';
+              const status = isReport ? getReportStatus(item) : getResultStatus(item);
+              const value = isReport ?
+                (item.code?.text ||
+                 (item.result?.length ?
+                  `${item.result.length} result${item.result.length === 1 ? '' : 's'}` :
+                  '-')) :
+                (item.valueQuantity ?
+                  `${item.valueQuantity.value} ${item.valueQuantity.unit || ''}` :
+                  item.valueString || 'Pending');
+
               // Format reference range from low/high values
               const refRange = item.referenceRange?.[0];
-              const reference = refRange ? 
-                (refRange.text || 
-                 (refRange.low || refRange.high ? 
-                  `${refRange.low?.value || ''} - ${refRange.high?.value || ''} ${refRange.low?.unit || refRange.high?.unit || ''}`.trim() : 
+              const reference = refRange ?
+                (refRange.text ||
+                 (refRange.low || refRange.high ?
+                  `${refRange.low?.value || ''} - ${refRange.high?.value || ''} ${refRange.low?.unit || refRange.high?.unit || ''}`.trim() :
                   '-')) :
                 '-';
-              
+
               const date = item.effectiveDateTime || item.issued;
               
               return (
@@ -776,7 +871,7 @@ const ResultsTabOptimized = ({
                     </Stack>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={status.label !== 'Normal' ? 'bold' : 'normal'}>
+                    <Typography variant="body2" fontWeight={!isReport && status.label !== 'Normal' ? 'bold' : 'normal'}>
                       {value}
                     </Typography>
                   </TableCell>
@@ -871,7 +966,7 @@ const ResultsTabOptimized = ({
                 label={filterPeriod}
                 size="small"
                 variant="outlined"
-                onDelete={() => setFilterPeriod('all')}
+                onDelete={() => handleFilterPeriodChange('all')}
                 sx={{ height: 24 }}
               />
             )}
@@ -920,9 +1015,9 @@ const ResultsTabOptimized = ({
       <Box sx={{ px: 2 }}>
         <ClinicalFilterPanel
           searchQuery={searchTerm}
-          onSearchChange={setSearchTerm}
+          onSearchChange={handleSearchChange}
           dateRange={filterPeriod}
-          onDateRangeChange={setFilterPeriod}
+          onDateRangeChange={handleFilterPeriodChange}
           onRefresh={fetchAllData}
           scrollContainerRef={scrollContainerRef}
           compact
@@ -933,7 +1028,7 @@ const ResultsTabOptimized = ({
               <InputLabel>Status</InputLabel>
               <Select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => handleFilterStatusChange(e.target.value)}
                 label="Status"
               >
                 <MenuItem value="all">All</MenuItem>

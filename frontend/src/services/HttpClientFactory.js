@@ -13,6 +13,7 @@
  */
 
 import axios from 'axios';
+import { getFhirUrl, getEmrUrl } from '../config/apiConfig';
 
 class HttpClientFactory {
   constructor() {
@@ -49,7 +50,7 @@ class HttpClientFactory {
   static createFhirClient(config = {}) {
     const factory = new HttpClientFactory();
     return factory.createClient('fhir', {
-      baseURL: config.baseURL || process.env.REACT_APP_FHIR_ENDPOINT || '/fhir/R4',
+      baseURL: config.baseURL || getFhirUrl(),
       headers: {
         'Content-Type': 'application/fhir+json',
         'Accept': 'application/fhir+json',
@@ -82,7 +83,7 @@ class HttpClientFactory {
     }
 
     return factory.createClient('emr', {
-      baseURL: config.baseURL || process.env.REACT_APP_EMR_API || '/api/emr',
+      baseURL: config.baseURL || getEmrUrl(),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',

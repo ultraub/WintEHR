@@ -17,7 +17,7 @@ import json
 import os
 import sys
 import subprocess
-import requests
+import httpx
 from pathlib import Path
 from typing import List, Dict, Optional
 import time
@@ -125,7 +125,7 @@ def fix_bundle_for_hapi(bundle: Dict) -> Dict:
 def upload_bundle_to_hapi(bundle: Dict, bundle_name: str = "bundle") -> bool:
     """Upload a single bundle to HAPI FHIR"""
     try:
-        response = requests.post(
+        response = httpx.post(
             HAPI_FHIR_BASE,
             json=bundle,
             headers={'Content-Type': 'application/fhir+json'},
@@ -223,7 +223,7 @@ def verify_data():
 
     for resource_type in resource_types:
         try:
-            response = requests.get(
+            response = httpx.get(
                 f"{HAPI_FHIR_BASE}/{resource_type}?_summary=count",
                 timeout=10
             )
@@ -247,11 +247,11 @@ def wait_for_hapi(max_retries=30, delay=2):
 
     for i in range(max_retries):
         try:
-            response = requests.get(f"{HAPI_FHIR_BASE}/metadata", timeout=5)
+            response = httpx.get(f"{HAPI_FHIR_BASE}/metadata", timeout=5)
             if response.status_code == 200:
                 print("✓ HAPI FHIR server is ready!\n")
                 return True
-        except requests.exceptions.RequestException:
+        except httpx.HTTPError:
             pass
 
         if i < max_retries - 1:

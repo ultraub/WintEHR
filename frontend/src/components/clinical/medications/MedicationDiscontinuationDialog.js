@@ -44,7 +44,7 @@ import {
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format, addDays } from 'date-fns';
-import { useMedicationResolver } from '../../../hooks/useMedicationResolver';
+import { useMedicationResolver } from '../../../core/fhir/hooks/useMedicationResolver';
 
 // Discontinuation reason categories based on clinical guidelines
 const DISCONTINUATION_REASONS = {
