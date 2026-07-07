@@ -37,6 +37,7 @@ import {
   Description as DocumentationIcon,
   AccountTree as CarePlanIcon,
   Timeline as TimelineIcon,
+  Inbox as InboxIcon,
 } from '@mui/icons-material';
 
 /**
@@ -143,6 +144,14 @@ export const CLINICAL_TABS = [
     color: '#06B6D4',
     description: 'Clinical history timeline',
     loader: () => import(/* webpackChunkName: "clinical-timeline" */ './tabs/TimelineTabModern'),
+  },
+  {
+    id: 'inbox',
+    label: 'Inbox',
+    icon: InboxIcon,
+    color: '#8B5CF6',
+    description: 'Messages, results review, and follow-ups',
+    loader: () => import(/* webpackChunkName: "clinical-inbox" */ '../inbox/InboxTab'),
   },
 ];
 
