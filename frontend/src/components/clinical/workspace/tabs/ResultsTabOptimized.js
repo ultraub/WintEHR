@@ -104,6 +104,7 @@ import {
   getReferenceId 
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
+import { classifyValueSync, getCriticalValueTable } from '../../../../services/criticalValueService';
 import CollapsibleFilterPanel from '../CollapsibleFilterPanel';
 import ClinicalTabHeader from '../ClinicalTabHeader';
 import { 
@@ -160,9 +161,11 @@ const enhanceObservationWithReferenceRange = (observation) => {
   };
 };
 
-// Detect critical values by comparing value to referenceRange
-// Returns { isCritical, isAbnormal, direction } or null if no comparison possible
-const detectCriticalFromReferenceRange = (observation) => {
+// Detect abnormal (NOT critical) values by comparing value to referenceRange.
+// "Critical" is decided solely by the backend-served threshold table (R33) —
+// a reference range never invents criticality.
+// Returns { isAbnormal, direction } or null if no comparison possible
+const detectAbnormalFromReferenceRange = (observation) => {
   const value = observation.valueQuantity?.value;
   if (value === undefined || value === null) return null;
 
@@ -172,25 +175,13 @@ const detectCriticalFromReferenceRange = (observation) => {
   const low = refRange.low?.value;
   const high = refRange.high?.value;
 
-  // Calculate critical thresholds (typically 20% beyond normal range)
-  const criticalMargin = 0.2;
-  const normalRange = high && low ? high - low : 0;
-  const criticalLow = low !== undefined ? low - (normalRange * criticalMargin) : undefined;
-  const criticalHigh = high !== undefined ? high + (normalRange * criticalMargin) : undefined;
-
-  if (criticalLow !== undefined && value < criticalLow) {
-    return { isCritical: true, isAbnormal: true, direction: 'low' };
-  }
-  if (criticalHigh !== undefined && value > criticalHigh) {
-    return { isCritical: true, isAbnormal: true, direction: 'high' };
-  }
   if (low !== undefined && value < low) {
-    return { isCritical: false, isAbnormal: true, direction: 'low' };
+    return { isAbnormal: true, direction: 'low' };
   }
   if (high !== undefined && value > high) {
-    return { isCritical: false, isAbnormal: true, direction: 'high' };
+    return { isAbnormal: true, direction: 'high' };
   }
-  return { isCritical: false, isAbnormal: false, direction: null };
+  return { isAbnormal: false, direction: null };
 };
 
 // Get result status icon and color
@@ -222,19 +213,35 @@ const getResultStatus = (observation) => {
     }
   }
 
-  // Fallback: detect critical values from referenceRange
-  const detection = detectCriticalFromReferenceRange(observation);
-  if (detection) {
-    if (detection.isCritical) {
-      return detection.direction === 'high'
-        ? { icon: <HighIcon color="error" />, color: 'error', label: 'Critical High', isCritical: true }
-        : { icon: <LowIcon color="error" />, color: 'error', label: 'Critical Low', isCritical: true };
-    }
-    if (detection.isAbnormal) {
-      return detection.direction === 'high'
-        ? { icon: <HighIcon color="error" />, color: 'error', label: 'High', isCritical: false }
-        : { icon: <LowIcon color="error" />, color: 'error', label: 'Low', isCritical: false };
-    }
+  // Classify against the shared backend-served threshold table (R33).
+  // null = code unknown / unit mismatch / table not yet loaded → fall through
+  // to reference-range abnormal display without inventing "critical".
+  const loincCode = observation.code?.coding?.find(c => c.system === 'http://loinc.org')?.code
+    || observation.code?.coding?.[0]?.code;
+  const classification = classifyValueSync(
+    loincCode,
+    observation.valueQuantity?.value,
+    observation.valueQuantity?.unit
+  );
+  switch (classification) {
+    case 'critical-high':
+      return { icon: <HighIcon color="error" />, color: 'error', label: 'Critical High', isCritical: true };
+    case 'critical-low':
+      return { icon: <LowIcon color="error" />, color: 'error', label: 'Critical Low', isCritical: true };
+    case 'high':
+      return { icon: <HighIcon color="error" />, color: 'error', label: 'High', isCritical: false };
+    case 'low':
+      return { icon: <LowIcon color="error" />, color: 'error', label: 'Low', isCritical: false };
+    default:
+      break; // 'normal' or null — reference-range flags below are never suppressed
+  }
+
+  // Reference-range-based abnormal display (kept for codes not in the table)
+  const detection = detectAbnormalFromReferenceRange(observation);
+  if (detection?.isAbnormal) {
+    return detection.direction === 'high'
+      ? { icon: <HighIcon color="error" />, color: 'error', label: 'High', isCritical: false }
+      : { icon: <LowIcon color="error" />, color: 'error', label: 'Low', isCritical: false };
   }
 
   return { icon: <NormalRangeIcon />, color: 'default', label: 'Normal', isCritical: false };
@@ -298,6 +305,23 @@ const ResultsTabOptimized = ({
     error: null,
     lastFetch: null
   });
+
+  // Load the shared critical-value threshold table once so the synchronous
+  // classification in getResultStatus has data; the flag forces one re-render
+  // (and memo recompute) when it arrives. Failure degrades fail-safe to
+  // reference-range display only.
+  const [criticalTableReady, setCriticalTableReady] = useState(false);
+  useEffect(() => {
+    let active = true;
+    getCriticalValueTable()
+      .then(() => {
+        if (active) setCriticalTableReady(true);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Fetch all data once
   const fetchAllData = useCallback(async () => {
@@ -540,7 +564,8 @@ const ResultsTabOptimized = ({
       effectiveDate: observation.effectiveDateTime ? formatClinicalDate(observation.effectiveDateTime) : 'Unknown',
       status: getResultStatus(observation)
     };
-  }, []);
+    // criticalTableReady: reclassify once the shared threshold table loads
+  }, [criticalTableReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply filters to data
   const filteredData = useMemo(() => {
@@ -612,7 +637,8 @@ const ResultsTabOptimized = ({
     }
 
     return data;
-  }, [allData, tabValue, filterPeriod, filterStatus, searchTerm]);
+    // criticalTableReady: refilter once the shared threshold table loads
+  }, [allData, tabValue, filterPeriod, filterStatus, searchTerm, criticalTableReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Paginated data
   const paginatedData = useMemo(() => {

@@ -5,114 +5,14 @@
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { format } from 'date-fns';
-
-// Critical value definitions based on standard medical practice
-const CRITICAL_VALUES = {
-  // Chemistry
-  '2339-0': { // Glucose
-    criticalLow: 40,
-    criticalHigh: 500,
-    unit: 'mg/dL',
-    name: 'Glucose'
-  },
-  '2947-0': { // Sodium
-    criticalLow: 120,
-    criticalHigh: 160,
-    unit: 'mmol/L',
-    name: 'Sodium'
-  },
-  '6298-4': { // Potassium
-    criticalLow: 2.5,
-    criticalHigh: 6.5,
-    unit: 'mmol/L',
-    name: 'Potassium'
-  },
-  '38483-4': { // Creatinine
-    criticalHigh: 4.0,
-    unit: 'mg/dL',
-    name: 'Creatinine'
-  },
-  '14682-9': { // Creatinine for pediatric
-    criticalHigh: 2.0,
-    unit: 'mg/dL',
-    name: 'Creatinine (Pediatric)'
-  },
-  
-  // Hematology
-  '718-7': { // Hemoglobin
-    criticalLow: 7.0,
-    criticalHigh: 20.0,
-    unit: 'g/dL',
-    name: 'Hemoglobin'
-  },
-  '777-3': { // Platelets
-    criticalLow: 20,
-    criticalHigh: 1000,
-    unit: '10^3/uL',
-    name: 'Platelets'
-  },
-  '6690-2': { // WBC
-    criticalLow: 1.0,
-    criticalHigh: 30.0,
-    unit: '10^3/uL',
-    name: 'White Blood Cells'
-  },
-  
-  // Cardiac
-  '2157-6': { // Troponin I
-    criticalHigh: 0.04,
-    unit: 'ng/mL',
-    name: 'Troponin I'
-  },
-  '33762-6': { // NT-proBNP
-    criticalHigh: 900,
-    unit: 'pg/mL',
-    name: 'NT-proBNP'
-  },
-  
-  // Coagulation
-  '5902-2': { // PT
-    criticalHigh: 30,
-    unit: 's',
-    name: 'Prothrombin Time'
-  },
-  '6301-6': { // INR
-    criticalHigh: 5.0,
-    unit: '',
-    name: 'INR'
-  },
-  
-  // Blood Gas
-  '2703-7': { // pH
-    criticalLow: 7.20,
-    criticalHigh: 7.60,
-    unit: '',
-    name: 'pH'
-  },
-  '2019-8': { // pCO2
-    criticalLow: 20,
-    criticalHigh: 70,
-    unit: 'mmHg',
-    name: 'pCO2'
-  },
-  '2704-5': { // pO2
-    criticalLow: 50,
-    unit: 'mmHg',
-    name: 'pO2'
-  },
-  
-  // Therapeutic Drug Levels
-  '14749-6': { // Digoxin
-    criticalHigh: 2.0,
-    unit: 'ng/mL',
-    name: 'Digoxin'
-  },
-  '4049-3': { // Theophylline
-    criticalHigh: 20,
-    unit: 'ug/mL',
-    name: 'Theophylline'
-  }
-};
+// Critical-value thresholds come from the backend-served table (R33) —
+// single source: backend/api/clinical/critical_values.py.
+import {
+  classifyValueSync,
+  getCriticalValueEntrySync,
+  getCriticalValueTable,
+  isCriticalClassification
+} from './criticalValueService';
 
 // Result status priorities for provider workflow
 const RESULT_PRIORITIES = {
@@ -148,30 +48,33 @@ const RESULT_PRIORITIES = {
 
 class ResultsManagementService {
   /**
-   * Check if a result value is critical
+   * Check if a result value is critical (via the shared backend-served table).
+   * Fail-safe: unknown codes, missing values, or unit mismatches are NOT
+   * critical — reference-range/interpretation handling elsewhere still flags
+   * them as abnormal when applicable.
    */
   checkCriticalValue(observation) {
     const loincCode = observation.code?.coding?.find(c => c.system === 'http://loinc.org')?.code;
-    if (!loincCode || !CRITICAL_VALUES[loincCode]) {
-      return { isCritical: false };
-    }
-
-    const criticalDef = CRITICAL_VALUES[loincCode];
     const value = observation.valueQuantity?.value;
-    
-    if (!value) {
+
+    if (!loincCode || value === undefined || value === null) {
       return { isCritical: false };
     }
 
-    const isCriticalLow = criticalDef.criticalLow && value < criticalDef.criticalLow;
-    const isCriticalHigh = criticalDef.criticalHigh && value > criticalDef.criticalHigh;
-    
+    const classification = classifyValueSync(loincCode, value, observation.valueQuantity?.unit);
+    if (!isCriticalClassification(classification)) {
+      return { isCritical: false };
+    }
+
+    const criticalDef = getCriticalValueEntrySync(loincCode);
+    const type = classification === 'critical-low' ? 'low' : 'high';
+
     return {
-      isCritical: isCriticalLow || isCriticalHigh,
-      type: isCriticalLow ? 'low' : isCriticalHigh ? 'high' : null,
+      isCritical: true,
+      type,
       value,
       criticalRange: criticalDef,
-      message: this.generateCriticalMessage(criticalDef.name, value, criticalDef, isCriticalLow ? 'low' : 'high')
+      message: this.generateCriticalMessage(criticalDef.label, value, criticalDef, type)
     };
   }
 
@@ -180,7 +83,8 @@ class ResultsManagementService {
    */
   generateCriticalMessage(testName, value, criticalDef, type) {
     const threshold = type === 'low' ? criticalDef.criticalLow : criticalDef.criticalHigh;
-    return `CRITICAL ${type.toUpperCase()}: ${testName} is ${value} ${criticalDef.unit} (critical ${type} < ${threshold})`;
+    const comparator = type === 'low' ? '<' : '>';
+    return `CRITICAL ${type.toUpperCase()}: ${testName} is ${value} ${criticalDef.unit} (critical ${type} ${comparator} ${threshold})`.replace(/\s+/g, ' ');
   }
 
   /**
@@ -228,6 +132,7 @@ class ResultsManagementService {
    * Create provider notification for critical result
    */
   async createCriticalValueNotification(observation, patient, provider) {
+    await getCriticalValueTable().catch(() => {});
     const criticalCheck = this.checkCriticalValue(observation);
     const testName = observation.code?.text || observation.code?.coding?.[0]?.display;
     
@@ -395,6 +300,10 @@ class ResultsManagementService {
    */
   async getUnacknowledgedResults(providerId, patientId = null) {
     try {
+      // Warm the shared threshold table so the synchronous critical checks
+      // below have data (classification degrades fail-safe if this fails)
+      await getCriticalValueTable().catch(() => {});
+
       // Get all results
       let searchParams = {
         status: 'final',
@@ -528,6 +437,9 @@ class ResultsManagementService {
    */
   async getResultsRequiringFollowup(patientId) {
     try {
+      // Warm the shared threshold table for the synchronous priority checks
+      await getCriticalValueTable().catch(() => {});
+
       const observations = await fhirClient.search('Observation', {
         patient: patientId,
         status: 'final',
