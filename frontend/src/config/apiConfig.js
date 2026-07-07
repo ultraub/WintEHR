@@ -15,8 +15,9 @@
  * - REACT_APP_FHIR_ENDPOINT: FHIR server endpoint (leave empty for proxy)
  * - REACT_APP_CDS_HOOKS_URL: CDS Hooks service URL (leave empty for proxy)
  * - REACT_APP_WEBSOCKET_URL: WebSocket connection URL (auto-derived if empty)
- * - REACT_APP_DICOM_QIDO_URL: DICOM QIDO-RS base endpoint
- * - REACT_APP_DICOM_WADO_URL: DICOM WADO base endpoint
+ * - REACT_APP_DICOM_QIDO_URL: DICOM QIDO-RS base endpoint (leave empty — imaging
+ *   requests route through the backend DICOM proxy at /api/dicom)
+ * - REACT_APP_DICOM_WADO_URL: DICOM WADO base endpoint (leave empty — see above)
  * - NODE_ENV: Node environment (development/production)
  *
  * Usage:
@@ -69,8 +70,8 @@ class ApiConfig {
         backend: this._config.backend.baseUrl || '(relative)',
         fhir: this._config.fhir.baseUrl,
         cdsHooks: this._config.cdsHooks.baseUrl || '(relative)',
-        dicomQido: this._config.dicom.qidoUrl,
-        dicomWado: this._config.dicom.wadoUrl
+        dicomQido: this._config.dicom.qidoUrl || '(backend proxy)',
+        dicomWado: this._config.dicom.wadoUrl || '(backend proxy)'
       });
     }
   }
@@ -79,12 +80,13 @@ class ApiConfig {
    * Build DICOMWeb endpoint configuration
    */
   buildDicomConfig() {
-    const defaultQido = 'http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/';
-    const defaultWado = 'http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/wado/';
-
+    // Default: empty. The browser never talks to the DICOM server directly —
+    // all imaging requests go through the backend DICOM proxy (/api/dicom/...),
+    // which reads its own DICOM_QIDO_URL / DICOM_WADO_URL env vars. A non-empty
+    // value here only overrides the advisory endpoint hints attached to studies.
     return {
-      qidoUrl: process.env.REACT_APP_DICOM_QIDO_URL || defaultQido,
-      wadoUrl: process.env.REACT_APP_DICOM_WADO_URL || defaultWado
+      qidoUrl: process.env.REACT_APP_DICOM_QIDO_URL || '',
+      wadoUrl: process.env.REACT_APP_DICOM_WADO_URL || ''
     };
   }
 

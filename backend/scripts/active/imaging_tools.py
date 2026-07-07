@@ -152,11 +152,12 @@ class ImagingToolkit:
                     }
                     
                     # Save using FHIR API
-                    import requests
+                    import httpx
                     try:
-                        response = requests.post(
+                        response = httpx.post(
                             "http://localhost:8000/fhir/R4/ImagingStudy",
-                            json=study_data
+                            json=study_data,
+                            timeout=30
                         )
                         if response.status_code == 201:
                             logging.info(f"✅ Added {procedure} for {patient.first_name} {patient.last_name}")

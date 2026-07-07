@@ -2,7 +2,7 @@
 """
 STOW generated DICOM files into the dcm4chee VNA.
 
-The imaging viewer (backend/api/dicom/dicom_service.py) is a read-only proxy to
+The imaging viewer (backend/api/dicom/router.py + service.py) is a read-only proxy to
 a DICOMweb server (QIDO/WADO). `generate_dicom_from_hapi.py` only writes .dcm
 files to /app/data/generated_dicoms/ — it does not load them into the PACS, so
 without this step the Imaging tab lists studies but renders no images.
@@ -34,7 +34,7 @@ import warnings
 from io import BytesIO
 from pathlib import Path
 
-import requests
+import httpx
 
 # Make the backend package importable when run as a script (scripts/active/ ->
 # backend/) so the FHIR<->DICOM UID conversion is shared, not copy-pasted.
@@ -105,7 +105,9 @@ def stow_study(study_dir, stow_url, timeout=120):
         "Content-Type": 'multipart/related; type="application/dicom"; boundary=' + boundary,
         "Accept": "application/dicom+json",
     }
-    resp = requests.post(stow_url, data=body, headers=headers, timeout=timeout)
+    # content= sends the multipart body as raw bytes, byte-identical (httpx's
+    # data= is for form encoding).
+    resp = httpx.post(stow_url, content=body, headers=headers, timeout=timeout)
     return study_uid, len(parts), "%d" % resp.status_code
 
 
