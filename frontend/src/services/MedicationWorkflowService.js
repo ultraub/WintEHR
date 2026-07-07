@@ -1062,7 +1062,7 @@ class MedicationWorkflowService {
   determineMedicationSource(medicationRequest) {
     // Check extensions for source information
     const sourceExtension = medicationRequest.extension?.find(
-      ext => ext.url === 'http://wintehr.com/fhir/medication-source'
+      ext => ext.url === 'http://wintehr.local/fhir/fhir/medication-source'
     );
     if (sourceExtension) {
       return sourceExtension.valueString;

@@ -6,10 +6,11 @@
  */
 
 import axios from 'axios';
+import { getFhirUrl, getEmrUrl } from '../config/apiConfig';
 
 class EMRClient {
   constructor(config = {}) {
-    this.baseUrl = config.baseUrl || process.env.REACT_APP_EMR_API || '/api/emr';
+    this.baseUrl = config.baseUrl || getEmrUrl();
     this.enabled = config.enabled !== false && process.env.REACT_APP_EMR_FEATURES !== 'false';
     // Disable EMR features by default if not explicitly enabled
     if (process.env.REACT_APP_EMR_FEATURES === undefined) {
@@ -321,7 +322,7 @@ class EMRClient {
     const response = await axios.post('/api/clinical-canvas/generate', {
       prompt,
       context,
-      fhirBaseUrl: process.env.REACT_APP_FHIR_ENDPOINT
+      fhirBaseUrl: getFhirUrl()
     });
     return response.data;
   }

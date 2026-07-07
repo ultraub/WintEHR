@@ -90,18 +90,20 @@ describe('HttpClientFactory', () => {
         );
       });
 
-      it('should use FHIR endpoint from environment', () => {
-        process.env.REACT_APP_FHIR_ENDPOINT = '/custom/fhir';
-        
+      it('should use the FHIR endpoint from apiConfig', () => {
+        // URL resolution is consolidated onto config/apiConfig (E4), which
+        // reads REACT_APP_FHIR_ENDPOINT once at module init — setting the
+        // env var mid-test can no longer change it. Assert the factory uses
+        // whatever apiConfig resolves.
+        const { getFhirUrl } = require('../../config/apiConfig');
+
         createFhirClient();
-        
+
         expect(axios.create).toHaveBeenCalledWith(
           expect.objectContaining({
-            baseURL: '/custom/fhir'
+            baseURL: getFhirUrl()
           })
         );
-        
-        delete process.env.REACT_APP_FHIR_ENDPOINT;
       });
     });
 

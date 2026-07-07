@@ -380,7 +380,7 @@ const BatchOperationsDialog = ({
                   tag: [
                     ...(resource.meta?.tag || []),
                     {
-                      system: 'http://emr.local/tags',
+                      system: 'http://wintehr.local/fhir/tags',
                       code: 'archived',
                       display: 'Archived'
                     }

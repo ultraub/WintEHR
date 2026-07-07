@@ -13,6 +13,7 @@
  */
 
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
+import { getFhirUrl } from '../../../config/apiConfig';
 import type {
   FHIRResource,
   Patient,
@@ -182,7 +183,7 @@ class FHIRClient {
 
   constructor(config: FHIRClientConfig = {}) {
     // Configure base URL
-    this.baseUrl = config.baseUrl || process.env.REACT_APP_FHIR_ENDPOINT || '/fhir/R4';
+    this.baseUrl = config.baseUrl || getFhirUrl();
     
     // Configure cache with optimized TTLs for better performance
     this.cache = new Map();
@@ -1803,7 +1804,7 @@ class FHIRClient {
 
 // Create a function to ensure environment variables are loaded
 function createSingletonClient() {
-  const baseUrl = process.env.REACT_APP_FHIR_ENDPOINT || '/fhir/R4';
+  const baseUrl = getFhirUrl();
   return new FHIRClient({
     baseUrl: baseUrl
   });

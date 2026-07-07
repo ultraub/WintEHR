@@ -62,7 +62,7 @@ const OverrideReasonEditor = ({ reasons, onChange }) => {
   const handleAddReason = () => {
     if (!customReason.code || !customReason.display) return;
 
-    onChange([...reasons, { ...customReason, system: 'https://wintehr.com/cds-hooks/override-reasons' }]);
+    onChange([...reasons, { ...customReason, system: 'http://wintehr.local/fhir/cds-hooks/override-reasons' }]);
     setCustomReason({ code: '', display: '', category: 'clinical' });
   };
 
