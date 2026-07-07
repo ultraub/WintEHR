@@ -116,6 +116,9 @@ const PharmacyPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [medicationRequests, setMedicationRequests] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
+  // System-wide prescription count from _summary=count — the Total tile must
+  // not report the length of a capped fetch page.
+  const [totalPrescriptions, setTotalPrescriptions] = useState(null);
   const [queueStats, setQueueStats] = useState({
     newOrders: 0,
     verification: 0,
@@ -134,18 +137,48 @@ const PharmacyPage = () => {
     ready: true // Default to printing ready prescriptions
   });
 
+  // Fetch the pharmacy workload. The old fetch was `_count: 500` with no
+  // status filter and no sort — an arbitrary page of the 8k+ system-wide
+  // MedicationRequests, so cards (including ones just Verified) silently
+  // dropped off the board whenever an update reshuffled which 500 HAPI
+  // returned. Fetch the open workflow set (sorted, newest first) plus a
+  // bounded slice of recently-closed orders for the Ready column history.
+  // Full resources on purpose: _summary strips the pharmacy-status
+  // extension the kanban columns are derived from.
+  const fetchPharmacyWorkload = useCallback(async () => {
+    const [open, closed] = await Promise.all([
+      fhirClient.search('MedicationRequest', {
+        status: 'active,on-hold',
+        _sort: '-authoredon',
+        _count: 300
+      }),
+      fhirClient.search('MedicationRequest', {
+        status: 'completed,stopped,cancelled',
+        _sort: '-authoredon',
+        _count: 100
+      })
+    ]);
+    return [...(open.resources || []), ...(closed.resources || [])];
+  }, []);
+
+  // The Total tile counts everything via _summary=count.
+  const fetchTotalPrescriptionCount = useCallback(async () => {
+    try {
+      const result = await fhirClient.search('MedicationRequest', { _summary: 'count' });
+      if (typeof result.total === 'number') {
+        setTotalPrescriptions(result.total);
+      }
+    } catch (error) {
+      console.error('PharmacyPage: total count query failed:', error);
+    }
+  }, []);
+
   // Fetch all medication requests on mount
   useEffect(() => {
     const fetchMedicationRequests = async () => {
       try {
         setDataLoading(true);
-        // Full resources, same count as refresh: _summary strips the
-        // pharmacy-status extension the kanban columns are derived from,
-        // which made Verify actions visually revert on reload.
-        const result = await fhirClient.search('MedicationRequest', {
-          _count: 500
-        });
-        const resources = result.resources || [];
+        const resources = await fetchPharmacyWorkload();
         setMedicationRequests(resources);
       } catch (error) {
         console.error('PharmacyPage: failed to load medication requests:', error);
@@ -156,7 +189,8 @@ const PharmacyPage = () => {
     };
 
     fetchMedicationRequests();
-  }, []);
+    fetchTotalPrescriptionCount();
+  }, [fetchPharmacyWorkload, fetchTotalPrescriptionCount]);
 
   // Get all medication requests for the pharmacy queue
   const allMedicationRequests = medicationRequests;
@@ -254,30 +288,31 @@ const PharmacyPage = () => {
     return categories;
   }, [pharmacyQueue, getPharmacyStatus]);
 
-  // Update queue statistics
+  // Update queue statistics — Total comes from the count query when
+  // available, never from the length of the fetched page.
   useEffect(() => {
     setQueueStats({
       newOrders: queueCategories.newOrders.length,
       verification: queueCategories.verification.length,
       dispensing: queueCategories.dispensing.length,
       ready: queueCategories.ready.length,
-      total: pharmacyQueue.length
+      total: totalPrescriptions ?? pharmacyQueue.length
     });
-  }, [queueCategories, pharmacyQueue.length]);
+  }, [queueCategories, pharmacyQueue.length, totalPrescriptions]);
 
   // Handle queue refresh
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const result = await fhirClient.search('MedicationRequest', { _count: 500 });
-      const resources = result.resources || [];
+      const resources = await fetchPharmacyWorkload();
       setMedicationRequests(resources);
+      fetchTotalPrescriptionCount();
     } catch (error) {
       console.error('PharmacyPage: refresh failed:', error);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [fetchPharmacyWorkload, fetchTotalPrescriptionCount]);
 
   // Handle pharmacy event updates
   const handlePharmacyUpdate = useCallback((eventType, eventData) => {

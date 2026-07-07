@@ -1593,7 +1593,17 @@ export function FHIRResourceProvider({ children }) {
               };
             }
           });
-          
+
+          // Laboratory results are part of the summary surface (Recent
+          // Results card + list), but the per-type map above fetches
+          // vital-signs only — without this entry the Summary lab list is
+          // empty for every patient on first load, while its stat card
+          // (which runs its own count query) can disagree.
+          batchRequests.push({
+            method: 'GET',
+            url: `Observation?patient=${patientId}&category=laboratory&_count=30&_sort=-date`
+          });
+
           // Execute batch request
           const batchResult = await fhirClient.batch(batchRequests);
 
