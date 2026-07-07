@@ -383,9 +383,12 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       id: Date.now().toString(),
       timestamp: new Date().toISOString(),
       patientId: currentPatient?.id,
-      ...alertData
+      read: false,
+      ...alertData,
+      // Title fallback so notification surfaces never render blank primary text
+      title: alertData?.title || 'Critical Alert'
     };
-    
+
     setNotifications(prev => [alert, ...prev]);
     
     // Publish critical alert event
@@ -401,6 +404,8 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       workflowType,
       step,
       data,
+      read: false,
+      title: data?.title || 'Workflow Update',
       message: generateWorkflowMessage(workflowType, step, data)
     };
     
@@ -641,6 +646,8 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       patientId: qualityData.patientId,
       type: 'quality_followup',
       priority: 'high',
+      read: false,
+      title: 'Quality Measure Follow-up',
       measureId: qualityData.measureId,
       measureName: qualityData.measureName,
       message: `High-priority quality measure documentation requires follow-up: ${qualityData.measureName}`,
@@ -671,6 +678,14 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     setNotifications([]);
   }, []);
 
+  // Mark a notification as read (viewed/clicked). Unread count drives the
+  // notification bell badge, so this is what clears the badge per item.
+  const markNotificationRead = useCallback((notificationId) => {
+    setNotifications(prev =>
+      prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
+    );
+  }, []);
+
   const value = {
     // Clinical context
     clinicalContext,
@@ -687,6 +702,7 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     notifications,
     clearNotification,
     clearAllNotifications,
+    markNotificationRead,
     createCriticalAlert,
     createWorkflowNotification,
     
