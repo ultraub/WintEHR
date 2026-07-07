@@ -169,7 +169,7 @@ def register_all_routers(app: FastAPI) -> None:
 
     # 7. Imaging & DICOM Services
     try:
-        from api.dicom.dicom_service import router as dicom_router
+        from api.dicom.router import router as dicom_router
         from api.imaging.router import router as imaging_studies_router
         
         app.include_router(dicom_router, tags=["DICOM Services"])

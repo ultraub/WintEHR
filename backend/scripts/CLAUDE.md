@@ -100,7 +100,7 @@ Exception — terminology load: `download_umls.py`, `extract_vocabularies.py`,
   `ImagingStudy` resources to already exist (loaded by the Synthea pipeline);
   `stow_dicom_to_dcm4chee.py` and `create_dicom_endpoints.py` need the DICOM
   files to already exist. Pipeline order: generate → STOW → endpoints. The
-  viewer (`api/dicom/dicom_service.py`) is a read-only proxy to dcm4chee, so the
+  viewer (`api/dicom/router.py` + `service.py`) is a read-only proxy to dcm4chee, so the
   STOW step is what makes images actually render.
 - **`cql_bridge_poc.py` has a hard-coded host** — the one place in this tree
   that violates env-driven URLs. It is a POC, not deploy code; leave it or pass
