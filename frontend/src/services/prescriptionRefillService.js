@@ -1,15 +1,31 @@
 /**
  * Prescription Refill Service
- * Handles prescription refill requests, tracking, and workflow management
+ *
+ * Thin client over the Task-based pharmacy refill endpoints in
+ * backend/api/clinical/pharmacy/pharmacy_router.py. Refill requests are FHIR
+ * Task resources (code 'fulfill', task-type extension 'refill') that the
+ * backend creates and transitions — this service never creates or mutates
+ * refill resources through FHIR directly.
+ *
+ * Backend endpoints:
+ *   GET  /api/clinical/pharmacy/refills                     list (patient_id?, status)
+ *   POST /api/clinical/pharmacy/refills/request             create refill request Task
+ *   POST /api/clinical/pharmacy/refills/{taskId}/approve    complete Task + create new MedicationRequest
+ *   POST /api/clinical/pharmacy/refills/{taskId}/reject     reject Task
+ *
+ * Read-only analytics (refill history, adherence, eligibility) query HAPI via
+ * the canonical fhirClient using the same Task code/extension the backend writes.
  */
 
+import api from './api';
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { parseISO, addDays, isAfter } from 'date-fns';
 import { EXTENSION_URLS } from '../constants/fhirExtensions';
 
+const REFILLS_URL = '/api/clinical/pharmacy/refills';
+
 class PrescriptionRefillService {
   constructor() {
-    this.refillCache = new Map();
     this.adherenceThresholds = {
       excellent: 0.95,
       good: 0.85,
@@ -19,313 +35,191 @@ class PrescriptionRefillService {
   }
 
   /**
-   * Refill request status definitions
+   * Refill workflow statuses — FHIR Task.status values used by the backend.
+   * A pending request is 'requested'; approval completes the Task (and creates
+   * the new MedicationRequest); rejection sets the Task to 'rejected'.
    */
   REFILL_STATUSES = {
     REQUESTED: 'requested',
-    PENDING_APPROVAL: 'pending-approval',
-    APPROVED: 'approved',
+    APPROVED: 'completed',
     REJECTED: 'rejected',
-    DISPENSED: 'dispensed',
     CANCELLED: 'cancelled'
   };
 
   /**
-   * Create a new refill request
+   * Map the backend RefillResponse payload to a frontend-friendly shape.
    */
-  async createRefillRequest(medicationRequestId, requestData) {
-    try {
-      // Get the original medication request
+  mapRefillResponse(data) {
+    return {
+      id: data.refill_task_id,
+      taskId: data.refill_task_id,
+      medicationRequestId: data.medication_request_id,
+      status: data.status,
+      message: data.message,
+      newMedicationRequestId: data.new_medication_request_id || null
+    };
+  }
+
+  /**
+   * Map a backend refill list entry (Task summary) to the shape consumers
+   * render, enriched with the original prescription and patient resources.
+   */
+  async enrichRefill(refill) {
+    const enriched = {
+      id: refill.task_id,
+      taskId: refill.task_id,
+      resourceType: 'Task',
+      medicationRequestId: refill.medication_request_id,
+      patientId: refill.patient_id,
+      status: refill.status,
+      businessStatus: refill.business_status,
+      priority: refill.priority || 'routine',
+      authoredOn: refill.authored_on,
+      description: refill.description,
+      notes: refill.notes || [],
+      refillInfo: {
+        urgent: refill.priority === 'urgent' || refill.priority === 'stat'
+      }
+    };
+
+    if (refill.medication_request_id) {
+      try {
+        const originalPrescription = await fhirClient.read(
+          'MedicationRequest',
+          refill.medication_request_id
+        );
+        enriched.originalPrescription = originalPrescription;
+        // Expose medication fields so shared display utils (getMedicationName)
+        // resolve the medication exactly as they do for a MedicationRequest.
+        enriched.medicationCodeableConcept = originalPrescription?.medicationCodeableConcept;
+        enriched.medicationReference = originalPrescription?.medicationReference;
+      } catch (error) {
+        // Enrichment is best-effort; the Task summary still renders
+      }
+    }
+
+    if (refill.patient_id) {
+      try {
+        enriched.patient = await fhirClient.read('Patient', refill.patient_id);
+      } catch (error) {
+        // Enrichment is best-effort
+      }
+    }
+
+    return enriched;
+  }
+
+  /**
+   * Create a new refill request (backend creates the FHIR Task and enforces
+   * the refills-remaining gate).
+   */
+  async createRefillRequest(medicationRequestId, requestData = {}) {
+    let patientId = requestData.patientId || null;
+
+    if (!patientId) {
       const originalRequest = await fhirClient.read('MedicationRequest', medicationRequestId);
-      
-      // Check if refills are available
-      const refillsAllowed = originalRequest.dispenseRequest?.numberOfRepeatsAllowed || 0;
-      const refillsUsed = await this.getRefillsUsed(medicationRequestId);
-      
-      if (refillsUsed >= refillsAllowed) {
-        throw new Error('No refills remaining for this prescription');
-      }
-
-      // Create refill request as a new MedicationRequest with specific intent
-      const refillRequest = {
-        resourceType: 'MedicationRequest',
-        status: 'draft',
-        intent: 'reflex-order', // Indicates this is a refill request
-        priority: requestData.urgent ? 'urgent' : 'routine',
-        
-        // Link to original prescription
-        basedOn: [{
-          reference: `MedicationRequest/${medicationRequestId}`
-        }],
-        
-        // Copy medication and patient info from original
-        medicationCodeableConcept: originalRequest.medicationCodeableConcept,
-        medicationReference: originalRequest.medicationReference,
-        subject: originalRequest.subject,
-        
-        // Refill-specific information
-        authoredOn: new Date().toISOString(),
-        requester: requestData.requester || originalRequest.requester,
-        
-        // Copy dosage and dispense information
-        dosageInstruction: originalRequest.dosageInstruction,
-        dispenseRequest: {
-          ...originalRequest.dispenseRequest,
-          validityPeriod: {
-            start: new Date().toISOString(),
-            end: addDays(new Date(), 30).toISOString() // 30-day validity for refill request
-          }
-        },
-        
-        // Add refill-specific notes
-        note: [
-          ...(originalRequest.note || []),
-          {
-            text: `Refill request #${refillsUsed + 1} of ${refillsAllowed} for original prescription`,
-            time: new Date().toISOString()
-          },
-          ...(requestData.patientNotes ? [{
-            text: `Patient notes: ${requestData.patientNotes}`,
-            time: new Date().toISOString()
-          }] : [])
-        ],
-        
-        // Add refill tracking extension
-        extension: [
-          {
-            url: EXTENSION_URLS.REFILL_REQUEST,
-            extension: [
-              {
-                url: 'originalPrescription',
-                valueReference: { reference: `MedicationRequest/${medicationRequestId}` }
-              },
-              {
-                url: 'refillNumber',
-                valueInteger: refillsUsed + 1
-              },
-              {
-                url: 'requestedBy',
-                valueString: requestData.requestedBy || 'patient'
-              },
-              {
-                url: 'requestMethod',
-                valueString: requestData.requestMethod || 'portal'
-              },
-              {
-                url: 'urgent',
-                valueBoolean: requestData.urgent || false
-              }
-            ]
-          }
-        ]
-      };
-
-      // Create the refill request
-      const createdRequest = await fhirClient.create('MedicationRequest', refillRequest);
-      
-      // Update cache
-      this.clearCache(originalRequest.subject?.reference?.split('/')[1]);
-      
-      return createdRequest;
-
-    } catch (error) {
-      throw error;
+      const subjectRef = originalRequest?.subject?.reference || '';
+      patientId = subjectRef.replace('urn:uuid:', '').replace('Patient/', '') || null;
     }
+
+    if (!patientId) {
+      throw new Error('Unable to determine patient for refill request');
+    }
+
+    const response = await api.post(`${REFILLS_URL}/request`, {
+      medication_request_id: medicationRequestId,
+      patient_id: patientId,
+      reason: requestData.reason || null,
+      requested_quantity: requestData.requestedQuantity || null,
+      notes: requestData.patientNotes || requestData.notes || null
+    });
+
+    return this.mapRefillResponse(response.data);
   }
 
   /**
-   * Get refill requests for a patient
+   * Get refill requests for a patient. Defaults to pending ('requested')
+   * Tasks; pass a Task status (or comma-separated list) to widen the search.
    */
-  async getRefillRequests(patientId, status = null) {
-    try {
-      const searchParams = {
-        patient: patientId,
-        intent: 'reflex-order',
-        _sort: '-_lastUpdated',
-        _count: 50
-      };
-
-      if (status) {
-        searchParams.status = status;
-      }
-
-      const response = await fhirClient.search('MedicationRequest', searchParams);
-      const refillRequests = response.resources || [];
-
-      // Enrich with original prescription data
-      const enrichedRequests = await Promise.all(
-        refillRequests.map(async (request) => {
-          try {
-            const originalRef = request.basedOn?.[0]?.reference;
-            if (originalRef) {
-              const [resourceType, resourceId] = originalRef.split('/');
-              const originalRequest = await fhirClient.read(resourceType, resourceId);
-              return {
-                ...request,
-                originalPrescription: originalRequest,
-                refillInfo: this.extractRefillInfo(request)
-              };
-            }
-            return {
-              ...request,
-              refillInfo: this.extractRefillInfo(request)
-            };
-          } catch (error) {
-            return request;
-          }
-        })
-      );
-
-      return enrichedRequests;
-
-    } catch (error) {
-      throw error;
+  async getRefillRequests(patientId, status = 'requested') {
+    const params = { status };
+    if (patientId) {
+      params.patient_id = patientId;
     }
+
+    const response = await api.get(REFILLS_URL, { params });
+    const refills = response.data || [];
+
+    return Promise.all(refills.map(refill => this.enrichRefill(refill)));
   }
 
   /**
-   * Approve a refill request
+   * Get pending refill requests across all patients (pharmacy queue view).
    */
-  async approveRefillRequest(refillRequestId, approvalData) {
-    try {
-      const refillRequest = await fhirClient.read('MedicationRequest', refillRequestId);
-      
-      const updatedRequest = {
-        ...refillRequest,
-        status: 'active',
-        note: [
-          ...(refillRequest.note || []),
-          {
-            text: `Refill approved by ${approvalData.approvedBy}${approvalData.notes ? `: ${approvalData.notes}` : ''}`,
-            time: new Date().toISOString()
-          }
-        ],
-        extension: [
-          ...(refillRequest.extension || []),
-          {
-            url: EXTENSION_URLS.REFILL_APPROVAL,
-            extension: [
-              {
-                url: 'approvedBy',
-                valueString: approvalData.approvedBy
-              },
-              {
-                url: 'approvalDate',
-                valueDateTime: new Date().toISOString()
-              },
-              {
-                url: 'approvalNotes',
-                valueString: approvalData.notes || ''
-              }
-            ]
-          }
-        ]
-      };
-
-      // fhirClient.update takes (resourceType, id, resource) — the two-arg
-      // form passed the resource as the id and failed at runtime
-      const result = await fhirClient.update('MedicationRequest', refillRequest.id, updatedRequest);
-
-      // Clear cache
-      this.clearCache(refillRequest.subject?.reference?.split('/')[1]);
-
-      return result;
-
-    } catch (error) {
-      throw error;
-    }
+  async getPendingRefillRequests() {
+    return this.getRefillRequests(null, 'requested');
   }
 
   /**
-   * Reject a refill request
+   * Approve a refill request. The backend completes the Task and creates the
+   * new MedicationRequest (linked via priorPrescription).
    */
-  async rejectRefillRequest(refillRequestId, rejectionData) {
-    try {
-      const refillRequest = await fhirClient.read('MedicationRequest', refillRequestId);
+  async approveRefillRequest(refillTaskId, approvalData = {}) {
+    const response = await api.post(`${REFILLS_URL}/${refillTaskId}/approve`, {
+      pharmacist_id: approvalData.pharmacistId || approvalData.approvedBy || 'unknown',
+      decision_notes: approvalData.notes || approvalData.decisionNotes || null,
+      modified_quantity: approvalData.modifiedQuantity || null
+    });
 
-      const updatedRequest = {
-        ...refillRequest,
-        status: 'cancelled',
-        // statusReason is a single CodeableConcept on MedicationRequest,
-        // not an array
-        statusReason: {
-          text: rejectionData.reason || 'Refill request rejected'
-        },
-        note: [
-          ...(refillRequest.note || []),
-          {
-            text: `Refill rejected by ${rejectionData.rejectedBy}: ${rejectionData.reason}`,
-            time: new Date().toISOString()
-          }
-        ]
-      };
-
-      const result = await fhirClient.update('MedicationRequest', refillRequest.id, updatedRequest);
-      
-      // Clear cache
-      this.clearCache(refillRequest.subject?.reference?.split('/')[1]);
-      
-      return result;
-
-    } catch (error) {
-      throw error;
-    }
+    return this.mapRefillResponse(response.data);
   }
 
   /**
-   * Get refill history for a medication
+   * Reject a refill request. The backend sets the Task to 'rejected' and
+   * records the reason in Task.statusReason.
+   */
+  async rejectRefillRequest(refillTaskId, rejectionData = {}) {
+    const response = await api.post(`${REFILLS_URL}/${refillTaskId}/reject`, {
+      pharmacist_id: rejectionData.pharmacistId || rejectionData.rejectedBy || 'unknown',
+      decision_notes: rejectionData.reason || rejectionData.notes || null
+    });
+
+    return this.mapRefillResponse(response.data);
+  }
+
+  /**
+   * True when a Task is a refill request written by the backend (matches the
+   * backend's own filter: description or task-type extension).
+   */
+  isRefillTask(task) {
+    if ((task.description || '').toLowerCase().includes('refill')) {
+      return true;
+    }
+    return (task.extension || []).some(
+      ext => ext.url === `${EXTENSION_URLS.BASE}/task-type` && ext.valueString === 'refill'
+    );
+  }
+
+  /**
+   * Get refill history for a medication: the original prescription, its
+   * refill-request Tasks, and dispense records, sorted chronologically.
    */
   async getRefillHistory(medicationRequestId) {
     try {
       const originalRequest = await fhirClient.read('MedicationRequest', medicationRequestId);
-      
-      // Enhanced patient ID resolution with multiple fallback strategies
-      let patientId = null;
-      
-      // Strategy 1: Extract from subject.reference
-      if (originalRequest.subject?.reference) {
-        if (originalRequest.subject.reference.startsWith('urn:uuid:')) {
-          patientId = originalRequest.subject.reference.replace('urn:uuid:', '');
-        } else {
-          patientId = originalRequest.subject.reference.split('/')[1];
-        }
-      }
-      
-      // Strategy 2: Check for direct subject.id
-      if (!patientId && originalRequest.subject?.id) {
-        patientId = originalRequest.subject.id;
-      }
-      
-      // Strategy 3: Look for patient extension
-      if (!patientId) {
-        const patientExtension = originalRequest.extension?.find(
-          ext => ext.url && ext.url.includes('patient')
-        );
-        if (patientExtension?.valueReference?.reference) {
-          patientId = patientExtension.valueReference.reference.split('/')[1];
-        }
-      }
-      
-      if (!patientId) {
-        return {
-          originalPrescription: originalRequest,
-          history: [],
-          totalRefillsAllowed: 0,
-          refillsUsed: 0,
-          lastRefillDate: null
-        };
-      }
 
-      // Get all refill requests for this medication
-      const refillRequests = await this.getRefillRequests(patientId);
-      const relatedRefills = refillRequests.filter(refill => 
-        refill.basedOn?.[0]?.reference === `MedicationRequest/${medicationRequestId}`
-      );
+      // Refill requests are Tasks focused on the original MedicationRequest
+      const taskResponse = await fhirClient.search('Task', {
+        focus: `MedicationRequest/${medicationRequestId}`,
+        code: 'fulfill',
+        _count: 100
+      });
+      const refillTasks = (taskResponse.resources || []).filter(task => this.isRefillTask(task));
 
       // Get dispense records
       const dispenseResponse = await fhirClient.search('MedicationDispense', {
-        authorizingPrescription: medicationRequestId,
-        _sort: '-whenHandedOver',
+        prescription: medicationRequestId,
+        _sort: '-whenhandedover',
         _count: 50
       });
       const dispenseRecords = dispenseResponse.resources || [];
@@ -338,12 +232,11 @@ class PrescriptionRefillService {
           data: originalRequest,
           status: originalRequest.status
         },
-        ...relatedRefills.map(refill => ({
+        ...refillTasks.map(task => ({
           type: 'refill-request',
-          date: refill.authoredOn,
-          data: refill,
-          status: refill.status,
-          refillInfo: refill.refillInfo
+          date: task.authoredOn,
+          data: task,
+          status: task.status
         })),
         ...dispenseRecords.map(dispense => ({
           type: 'dispense',
@@ -357,7 +250,8 @@ class PrescriptionRefillService {
         originalPrescription: originalRequest,
         history,
         totalRefillsAllowed: originalRequest.dispenseRequest?.numberOfRepeatsAllowed || 0,
-        refillsUsed: relatedRefills.filter(r => r.status === 'completed' || r.status === 'active').length,
+        // Mirrors the backend gate: completed fulfill-Tasks are used refills
+        refillsUsed: refillTasks.filter(task => task.status === 'completed').length,
         lastRefillDate: history
           .filter(h => h.type === 'dispense')
           .sort((a, b) => new Date(b.date) - new Date(a.date))[0]?.date
@@ -381,7 +275,7 @@ class PrescriptionRefillService {
   async calculateMedicationAdherence(medicationRequestId, days = 90) {
     try {
       const history = await this.getRefillHistory(medicationRequestId);
-      
+
       // Handle case where history is null or empty
       if (!history || !history.history) {
         return {
@@ -392,9 +286,9 @@ class PrescriptionRefillService {
           gaps: []
         };
       }
-      
+
       const dispenseEvents = history.history.filter(h => h.type === 'dispense');
-      
+
       if (dispenseEvents.length === 0) {
         return {
           adherenceRate: 0,
@@ -409,21 +303,21 @@ class PrescriptionRefillService {
       let totalDaysSupply = 0;
       let daysCovered = 0;
       const gaps = [];
-      
+
       for (let i = 0; i < dispenseEvents.length; i++) {
         const dispense = dispenseEvents[i].data;
         const daysSupply = dispense.daysSupply?.value || 30; // Default to 30 days
         const handedOverDate = parseISO(dispense.whenHandedOver || dispense.whenPrepared);
-        
+
         totalDaysSupply += daysSupply;
-        
+
         // Check for gaps between refills
         if (i > 0) {
           const previousDispense = dispenseEvents[i - 1].data;
           const previousDaysSupply = previousDispense.daysSupply?.value || 30;
           const previousDate = parseISO(previousDispense.whenHandedOver || previousDispense.whenPrepared);
           const expectedRefillDate = addDays(previousDate, previousDaysSupply);
-          
+
           if (isAfter(handedOverDate, expectedRefillDate)) {
             const gapDays = Math.floor((handedOverDate - expectedRefillDate) / (1000 * 60 * 60 * 24));
             gaps.push({
@@ -437,7 +331,7 @@ class PrescriptionRefillService {
 
       // Calculate adherence over specified time period
       const startDate = addDays(new Date(), -days);
-      const relevantDispenses = dispenseEvents.filter(event => 
+      const relevantDispenses = dispenseEvents.filter(event =>
         isAfter(parseISO(event.date), startDate)
       );
 
@@ -455,7 +349,7 @@ class PrescriptionRefillService {
       const totalGapDays = gaps
         .filter(gap => isAfter(gap.startDate, startDate))
         .reduce((sum, gap) => sum + gap.days, 0);
-      
+
       daysCovered = Math.min(days, totalDaysSupply - totalGapDays);
       const adherenceRate = daysCovered / days;
 
@@ -503,7 +397,7 @@ class PrescriptionRefillService {
   async checkRefillEligibility(medicationRequestId) {
     try {
       const history = await this.getRefillHistory(medicationRequestId);
-      
+
       // Handle case where history is null or empty
       if (!history) {
         return {
@@ -512,9 +406,9 @@ class PrescriptionRefillService {
           refillsRemaining: 0
         };
       }
-      
+
       const { totalRefillsAllowed, refillsUsed } = history;
-      
+
       // Check if any refills remain
       if (refillsUsed >= totalRefillsAllowed) {
         return {
@@ -563,106 +457,6 @@ class PrescriptionRefillService {
   }
 
   /**
-   * Get pending refill requests for a provider/pharmacy
-   */
-  async getPendingRefillRequests(facilityId = null) {
-    try {
-      const searchParams = {
-        intent: 'reflex-order',
-        status: 'draft',
-        _sort: '-_lastUpdated',
-        _count: 100
-      };
-
-      const response = await fhirClient.search('MedicationRequest', searchParams);
-      const pendingRequests = response.resources || [];
-
-      // Enrich with patient and original prescription data
-      const enrichedRequests = await Promise.all(
-        pendingRequests.map(async (request) => {
-          try {
-            // Get patient data
-            const patientRef = request.subject?.reference;
-            const patient = patientRef ? await fhirClient.read(...patientRef.split('/')) : null;
-            
-            // Get original prescription
-            const originalRef = request.basedOn?.[0]?.reference;
-            const originalPrescription = originalRef ? await fhirClient.read(...originalRef.split('/')) : null;
-            
-            return {
-              ...request,
-              patient,
-              originalPrescription,
-              refillInfo: this.extractRefillInfo(request)
-            };
-          } catch (error) {
-            return request;
-          }
-        })
-      );
-
-      return enrichedRequests;
-
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * Extract refill information from extensions
-   */
-  extractRefillInfo(medicationRequest) {
-    const refillExtension = medicationRequest.extension?.find(
-      ext => ext.url === EXTENSION_URLS.REFILL_REQUEST
-    );
-
-    if (!refillExtension) {
-      return null;
-    }
-
-    const info = {};
-    refillExtension.extension?.forEach(ext => {
-      switch (ext.url) {
-        case 'refillNumber':
-          info.refillNumber = ext.valueInteger;
-          break;
-        case 'requestedBy':
-          info.requestedBy = ext.valueString;
-          break;
-        case 'requestMethod':
-          info.requestMethod = ext.valueString;
-          break;
-        case 'urgent':
-          info.urgent = ext.valueBoolean;
-          break;
-        default:
-          // Handle unknown extension types
-          break;
-      }
-    });
-
-    return info;
-  }
-
-  /**
-   * Get number of refills used for a medication
-   */
-  async getRefillsUsed(medicationRequestId) {
-    try {
-      const dispenseResponse = await fhirClient.search('MedicationDispense', {
-        authorizingPrescription: medicationRequestId,
-        status: 'completed',
-        _count: 100
-      });
-
-      return (dispenseResponse.resources || []).length;
-
-    } catch (error) {
-      return 0;
-    }
-  }
-
-  /**
    * Calculate average interval between refills
    */
   calculateAverageRefillInterval(dispenseEvents) {
@@ -689,17 +483,6 @@ class PrescriptionRefillService {
     const lastDate = parseISO(lastDispense.date);
 
     return addDays(lastDate, daysSupply);
-  }
-
-  /**
-   * Clear cache for patient
-   */
-  clearCache(patientId = null) {
-    if (patientId) {
-      this.refillCache.delete(patientId);
-    } else {
-      this.refillCache.clear();
-    }
   }
 }
 

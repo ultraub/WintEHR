@@ -272,8 +272,8 @@ const RefillRequestCard = ({ refillRequest, onApprove, onReject, onViewDetails, 
   const details = [
     { label: 'Patient', value: getPatientName() },
     { label: 'Request Date', value: formatClinicalDate(refillRequest.authoredOn, 'standard', 'Unknown') },
-    { label: 'Refill #', value: refillInfo.refillNumber || 'N/A' },
-    { label: 'Method', value: refillInfo.requestMethod || 'Unknown' }
+    { label: 'Status', value: refillRequest.businessStatus || refillRequest.status || 'Unknown' },
+    { label: 'Priority', value: refillRequest.priority || 'routine' }
   ];
 
   const actions = [
@@ -344,25 +344,21 @@ const PharmacyTab = ({
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [patientFilter, setPatientFilter] = useState('current'); // 'all' or 'current'
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const [refillRequests, setRefillRequests] = useState([]);
   const [pendingRefills, setPendingRefills] = useState([]);
 
-  // Load refill requests when component mounts or patient changes
+  // Load pending refill Tasks when component mounts or patient changes
   useEffect(() => {
     const loadRefillData = async () => {
       if (!patientId) return;
-      
+
       try {
-        // Load patient-specific refill requests
-        const patientRefills = await prescriptionRefillService.getRefillRequests(patientId);
-        setRefillRequests(patientRefills);
-        
-        // Load pending refill requests for pharmacy (across all patients when filter is 'all')
+        // Pending refill requests for pharmacy (across all patients when filter is 'all')
         if (patientFilter === 'all') {
           const pending = await prescriptionRefillService.getPendingRefillRequests();
           setPendingRefills(pending);
         } else {
-          setPendingRefills(patientRefills.filter(r => r.status === 'draft'));
+          const patientRefills = await prescriptionRefillService.getRefillRequests(patientId);
+          setPendingRefills(patientRefills);
         }
       } catch (error) {
         // Handle error silently to prevent console clutter
@@ -780,26 +776,26 @@ const PharmacyTab = ({
     }
   }, [recordAdministration, refreshAdministrations]);
 
-  // Handle refill request approval
-  const handleApproveRefill = useCallback(async (refillRequestId, approvalData) => {
+  // Handle refill request approval (backend completes the Task and creates
+  // the refill MedicationRequest)
+  const handleApproveRefill = useCallback(async (refillTaskId, approvalData) => {
     try {
-      await prescriptionRefillService.approveRefillRequest(refillRequestId, {
-        approvedBy: 'Current Pharmacist', // In real app, get from auth context
+      await prescriptionRefillService.approveRefillRequest(refillTaskId, {
+        pharmacistId: user?.id || 'demo-pharmacist',
         notes: approvalData?.notes || '',
         ...approvalData
       });
 
-      // Refresh refill data
+      // Refresh pending refill Tasks
       const patientRefills = await prescriptionRefillService.getRefillRequests(patientId);
-      setRefillRequests(patientRefills);
-      setPendingRefills(patientRefills.filter(r => r.status === 'draft'));
+      setPendingRefills(patientRefills);
 
       // Publish workflow event
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
         workflowType: 'refill-approval',
         step: 'approved',
         data: {
-          refillRequestId,
+          refillTaskId,
           patientId,
           timestamp: new Date().toISOString()
         }
@@ -819,28 +815,27 @@ const PharmacyTab = ({
         severity: 'error'
       });
     }
-  }, [patientId, publish]);
+  }, [patientId, publish, user]);
 
-  // Handle refill request rejection
-  const handleRejectRefill = useCallback(async (refillRequestId, rejectionData) => {
+  // Handle refill request rejection (backend sets the Task to 'rejected')
+  const handleRejectRefill = useCallback(async (refillTaskId, rejectionData) => {
     try {
-      await prescriptionRefillService.rejectRefillRequest(refillRequestId, {
-        rejectedBy: 'Current Pharmacist', // In real app, get from auth context
+      await prescriptionRefillService.rejectRefillRequest(refillTaskId, {
+        pharmacistId: user?.id || 'demo-pharmacist',
         reason: rejectionData?.reason || 'Not specified',
         ...rejectionData
       });
 
-      // Refresh refill data
+      // Refresh pending refill Tasks
       const patientRefills = await prescriptionRefillService.getRefillRequests(patientId);
-      setRefillRequests(patientRefills);
-      setPendingRefills(patientRefills.filter(r => r.status === 'draft'));
+      setPendingRefills(patientRefills);
 
       // Publish workflow event
       await publish(CLINICAL_EVENTS.WORKFLOW_NOTIFICATION, {
         workflowType: 'refill-approval',
         step: 'rejected',
         data: {
-          refillRequestId,
+          refillTaskId,
           reason: rejectionData?.reason,
           patientId,
           timestamp: new Date().toISOString()
@@ -861,7 +856,7 @@ const PharmacyTab = ({
         severity: 'error'
       });
     }
-  }, [patientId, publish]);
+  }, [patientId, publish, user]);
 
   // Handle opening dispense dialog
   const handleOpenDispenseDialog = useCallback((medicationRequest) => {
@@ -1179,7 +1174,8 @@ const PharmacyTab = ({
                         case 1: return categorizedRequests.pending.some(p => p.id === r.id);
                         case 2: return categorizedRequests.verified.some(v => v.id === r.id);
                         case 3: return categorizedRequests.dispensed.some(d => d.id === r.id);
-                        case 4: return pendingRefills.some(ref => ref.id === r.id);
+                        // Refill requests are Tasks; show the prescriptions they refill
+                        case 4: return pendingRefills.some(ref => ref.medicationRequestId === r.id);
                         default: return true;
                       }
                     }
