@@ -109,13 +109,8 @@ import {
   ClinicalLoadingState
 } from '../../shared';
 import { MedicationCardTemplate } from '../../shared/templates';
+import { useDensity } from '../../shared/layout';
 // Removed framer-motion for consistency with harmonized components
-
-// Custom hook for density - simplified version
-const useDensity = (defaultDensity = 'comfortable') => {
-  const [density, setDensity] = useState(defaultDensity);
-  return [density, setDensity];
-};
 
 // Helper function to format date consistently - using standardized utility
 const formatDate = (dateString) => {
@@ -344,7 +339,7 @@ const PharmacyTab = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [expandedCards, setExpandedCards] = useState(new Set());
-  const [density, setDensity] = useDensity('comfortable');
+  const [density] = useDensity('comfortable');
   const [dispenseDialogOpen, setDispenseDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [patientFilter, setPatientFilter] = useState('current'); // 'all' or 'current'

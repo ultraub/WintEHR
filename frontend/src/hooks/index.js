@@ -101,7 +101,6 @@ export {
   useTimeout,
   useResponsive,
   useClinicalSpacing,
-  useThemeDensity,
   useKeyboardNavigation,
   usePageTransition,
   useNotifications,

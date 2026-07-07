@@ -115,12 +115,7 @@ import {
 import { MetricsBar } from '../../shared/display';
 import { ResourceTimeline } from '../../shared/display';
 import { AlertTitle } from '@mui/material';
-
-// Custom hooks
-const useDensity = () => {
-  const [density, setDensity] = useState('comfortable');
-  return { density, setDensity };
-};
+import { useDensity } from '../../shared/layout';
 
 // Enhanced goal categories with colors and icons
 const goalCategories = {
@@ -399,7 +394,7 @@ const CarePlanTabEnhanced = ({
   onNavigateToTab // Cross-tab navigation support
 }) => {
   const theme = useTheme();
-  const { density, setDensity } = useDensity();
+  const [density] = useDensity('comfortable');
   
   const { getPatientResources, isLoading, refreshPatientResources, searchResources } = useFHIRResource();
   const { publish } = useClinicalWorkflow();
