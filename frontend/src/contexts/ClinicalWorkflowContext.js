@@ -383,9 +383,12 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       id: Date.now().toString(),
       timestamp: new Date().toISOString(),
       patientId: currentPatient?.id,
-      ...alertData
+      read: false,
+      ...alertData,
+      // Title fallback so notification surfaces never render blank primary text
+      title: alertData?.title || 'Critical Alert'
     };
-    
+
     setNotifications(prev => [alert, ...prev]);
     
     // Publish critical alert event
@@ -401,6 +404,8 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       workflowType,
       step,
       data,
+      read: false,
+      title: data?.title || 'Workflow Update',
       message: generateWorkflowMessage(workflowType, step, data)
     };
     
@@ -641,6 +646,8 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       patientId: qualityData.patientId,
       type: 'quality_followup',
       priority: 'high',
+      read: false,
+      title: 'Quality Measure Follow-up',
       measureId: qualityData.measureId,
       measureName: qualityData.measureName,
       message: `High-priority quality measure documentation requires follow-up: ${qualityData.measureName}`,
@@ -671,6 +678,14 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     setNotifications([]);
   }, []);
 
+  // Mark a notification as read (viewed/clicked). Unread count drives the
+  // notification bell badge, so this is what clears the badge per item.
+  const markNotificationRead = useCallback((notificationId) => {
+    setNotifications(prev =>
+      prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
+    );
+  }, []);
+
   // Memoized: an unmemoized object identity re-rendered every consumer of
   // this context (most of the clinical workspace) on each provider render.
   const value = useMemo(() => ({
@@ -689,6 +704,7 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     notifications,
     clearNotification,
     clearAllNotifications,
+    markNotificationRead,
     createCriticalAlert,
     createWorkflowNotification,
 
@@ -705,8 +721,8 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [
     clinicalContext, subscribe, publish, notifications,
-    clearNotification, clearAllNotifications, navigateWithContext,
-    workflowStates, wsConnected, wsReconnecting
+    clearNotification, clearAllNotifications, markNotificationRead,
+    navigateWithContext, workflowStates, wsConnected, wsReconnecting
   ]);
 
   return (

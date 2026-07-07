@@ -54,7 +54,7 @@ const ClinicalAppBar = ({
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationAnchor, setNotificationAnchor] = useState(null);
-  const { notifications, clearNotifications } = useClinicalWorkflow();
+  const { notifications, clearAllNotifications, markNotificationRead } = useClinicalWorkflow();
 
   const unreadNotifications = notifications.filter(n => !n.read).length;
 
@@ -254,7 +254,7 @@ const ClinicalAppBar = ({
             Notifications
           </Typography>
           {unreadNotifications > 0 && (
-            <Button size="small" onClick={clearNotifications}>
+            <Button size="small" onClick={clearAllNotifications}>
               Clear All
             </Button>
           )}
@@ -271,13 +271,14 @@ const ClinicalAppBar = ({
             {notifications.map((notification, index) => (
               <MenuItem
                 key={notification.id || index}
+                onClick={() => markNotificationRead(notification.id)}
                 sx={{
                   py: 1.5,
                   backgroundColor: notification.read ? 'transparent' : alpha(theme.palette.primary.main, 0.05)
                 }}
               >
                 <ListItemText
-                  primary={notification.title}
+                  primary={notification.title || notification.message || 'Notification'}
                   secondary={
                     <>
                       <Typography variant="caption" component="div">

@@ -37,8 +37,9 @@ import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { useInitializationGuard } from '../../../hooks/ui/useStableReferences';
 import { getClinicalContext } from '../../../themes/clinicalThemeUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/ClinicalWorkflowContext';
-import CDSPresentation, { PRESENTATION_MODES } from '../cds/CDSPresentation';
+import CDSPresentation from '../cds/CDSPresentation';
 import { usePatientCDSAlerts } from '../../../contexts/CDSHooksContext';
+import { cdsDisplayBehaviorService } from '../../../services/cdsDisplayBehaviorService';
 import { useMedicationResolver } from '../../../core/fhir/hooks/useMedicationResolver';
 
 const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
@@ -1081,18 +1082,33 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
 const CDSAlerts = ({ patientId }) => {
   const { alerts } = usePatientCDSAlerts(patientId);
 
+  // Honor each card's configured displayBehavior instead of hardcoding a
+  // single inline presentation: group the cards by their resolved
+  // presentation mode (service config decorated onto the card by
+  // CDSHooksContext, merged with indicator defaults by
+  // cdsDisplayBehaviorService) and render one CDSPresentation per mode.
+  const alertGroups = useMemo(
+    () => cdsDisplayBehaviorService.groupAlertsByBehavior(alerts || [], 'patient-view'),
+    [alerts]
+  );
+
   if (!alerts || alerts.length === 0) {
     return null;
   }
 
   return (
-    <CDSPresentation
-      alerts={alerts}
-      mode={PRESENTATION_MODES.INLINE}
-      allowInteraction={true}
-      patientId={patientId}
-      maxAlerts={10}
-    />
+    <>
+      {Object.entries(alertGroups).map(([mode, group]) => (
+        <CDSPresentation
+          key={mode}
+          alerts={group.alerts}
+          mode={mode}
+          allowInteraction={true}
+          patientId={patientId}
+          maxAlerts={10}
+        />
+      ))}
+    </>
   );
 };
 

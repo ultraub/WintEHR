@@ -4,7 +4,7 @@
  * Provides quick visibility without taking up workspace space
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Box,
   Chip,
@@ -14,7 +14,6 @@ import {
   Tooltip,
   Popover,
   Typography,
-  Button,
   useTheme,
   alpha,
   Collapse,
@@ -30,15 +29,50 @@ import {
   ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
 import { useCDS } from '../../../contexts/CDSHooksContext';
+import { cdsAlertPersistence } from '../../../services/cdsAlertPersistenceService';
 
-const CDSAlertPills = ({ maxVisible = 3, hookType = 'patient-view' }) => {
+const CDSAlertPills = ({ maxVisible = 3, hookType = 'patient-view', patientId = null }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
   const [expandedCard, setExpandedCard] = useState(null);
   const { getCards } = useCDS();
 
-  const alerts = getCards(hookType);
-  
+  const rawAlerts = getCards(hookType);
+
+  // Persisted dismissal/snooze state — the same store CDSPresentation
+  // hydrates from, so an alert acknowledged there stops pulsing here too.
+  const [persistedState, setPersistedState] = useState({
+    dismissed: new Set(),
+    snoozed: new Map()
+  });
+
+  const refreshPersistedState = useCallback(() => {
+    if (!patientId) return;
+    setPersistedState({
+      dismissed: cdsAlertPersistence.getDismissedAlerts(patientId),
+      snoozed: cdsAlertPersistence.getSnoozedAlerts(patientId)
+    });
+  }, [patientId]);
+
+  // Re-read whenever the patient changes or the cards re-fire.
+  useEffect(() => {
+    refreshPersistedState();
+  }, [refreshPersistedState, rawAlerts]);
+
+  // Filter out dismissed/snoozed alerts using the same stable alert key
+  // (`serviceId-summary`) that CDSPresentation persists with — otherwise
+  // alerts the user already dismissed keep pulsing in the header.
+  const alerts = useMemo(() => {
+    if (!patientId) return rawAlerts;
+    const now = Date.now();
+    return rawAlerts.filter(alert => {
+      const alertKey = `${alert.serviceId}-${alert.summary}`;
+      if (persistedState.dismissed.has(alertKey)) return false;
+      const snoozeUntil = persistedState.snoozed.get(alertKey);
+      return !(snoozeUntil && snoozeUntil > now);
+    });
+  }, [rawAlerts, patientId, persistedState]);
+
   // Group alerts by severity
   const alertGroups = useMemo(() => {
     const groups = {
@@ -46,14 +80,14 @@ const CDSAlertPills = ({ maxVisible = 3, hookType = 'patient-view' }) => {
       warning: [],
       info: []
     };
-    
+
     alerts.forEach(alert => {
       const severity = alert.indicator || 'info';
       if (groups[severity]) {
         groups[severity].push(alert);
       }
     });
-    
+
     return groups;
   }, [alerts]);
   
@@ -107,6 +141,9 @@ const CDSAlertPills = ({ maxVisible = 3, hookType = 'patient-view' }) => {
   }, [criticalCount, warningCount, infoCount]);
   
   const handlePillClick = (event) => {
+    // Re-read the persisted dismissal/snooze state so the popover reflects
+    // dismissals made in other CDS surfaces since the last render.
+    refreshPersistedState();
     setAnchorEl(event.currentTarget);
   };
   
@@ -307,20 +344,10 @@ const CDSAlertPills = ({ maxVisible = 3, hookType = 'patient-view' }) => {
                         </Typography>
                       )}
                       {alert.suggestions && alert.suggestions.length > 0 && (
-                        <Stack spacing={0.5} sx={{ mt: 1 }}>
-                          {alert.suggestions.map((suggestion) => (
-                            <Button
-                              key={suggestion.uuid}
-                              size="small"
-                              variant="outlined"
-                              color="primary"
-                              fullWidth
-                              sx={{ justifyContent: 'flex-start' }}
-                            >
-                              {suggestion.label}
-                            </Button>
-                          ))}
-                        </Stack>
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                          {alert.suggestions.length} suggestion{alert.suggestions.length > 1 ? 's' : ''} available
+                          — act on this alert from the patient chart.
+                        </Typography>
                       )}
                     </Box>
                   </Collapse>
@@ -389,29 +416,6 @@ const CDSAlertPills = ({ maxVisible = 3, hookType = 'patient-view' }) => {
               </Paper>
             ))}
           </Stack>
-        </Box>
-        
-        {/* Footer Actions */}
-        <Box
-          sx={{
-            px: 2,
-            py: 1.5,
-            borderTop: 1,
-            borderColor: 'divider',
-            bgcolor: 'background.paper'
-          }}
-        >
-          <Button
-            fullWidth
-            variant="outlined"
-            onClick={() => {
-              handleClose();
-              // Navigate to full CDS view
-              window.location.href = '#cds-alerts';
-            }}
-          >
-            View All Details
-          </Button>
         </Box>
       </Popover>
     </>

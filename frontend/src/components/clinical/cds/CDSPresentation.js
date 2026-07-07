@@ -233,20 +233,23 @@ const CDSPresentation = ({
     };
   }, [autoHide, hideDelay, mode, alerts, dismissedAlerts, patientId]);
 
-  // Handle alert dismissal — use stable key (serviceId+summary) not transient uuid
-  const handleDismissAlert = (alert, reason = '', permanent = false) => {
+  // Handle alert dismissal — use stable key (serviceId+summary) not transient uuid.
+  // Pass `suppressFeedback: true` when the caller has already sent its own
+  // (richer) CDS feedback for this interaction, so exactly one feedback
+  // request fires per user action.
+  const handleDismissAlert = (alert, reason = '', permanent = false, { suppressFeedback = false } = {}) => {
     const alertId = `${alert.serviceId}-${alert.summary}`;
-    
+
     // Update local state
     setDismissedAlerts(prev => new Set([...prev, alertId]));
-    
+
     // Persist dismissal
     if (patientId) {
       cdsAlertPersistence.dismissAlert(patientId, alertId, reason, permanent);
     }
-    
+
     // Send feedback to CDS service
-    if (alert.uuid && alert.serviceId) {
+    if (!suppressFeedback && alert.uuid && alert.serviceId) {
       cdsFeedbackService.sendFeedback({
         serviceId: alert.serviceId,
         cardUuid: alert.uuid,
@@ -616,12 +619,27 @@ const CDSPresentation = ({
     return { content, actions };
   };
 
-  const visibleAlerts = alerts.filter(alert => {
+  const activeAlerts = alerts.filter(alert => {
     const alertKey = `${alert.serviceId}-${alert.summary}`;
     return !dismissedAlerts.has(alertKey) && !isAlertSnoozed(alert);
-  }).slice(0, maxAlerts);
+  });
+  const visibleAlerts = activeAlerts.slice(0, maxAlerts);
+  const hiddenAlertCount = activeAlerts.length - visibleAlerts.length;
 
   if (visibleAlerts.length === 0) return null;
+
+  // When maxAlerts truncates the list, say so instead of silently hiding
+  // the remainder. Rendered at the end of each mode's alert list.
+  const renderMoreIndicator = () =>
+    hiddenAlertCount > 0 ? (
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: 'block', textAlign: 'center', py: 0.5 }}
+      >
+        +{hiddenAlertCount} more alert{hiddenAlertCount > 1 ? 's' : ''} not shown
+      </Typography>
+    ) : null;
 
   // Interaction dialogs (suggestion-detail, override-reason, snooze) and the
   // quick-snooze menu live here once and render across every presentation
@@ -763,6 +781,9 @@ const CDSPresentation = ({
                   if (!overrideReasonCode || (overrideReasonCode === 'other' && !overrideUserComment.trim())) {
                     return;
                   }
+                  // Single feedback sender for the override: this call carries
+                  // the rich payload (structured overrideReason + userComment);
+                  // handleDismissAlert is told not to send its generic one.
                   if (alert.serviceId && alert.uuid) {
                     await cdsFeedbackService.sendFeedback({
                       serviceId: alert.serviceId,
@@ -774,17 +795,20 @@ const CDSPresentation = ({
                       userComment: overrideUserComment
                     });
                   }
-                  handleDismissAlert(alert, `${overrideReasonCode}: ${overrideUserComment}`);
+                  handleDismissAlert(alert, `${overrideReasonCode}: ${overrideUserComment}`, false, { suppressFeedback: true });
                 } else {
+                  // CDS Hooks 2.0 defines exactly two feedback outcomes:
+                  // 'accepted' and 'overridden'. An acknowledged card is
+                  // 'accepted' — 'acknowledged' fails validation in
+                  // cdsFeedbackService and never reached the backend.
                   if (alert.serviceId && alert.uuid) {
                     await cdsFeedbackService.sendFeedback({
                       serviceId: alert.serviceId,
                       cardUuid: alert.uuid,
-                      outcome: 'acknowledged',
-                      userComment: 'Alert acknowledged by user'
+                      outcome: 'accepted'
                     });
                   }
-                  handleDismissAlert(alert, 'Acknowledged');
+                  handleDismissAlert(alert, 'Acknowledged', false, { suppressFeedback: true });
                 }
                 setShowOverrideDialog(false);
                 setCurrentOverride(null);
@@ -897,6 +921,7 @@ const CDSPresentation = ({
             </Alert>
           );
         })}
+        {renderMoreIndicator()}
       </Box>
       {renderInteractionDialogs()}
       </>
@@ -947,6 +972,7 @@ const CDSPresentation = ({
             </Slide>
           );
         })}
+        {renderMoreIndicator()}
       </Box>
       {renderInteractionDialogs()}
       </>
@@ -979,6 +1005,7 @@ const CDSPresentation = ({
                 </Card>
               );
             })}
+            {renderMoreIndicator()}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -1113,6 +1140,7 @@ const CDSPresentation = ({
                   </Card>
                 );
               })}
+              {renderMoreIndicator()}
             </Stack>
           </DialogContent>
           {visibleAlerts.every(alert => {
@@ -1195,6 +1223,7 @@ const CDSPresentation = ({
                 </Alert>
               );
             })}
+            {renderMoreIndicator()}
           </Stack>
         </Box>
       </Drawer>
@@ -1266,6 +1295,7 @@ const CDSPresentation = ({
                   </Alert>
                 );
               })}
+              {renderMoreIndicator()}
             </Stack>
           </Box>
         </Popover>
@@ -1338,6 +1368,7 @@ const CDSPresentation = ({
             </Card>
           );
         })}
+        {renderMoreIndicator()}
       </Stack>
       {renderInteractionDialogs()}
       </>
@@ -1452,6 +1483,7 @@ const CDSPresentation = ({
                 </Card>
               );
             })}
+            {renderMoreIndicator()}
           </Stack>
         </Box>
       </Paper>
@@ -1476,6 +1508,7 @@ const CDSPresentation = ({
           </Alert>
         );
       })}
+      {renderMoreIndicator()}
     </Stack>
 
       {renderInteractionDialogs()}

@@ -228,7 +228,7 @@ const CompactPatientHeader = ({
           <Divider orientation="vertical" flexItem sx={{ mx: 1.5, height: 32 }} />
 
           {/* CDS Alert Pills - Replacing the old critical alert chip */}
-          <CDSAlertPills maxVisible={2} hookType="patient-view" />
+          <CDSAlertPills maxVisible={2} hookType="patient-view" patientId={patient?.id} />
           
           {/* Key Metrics - Ultra compact */}
           <Stack 
