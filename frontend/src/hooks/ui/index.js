@@ -13,7 +13,6 @@ export { default as useTimeout } from './useTimeout';
 // Responsive and layout
 export { default as useResponsive } from './useResponsive';
 export { default as useClinicalSpacing } from './useClinicalSpacing';
-export { default as useThemeDensity } from './useThemeDensity';
 
 // Navigation and interaction
 export { default as useKeyboardNavigation } from './useKeyboardNavigation';

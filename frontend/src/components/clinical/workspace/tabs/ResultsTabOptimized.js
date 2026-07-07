@@ -137,19 +137,28 @@ const enhanceObservationWithReferenceRange = (observation) => {
   
   const loincCode = observation.code?.coding?.[0]?.code;
   const refRange = REFERENCE_RANGES[loincCode];
-  
-  if (refRange) {
-    return {
-      ...observation,
-      referenceRange: [{
-        low: { value: refRange.low, unit: refRange.unit },
-        high: { value: refRange.high, unit: refRange.unit },
-        text: `${refRange.low}-${refRange.high} ${refRange.unit}`
-      }]
-    };
+
+  if (!refRange) {
+    return observation;
   }
-  
-  return observation;
+
+  // Only synthesize a range when the observation's unit matches the fallback's
+  // assumed unit — comparing e.g. mmol/L against a mg/dL range would produce
+  // false Critical/Abnormal verdicts. When units differ (or are absent), show
+  // no synthesized range rather than a wrong verdict.
+  const observedUnit = observation.valueQuantity?.unit || observation.valueQuantity?.code;
+  if (!observedUnit || observedUnit.toLowerCase() !== refRange.unit.toLowerCase()) {
+    return observation;
+  }
+
+  return {
+    ...observation,
+    referenceRange: [{
+      low: { value: refRange.low, unit: refRange.unit },
+      high: { value: refRange.high, unit: refRange.unit },
+      text: `${refRange.low}-${refRange.high} ${refRange.unit}`
+    }]
+  };
 };
 
 // Detect abnormal (NOT critical) values by comparing value to referenceRange.
@@ -236,6 +245,30 @@ const getResultStatus = (observation) => {
   }
 
   return { icon: <NormalRangeIcon />, color: 'default', label: 'Normal', isCritical: false };
+};
+
+// Get status icon and color for DiagnosticReport rows — reports carry a
+// workflow status (final/preliminary/...), not an observation interpretation
+const getReportStatus = (report) => {
+  const status = report.status || 'unknown';
+  const label = (status.charAt(0).toUpperCase() + status.slice(1)).replace(/-/g, ' ');
+
+  switch (status) {
+    case 'final':
+    case 'amended':
+    case 'corrected':
+    case 'appended':
+      return { icon: <NormalIcon color="success" />, color: 'success', label, isCritical: false };
+    case 'preliminary':
+    case 'partial':
+    case 'registered':
+      return { icon: <PendingIcon color="warning" />, color: 'warning', label, isCritical: false };
+    case 'cancelled':
+    case 'entered-in-error':
+      return { icon: <AbnormalIcon color="error" />, color: 'error', label: status === 'entered-in-error' ? 'Entered in error' : label, isCritical: false };
+    default:
+      return { icon: <PendingIcon />, color: 'default', label, isCritical: false };
+  }
 };
 
 const ResultsTabOptimized = ({
@@ -629,6 +662,23 @@ const ResultsTabOptimized = ({
     setPage(0);
   };
 
+  // Filter changes shrink/reshape the result set — reset to the first page so
+  // the user never lands on a now-empty page N
+  const handleSearchChange = (value) => {
+    setSearchTerm(value);
+    setPage(0);
+  };
+
+  const handleFilterPeriodChange = (value) => {
+    setFilterPeriod(value);
+    setPage(0);
+  };
+
+  const handleFilterStatusChange = (value) => {
+    setFilterStatus(value);
+    setPage(0);
+  };
+
   const handleViewDetails = (result) => {
     setSelectedResult(result);
     setDetailsDialogOpen(true);
@@ -681,65 +731,75 @@ const ResultsTabOptimized = ({
       );
     }
 
-    if (viewMode === 'cards') {
-      // Card view using ObservationCardTemplate
-      return (
-        <Grid container spacing={1} sx={{ p: { xs: 0.5, sm: 1 } }}>
-          {paginatedData.map((item, index) => (
-            <Grid item xs={12} md={6} key={item.id}>
-              <ObservationCardTemplate
-                observation={item}
-                onEdit={() => handleViewDetails(item)}
-                onMore={() => handleViewDetails(item)}
-                isAlternate={index % 2 === 1}
-                customActions={
-                  item.basedOn?.[0]?.reference && onNavigateToTab ? (
-                    <Tooltip title="View Related Order">
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          const orderId = item.basedOn[0].reference.split('/')[1];
-                          navigateToTab(onNavigateToTab, TAB_IDS.ORDERS, {
-                            resourceId: orderId,
-                            resourceType: 'ServiceRequest',
-                            action: 'highlight'
-                          });
-                        }}
-                      >
-                        <OrderIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  ) : null
-                }
-              />
-            </Grid>
-          ))}
-        </Grid>
-      );
-    }
-
-    // Empty state
+    // Shared empty state — both cards and table views fall through here
     if (filteredData.length === 0) {
       return (
         <ClinicalEmptyState
-          title={searchTerm || filterPeriod !== 'all' || filterStatus !== 'all' ? 
+          title={searchTerm || filterPeriod !== 'all' || filterStatus !== 'all' ?
             'No results match your filters' : 'No results available'}
           message={searchTerm || filterPeriod !== 'all' || filterStatus !== 'all' ?
             'Try adjusting your search criteria or clearing filters' :
             'No test results found for this patient'}
           actions={[
             ...(searchTerm || filterPeriod !== 'all' || filterStatus !== 'all' ? [
-              { 
-                label: 'Clear Filters', 
+              {
+                label: 'Clear Filters',
                 onClick: () => {
-                  setSearchTerm('');
-                  setFilterPeriod('all');
-                  setFilterStatus('all');
+                  handleSearchChange('');
+                  handleFilterPeriodChange('all');
+                  handleFilterStatusChange('all');
                 }
               }
             ] : [])
           ]}
         />
+      );
+    }
+
+    if (viewMode === 'cards') {
+      // Card view using ObservationCardTemplate
+      return (
+        <Box>
+          <Grid container spacing={1} sx={{ p: { xs: 0.5, sm: 1 } }}>
+            {paginatedData.map((item, index) => (
+              <Grid item xs={12} md={6} key={item.id}>
+                <ObservationCardTemplate
+                  observation={item}
+                  onEdit={() => handleViewDetails(item)}
+                  onMore={() => handleViewDetails(item)}
+                  isAlternate={index % 2 === 1}
+                  customActions={
+                    item.basedOn?.[0]?.reference && onNavigateToTab ? (
+                      <Tooltip title="View Related Order">
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            const orderId = item.basedOn[0].reference.split('/')[1];
+                            navigateToTab(onNavigateToTab, TAB_IDS.ORDERS, {
+                              resourceId: orderId,
+                              resourceType: 'ServiceRequest',
+                              action: 'highlight'
+                            });
+                          }}
+                        >
+                          <OrderIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    ) : null
+                  }
+                />
+              </Grid>
+            ))}
+          </Grid>
+          <TablePagination
+            component="div"
+            count={filteredData.length}
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+          />
+        </Box>
       );
     }
 
@@ -759,20 +819,29 @@ const ResultsTabOptimized = ({
           </TableHead>
           <TableBody>
             {paginatedData.map((item, index) => {
-              const status = getResultStatus(item);
-              const value = item.valueQuantity ? 
-                `${item.valueQuantity.value} ${item.valueQuantity.unit || ''}` :
-                item.valueString || 'Pending';
-              
+              // DiagnosticReports carry a workflow status and result references,
+              // not observation-shaped value/interpretation fields — give them
+              // their own accessors instead of falling through to 'Pending'
+              const isReport = item.resourceType === 'DiagnosticReport';
+              const status = isReport ? getReportStatus(item) : getResultStatus(item);
+              const value = isReport ?
+                (item.code?.text ||
+                 (item.result?.length ?
+                  `${item.result.length} result${item.result.length === 1 ? '' : 's'}` :
+                  '-')) :
+                (item.valueQuantity ?
+                  `${item.valueQuantity.value} ${item.valueQuantity.unit || ''}` :
+                  item.valueString || 'Pending');
+
               // Format reference range from low/high values
               const refRange = item.referenceRange?.[0];
-              const reference = refRange ? 
-                (refRange.text || 
-                 (refRange.low || refRange.high ? 
-                  `${refRange.low?.value || ''} - ${refRange.high?.value || ''} ${refRange.low?.unit || refRange.high?.unit || ''}`.trim() : 
+              const reference = refRange ?
+                (refRange.text ||
+                 (refRange.low || refRange.high ?
+                  `${refRange.low?.value || ''} - ${refRange.high?.value || ''} ${refRange.low?.unit || refRange.high?.unit || ''}`.trim() :
                   '-')) :
                 '-';
-              
+
               const date = item.effectiveDateTime || item.issued;
               
               return (
@@ -802,7 +871,7 @@ const ResultsTabOptimized = ({
                     </Stack>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={status.label !== 'Normal' ? 'bold' : 'normal'}>
+                    <Typography variant="body2" fontWeight={!isReport && status.label !== 'Normal' ? 'bold' : 'normal'}>
                       {value}
                     </Typography>
                   </TableCell>
@@ -897,7 +966,7 @@ const ResultsTabOptimized = ({
                 label={filterPeriod}
                 size="small"
                 variant="outlined"
-                onDelete={() => setFilterPeriod('all')}
+                onDelete={() => handleFilterPeriodChange('all')}
                 sx={{ height: 24 }}
               />
             )}
@@ -946,9 +1015,9 @@ const ResultsTabOptimized = ({
       <Box sx={{ px: 2 }}>
         <ClinicalFilterPanel
           searchQuery={searchTerm}
-          onSearchChange={setSearchTerm}
+          onSearchChange={handleSearchChange}
           dateRange={filterPeriod}
-          onDateRangeChange={setFilterPeriod}
+          onDateRangeChange={handleFilterPeriodChange}
           onRefresh={fetchAllData}
           scrollContainerRef={scrollContainerRef}
           compact
@@ -959,7 +1028,7 @@ const ResultsTabOptimized = ({
               <InputLabel>Status</InputLabel>
               <Select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => handleFilterStatusChange(e.target.value)}
                 label="Status"
               >
                 <MenuItem value="all">All</MenuItem>

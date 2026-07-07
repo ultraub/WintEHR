@@ -487,14 +487,15 @@ const ChartReviewTabOptimized = ({
         result = await fhirClient.update(resource.resourceType, resource.id, resource);
         // Update the FHIRResourceContext
         updateResource(resource.resourceType, resource.id, result);
-        enqueueSnackbar(`${resource.resourceType} updated successfully`, { variant: 'success' });
       } else {
         // Create new resource
         result = await fhirClient.create(resource.resourceType, resource);
         // Add to the FHIRResourceContext - addResource expects resourceType and resource parameters
         addResource(resource.resourceType, result);
-        enqueueSnackbar(`${resource.resourceType} created successfully`, { variant: 'success' });
       }
+      // No success toast here: the Enhanced dialogs' save helpers already
+      // enqueue one — firing both produced double toasts, this one with a
+      // raw FHIR type name ("MedicationRequest updated successfully").
 
       // Dispatch fhir-resources-updated event to trigger FHIRResourceContext refresh
       // This ensures all caches are properly invalidated and fresh data is fetched
@@ -881,7 +882,12 @@ const ChartReviewTabOptimized = ({
                         </InteractiveButton>
                       </Stack>
                       
-                      {(showInactive ? conditions.length : processedData.activeConditions.length) === 0 ? (
+                      {/* Gate must count the same date-filtered set the rows
+                          render — the raw array made a narrow date range show
+                          neither rows nor the empty message */}
+                      {(showInactive
+                        ? processedData.activeConditions.length + processedData.inactiveConditions.length
+                        : processedData.activeConditions.length) === 0 ? (
                         <EmptyConditions onAdd={() => handleOpenDialog('condition')} />
                       ) : (
                         <Box sx={{ 
@@ -974,7 +980,9 @@ const ChartReviewTabOptimized = ({
                         </InteractiveButton>
                       </Stack>
                       
-                      {(showInactive ? medications.length : processedData.activeMedications.length) === 0 ? (
+                      {(showInactive
+                        ? processedData.activeMedications.length + processedData.inactiveMedications.length
+                        : processedData.activeMedications.length) === 0 ? (
                         <EmptyMedications onAdd={() => handleOpenDialog('medication')} />
                       ) : (
                         <Box sx={{ 

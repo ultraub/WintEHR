@@ -123,15 +123,9 @@ import {
   ClinicalLoadingState
 } from '../../shared';
 import { DocumentCardTemplate } from '../../shared/templates';
-import { ContextualFAB } from '../../shared/layout';
+import { ContextualFAB, useDensity } from '../../shared/layout';
 import { ResourceTimeline } from '../../shared/display';
 import { SmartTable } from '../../shared/tables';
-
-// Custom hooks
-const useDensity = () => {
-  const [density, setDensity] = useState('comfortable');
-  return { density, setDensity };
-};
 
 // Note type configuration with enhanced metadata
 const noteTypes = {
@@ -463,7 +457,7 @@ const DocumentationTabEnhanced = ({
   if (typeof NoteTemplateWizard === 'undefined') {
     console.error('DocumentationTabEnhanced: NoteTemplateWizard is undefined');
   }
-  const { density, setDensity } = useDensity();
+  const [density] = useDensity('comfortable');
   
   const [viewMode, setViewMode] = useState('tree'); // tree, cards, table, timeline
   const [selectedCategory, setSelectedCategory] = useState('root');

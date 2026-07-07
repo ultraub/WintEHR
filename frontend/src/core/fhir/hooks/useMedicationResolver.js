@@ -1,9 +1,15 @@
 /**
  * useMedicationResolver Hook
- * Resolves Medication references from MedicationRequest resources
+ * Resolves Medication references from MedicationRequest resources.
+ *
+ * Canonical implementation (R35): resolves medicationReference /
+ * medication.reference (Synthea urn:uuid and contained #refs), checks the
+ * FHIRResourceContext store (_include-loaded resources) before fetching,
+ * and memoizes results in a module-level cache shared across consumers.
  */
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fhirClient } from '../services/fhirClient';
+import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 
 // Cache for resolved medications to avoid repeated fetches
 const medicationCache = new Map();
@@ -12,16 +18,16 @@ export const useMedicationResolver = (medicationRequests = []) => {
   const [resolvedMedications, setResolvedMedications] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+  const { getResource } = useFHIRResource();
+
   // Memoize the medication requests array based on IDs to prevent unnecessary re-renders
   const medicationRequestIds = useMemo(() => {
-    if (!medicationRequests || !Array.isArray(medicationRequests)) {
+    if (!medicationRequests || !Array.isArray(medicationRequests) || medicationRequests.length === 0) {
       return '';
     }
     return medicationRequests
       .filter(req => req && typeof req === 'object' && req.id) // More robust null check
-      .map(req => req?.id) // Additional safety check with optional chaining
-      .filter(id => id) // Remove any undefined/null IDs
+      .map(req => req.id) // Remove optional chaining since filter already ensures req.id exists
       .join(',');
   }, [medicationRequests]);
 
@@ -38,49 +44,89 @@ export const useMedicationResolver = (medicationRequests = []) => {
         setError(null);
         const resolved = {};
 
+        // Helper function to resolve contained resource
+        const resolveContainedMedication = (req, containedRef) => {
+          if (!req.contained || !Array.isArray(req.contained)) {
+            return null;
+          }
+          // Remove the leading '#' from the reference
+          const containedId = containedRef.substring(1);
+          return req.contained.find(
+            resource => resource.resourceType === 'Medication' && resource.id === containedId
+          );
+        };
+
         // Extract unique medication references
         const medicationRefs = new Set();
         medicationRequests.forEach(req => {
           // Skip null/undefined requests or requests without IDs
           if (!req || typeof req !== 'object' || !req.id) return;
-          
+
           // Handle different medication structures from Synthea
           if (req.medication?.reference?.reference) {
             // Handle nested reference structure from Synthea
             const ref = req.medication.reference.reference;
-            if (ref.startsWith('urn:uuid:')) {
+            if (ref.startsWith('#')) {
+              // Contained resource - resolve from contained[] array
+              const containedMed = resolveContainedMedication(req, ref);
+              if (containedMed) {
+                medicationCache.set(`contained:${req.id}:${ref}`, containedMed);
+              }
+            } else if (ref.startsWith('urn:uuid:')) {
               const id = ref.substring(9);
               medicationRefs.add(id);
             }
           } else if (req.medicationReference?.reference) {
             // Handle standard FHIR structure
             const ref = req.medicationReference.reference;
-            if (ref.startsWith('Medication/')) {
+            if (ref.startsWith('#')) {
+              // Contained resource - resolve from contained[] array
+              const containedMed = resolveContainedMedication(req, ref);
+              if (containedMed) {
+                medicationCache.set(`contained:${req.id}:${ref}`, containedMed);
+              }
+            } else if (ref.startsWith('Medication/')) {
               const id = ref.substring(11);
               medicationRefs.add(id);
             }
           }
         });
 
-        // Fetch medications not in cache
-        const toFetch = Array.from(medicationRefs).filter(id => !medicationCache.has(id));
-        
+        // Check context first, then cache, then fetch if needed
+        const toFetch = [];
+
+        for (const id of Array.from(medicationRefs)) {
+          // Check if already in cache
+          if (medicationCache.has(id)) {
+            continue;
+          }
+
+          // Check if available in context store (from _include)
+          const contextMedication = getResource('Medication', id);
+          if (contextMedication) {
+            medicationCache.set(id, contextMedication);
+          } else {
+            toFetch.push(id);
+          }
+        }
+
+        // Only fetch medications not in cache or context
         if (toFetch.length > 0) {
           // Sequential fetch to ensure cache operations complete properly
           for (const id of toFetch) {
             try {
               const response = await fhirClient.read('Medication', id);
-              
+
               // Handle both response.data and direct response formats
               const medicationData = response.data || response;
-              
+
               if (medicationData && medicationData.resourceType === 'Medication') {
                 medicationCache.set(id, medicationData);
               } else {
                 medicationCache.set(id, null);
               }
             } catch (err) {
-              
+
               medicationCache.set(id, null);
             }
           }
@@ -90,18 +136,25 @@ export const useMedicationResolver = (medicationRequests = []) => {
         medicationRequests.forEach(req => {
           // Skip null/undefined requests or requests without IDs
           if (!req || typeof req !== 'object' || !req.id) return;
-          
+
           let medicationId = null;
-          
+          let containedCacheKey = null;
+
           // Handle reference-based medications
           if (req.medication?.reference?.reference) {
             const ref = req.medication.reference.reference;
-            if (ref.startsWith('urn:uuid:')) {
+            if (ref.startsWith('#')) {
+              // Contained resource reference
+              containedCacheKey = `contained:${req.id}:${ref}`;
+            } else if (ref.startsWith('urn:uuid:')) {
               medicationId = ref.substring(9);
             }
           } else if (req.medicationReference?.reference) {
             const ref = req.medicationReference.reference;
-            if (ref.startsWith('Medication/')) {
+            if (ref.startsWith('#')) {
+              // Contained resource reference
+              containedCacheKey = `contained:${req.id}:${ref}`;
+            } else if (ref.startsWith('Medication/')) {
               medicationId = ref.substring(11);
             }
           }
@@ -117,10 +170,26 @@ export const useMedicationResolver = (medicationRequests = []) => {
             return; // Skip further processing for this request
           }
 
+          // Handle contained resource references
+          if (containedCacheKey && medicationCache.has(containedCacheKey)) {
+            const medication = medicationCache.get(containedCacheKey);
+            if (medication) {
+              const medName = medication.code?.text || medication.code?.coding?.[0]?.display || 'Unknown medication';
+              resolved[req.id] = {
+                name: medName,
+                code: medication.code,
+                form: medication.form,
+                ingredient: medication.ingredient,
+                medication: medication
+              };
+            }
+            return; // Skip further processing for this request
+          }
+
           if (medicationId) {
             if (medicationCache.has(medicationId)) {
               const medication = medicationCache.get(medicationId);
-              
+
               if (medication) {
                 const medName = medication.code?.text || medication.code?.coding?.[0]?.display || 'Unknown medication';
                 resolved[req.id] = {
@@ -134,8 +203,8 @@ export const useMedicationResolver = (medicationRequests = []) => {
             }
           } else if (req.medicationCodeableConcept) {
             // Fallback to medicationCodeableConcept if available
-            const medName = req.medicationCodeableConcept.text || 
-                          req.medicationCodeableConcept.coding?.[0]?.display || 
+            const medName = req.medicationCodeableConcept.text ||
+                          req.medicationCodeableConcept.coding?.[0]?.display ||
                           'Unknown medication';
             resolved[req.id] = {
               name: medName,
@@ -146,7 +215,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
 
         setResolvedMedications(resolved);
       } catch (err) {
-        
+
         setError(err.message || 'Failed to resolve medications');
       } finally {
         setLoading(false);
@@ -154,6 +223,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
     };
 
     resolveMedications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [medicationRequestIds]);
 
   // Helper function to get medication display name
@@ -167,13 +237,16 @@ export const useMedicationResolver = (medicationRequests = []) => {
       return resolved.name;
     }
 
-    // Check for resolved medication concept (added by FHIRResourceContext from _include)
+    // Check for enriched medication data (from _include resolution)
     if (medicationRequest._resolvedMedicationCodeableConcept) {
-      const concept = medicationRequest._resolvedMedicationCodeableConcept;
-      return concept.text || concept.coding?.[0]?.display || 'Unknown medication';
+      const enrichedName = medicationRequest._resolvedMedicationCodeableConcept.text ||
+                          medicationRequest._resolvedMedicationCodeableConcept.coding?.[0]?.display;
+      if (enrichedName) {
+        return enrichedName;
+      }
     }
 
-    // Check for display in medicationReference (enriched by FHIRResourceContext)
+    // Check medicationReference.display (may be enriched from _include)
     if (medicationRequest.medicationReference?.display) {
       return medicationRequest.medicationReference.display;
     }
@@ -196,63 +269,6 @@ export const useMedicationResolver = (medicationRequests = []) => {
 
     return 'Unknown medication';
   }, [resolvedMedications]);
-
-  // Helper function to detect FHIR format and extract medication info
-  const getMedicationInfo = useCallback((medicationRequest) => {
-    if (!medicationRequest) {
-      return { format: 'unknown', concept: null };
-    }
-
-    // Detect R5 format
-    if (medicationRequest.medication?.concept) {
-      return {
-        format: 'R5',
-        concept: medicationRequest.medication.concept
-      };
-    }
-    
-    // Detect R4 format
-    if (medicationRequest.medicationCodeableConcept) {
-      return {
-        format: 'R4',
-        concept: medicationRequest.medicationCodeableConcept
-      };
-    }
-    
-    // Reference format
-    if (medicationRequest.medicationReference) {
-      return {
-        format: 'reference',
-        reference: medicationRequest.medicationReference
-      };
-    }
-    
-    return { format: 'unknown', concept: null };
-  }, []);
-
-  // Helper function to convert any format to R5 format
-  const convertToR5Format = useCallback((medicationRequest) => {
-    const info = getMedicationInfo(medicationRequest);
-    
-    if (info.format === 'R5') {
-      // Already R5, return as-is
-      return medicationRequest.medication;
-    }
-    
-    if (info.format === 'R4' && info.concept) {
-      // Convert R4 to R5
-      return {
-        concept: info.concept
-      };
-    }
-    
-    // For reference format or unknown, return a generic structure
-    return {
-      concept: {
-        text: 'Unknown medication'
-      }
-    };
-  }, [getMedicationInfo]);
 
   return {
     resolvedMedications,
