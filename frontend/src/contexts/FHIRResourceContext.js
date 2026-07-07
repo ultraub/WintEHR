@@ -400,6 +400,12 @@ export function FHIRResourceProvider({ children }) {
   
   // Track in-flight requests to prevent duplicates
   const inFlightRequests = useRef(new Map());
+  // Completed warm-cache runs (cacheKey -> timestamp). Without this, every
+  // consumer that calls warmPatientCache after the first run completes
+  // (PatientSummaryV4 on mount, tabs) re-fires the whole 9-type batch —
+  // the in-flight map only dedupes concurrent calls, not repeats.
+  const completedWarms = useRef(new Map());
+  const WARM_RESULT_TTL_MS = 2 * 60 * 1000;
   // Track timeouts for cleanup
   const timeoutRefs = useRef(new Set());
   // Memoization for getPatientResources to prevent duplicate calculations
@@ -449,20 +455,34 @@ export function FHIRResourceProvider({ children }) {
     });
   }, []);
 
-  // Cleanup old resources to prevent memory growth - more aggressive
+  // Cleanup old resources to prevent memory growth.
+  // Cap must stay ABOVE the largest fetch size (warm batch requests up to
+  // 50/type, $everything pages 100, refresh paths up to 200 with includes):
+  // at the old cap of 50, rows fetched for the current patient were evicted
+  // the moment they landed. Eviction also prefers keeping the current
+  // patient's compartment — the pool is shared across patients.
   const cleanupOldResources = useCallback(() => {
-    const MAX_RESOURCES_PER_TYPE = 50; // Reduced from 200 to 50
+    const MAX_RESOURCES_PER_TYPE = 300;
+    const currentPatientId = state.currentPatient?.id;
     const resourceTypes = Object.keys(state.resources);
-    
+
     resourceTypes.forEach(resourceType => {
       const resources = state.resources[resourceType];
       const resourceIds = Object.keys(resources);
-      
+
       if (resourceIds.length > MAX_RESOURCES_PER_TYPE) {
-        // Sort by lastUpdated or meta.lastUpdated to keep recent ones
+        const belongsToCurrent = (resource) => {
+          if (!currentPatientId) return false;
+          const ref = resource.subject?.reference || resource.patient?.reference;
+          return ref === `Patient/${currentPatientId}` || ref === `urn:uuid:${currentPatientId}`;
+        };
+        // Keep current patient's rows first, then most recently updated
         const sortedResources = resourceIds
           .map(id => ({ id, resource: resources[id] }))
           .sort((a, b) => {
+            const aCur = belongsToCurrent(a.resource) ? 1 : 0;
+            const bCur = belongsToCurrent(b.resource) ? 1 : 0;
+            if (aCur !== bCur) return bCur - aCur;
             const dateA = new Date(a.resource.meta?.lastUpdated || a.resource.lastUpdated || 0);
             const dateB = new Date(b.resource.meta?.lastUpdated || b.resource.lastUpdated || 0);
             return dateB - dateA;
@@ -486,7 +506,7 @@ export function FHIRResourceProvider({ children }) {
         });
       }
     });
-  }, [state.resources]);
+  }, [state.resources, state.currentPatient]);
 
   // Resource Management Functions
   const setResources = useCallback((resourceType, resources) => {
@@ -495,9 +515,10 @@ export function FHIRResourceProvider({ children }) {
       payload: { resourceType, resources }
     });
     
-    // Trigger cleanup if needed - more aggressive threshold
+    // Trigger cleanup only when the pool is actually over the cap —
+    // the old threshold (30) fired eviction on nearly every fetch.
     const resourceCount = Object.keys(state.resources[resourceType] || {}).length;
-    if (resourceCount > 30) { // Reduced from 150 to 30
+    if (resourceCount > 300) {
       setTimeout(cleanupOldResources, 0);
     }
   }, [state.resources, cleanupOldResources]);
@@ -1425,11 +1446,18 @@ export function FHIRResourceProvider({ children }) {
       }
       
       dispatch({ type: FHIR_ACTIONS.SET_CURRENT_PATIENT, payload: patient });
-      
+
+      // First paint must not wait for the 9-type summary warm: resolve as
+      // soon as the Patient resource is in context so the workspace shell
+      // (header, tab strip) can render. Tabs own their per-resource loading
+      // states, and warmPatientCache deduplicates with the identical call
+      // PatientSummaryV4 makes on mount, so the background warm is safe.
+      dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
+
       // Check if we already have critical resources cached
-      const hasExistingData = state.relationships[patientId] && 
+      const hasExistingData = state.relationships[patientId] &&
         Object.keys(state.relationships[patientId]).length > 0;
-      
+
       if (!hasExistingData) {
         // Use the typed batch loader (same path PatientSummaryV4 calls).
         //
@@ -1449,23 +1477,26 @@ export function FHIRResourceProvider({ children }) {
         // AllergyIntolerance 20, Observation 30 vital-signs only, …).
         // It also deduplicates inflight requests, so a concurrent call
         // from PatientSummaryV4 merges instead of races.
-        try {
-          await warmPatientCache(patientId, 'summary');
-        } catch (warmError) {
-          // Last-resort fallback: the legacy $everything path. Kept for
-          // safety in case the batch endpoint returns a structurally
-          // odd response. fetchPatientEverything itself paginates
-          // properly (see the change in fetchPatientEverything).
-          await fetchPatientEverything(patientId, {
-            types: ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Observation', 'Encounter'],
-            count: 100,
-            autoSince: false,
-            forceRefresh: false,
-          }).catch(() => fetchPatientBundle(patientId, false, 'critical'));
-        }
+        // Fire-and-forget: the fallback chain (legacy $everything path,
+        // then the critical bundle) is preserved, but nothing here blocks
+        // the patient-open promise anymore. Note warmPatientCache resolves
+        // {success:false} rather than rejecting, so the fallback keys off
+        // the result value.
+        warmPatientCache(patientId, 'summary')
+          .then((result) => {
+            if (result && result.success === false) {
+              return fetchPatientEverything(patientId, {
+                types: ['Condition', 'MedicationRequest', 'AllergyIntolerance', 'Observation', 'Encounter'],
+                count: 100,
+                autoSince: false,
+                forceRefresh: false,
+              }).catch(() => fetchPatientBundle(patientId, false, 'critical'));
+            }
+            return result;
+          })
+          .catch(() => { /* background warm failed; tabs fetch on demand */ });
       }
-      
-      dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
+
       return patient;
     } catch (error) {
       dispatch({ type: FHIR_ACTIONS.SET_GLOBAL_LOADING, payload: false });
@@ -1495,7 +1526,14 @@ export function FHIRResourceProvider({ children }) {
     if (existingRequest) {
       return existingRequest;
     }
-    
+
+    // A warm that completed recently is a no-op — the compartment data is
+    // already in context state.
+    const lastWarm = completedWarms.current.get(cacheKey);
+    if (lastWarm && Date.now() - lastWarm < WARM_RESULT_TTL_MS) {
+      return { success: true, patientId, cached: true };
+    }
+
     const warmingPromise = (async () => {
       try {
         if (priority === 'all' || priority === 'critical') {
@@ -1537,14 +1575,16 @@ export function FHIRResourceProvider({ children }) {
                 params.append('_sort', '-date');
               } else if (resourceType === 'Procedure') {
                 params.append('_count', '10'); // Recent procedures
-                params.append('_sort', '-performed-date');
+                // HAPI's Procedure date search param is 'date' (Procedure.performed)
+                params.append('_sort', '-date');
               } else if (resourceType === 'DiagnosticReport') {
                 params.append('_count', '10'); // Recent lab reports
                 params.append('_sort', '-date');
                 params.append('category', 'LAB'); // Focus on lab reports
               } else if (resourceType === 'Immunization') {
                 params.append('_count', '20'); // Get all immunizations
-                params.append('_sort', '-occurrence-date');
+                // HAPI's Immunization date search param is 'date' (occurrenceDateTime)
+                params.append('_sort', '-date');
               }
               
               return {
@@ -1643,6 +1683,7 @@ export function FHIRResourceProvider({ children }) {
           }
         }
         
+        completedWarms.current.set(cacheKey, Date.now());
         return { success: true, patientId };
       } catch (error) {
         // Log but don't throw - cache warming should fail silently
@@ -1676,9 +1717,14 @@ export function FHIRResourceProvider({ children }) {
   }, [state.errors]);
 
   const clearCache = useCallback((cacheType = null) => {
+    // getCachedData consults intelligentCache BEFORE the state cache, so an
+    // invalidation that only touches state leaves stale reads for up to the
+    // intelligent-cache TTL (~5 min after an edit). Clear both layers.
     if (cacheType) {
+      intelligentCache.clearByTag(cacheType);
       dispatch({ type: FHIR_ACTIONS.INVALIDATE_CACHE, payload: { cacheType } });
     } else {
+      intelligentCache.clear();
       // Clear all caches
       Object.keys(state.cache).forEach(type => {
         dispatch({ type: FHIR_ACTIONS.INVALIDATE_CACHE, payload: { cacheType: type } });
@@ -1689,8 +1735,9 @@ export function FHIRResourceProvider({ children }) {
   const refreshPatientResources = useStableCallback(async (patientId) => {
     try {
       
-      // Clear the patient bundle cache
+      // Clear the patient bundle cache — both layers (see clearCache)
       const cacheKey = `patient_bundle_${patientId}`;
+      intelligentCache.clearPatient(patientId);
       dispatch({ type: FHIR_ACTIONS.INVALIDATE_CACHE, payload: { cacheType: 'bundles', key: cacheKey } });
       
       // Clear the relationships for this patient to ensure fresh data
@@ -1716,7 +1763,7 @@ export function FHIRResourceProvider({ children }) {
         // Add appropriate sort parameters for each resource type
         switch (resourceType) {
           case 'Procedure':
-            params._sort = '-performed-date';
+            params._sort = '-date';
             break;
           case 'Observation':
             params._sort = '-date';
@@ -1759,6 +1806,7 @@ export function FHIRResourceProvider({ children }) {
         }
         
         const searchKey = `${resourceType}_${JSON.stringify(params)}`;
+        intelligentCache.delete(`searches:${searchKey}`);
         dispatch({ type: FHIR_ACTIONS.INVALIDATE_CACHE, payload: { cacheType: 'searches', key: searchKey } });
       });
       

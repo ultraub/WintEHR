@@ -1659,7 +1659,7 @@ class FHIRClient {
   async getProcedures(patientId: string, count: number = 50): Promise<SearchResult<Procedure>> {
     return this.search<Procedure>('Procedure', {
       patient: patientId,
-      _sort: '-performed-date',
+      _sort: '-date',
       _count: count
     });
   }

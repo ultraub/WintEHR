@@ -1,34 +1,52 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { Box, CircularProgress } from '@mui/material';
 import ProtectedRoute from '../components/ProtectedRoute';
 import LayoutV3 from '../components/LayoutV3';
 import Login from '../pages/Login';
 import PatientList from '../pages/PatientList';
-import PatientDashboardV2Page from '../pages/PatientDashboardV2Page';
-import ClinicalWorkspaceWrapper from '../components/clinical/ClinicalWorkspaceWrapper';
-import Dashboard from '../pages/Dashboard';
-import Analytics from '../pages/Analytics';
-import FHIRExplorerApp from '../components/fhir-explorer-v4/core/FHIRExplorerApp';
-import QueryStudioEnhanced from '../components/fhir-explorer-v4/query-building/QueryStudioEnhanced';
-import { AppProviders } from '../providers/AppProviders';
-import Settings from '../pages/Settings';
-import Schedule from '../pages/Schedule';
-import NotFound from '../pages/NotFound';
-import MedicationReconciliationPage from '../pages/MedicationReconciliationPage';
-import { CDSStudioPage } from '../modules/cds-studio';
-import CDSPresentationModeTester from '../components/clinical/cds/CDSPresentationModeTester';
-import EncountersPage from '../pages/EncountersPage';
-import QualityMeasuresPage from '../pages/QualityMeasuresPage';
-import CareGapsPage from '../pages/CareGapsPage';
-import AuditTrailPage from '../pages/AuditTrailPage';
-import PharmacyPage from '../pages/PharmacyPage';
-import InventoryManagementPage from '../pages/InventoryManagementPage';
-import PatientTimelinePage from '../pages/PatientTimelinePage';
-import UIComposerMain from '../modules/ui-composer/UIComposerMain';
-import PerformanceTestPage from '../pages/PerformanceTestPage';
-import PageTransitionProvider, { transitionPresets } from '../components/transitions/PageTransitionProvider';
-import SMARTCallbackPage from '../pages/SMARTCallbackPage';
-import SMARTDemoApp from '../pages/SMARTDemoApp';
+
+// Every page except Login/PatientList is lazy: statically importing them
+// pulled d3 (FHIR Explorer), monaco (CDS Studio), and recharts (Analytics)
+// into the initial bundle, so those libraries downloaded before the login
+// screen could paint.
+const PatientDashboardV2Page = lazy(() => import('../pages/PatientDashboardV2Page'));
+const ClinicalWorkspaceWrapper = lazy(() => import('../components/clinical/ClinicalWorkspaceWrapper'));
+const Dashboard = lazy(() => import('../pages/Dashboard'));
+const Analytics = lazy(() => import('../pages/Analytics'));
+const FHIRExplorerApp = lazy(() => import('../components/fhir-explorer-v4/core/FHIRExplorerApp'));
+const QueryStudioEnhanced = lazy(() => import('../components/fhir-explorer-v4/query-building/QueryStudioEnhanced'));
+const Settings = lazy(() => import('../pages/Settings'));
+const Schedule = lazy(() => import('../pages/Schedule'));
+const NotFound = lazy(() => import('../pages/NotFound'));
+const MedicationReconciliationPage = lazy(() => import('../pages/MedicationReconciliationPage'));
+const CDSStudioPage = lazy(() => import('../modules/cds-studio').then(m => ({ default: m.CDSStudioPage })));
+const CDSPresentationModeTester = lazy(() => import('../components/clinical/cds/CDSPresentationModeTester'));
+const EncountersPage = lazy(() => import('../pages/EncountersPage'));
+const QualityMeasuresPage = lazy(() => import('../pages/QualityMeasuresPage'));
+const CareGapsPage = lazy(() => import('../pages/CareGapsPage'));
+const AuditTrailPage = lazy(() => import('../pages/AuditTrailPage'));
+const PharmacyPage = lazy(() => import('../pages/PharmacyPage'));
+const InventoryManagementPage = lazy(() => import('../pages/InventoryManagementPage'));
+const PatientTimelinePage = lazy(() => import('../pages/PatientTimelinePage'));
+const UIComposerMain = lazy(() => import('../modules/ui-composer/UIComposerMain'));
+const PerformanceTestPage = lazy(() => import('../pages/PerformanceTestPage'));
+const SMARTCallbackPage = lazy(() => import('../pages/SMARTCallbackPage'));
+const SMARTDemoApp = lazy(() => import('../pages/SMARTDemoApp'));
+
+const routeFallback = (
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+    <CircularProgress size={40} />
+  </Box>
+);
+
+// Wrap a lazy page in Suspense; optionally in the app chrome + auth guard.
+const page = (element, { layout = true, protect = true } = {}) => {
+  let node = <Suspense fallback={routeFallback}>{element}</Suspense>;
+  if (layout) node = <LayoutV3>{node}</LayoutV3>;
+  if (protect) node = <ProtectedRoute>{node}</ProtectedRoute>;
+  return node;
+};
 
 // Create router with future flags enabled
 export const router = createBrowserRouter([
@@ -52,61 +70,27 @@ export const router = createBrowserRouter([
   },
   {
     path: '/patients/:id',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <PatientDashboardV2Page />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<PatientDashboardV2Page />)
   },
   {
     path: '/patients/:id/clinical',
-    element: (
-      <ProtectedRoute>
-        <ClinicalWorkspaceWrapper />
-      </ProtectedRoute>
-    )
+    element: page(<ClinicalWorkspaceWrapper />, { layout: false })
   },
   {
     path: '/patients/:id/timeline',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <PatientTimelinePage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<PatientTimelinePage />)
   },
   {
     path: '/patients/:id/medication-reconciliation',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <MedicationReconciliationPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<MedicationReconciliationPage />)
   },
   {
     path: '/patients/:id/encounters/:encounterId/medication-reconciliation',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <MedicationReconciliationPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<MedicationReconciliationPage />)
   },
   {
     path: '/dashboard',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <Dashboard />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<Dashboard />)
   },
   {
     path: '/clinical',
@@ -114,91 +98,42 @@ export const router = createBrowserRouter([
   },
   {
     path: '/encounters',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <EncountersPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<EncountersPage />)
   },
   {
     path: '/pharmacy',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <PharmacyPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<PharmacyPage />)
   },
   {
     path: '/inventory',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <InventoryManagementPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<InventoryManagementPage />)
   },
   {
     path: '/analytics',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <Analytics />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<Analytics />)
   },
   {
     path: '/quality',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <QualityMeasuresPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<QualityMeasuresPage />)
   },
   {
     path: '/care-gaps',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <CareGapsPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<CareGapsPage />)
   },
   {
+    // No LayoutV3 (the explorer owns its shell) and no extra AppProviders —
+    // App.js already wraps the whole RouterProvider in AppProviders, so the
+    // previous nested copy double-mounted every context for this route.
     path: '/fhir-explorer',
-    element: (
-      <ProtectedRoute>
-        <AppProviders>
-          <FHIRExplorerApp />
-        </AppProviders>
-      </ProtectedRoute>
-    )
+    element: page(<FHIRExplorerApp />, { layout: false })
   },
   {
     path: '/fhir-explorer/query-studio-enhanced',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <QueryStudioEnhanced />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<QueryStudioEnhanced />)
   },
   {
     path: '/ui-composer',
-    element: (
-      <ProtectedRoute>
-        <UIComposerMain />
-      </ProtectedRoute>
-    )
+    element: page(<UIComposerMain />, { layout: false })
   },
   // Redirect old CDS path to avoid conflicts with API endpoints
   {
@@ -207,87 +142,41 @@ export const router = createBrowserRouter([
   },
   {
     path: '/cds-studio',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <CDSStudioPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<CDSStudioPage />)
   },
   {
     path: '/cds-presentation-test',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <CDSPresentationModeTester />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<CDSPresentationModeTester />)
   },
   {
     path: '/schedule',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <Schedule />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<Schedule />)
   },
   {
     path: '/audit-trail',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <AuditTrailPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<AuditTrailPage />)
   },
   {
     path: '/settings',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <Settings />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<Settings />)
   },
   {
     path: '/performance-test',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <PerformanceTestPage />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<PerformanceTestPage />)
   },
   // SMART on FHIR authorization callback
   {
     path: '/smart-callback',
-    element: (
-      <ProtectedRoute>
-        <SMARTCallbackPage />
-      </ProtectedRoute>
-    )
+    element: page(<SMARTCallbackPage />, { layout: false })
   },
-  // Built-in SMART demo app (educational)
+  // Built-in SMART demo app (educational; unauthenticated by design)
   {
     path: '/smart-demo',
-    element: <SMARTDemoApp />
+    element: page(<SMARTDemoApp />, { layout: false, protect: false })
   },
   {
     path: '*',
-    element: (
-      <ProtectedRoute>
-        <LayoutV3>
-          <NotFound />
-        </LayoutV3>
-      </ProtectedRoute>
-    )
+    element: page(<NotFound />)
   }
 ], {
   // Enable future flags to prevent deprecation warnings

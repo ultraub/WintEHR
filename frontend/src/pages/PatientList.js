@@ -147,7 +147,7 @@ function PatientList() {
   // This effect only runs for All Patients tab (activeTab === 1) after initial load
   // Dependencies are carefully selected to prevent re-fetching loops
 
-  const fetchMyPatients = async () => {
+  const fetchMyPatients = async (term = searchTerm) => {
     try {
       setLoading(true);
       // For now, use the same as all patients but filter by provider
@@ -157,15 +157,16 @@ function PatientList() {
         _sort: '-_lastUpdated'
       };
 
-      if (searchTerm && searchTerm.length >= 2) {
+      const searchTermToUse = term;
+      if (searchTermToUse && searchTermToUse.length >= 2) {
         // FHIR search supports name parameter for patient names
         // Also search by identifier (MRN) if the search term looks like it could be an MRN
-        if (/^\d+$/.test(searchTerm)) {
+        if (/^\d+$/.test(searchTermToUse)) {
           // Numeric search term - search by identifier
-          searchParams.identifier = searchTerm;
+          searchParams.identifier = searchTermToUse;
         } else {
           // Text search term - search by name
-          searchParams.name = searchTerm;
+          searchParams.name = searchTermToUse;
         }
       }
 
@@ -327,14 +328,24 @@ function PatientList() {
     }
   };
 
-  // Debounced search function - use ref to avoid recreating
+  // Debounced search. The debounce wrapper is created once, but it must not
+  // freeze first-render state: the old version captured the initial pageSize
+  // (so searches ignored a changed page size) and always hit the
+  // all-patients fetch even from the My Patients tab. The impl ref is
+  // reassigned every render, so the debounced call always sees fresh state.
   const debouncedSearchRef = useRef(null);
-  
-  if (!debouncedSearchRef.current) {
-    debouncedSearchRef.current = debounce((term) => {
-      setPage(0); // Reset to first page on new search
+  const searchImplRef = useRef(null);
+  searchImplRef.current = (term) => {
+    setPage(0); // Reset to first page on new search
+    if (activeTab === 0) {
+      fetchMyPatients(term);
+    } else {
       fetchAllPatients(0, pageSize, term);
-    }, 500);
+    }
+  };
+
+  if (!debouncedSearchRef.current) {
+    debouncedSearchRef.current = debounce((term) => searchImplRef.current(term), 500);
   }
 
   const handleSearchChange = (event) => {
@@ -558,14 +569,18 @@ function PatientList() {
           onChange={handleTabChange}
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
-          <Tab 
-            icon={<PeopleIcon />} 
+          <Tab
+            icon={<PeopleIcon />}
             label={
               <SafeBadge badgeContent={myPatientsCount} color="primary">
                 My Patients
               </SafeBadge>
             }
             iconPosition="start"
+            // Honest labeling until provider attribution exists: this tab is
+            // not filtered to the signed-in provider (synthetic data has no
+            // provider assignment), so say so instead of implying it is.
+            title="Demo limitation: synthetic data has no provider assignment — this tab shows the most recently updated patients"
           />
           <Tab 
             icon={<PersonSearchIcon />} 

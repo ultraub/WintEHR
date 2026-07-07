@@ -522,7 +522,7 @@ function LayoutV3({ children }) {
             : 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.03) 200px, transparent 500px)',
         }}>
           <BreadcrumbNavigation location={location} />
-          <TransitionWrapper transition="fade" duration={300}>
+          <TransitionWrapper transition="fade" duration={150}>
             {children}
           </TransitionWrapper>
         </Box>
