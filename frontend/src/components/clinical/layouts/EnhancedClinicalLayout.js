@@ -22,6 +22,7 @@ import { useResponsive } from '../../../hooks/useResponsive';
 import { MedicalThemeContext } from '../../../App';
 import { LAYOUT_HEIGHTS, Z_INDEX } from '../theme/clinicalThemeConstants';
 import { CLINICAL_TABS } from '../workspace/clinicalTabRegistry';
+import { decodeFhirId } from '../../../core/navigation/navigationUtils';
 
 // Module configuration — id → {id, label, index}, derived from the single
 // tab registry. `index` is the registry's array position, so tab order
@@ -40,7 +41,10 @@ const EnhancedClinicalLayout = ({
   navigationContext = {}
 }) => {
   const theme = useTheme();
-  const { id: patientId } = useParams();
+  // Route param is URL-encoded; an un-decoded id creates a second patient
+  // compartment in the FHIR cache (split-brain with pages that decode).
+  const { id: rawPatientId } = useParams();
+  const patientId = rawPatientId ? decodeFhirId(rawPatientId).toLowerCase() : rawPatientId;
   const { user } = useAuth();
   const { currentMode, onModeChange } = React.useContext(MedicalThemeContext);
   const isDarkMode = currentMode === 'dark';

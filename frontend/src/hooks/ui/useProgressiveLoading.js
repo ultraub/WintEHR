@@ -35,7 +35,10 @@ export const useProgressiveLoading = (patientId, options = {}) => {
     priorityOverrides = {},
     loadDelay = 100, // Delay between priority levels
     maxConcurrent = 3, // Max concurrent requests
-    onProgressUpdate = null // Callback for progress updates
+    onProgressUpdate = null, // Callback for progress updates
+    // Callers (usePatientData) have always passed `enabled`, but the hook
+    // silently dropped it and loaded regardless — honor it.
+    enabled = true
   } = options;
 
   const { searchResources } = useFHIRResource();
@@ -270,7 +273,7 @@ export const useProgressiveLoading = (patientId, options = {}) => {
 
   // Start loading when patient changes
   useEffect(() => {
-    if (patientId) {
+    if (patientId && enabled) {
       startProgressiveLoad();
     }
 
@@ -280,7 +283,7 @@ export const useProgressiveLoading = (patientId, options = {}) => {
         abortController.current.abort();
       }
     };
-  }, [patientId]); // Don't include startProgressiveLoad to avoid loops
+  }, [patientId, enabled]); // Don't include startProgressiveLoad to avoid loops
 
   // Refresh function
   const refresh = useCallback(() => {

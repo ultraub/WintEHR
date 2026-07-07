@@ -69,38 +69,46 @@ function ThemedApp() {
     return baseTheme;
   }, [currentTheme, currentMode, clinicalContext, autoDetectContext]);
   
-  const handleThemeChange = (themeName) => {
+  // Stable handlers (they close over nothing but setState, which is stable)
+  // + memoized context value: an inline object here re-rendered every
+  // MedicalThemeContext consumer on each App render.
+  const handleThemeChange = React.useCallback((themeName) => {
     setCurrentTheme(themeName);
     localStorage.setItem('medicalTheme', themeName);
-  };
-  
-  const handleModeChange = (mode) => {
+  }, []);
+
+  const handleModeChange = React.useCallback((mode) => {
     setCurrentMode(mode);
     localStorage.setItem('medicalMode', mode);
-  };
-  
-  const handleDepartmentChange = (dept) => {
+  }, []);
+
+  const handleDepartmentChange = React.useCallback((dept) => {
     setDepartment(dept);
     localStorage.setItem('medicalDepartment', dept);
-  };
-  
-  const handleAutoDetectChange = (enabled) => {
+  }, []);
+
+  const handleAutoDetectChange = React.useCallback((enabled) => {
     setAutoDetectContext(enabled);
     localStorage.setItem('autoDetectClinicalContext', enabled.toString());
-  };
-  
+  }, []);
+
+  const themeContextValue = useMemo(() => ({
+    currentTheme,
+    currentMode,
+    department,
+    clinicalContext,
+    autoDetectContext,
+    onThemeChange: handleThemeChange,
+    onModeChange: handleModeChange,
+    onDepartmentChange: handleDepartmentChange,
+    onAutoDetectChange: handleAutoDetectChange
+  }), [
+    currentTheme, currentMode, department, clinicalContext, autoDetectContext,
+    handleThemeChange, handleModeChange, handleDepartmentChange, handleAutoDetectChange
+  ]);
+
   return (
-    <MedicalThemeContext.Provider value={{ 
-      currentTheme, 
-      currentMode,
-      department,
-      clinicalContext,
-      autoDetectContext,
-      onThemeChange: handleThemeChange, 
-      onModeChange: handleModeChange,
-      onDepartmentChange: handleDepartmentChange,
-      onAutoDetectChange: handleAutoDetectChange
-    }}>
+    <MedicalThemeContext.Provider value={themeContextValue}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <LocalizationProvider dateAdapter={AdapterDateFns}>
