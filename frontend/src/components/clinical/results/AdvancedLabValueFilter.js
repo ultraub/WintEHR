@@ -51,9 +51,18 @@ const AdvancedLabValueFilter = ({ onFilterChange, initialFilters = null, patient
   });
 
   useEffect(() => {
-    // Load critical value presets from service
-    const presets = criticalValueDetectionService.getCriticalValueFilters();
-    setCriticalValuePresets(presets);
+    // Load critical value presets from the backend-served threshold table
+    let active = true;
+    criticalValueDetectionService.getCriticalValueFilters()
+      .then((presets) => {
+        if (active) setCriticalValuePresets(presets);
+      })
+      .catch(() => {
+        if (active) setCriticalValuePresets([]);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {

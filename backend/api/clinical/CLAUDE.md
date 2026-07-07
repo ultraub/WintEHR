@@ -29,6 +29,7 @@ confirm the resolved path before wiring a frontend call.**
 | `pharmacy/pharmacy_router.py` | `/api/clinical/pharmacy` | (none) | `/api/clinical/pharmacy` |
 | `administration/router.py` | `/api/clinical/administration` | (none) | `/api/clinical/administration` |
 | `results/results_router.py` | `/api/clinical/results` | (none) | `/api/clinical/results` |
+| `critical_values_router.py` | `/api/clinical` | (none) | `/api/clinical/critical-values` (threshold reference table, R33) |
 | `tasks/router.py` | `/api/clinical/tasks` | (none) | `/api/clinical/tasks` |
 | `alerts/router.py` | `/api/clinical/alerts` | (none) | `/api/clinical/alerts` |
 | `inbox/router.py` | `/api/clinical/inbox` | (none) | `/api/clinical/inbox` |
@@ -106,8 +107,11 @@ extend `drug_interactions.py` (the comprehensive one), not the inline dict.
   this module. Real-time event plumbing lives in `api/websocket/`.
 - **`notifications_helper.py`** is a thin wrapper over
   `api/services/notification_service.py` (critical-value, task-assignment,
-  appointment, and medication-interaction notifications). Currently imported
-  only by `results/results_router.py`.
+  appointment, and medication-interaction notifications). It holds no
+  threshold data — critical-value thresholds live in `critical_values.py`
+  (the ONE table, also served at `GET /api/clinical/critical-values` and
+  consumed by `frontend/src/services/criticalValueService.js`). Do not add
+  another threshold table anywhere.
 - **Catalogs are not owned here.** The unified catalog service is
   `api/catalogs/` at `/api/catalogs/...`. `cds_clinical_data.py` is a separate,
   narrower service exposing lab / vital-reference / condition catalogs under

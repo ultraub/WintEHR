@@ -12,7 +12,7 @@ import logging
 from services.hapi_fhir_client import HAPIFHIRClient
 from pydantic import BaseModel
 from api.cds_hooks.constants import ExtensionURLs
-from api.clinical.notifications_helper import CRITICAL_VALUES
+from api.clinical.critical_values import CRITICAL_VALUE_TABLE, evaluate_critical
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/clinical/results", tags=["clinical-results"])
@@ -375,11 +375,11 @@ async def get_result_trends(
         
         # Check if this test has critical values defined
         critical_thresholds = None
-        if loinc_code in CRITICAL_VALUES:
-            config = CRITICAL_VALUES[loinc_code]
+        if loinc_code in CRITICAL_VALUE_TABLE:
+            config = CRITICAL_VALUE_TABLE[loinc_code]
             critical_thresholds = {
-                "low": config.get("low"),
-                "high": config.get("high")
+                "low": config.get("critical_low"),
+                "high": config.get("critical_high")
             }
         
         return {
@@ -516,35 +516,17 @@ def _check_critical_value(observation: Dict[str, Any]) -> Optional[CriticalValue
             loinc_code = coding.get("code")
             break
     
-    if not loinc_code or loinc_code not in CRITICAL_VALUES:
-        return None
-    
     # Get value
     value_quantity = observation.get("valueQuantity", {})
     value = value_quantity.get("value")
     unit = value_quantity.get("unit", "")
-    
-    if value is None:
+
+    # Check against the shared critical-value table
+    critical = evaluate_critical(loinc_code, value, unit)
+    if not critical:
         return None
-    
-    # Check against critical thresholds
-    config = CRITICAL_VALUES[loinc_code]
-    critical_type = None
-    threshold = None
-    message = None
-    
-    if "low" in config and value < config["low"]:
-        critical_type = "low"
-        threshold = config["low"]
-        message = config["low_message"].format(value=value, unit=unit or config["unit"])
-    elif "high" in config and value > config["high"]:
-        critical_type = "high"
-        threshold = config["high"]
-        message = config["high_message"].format(value=value, unit=unit or config["unit"])
-    
-    if not critical_type:
-        return None
-    
+
+
     # Extract patient ID
     subject_ref = observation.get("subject", {}).get("reference", "")
     patient_id = subject_ref.replace("Patient/", "") if subject_ref.startswith("Patient/") else ""
@@ -561,13 +543,13 @@ def _check_critical_value(observation: Dict[str, Any]) -> Optional[CriticalValue
     return CriticalValueAlert(
         observation_id=observation.get("id", ""),
         patient_id=patient_id,
-        test_name=config["name"],
+        test_name=critical["label"],
         loinc_code=loinc_code,
         value=value,
-        unit=unit or config["unit"],
-        critical_type=critical_type,
-        threshold=threshold,
-        message=message,
+        unit=critical["unit"],
+        critical_type=critical["type"],
+        threshold=critical["threshold"],
+        message=critical["message"],
         detected_at=detected_at
     )
 

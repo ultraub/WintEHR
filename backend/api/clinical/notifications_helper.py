@@ -9,100 +9,9 @@ import asyncio
 # HAPI FHIR Communication notification service
 from api.services.notification_service import get_notification_service
 
-# Critical value ranges for common lab tests
-CRITICAL_VALUES = {
-    # Electrolytes
-    "2951-2": {  # Sodium
-        "name": "Sodium",
-        "unit": "mmol/L",
-        "low": 120,
-        "high": 160,
-        "low_message": "Critical low sodium level: {value} {unit}",
-        "high_message": "Critical high sodium level: {value} {unit}"
-    },
-    "2823-3": {  # Potassium
-        "name": "Potassium",
-        "unit": "mmol/L", 
-        "low": 2.5,
-        "high": 6.5,
-        "low_message": "Critical low potassium level: {value} {unit}",
-        "high_message": "Critical high potassium level: {value} {unit}"
-    },
-    "2075-0": {  # Chloride
-        "name": "Chloride",
-        "unit": "mmol/L",
-        "low": 80,
-        "high": 120,
-        "low_message": "Critical low chloride level: {value} {unit}",
-        "high_message": "Critical high chloride level: {value} {unit}"
-    },
-    
-    # Renal function
-    "2160-0": {  # Creatinine
-        "name": "Creatinine",
-        "unit": "mg/dL",
-        "high": 4.0,
-        "high_message": "Critical high creatinine level: {value} {unit}"
-    },
-    
-    # Glucose
-    "2345-7": {  # Glucose
-        "name": "Glucose",
-        "unit": "mg/dL",
-        "low": 40,
-        "high": 500,
-        "low_message": "Critical low glucose level: {value} {unit}",
-        "high_message": "Critical high glucose level: {value} {unit}"
-    },
-    
-    # Cardiac markers
-    "2157-6": {  # Troponin I
-        "name": "Troponin I",
-        "unit": "ng/mL",
-        "high": 0.04,
-        "high_message": "Elevated troponin I level: {value} {unit} - possible myocardial injury"
-    },
-    
-    # Hematology
-    "718-7": {  # Hemoglobin
-        "name": "Hemoglobin",
-        "unit": "g/dL",
-        "low": 7.0,
-        "high": 20.0,
-        "low_message": "Critical low hemoglobin level: {value} {unit}",
-        "high_message": "Critical high hemoglobin level: {value} {unit}"
-    },
-    "777-3": {  # Platelet count
-        "name": "Platelet count",
-        "unit": "10*3/uL",
-        "low": 20,
-        "high": 1000,
-        "low_message": "Critical low platelet count: {value} {unit}",
-        "high_message": "Critical high platelet count: {value} {unit}"
-    },
-    "6690-2": {  # WBC count
-        "name": "WBC count",
-        "unit": "10*3/uL",
-        "low": 1.0,
-        "high": 30.0,
-        "low_message": "Critical low WBC count: {value} {unit}",
-        "high_message": "Critical high WBC count: {value} {unit}"
-    },
-    
-    # Coagulation
-    "5902-2": {  # PT
-        "name": "Prothrombin time",
-        "unit": "s",
-        "high": 40,
-        "high_message": "Critical prolonged PT: {value} {unit}"
-    },
-    "5964-2": {  # INR
-        "name": "INR",
-        "unit": "",
-        "high": 5.0,
-        "high_message": "Critical high INR: {value} - bleeding risk"
-    }
-}
+# Critical-value thresholds live in api/clinical/critical_values.py (R33) —
+# the single table also served at GET /api/clinical/critical-values.
+from api.clinical.critical_values import evaluate_critical
 
 async def check_and_notify_critical_values(
     db: AsyncSession,
@@ -129,41 +38,21 @@ async def check_and_notify_critical_values(
             loinc_code = coding.get("code")
             break
     
-    if not loinc_code or loinc_code not in CRITICAL_VALUES:
-        return None
-    
     # Get value from observation
     value_quantity = observation.get("valueQuantity", {})
     if not value_quantity:
         return None
-    
+
     value = value_quantity.get("value")
     unit = value_quantity.get("unit", "")
-    
-    if value is None:
+
+    # Check against the shared critical-value table
+    critical = evaluate_critical(loinc_code, value, unit)
+    if not critical:
         return None
-    
-    # Check against critical ranges
-    critical_config = CRITICAL_VALUES[loinc_code]
-    is_critical = False
-    message = None
-    
-    if "low" in critical_config and value < critical_config["low"]:
-        is_critical = True
-        message = critical_config["low_message"].format(
-            value=value,
-            unit=unit or critical_config["unit"]
-        )
-    elif "high" in critical_config and value > critical_config["high"]:
-        is_critical = True
-        message = critical_config["high_message"].format(
-            value=value,
-            unit=unit or critical_config["unit"]
-        )
-    
-    if not is_critical:
-        return None
-    
+    message = critical["message"]
+
+
     # Get patient name for the notification
     patient_query = db.execute(
         "SELECT first_name, last_name FROM patient WHERE id = :patient_id",
@@ -175,7 +64,7 @@ async def check_and_notify_critical_values(
         patient_name = f"{patient_query.first_name} {patient_query.last_name}"
     
     # Create critical value notification using HAPI FHIR Communication
-    subject = f"Critical Lab Result - {critical_config['name']}"
+    subject = f"Critical Lab Result - {critical['label']}"
     full_message = f"{message} for patient {patient_name}. Immediate review required."
 
     notification_service = get_notification_service()
