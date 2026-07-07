@@ -27,7 +27,8 @@ import {
   ListItemIcon,
   Grid,
   LinearProgress,
-  useTheme
+  useTheme,
+  alpha
 } from '@mui/material';
 import {
   CheckCircle as EffectiveIcon,
@@ -43,7 +44,7 @@ import {
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { addWeeks } from 'date-fns';
-import { useMedicationResolver } from '../../../hooks/useMedicationResolver';
+import { useMedicationResolver } from '../../../core/fhir/hooks/useMedicationResolver';
 
 // Effectiveness scale options
 const EFFECTIVENESS_OPTIONS = [
