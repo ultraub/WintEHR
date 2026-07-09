@@ -29,9 +29,11 @@ import {
   Update as VersionIcon,
   Restore as RestoreIcon
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 import cdsStudioApi from '../services/cdsStudioApi';
 
 const VersionHistory = ({ serviceId }) => {
+  const { enqueueSnackbar } = useSnackbar();
   const [versions, setVersions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -86,7 +88,7 @@ const VersionHistory = ({ serviceId }) => {
       await loadVersionHistory();
 
       // Notify user to refresh the page
-      alert('Service rolled back successfully. Please refresh the page to see changes.');
+      enqueueSnackbar('Service rolled back successfully. Please refresh the page to see changes.', { variant: 'success' });
     } catch (err) {
       console.error('Rollback failed:', err);
       setError(err.message);

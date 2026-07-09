@@ -59,6 +59,7 @@ import {
   Psychology as CDSIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
+import { useSnackbar } from 'notistack';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -66,6 +67,7 @@ import { cdsHooksTester } from '../../../../core/cds/cdsHooksTester';
 
 const CDSHooksVerifier = () => {
   const theme = useTheme();
+  const { enqueueSnackbar } = useSnackbar();
   const { searchResources } = useFHIRResource();
   
   const [loading, setLoading] = useState(false);
@@ -109,7 +111,7 @@ const CDSHooksVerifier = () => {
 
   const executeHookTest = async () => {
     if (!selectedPatient || !selectedService) {
-      alert('Please select both a patient and a service');
+      enqueueSnackbar('Please select both a patient and a service', { variant: 'warning' });
       return;
     }
 
@@ -186,7 +188,7 @@ const CDSHooksVerifier = () => {
 
   const testAllPatientViewHooks = async () => {
     if (!selectedPatient) {
-      alert('Please select a patient');
+      enqueueSnackbar('Please select a patient', { variant: 'warning' });
       return;
     }
 
@@ -250,13 +252,13 @@ const CDSHooksVerifier = () => {
       const results = await cdsHooksTester.runTestSuite();
       
       if (results) {
-        alert(`Test suite completed!\n\nTotal tests: ${results.totalTests}\nSuccessful: ${results.successful}\nFailed: ${results.failed}\nCards generated: ${results.totalCards}\n\nCheck browser console for detailed results.`);
+        enqueueSnackbar(`Test suite completed!\n\nTotal tests: ${results.totalTests}\nSuccessful: ${results.successful}\nFailed: ${results.failed}\nCards generated: ${results.totalCards}\n\nCheck browser console for detailed results.`, { variant: 'success' });
       } else {
-        alert('Test suite failed. Check browser console for details.');
+        enqueueSnackbar('Test suite failed. Check browser console for details.', { variant: 'error' });
       }
     } catch (error) {
-      
-      alert(`Test failed: ${error.message}`);
+
+      enqueueSnackbar(`Test failed: ${error.message}`, { variant: 'error' });
     } finally {
       setLoading(false);
     }

@@ -684,6 +684,27 @@ const ResultsTabOptimized = ({
     setDetailsDialogOpen(true);
   };
 
+  // Print the currently filtered results via the shared print pipeline
+  const handlePrint = () => {
+    const tabTitles = ['Lab Results', 'Vital Signs', 'Diagnostic Reports'];
+
+    const patientInfo = {
+      name: currentPatient?.name?.[0] ?
+        `${currentPatient.name[0].given?.join(' ') || ''} ${currentPatient.name[0].family || ''}`.trim() :
+        'Unknown Patient',
+      mrn: currentPatient?.identifier?.find(id => id.type?.coding?.[0]?.code === 'MR')?.value || currentPatient?.id,
+      birthDate: currentPatient?.birthDate,
+      gender: currentPatient?.gender,
+      phone: currentPatient?.telecom?.find(t => t.system === 'phone')?.value
+    };
+
+    printDocument({
+      title: tabTitles[tabValue] || 'Results',
+      patient: patientInfo,
+      content: formatLabResultsForPrint(filteredData)
+    });
+  };
+
   // Render content based on view mode
   const renderContent = () => {
     if (allData.loading) {
@@ -995,7 +1016,7 @@ const ResultsTabOptimized = ({
             <Divider orientation="vertical" flexItem />
             <IconButton
               size="small"
-              onClick={() => window.print()}
+              onClick={handlePrint}
               title="Print"
             >
               <PrintIcon />
@@ -1106,7 +1127,7 @@ const ResultsTabOptimized = ({
                 {selectedResult.effectiveDateTime && (
                   <Grid item xs={6}>
                     <Typography variant="caption" color="text.secondary">Date</Typography>
-                    <Typography variant="body2">{new Date(selectedResult.effectiveDateTime).toLocaleString()}</Typography>
+                    <Typography variant="body2">{formatClinicalDate(selectedResult.effectiveDateTime, 'withTime')}</Typography>
                   </Grid>
                 )}
                 {selectedResult.valueQuantity && (

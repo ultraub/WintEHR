@@ -83,19 +83,19 @@ export const clinicalTokens = {
       iconSize: 16,
       borderRadius: 4
     },
-    comfortable: { 
-      padding: 8, 
+    comfortable: {
+      padding: 8,
       rowHeight: 48,
       fontSize: '0.875rem',
       iconSize: 20,
-      borderRadius: 8
+      borderRadius: 4
     },
-    spacious: { 
-      padding: 16, 
+    spacious: {
+      padding: 16,
       rowHeight: 64,
       fontSize: '1rem',
       iconSize: 24,
-      borderRadius: 12
+      borderRadius: 4
     }
   },
   

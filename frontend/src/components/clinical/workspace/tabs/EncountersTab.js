@@ -16,7 +16,6 @@ import {
   Divider,
   InputAdornment,
   Alert,
-  Snackbar,
   Badge,
   Grid,
   ToggleButton,
@@ -39,7 +38,8 @@ import {
   Assignment as AssignmentIcon,
   Science as LabIcon
 } from '@mui/icons-material';
-import { format, parseISO, isWithinInterval, subMonths } from 'date-fns';
+import { useSnackbar } from 'notistack';
+import { parseISO, isWithinInterval, subMonths } from 'date-fns';
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
@@ -122,7 +122,7 @@ const EncountersTab = ({
   const scrollContainerRef = useRef(null);
   const [selectedEncounter, setSelectedEncounter] = useState(null);
   const [density, setDensity] = useDensity('comfortable');
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const { enqueueSnackbar } = useSnackbar();
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
   const [encounterCreationDialogOpen, setEncounterCreationDialogOpen] = useState(false);
   const [editEncounterDialogOpen, setEditEncounterDialogOpen] = useState(false);
@@ -205,11 +205,7 @@ const EncountersTab = ({
   };
 
   const handleEncounterCreated = (newEncounter) => {
-    setSnackbar({
-      open: true,
-      message: 'Encounter created successfully',
-      severity: 'success'
-    });
+    enqueueSnackbar('Encounter created successfully', { variant: 'success' });
     
     // Refresh encounter data
     window.dispatchEvent(new CustomEvent('fhir-resources-updated', { 
@@ -247,10 +243,8 @@ const EncountersTab = ({
       formatForPrint: (data) => {
         let html = '<h2>Encounter History</h2>';
         data.forEach(encounter => {
-          const startDate = encounter.actualPeriod?.start || encounter.period?.start ? 
-            format(parseISO(encounter.actualPeriod?.start || encounter.period.start), 'MMM d, yyyy h:mm a') : 'Unknown';
-          const endDate = encounter.actualPeriod?.end || encounter.period?.end ? 
-            format(parseISO(encounter.actualPeriod?.end || encounter.period.end), 'MMM d, yyyy h:mm a') : 'Ongoing';
+          const startDate = formatClinicalDate(encounter.actualPeriod?.start || encounter.period?.start, 'withTime', 'Unknown');
+          const endDate = formatClinicalDate(encounter.actualPeriod?.end || encounter.period?.end, 'withTime', 'Ongoing');
           
           html += `
             <div class="section">
@@ -788,20 +782,6 @@ const EncountersTab = ({
 
 
       {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </>
   );
 };

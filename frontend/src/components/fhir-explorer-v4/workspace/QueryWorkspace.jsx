@@ -73,6 +73,7 @@ import {
   Share as ShareIcon,
   LocalOffer as TagIcon
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 import { useQueryHistory } from '../hooks/useQueryHistory';
 
 // Query categories
@@ -86,6 +87,7 @@ const QUERY_CATEGORIES = [
 ];
 
 function QueryWorkspace({ onNavigate, onLoadQuery }) {
+  const { enqueueSnackbar } = useSnackbar();
   const {
     queryHistory,
     savedQueries,
@@ -256,15 +258,15 @@ function QueryWorkspace({ onNavigate, onLoadQuery }) {
         if (success) {
           setImportDialogOpen(false);
         } else {
-          alert('Failed to import queries. Please check the file format.');
+          enqueueSnackbar('Failed to import queries. Please check the file format.', { variant: 'error' });
         }
       } catch (error) {
         console.error('Import error:', error);
-        alert('Invalid file format. Please select a valid query export file.');
+        enqueueSnackbar('Invalid file format. Please select a valid query export file.', { variant: 'error' });
       }
     };
     reader.readAsText(file);
-  }, [importData]);
+  }, [importData, enqueueSnackbar]);
 
   // Render query item
   const renderQueryItem = (query, isHistory = false) => {

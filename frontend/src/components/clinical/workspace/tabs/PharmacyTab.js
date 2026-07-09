@@ -31,7 +31,6 @@ import {
   Select,
   InputLabel,
   CircularProgress,
-  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -40,7 +39,6 @@ import {
   useTheme,
   Tabs,
   Tab,
-  Snackbar,
   ToggleButton,
   ToggleButtonGroup,
   Collapse,
@@ -76,6 +74,7 @@ import {
   ViewModule as ViewModuleIcon,
   ViewList as ViewListIcon
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 import { format, parseISO, isWithinInterval, subDays, addDays, subMonths } from 'date-fns';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { printDocument } from '../../../../core/export/printUtils';
@@ -343,7 +342,7 @@ const PharmacyTab = ({
   const [dispenseDialogOpen, setDispenseDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [patientFilter, setPatientFilter] = useState('current'); // 'all' or 'current'
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const { enqueueSnackbar } = useSnackbar();
   const [pendingRefills, setPendingRefills] = useState([]);
 
   // Load pending refill Tasks when component mounts or patient changes
@@ -643,20 +642,12 @@ const PharmacyTab = ({
         resourceType: 'MedicationRequest'
       });
       
-      setSnackbar({
-        open: true,
-        message: `Medication request status updated to ${newStatus}`,
-        severity: 'success'
-      });
+      enqueueSnackbar(`Medication request status updated to ${newStatus}`, { variant: 'success' });
     } catch (error) {
       console.error('PharmacyTab: status update failed:', error);
-      setSnackbar({
-        open: true,
-        message: `Failed to update status: ${error.response?.data?.detail || error.message}`,
-        severity: 'error'
-      });
+      enqueueSnackbar(`Failed to update status: ${error.response?.data?.detail || error.message}`, { variant: 'error' });
     }
-  }, [medicationRequests, refreshPatientResources, publish, patientId, user]);
+  }, [medicationRequests, refreshPatientResources, publish, patientId, user, enqueueSnackbar]);
 
   // Enhanced dispensing with MedicationDispense service
   const handleDispense = useCallback(async (medicationDispenseData) => {
@@ -710,11 +701,7 @@ const PharmacyTab = ({
         }
       });
       
-      setSnackbar({
-        open: true,
-        message: 'Medication dispensed successfully and recorded in FHIR',
-        severity: 'success'
-      });
+      enqueueSnackbar('Medication dispensed successfully and recorded in FHIR', { variant: 'success' });
       
       setSelectedRequest(null);
       setDispenseDialogOpen(false);
@@ -723,13 +710,9 @@ const PharmacyTab = ({
       // Surface the backend's reason — a 409 here means the signing gate
       // refused an unsigned order, which the pharmacist needs to see.
       const detail = error.response?.data?.detail;
-      setSnackbar({
-        open: true,
-        message: `Failed to dispense medication: ${detail || error.message}`,
-        severity: 'error'
-      });
+      enqueueSnackbar(`Failed to dispense medication: ${detail || error.message}`, { variant: 'error' });
     }
-  }, [patientId, medicationRequests, publish, refreshPatientResources, refreshDispenses, user]);
+  }, [patientId, medicationRequests, publish, refreshPatientResources, refreshDispenses, user, enqueueSnackbar]);
 
   // Handle medication administration
   const handleAdminister = useCallback(async (medicationRequest, mode = 'administer') => {
@@ -743,38 +726,22 @@ const PharmacyTab = ({
       await recordAdministration(administrationData);
       await refreshAdministrations();
       
-      setSnackbar({
-        open: true,
-        message: 'Medication administration recorded successfully',
-        severity: 'success'
-      });
+      enqueueSnackbar('Medication administration recorded successfully', { variant: 'success' });
     } catch (error) {
-      setSnackbar({
-        open: true,
-        message: `Failed to record administration: ${error.message}`,
-        severity: 'error'
-      });
+      enqueueSnackbar(`Failed to record administration: ${error.message}`, { variant: 'error' });
     }
-  }, [recordAdministration, refreshAdministrations]);
+  }, [recordAdministration, refreshAdministrations, enqueueSnackbar]);
 
   const handleRecordMissedDose = useCallback(async (missedDoseData) => {
     try {
       await recordAdministration(missedDoseData);
       await refreshAdministrations();
       
-      setSnackbar({
-        open: true,
-        message: 'Missed dose recorded successfully',
-        severity: 'info'
-      });
+      enqueueSnackbar('Missed dose recorded successfully', { variant: 'info' });
     } catch (error) {
-      setSnackbar({
-        open: true,
-        message: `Failed to record missed dose: ${error.message}`,
-        severity: 'error'
-      });
+      enqueueSnackbar(`Failed to record missed dose: ${error.message}`, { variant: 'error' });
     }
-  }, [recordAdministration, refreshAdministrations]);
+  }, [recordAdministration, refreshAdministrations, enqueueSnackbar]);
 
   // Handle refill request approval (backend completes the Task and creates
   // the refill MedicationRequest)
@@ -801,21 +768,13 @@ const PharmacyTab = ({
         }
       });
 
-      setSnackbar({
-        open: true,
-        message: 'Refill request approved successfully',
-        severity: 'success'
-      });
+      enqueueSnackbar('Refill request approved successfully', { variant: 'success' });
 
     } catch (error) {
       // Error approving refill request - handle silently
-      setSnackbar({
-        open: true,
-        message: 'Failed to approve refill request',
-        severity: 'error'
-      });
+      enqueueSnackbar('Failed to approve refill request', { variant: 'error' });
     }
-  }, [patientId, publish, user]);
+  }, [patientId, publish, user, enqueueSnackbar]);
 
   // Handle refill request rejection (backend sets the Task to 'rejected')
   const handleRejectRefill = useCallback(async (refillTaskId, rejectionData) => {
@@ -842,21 +801,13 @@ const PharmacyTab = ({
         }
       });
 
-      setSnackbar({
-        open: true,
-        message: 'Refill request rejected',
-        severity: 'info'
-      });
+      enqueueSnackbar('Refill request rejected', { variant: 'info' });
 
     } catch (error) {
       // Error rejecting refill request - handle silently
-      setSnackbar({
-        open: true,
-        message: 'Failed to reject refill request',
-        severity: 'error'
-      });
+      enqueueSnackbar('Failed to reject refill request', { variant: 'error' });
     }
-  }, [patientId, publish, user]);
+  }, [patientId, publish, user, enqueueSnackbar]);
 
   // Handle opening dispense dialog
   const handleOpenDispenseDialog = useCallback((medicationRequest) => {
@@ -1504,20 +1455,6 @@ const PharmacyTab = ({
       />
 
       {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };

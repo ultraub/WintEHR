@@ -32,7 +32,6 @@ import {
   Tooltip,
   useTheme,
   alpha,
-  Snackbar,
   Paper,
   useMediaQuery,
   FormGroup,
@@ -163,6 +162,7 @@ import {
   CalendarViewWeek as MonthViewIcon,
   CalendarViewDay as YearViewIcon
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 
 // Import animation libraries
 import { motion, AnimatePresence, useScroll, useTransform, useSpring, useAnimation, useInView } from 'framer-motion';
@@ -847,7 +847,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   const [selectedMilestone, setSelectedMilestone] = useState(null);
   const [selectedCategories, setSelectedCategories] = useState(new Set(['clinical', 'treatment', 'diagnostic', 'prevention', 'planning', 'documentation', 'administrative']));
   const [heatmapView, setHeatmapView] = useState('activity'); // 'activity', 'severity', 'category'
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const { enqueueSnackbar } = useSnackbar();
   const [hasLoadedInitialData, setHasLoadedInitialData] = useState(false);
   const [loadingError, setLoadingError] = useState(null);
   const [reloadTrigger, setReloadTrigger] = useState(0);
@@ -935,11 +935,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
       } catch (error) {
         console.error('Timeline: Error loading data', error);
         setLoadingError(error.message || 'Failed to load timeline data');
-        setSnackbar({
-          open: true,
-          message: `Error loading timeline data: ${error.message || 'Unknown error'}`,
-          severity: 'error'
-        });
+        enqueueSnackbar(`Error loading timeline data: ${error.message || 'Unknown error'}`, { variant: 'error' });
       }
     };
     
@@ -1416,12 +1412,12 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   
   const handleExport = () => {
     if (!processedEvents || processedEvents.length === 0) {
-      setSnackbar({ open: true, message: 'No timeline events to export', severity: 'info' });
+      enqueueSnackbar('No timeline events to export', { variant: 'info' });
       return;
     }
     try {
       const data = processedEvents.map(event => ({
-        Date: event._date ? new Date(event._date).toLocaleDateString() : '',
+        Date: formatClinicalDate(event._date),
         Type: event.resourceType || '',
         Category: event._type?.category || '',
         Title: event._title || '',
@@ -1440,26 +1436,26 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
       a.download = `patient-timeline-${patientId}-${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      setSnackbar({ open: true, message: `Exported ${data.length} timeline events`, severity: 'success' });
+      enqueueSnackbar(`Exported ${data.length} timeline events`, { variant: 'success' });
     } catch (err) {
-      setSnackbar({ open: true, message: 'Failed to export timeline', severity: 'error' });
+      enqueueSnackbar('Failed to export timeline', { variant: 'error' });
     }
   };
 
   const handleShare = () => {
     if (!processedEvents || processedEvents.length === 0) {
-      setSnackbar({ open: true, message: 'No timeline events to copy', severity: 'info' });
+      enqueueSnackbar('No timeline events to copy', { variant: 'info' });
       return;
     }
     try {
       const text = processedEvents.map(event => {
-        const date = event._date ? new Date(event._date).toLocaleDateString() : 'Unknown date';
+        const date = formatClinicalDate(event._date, 'standard', 'Unknown date');
         return `${date} - [${event.resourceType}] ${event._title || 'Untitled'}`;
       }).join('\n');
       navigator.clipboard.writeText(text);
-      setSnackbar({ open: true, message: 'Timeline copied to clipboard', severity: 'success' });
+      enqueueSnackbar('Timeline copied to clipboard', { variant: 'success' });
     } catch (err) {
-      setSnackbar({ open: true, message: 'Failed to copy timeline', severity: 'error' });
+      enqueueSnackbar('Failed to copy timeline', { variant: 'error' });
     }
   };
   
@@ -2444,20 +2440,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         </Dialog>
 
         {/* Snackbar */}
-        <Snackbar
-          open={snackbar.open}
-          autoHideDuration={6000}
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        >
-          <Alert 
-            onClose={() => setSnackbar({ ...snackbar, open: false })} 
-            severity={snackbar.severity}
-            sx={{ width: '100%' }}
-          >
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
       </motion.div>
     </Box>
   );

@@ -29,6 +29,7 @@ import {
   Lightbulb as LightbulbIcon,
   Clear as ClearIcon
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 import { useUIComposer } from '../contexts/UIComposerContext';
 import useClaudeStatus from '../hooks/useClaudeStatus';
 
@@ -68,6 +69,7 @@ const EXAMPLE_REQUESTS = [
 ];
 
 const NaturalLanguageInput = () => {
+  const { enqueueSnackbar } = useSnackbar();
   const {
     currentRequest,
     setCurrentRequest,
@@ -153,9 +155,9 @@ const NaturalLanguageInput = () => {
       recognition.start();
     } else {
       // Fallback for browsers without speech recognition
-      alert('Speech recognition not supported in this browser');
+      enqueueSnackbar('Speech recognition not supported in this browser', { variant: 'warning' });
     }
-  }, []);
+  }, [enqueueSnackbar]);
   
   // Get recent history items
   const recentHistory = conversation

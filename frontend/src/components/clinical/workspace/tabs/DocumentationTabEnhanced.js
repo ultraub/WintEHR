@@ -43,7 +43,6 @@ import {
   ToggleButtonGroup,
   useTheme,
   alpha,
-  Snackbar,
   Collapse,
   Badge,
   Avatar,
@@ -96,6 +95,7 @@ import {
   Group as CollaboratorsIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 // Removed framer-motion for better performance
 import { parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
@@ -467,7 +467,7 @@ const DocumentationTabEnhanced = ({
   const [filterAuthor, setFilterAuthor] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const { enqueueSnackbar } = useSnackbar();
   const [enhancedEditorOpen, setEnhancedEditorOpen] = useState(false);
   const [templateWizardOpen, setTemplateWizardOpen] = useState(false);
   const [amendmentMode, setAmendmentMode] = useState(false);
@@ -529,54 +529,30 @@ const DocumentationTabEnhanced = ({
     // Show notification based on event type
     switch (eventType) {
       case CLINICAL_EVENTS.NOTE_CREATED:
-        setSnackbar({
-          open: true,
-          message: `New note created: ${document.type?.text || 'Clinical Note'}`,
-          severity: 'info'
-        });
+        enqueueSnackbar(`New note created: ${document.type?.text || 'Clinical Note'}`, { variant: 'info' });
         break;
         
       case CLINICAL_EVENTS.NOTE_SIGNED:
-        setSnackbar({
-          open: true,
-          message: 'Note has been signed',
-          severity: 'success'
-        });
+        enqueueSnackbar('Note has been signed', { variant: 'success' });
         break;
         
       case CLINICAL_EVENTS.NOTE_UPDATED:
-        setSnackbar({
-          open: true,
-          message: 'Note has been updated',
-          severity: 'info'
-        });
+        enqueueSnackbar('Note has been updated', { variant: 'info' });
         break;
         
       case CLINICAL_EVENTS.NOTE_AMENDED:
-        setSnackbar({
-          open: true,
-          message: 'Note has been amended',
-          severity: 'warning'
-        });
+        enqueueSnackbar('Note has been amended', { variant: 'warning' });
         break;
         
       case CLINICAL_EVENTS.NOTE_ADDENDUM:
-        setSnackbar({
-          open: true,
-          message: 'Addendum added to note',
-          severity: 'info'
-        });
+        enqueueSnackbar('Addendum added to note', { variant: 'info' });
         break;
         
       case CLINICAL_EVENTS.DOCUMENT_UPLOADED:
-        setSnackbar({
-          open: true,
-          message: 'New document uploaded',
-          severity: 'info'
-        });
+        enqueueSnackbar('New document uploaded', { variant: 'info' });
         break;
     }
-  }, [patientId, searchResources]);
+  }, [patientId, searchResources, enqueueSnackbar]);
 
   // Real-time updates subscription
   useEffect(() => {
@@ -1047,11 +1023,7 @@ const DocumentationTabEnhanced = ({
       const result = await fhirClient.update('DocumentReference', resourceId, updatedResource);
       
       if (result) {
-        setSnackbar({
-          open: true,
-          message: 'Note signed successfully',
-          severity: 'success'
-        });
+        enqueueSnackbar('Note signed successfully', { variant: 'success' });
 
         // Force a refresh of DocumentReference resources to show updated status immediately
         try {
@@ -1076,32 +1048,20 @@ const DocumentationTabEnhanced = ({
         });
       }
     } catch (error) {
-      setSnackbar({
-        open: true,
-        message: 'Failed to sign note: ' + error.message,
-        severity: 'error'
-      });
+      enqueueSnackbar('Failed to sign note: ' + error.message, { variant: 'error' });
     }
   };
 
   const handleFavoriteNote = (note) => {
     // Toggle favorite status (would normally update in backend)
     note.isFavorite = !note.isFavorite;
-    setSnackbar({
-      open: true,
-      message: note.isFavorite ? 'Note added to favorites' : 'Note removed from favorites',
-      severity: 'success'
-    });
+    enqueueSnackbar(note.isFavorite ? 'Note added to favorites' : 'Note removed from favorites', { variant: 'success' });
   };
 
   const handlePinNote = (note) => {
     // Toggle pin status (would normally update in backend)
     note.isPinned = !note.isPinned;
-    setSnackbar({
-      open: true,
-      message: note.isPinned ? 'Note pinned' : 'Note unpinned',
-      severity: 'success'
-    });
+    enqueueSnackbar(note.isPinned ? 'Note pinned' : 'Note unpinned', { variant: 'success' });
   };
 
   const handlePrintNote = (note) => {
@@ -1147,17 +1107,9 @@ const DocumentationTabEnhanced = ({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      setSnackbar({
-        open: true,
-        message: 'Note exported successfully',
-        severity: 'success'
-      });
+      enqueueSnackbar('Note exported successfully', { variant: 'success' });
     } catch (error) {
-      setSnackbar({
-        open: true,
-        message: 'Error exporting note: ' + error.message,
-        severity: 'error'
-      });
+      enqueueSnackbar('Error exporting note: ' + error.message, { variant: 'error' });
     }
   };
 
@@ -1745,11 +1697,7 @@ const DocumentationTabEnhanced = ({
               <Button 
                 variant="contained"
                 onClick={() => {
-                  setSnackbar({
-                    open: true,
-                    message: selectedNote ? 'Note updated successfully' : 'Note created successfully',
-                    severity: 'success'
-                  });
+                  enqueueSnackbar(selectedNote ? 'Note updated successfully' : 'Note created successfully', { variant: 'success' });
                   setEnhancedEditorOpen(false);
                 }}
               >
@@ -1827,20 +1775,6 @@ const DocumentationTabEnhanced = ({
       </Dialog>
 
       {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
       
       {/* Floating Action Button */}
       {ContextualFAB ? (
@@ -1877,11 +1811,7 @@ const DocumentationTabEnhanced = ({
               icon: <UploadIcon />,
               name: 'Import Document',
               onClick: () => {
-                setSnackbar({
-                  open: true,
-                  message: 'Document import feature is not yet implemented',
-                  severity: 'info'
-                });
+                enqueueSnackbar('Document import feature is not yet implemented', { variant: 'info' });
               }
             }
           ]}
