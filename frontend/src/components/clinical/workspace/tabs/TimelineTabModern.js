@@ -243,6 +243,7 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 import { getTabForResourceType } from '../../utils/navigationHelper';
 import { resourceBelongsToPatient } from '../../../../utils/fhir';
 import websocketService from '../../../../services/websocket';
+import { categoricalAccents, resourceTypeAccents } from '../../../../themes/categoricalAccents';
 
 // Import shared clinical components
 import { 
@@ -258,105 +259,105 @@ import {
 const eventTypes = {
   'Encounter': { 
     icon: <EncounterIcon />, 
-    color: '#6366F1', // Indigo
+    color: resourceTypeAccents.Encounter,
     label: 'Visit',
     category: 'clinical',
     importance: 8
   },
   'MedicationRequest': { 
     icon: <MedicationIcon />, 
-    color: '#9c27b0', // Purple
+    color: resourceTypeAccents.MedicationRequest,
     label: 'Medication',
     category: 'treatment',
     importance: 9
   },
   'MedicationStatement': { 
     icon: <MedicationIcon />, 
-    color: '#9c27b0',
+    color: resourceTypeAccents.MedicationStatement,
     label: 'Medication',
     category: 'treatment',
     importance: 8
   },
   'Observation': { 
     icon: <LabIcon />, 
-    color: '#00bcd4', // Cyan
+    color: resourceTypeAccents.Observation,
     label: 'Lab Result',
     category: 'diagnostic',
     importance: 7
   },
   'Condition': { 
     icon: <ConditionIcon />, 
-    color: '#ff9800', // Orange
+    color: resourceTypeAccents.Condition,
     label: 'Diagnosis',
     category: 'clinical',
     importance: 10
   },
   'AllergyIntolerance': { 
     icon: <AllergyIcon />, 
-    color: '#f44336', // Red
+    color: resourceTypeAccents.AllergyIntolerance,
     label: 'Allergy',
     category: 'clinical',
     importance: 10
   },
   'Immunization': { 
     icon: <ImmunizationIcon />, 
-    color: '#4caf50', // Green
+    color: resourceTypeAccents.Immunization,
     label: 'Immunization',
     category: 'prevention',
     importance: 6
   },
   'Procedure': { 
     icon: <ProcedureIcon />, 
-    color: '#3f51b5', // Indigo
+    color: resourceTypeAccents.Procedure,
     label: 'Procedure',
     category: 'treatment',
     importance: 8
   },
   'DiagnosticReport': { 
     icon: <LabIcon />, 
-    color: '#00bcd4',
+    color: resourceTypeAccents.DiagnosticReport,
     label: 'Report',
     category: 'diagnostic',
     importance: 7
   },
   'ImagingStudy': { 
     icon: <ImagingIcon />, 
-    color: '#795548', // Brown
+    color: resourceTypeAccents.ImagingStudy,
     label: 'Imaging',
     category: 'diagnostic',
     importance: 8
   },
   'DocumentReference': { 
     icon: <NoteIcon />, 
-    color: '#607d8b', // Blue Grey
+    color: resourceTypeAccents.DocumentReference,
     label: 'Note',
     category: 'documentation',
     importance: 5
   },
   'CarePlan': { 
     icon: <PlanIcon />, 
-    color: '#009688', // Teal
+    color: resourceTypeAccents.CarePlan,
     label: 'Care Plan',
     category: 'planning',
     importance: 7
   },
   'CareTeam': { 
     icon: <TeamIcon />, 
-    color: '#00897b', // Teal Darker
+    color: resourceTypeAccents.CareTeam,
     label: 'Care Team',
     category: 'planning',
     importance: 6
   },
   'Coverage': { 
     icon: <InsuranceIcon />, 
-    color: '#455a64', // Blue Grey Darker
+    color: resourceTypeAccents.Coverage,
     label: 'Insurance',
     category: 'administrative',
     importance: 4
   },
   'Goal': { 
     icon: <GoalIcon />, 
-    color: '#ff5722', // Deep Orange
+    color: resourceTypeAccents.Goal,
     label: 'Goal',
     category: 'planning',
     importance: 6
@@ -367,61 +368,61 @@ const eventTypes = {
 const journeyMilestones = {
   'diagnosis': {
     icon: <ConditionIcon />,
-    color: '#ff9800',
+    color: resourceTypeAccents.Condition,
     label: 'Diagnosis',
     description: 'Initial diagnosis or condition identified'
   },
   'treatment_start': {
     icon: <MedicationIcon />,
-    color: '#9c27b0',
+    color: resourceTypeAccents.MedicationRequest,
     label: 'Treatment Started',
     description: 'Beginning of treatment plan'
   },
   'procedure': {
     icon: <ProcedureIcon />,
-    color: '#3f51b5',
+    color: resourceTypeAccents.Procedure,
     label: 'Procedure',
     description: 'Medical procedure performed'
   },
   'lab_result': {
     icon: <LabIcon />,
-    color: '#00bcd4',
+    color: resourceTypeAccents.Observation,
     label: 'Lab Result',
     description: 'Important lab result received'
   },
   'imaging': {
     icon: <ImagingIcon />,
-    color: '#795548',
+    color: resourceTypeAccents.ImagingStudy,
     label: 'Imaging',
     description: 'Imaging study completed'
   },
   'hospitalization': {
     icon: <EncounterIcon />,
-    color: '#f44336',
+    color: resourceTypeAccents.Encounter,
     label: 'Hospitalization',
     description: 'Hospital admission'
   },
   'discharge': {
     icon: <EncounterIcon />,
-    color: '#4caf50',
+    color: categoricalAccents.chartReview,
     label: 'Discharge',
     description: 'Hospital discharge'
   },
   'followup': {
     icon: <EventIcon />,
-    color: '#6366F1',
+    color: resourceTypeAccents.Appointment,
     label: 'Follow-up',
     description: 'Follow-up appointment'
   },
   'recovery': {
     icon: <HeartIcon />,
-    color: '#4caf50',
+    color: categoricalAccents.chartReview,
     label: 'Recovery',
     description: 'Recovery milestone achieved'
   },
   'goal_achieved': {
     icon: <GoalIcon />,
-    color: '#ff5722',
+    color: resourceTypeAccents.Goal,
     label: 'Goal Achieved',
     description: 'Treatment goal reached'
   }
@@ -643,179 +644,6 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   const isLargeScreen = useMediaQuery(theme.breakpoints.up('lg'));
 
-  // Create theme-aware event types
-  const themedEventTypes = useMemo(() => ({
-    'Encounter': { 
-      icon: <EncounterIcon />, 
-      color: theme.palette.primary.main,
-      label: 'Visit',
-      category: 'clinical',
-      importance: 8
-    },
-    'MedicationRequest': { 
-      icon: <MedicationIcon />, 
-      color: theme.palette.secondary.main,
-      label: 'Medication',
-      category: 'treatment',
-      importance: 9
-    },
-    'MedicationStatement': { 
-      icon: <MedicationIcon />, 
-      color: theme.palette.secondary.main,
-      label: 'Medication',
-      category: 'treatment',
-      importance: 9
-    },
-    'Observation': { 
-      icon: <LabIcon />, 
-      color: theme.palette.info.main,
-      label: 'Lab Result',
-      category: 'diagnostic',
-      importance: 7
-    },
-    'Condition': { 
-      icon: <ConditionIcon />, 
-      color: theme.palette.warning.main,
-      label: 'Diagnosis',
-      category: 'clinical',
-      importance: 10
-    },
-    'AllergyIntolerance': { 
-      icon: <AllergyIcon />, 
-      color: theme.palette.error.main,
-      label: 'Allergy',
-      category: 'clinical',
-      importance: 10
-    },
-    'Immunization': { 
-      icon: <ImmunizationIcon />, 
-      color: theme.palette.success.main,
-      label: 'Immunization',
-      category: 'prevention',
-      importance: 6
-    },
-    'Procedure': { 
-      icon: <ProcedureIcon />, 
-      color: theme.palette.primary.dark,
-      label: 'Procedure',
-      category: 'treatment',
-      importance: 8
-    },
-    'DiagnosticReport': { 
-      icon: <LabIcon />, 
-      color: theme.palette.info.main,
-      label: 'Report',
-      category: 'diagnostic',
-      importance: 7
-    },
-    'ImagingStudy': { 
-      icon: <ImagingIcon />, 
-      color: theme.palette.mode === 'dark' ? theme.palette.grey[400] : theme.palette.grey[700],
-      label: 'Imaging',
-      category: 'diagnostic',
-      importance: 7
-    },
-    'DocumentReference': { 
-      icon: <NoteIcon />, 
-      color: theme.palette.mode === 'dark' ? theme.palette.grey[500] : theme.palette.grey[600],
-      label: 'Note',
-      category: 'documentation',
-      importance: 5
-    },
-    'CarePlan': { 
-      icon: <PlanIcon />, 
-      color: theme.palette.info.dark,
-      label: 'Care Plan',
-      category: 'planning',
-      importance: 8
-    },
-    'CareTeam': { 
-      icon: <TeamIcon />, 
-      color: theme.palette.info.light,
-      label: 'Care Team',
-      category: 'planning',
-      importance: 6
-    },
-    'Coverage': { 
-      icon: <InsuranceIcon />, 
-      color: theme.palette.mode === 'dark' ? theme.palette.grey[400] : theme.palette.grey[700],
-      label: 'Insurance',
-      category: 'administrative',
-      importance: 4
-    },
-    'Goal': { 
-      icon: <GoalIcon />, 
-      color: theme.palette.warning.dark,
-      label: 'Goal',
-      category: 'planning',
-      importance: 7
-    },
-  }), [theme]);
-
-  // Create theme-aware journey milestones
-  const themedJourneyMilestones = useMemo(() => ({
-    'diagnosis': {
-      icon: <ConditionIcon />,
-      color: theme.palette.warning.main,
-      label: 'Diagnosis',
-      description: 'Initial diagnosis or condition identified'
-    },
-    'treatment_start': {
-      icon: <MedicationIcon />,
-      color: theme.palette.secondary.main,
-      label: 'Treatment Started',
-      description: 'Beginning of treatment plan'
-    },
-    'procedure': {
-      icon: <ProcedureIcon />,
-      color: theme.palette.primary.dark,
-      label: 'Procedure',
-      description: 'Medical procedure performed'
-    },
-    'lab_result': {
-      icon: <LabIcon />,
-      color: theme.palette.info.main,
-      label: 'Lab Result',
-      description: 'Important lab result received'
-    },
-    'imaging': {
-      icon: <ImagingIcon />,
-      color: theme.palette.mode === 'dark' ? theme.palette.grey[400] : theme.palette.grey[700],
-      label: 'Imaging',
-      description: 'Imaging study completed'
-    },
-    'hospitalization': {
-      icon: <EncounterIcon />,
-      color: theme.palette.error.main,
-      label: 'Hospitalization',
-      description: 'Hospital admission'
-    },
-    'discharge': {
-      icon: <EncounterIcon />,
-      color: theme.palette.success.main,
-      label: 'Discharge',
-      description: 'Hospital discharge'
-    },
-    'followup': {
-      icon: <EventIcon />,
-      color: theme.palette.primary.main,
-      label: 'Follow-up',
-      description: 'Follow-up appointment'
-    },
-    'recovery': {
-      icon: <HeartIcon />,
-      color: theme.palette.success.main,
-      label: 'Recovery',
-      description: 'Recovery milestone achieved'
-    },
-    'goal_achieved': {
-      icon: <GoalIcon />,
-      color: theme.palette.warning.dark,
-      label: 'Goal Achieved',
-      description: 'Treatment goal reached'
-    },
-  }), [theme]);
-  
   const { 
     resources, 
     searchResources,
@@ -1017,7 +845,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         }
         
         // Category filter
-        const eventType = themedEventTypes[event.resourceType];
+        const eventType = eventTypes[event.resourceType];
         if (eventType && !selectedCategories.has(eventType.category)) {
           return false;
         }
@@ -1040,7 +868,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
         _title: getEventTitle(event),
         _description: getEventDescription(event),
         _severity: getEventSeverity(event),
-        _type: themedEventTypes[event.resourceType] || { label: event.resourceType, color: theme.palette.grey[500], category: 'other' }
+        _type: eventTypes[event.resourceType] || { label: event.resourceType, color: theme.palette.grey[500], category: 'other' }
       }))
       .sort((a, b) => {
         const dateA = a._date;
@@ -2359,7 +2187,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
           <DialogContent dividers>
             <List>
               {selectedDayEvents.events.map((event, index) => {
-                const eventType = themedEventTypes[event.resourceType];
+                const eventType = eventTypes[event.resourceType];
                 const navigateToResource = () => {
                   // Single source of truth for resource-type → workspace-tab
                   // routing (ids validated against clinicalTabRegistry).

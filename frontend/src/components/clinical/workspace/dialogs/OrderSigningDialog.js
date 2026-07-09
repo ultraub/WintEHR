@@ -5,7 +5,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogActions,
   Button,
@@ -36,6 +35,7 @@ import { useCDSHooks } from '../../../../hooks/cds/useCDSHooks';
 import { useClinical } from '../../../../contexts/ClinicalContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import CDSCard from '../../cds/CDSCard';
+import ClinicalDialogHeader from '../../shared/dialogs/ClinicalDialogHeader';
 
 const getOrderIcon = (order) => {
   if (order.resourceType === 'MedicationRequest') {
@@ -122,14 +122,13 @@ const OrderSigningDialog = ({
       fullWidth
       disableEscapeKeyDown={loading}
     >
-      <DialogTitle>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <SignatureIcon />
-          <Typography variant="h6">
-            Sign Orders ({orders.length})
-          </Typography>
-        </Stack>
-      </DialogTitle>
+      <ClinicalDialogHeader
+        title={`Sign Orders (${orders.length})`}
+        subtitle="Digital signature required"
+        icon={<SignatureIcon />}
+        onClose={handleClose}
+        closeDisabled={loading}
+      />
 
       <DialogContent>
         <Typography variant="body2" color="text.secondary" gutterBottom>

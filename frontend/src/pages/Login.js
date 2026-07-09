@@ -26,6 +26,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { shellGradient } from '../themes/shellPalette';
 
 const roleDescriptions = {
   demo: 'Full access to clinical workspace, orders, prescriptions, and all features',
@@ -34,10 +35,10 @@ const roleDescriptions = {
   admin: 'Access to system settings, audit trail, and user management'
 };
 
-/* --- Warm Slate palette tokens --- */
+/* --- Warm Slate palette tokens ---
+ * (The dark branding-panel gradient itself comes from themes/shellPalette.) */
 const palette = {
   stone900: '#1F1D2B',
-  stone800: '#252244',
   stone700: '#44403C',
   stone600: '#57534E',
   stone500: '#78716C',
@@ -136,7 +137,7 @@ const Login = () => {
   const brandingPanel = (
     <Box
       sx={{
-        background: `linear-gradient(180deg, #1A1735 0%, ${palette.stone800} 50%, ${palette.stone900} 100%)`,
+        background: shellGradient,
         color: palette.white,
         display: 'flex',
         flexDirection: 'column',

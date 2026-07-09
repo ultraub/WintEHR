@@ -5,7 +5,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogActions,
   Button,
@@ -58,6 +57,7 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
+import ClinicalDialogHeader from '../../shared/dialogs/ClinicalDialogHeader';
 
 const SIGNING_STEPS = [
   {
@@ -638,22 +638,26 @@ const EncounterSigningDialog = ({
       fullWidth
       disableEscapeKeyDown
     >
-      <DialogTitle>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Box>
-            <Typography variant="h6">Sign Encounter</Typography>
-            <Typography variant="body2" color="text.secondary">
-              {encounter.type?.[0]?.text || 'Clinical Encounter'} - {
-                (encounter.actualPeriod || encounter.period)?.start && format(parseISO((encounter.actualPeriod || encounter.period).start), 'PPP')
-              }
-            </Typography>
-          </Box>
-          <Chip 
-            label={encounter.status} 
+      <ClinicalDialogHeader
+        title="Sign Encounter"
+        subtitle={
+          <>
+            {encounter.type?.[0]?.text || 'Clinical Encounter'} - {
+              (encounter.actualPeriod || encounter.period)?.start && format(parseISO((encounter.actualPeriod || encounter.period).start), 'PPP')
+            }
+          </>
+        }
+        icon={<SignatureIcon />}
+        onClose={onClose}
+        closeDisabled={loading}
+        action={
+          <Chip
+            label={encounter.status}
             color={encounter.status === 'in-progress' ? 'warning' : 'default'}
+            size="small"
           />
-        </Stack>
-      </DialogTitle>
+        }
+      />
 
       <DialogContent>
         <Stepper activeStep={activeStep} orientation="vertical">

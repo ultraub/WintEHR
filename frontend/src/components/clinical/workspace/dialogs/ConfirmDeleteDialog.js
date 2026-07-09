@@ -5,7 +5,6 @@
 import React from 'react';
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogActions,
   Button,
@@ -21,6 +20,7 @@ import {
   Delete as DeleteIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
+import ClinicalDialogHeader from '../../shared/dialogs/ClinicalDialogHeader';
 
 const ConfirmDeleteDialog = ({ 
   open, 
@@ -100,14 +100,13 @@ const ConfirmDeleteDialog = ({
         }
       }}
     >
-      <DialogTitle>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <WarningIcon color="warning" />
-          <Typography variant="h6">
-            Confirm Delete {resourceType?.charAt(0).toUpperCase() + resourceType?.slice(1)}
-          </Typography>
-        </Box>
-      </DialogTitle>
+      <ClinicalDialogHeader
+        title={`Confirm Delete ${resourceType?.charAt(0).toUpperCase() + resourceType?.slice(1)}`}
+        icon={<WarningIcon />}
+        severity="critical"
+        onClose={onClose}
+        closeDisabled={loading}
+      />
       
       <DialogContent>
         <Stack spacing={3}>
