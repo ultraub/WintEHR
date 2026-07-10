@@ -32,7 +32,7 @@ python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.31
 bcrypt==4.1.2
-PyJWT==2.12.1
+PyJWT==2.13.0
 
 # Development tools
 pytest==7.4.3
