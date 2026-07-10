@@ -10,9 +10,11 @@ import {
   Stack,
   Card,
   CardContent,
+  Fade,
   useTheme,
   alpha
 } from '@mui/material';
+import { getSmoothTransition } from '../../../themes/clinicalThemeUtils';
 
 /**
  * Resource card skeleton loader
@@ -242,6 +244,204 @@ const PageSkeleton = () => {
   );
 };
 
+/**
+ * Shimmer card skeleton with configurable content lines
+ * @param {Object} props
+ * @param {number} props.lines - Number of content lines
+ * @param {boolean} props.showAvatar - Show leading avatar skeleton
+ * @param {boolean} props.showChips - Show a trailing chip skeleton
+ * @param {number|string} props.height - Card height
+ * @param {boolean} props.animate - Enable shimmer sweep
+ * @param {boolean} props.isAlternate - Alternate-row background tint
+ */
+const CardSkeleton = ({
+  lines = 3,
+  showAvatar = false,
+  showChips = false,
+  height = 'auto',
+  animate = true,
+  isAlternate = false
+}) => {
+  const theme = useTheme();
+
+  return (
+    <Card
+      sx={{
+        borderRadius: 0,
+        border: '1px solid',
+        borderColor: 'divider',
+        borderLeft: '4px solid',
+        borderLeftColor: alpha(theme.palette.grey[400], 0.3),
+        backgroundColor: isAlternate ? alpha(theme.palette.action.hover, 0.02) : theme.palette.background.paper,
+        height,
+        overflow: 'hidden',
+        position: 'relative',
+        ...getSmoothTransition(['opacity', 'transform']),
+        ...(animate && {
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: '-100%',
+            width: '100%',
+            height: '100%',
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
+            animation: 'shimmer 1.5s infinite',
+            zIndex: 1
+          }
+        })
+      }}
+    >
+      <CardContent sx={{ p: 2 }}>
+        <Stack spacing={1}>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            {showAvatar && (
+              <Skeleton
+                variant="circular"
+                width={24}
+                height={24}
+                sx={{
+                  bgcolor: alpha(theme.palette.grey[300], 0.3),
+                  ...getSmoothTransition(['opacity'])
+                }}
+              />
+            )}
+            <Skeleton
+              variant="text"
+              width="60%"
+              height={24}
+              sx={{
+                bgcolor: alpha(theme.palette.grey[300], 0.4),
+                ...getSmoothTransition(['opacity'])
+              }}
+            />
+            {showChips && (
+              <Skeleton
+                variant="rounded"
+                width={60}
+                height={20}
+                sx={{
+                  bgcolor: alpha(theme.palette.grey[300], 0.2),
+                  borderRadius: 0,
+                  ...getSmoothTransition(['opacity'])
+                }}
+              />
+            )}
+          </Stack>
+
+          {Array.from({ length: lines }).map((_, index) => (
+            <Skeleton
+              key={index}
+              variant="text"
+              width={index === lines - 1 ? '40%' : '90%'}
+              height={16}
+              sx={{
+                bgcolor: alpha(theme.palette.grey[300], 0.2),
+                ...getSmoothTransition(['opacity'])
+              }}
+            />
+          ))}
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+};
+
+/**
+ * Grid of shimmer card skeletons
+ * @param {Object} props
+ * @param {number} props.count - Number of skeleton cards
+ * @param {number} props.columns - Grid columns
+ * @param {Object} props.cardProps - Props forwarded to each CardSkeleton
+ */
+const GridSkeleton = ({ count = 6, columns = 2, cardProps = {} }) => (
+  <Box
+    display="grid"
+    gridTemplateColumns={`repeat(${columns}, 1fr)`}
+    gap={2}
+    sx={getSmoothTransition(['opacity'])}
+  >
+    {Array.from({ length: count }).map((_, index) => (
+      <CardSkeleton
+        key={index}
+        isAlternate={index % 2 === 1}
+        {...cardProps}
+      />
+    ))}
+  </Box>
+);
+
+/**
+ * Fade-in container for smooth content transitions
+ */
+const FadeInContainer = ({ children, delay = 0, duration = 300, direction = 'up' }) => {
+  const getTransform = () => {
+    switch (direction) {
+      case 'up': return 'translateY(20px)';
+      case 'down': return 'translateY(-20px)';
+      case 'left': return 'translateX(20px)';
+      case 'right': return 'translateX(-20px)';
+      default: return 'translateY(20px)';
+    }
+  };
+
+  return (
+    <Fade
+      in={true}
+      timeout={duration}
+      style={{
+        transitionDelay: `${delay}ms`,
+        transform: getTransform()
+      }}
+    >
+      <Box
+        sx={{
+          ...getSmoothTransition(['opacity', 'transform'], 'normal'),
+          '&.Mui-enter': {
+            opacity: 0,
+            transform: getTransform()
+          },
+          '&.Mui-enter-active': {
+            opacity: 1,
+            transform: 'translate(0)'
+          }
+        }}
+      >
+        {children}
+      </Box>
+    </Fade>
+  );
+};
+
+/**
+ * Staggered fade-in for lists of children
+ */
+const StaggeredFadeIn = ({ children, staggerDelay = 100, initialDelay = 0 }) => (
+  <>
+    {React.Children.map(children, (child, index) => (
+      <FadeInContainer
+        key={index}
+        delay={initialDelay + (index * staggerDelay)}
+      >
+        {child}
+      </FadeInContainer>
+    ))}
+  </>
+);
+
+// Inject shimmer keyframes once (used by CardSkeleton / GridSkeleton)
+if (typeof document !== 'undefined' && !document.getElementById('clinical-loading-shimmer')) {
+  const styleSheet = document.createElement('style');
+  styleSheet.id = 'clinical-loading-shimmer';
+  styleSheet.textContent = `
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+`;
+  document.head.appendChild(styleSheet);
+}
+
 // Export all skeleton components
 const ClinicalLoadingState = {
   ResourceCard: ResourceCardSkeleton,
@@ -249,7 +449,11 @@ const ClinicalLoadingState = {
   Table: TableSkeleton,
   FilterPanel: FilterPanelSkeleton,
   Timeline: TimelineSkeleton,
-  Page: PageSkeleton
+  Page: PageSkeleton,
+  Card: CardSkeleton,
+  Grid: GridSkeleton,
+  FadeIn: FadeInContainer,
+  StaggeredFadeIn: StaggeredFadeIn
 };
 
 export default ClinicalLoadingState;

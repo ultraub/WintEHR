@@ -36,7 +36,6 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -67,6 +66,7 @@ import { format } from 'date-fns';
 // CDSHookBuilder removed - use CDS Studio for building hooks
 import CDSHooksVerifier from '../cds/CDSHooksVerifier';
 import CDSCardDisplay from '../cds/CDSCardDisplay';
+import ClinicalLoadingState from '../../shared/ClinicalLoadingState';
 import { cdsHooksClient } from '../../../../services/cdsHooksClient';
 import { cdsHooksService } from '../../../../services/cdsHooksService';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
@@ -740,9 +740,7 @@ const CDSHooksTab = ({ patientId }) => {
               />
               <CardContent>
                 {loading ? (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                    <CircularProgress />
-                  </Box>
+                  <ClinicalLoadingState.ResourceCard count={3} />
                 ) : cards.length === 0 ? (
                   <Alert severity="success" icon={<SuccessIcon />}>
                     No active clinical decision support alerts for this patient.
@@ -858,9 +856,7 @@ const CDSHooksTab = ({ patientId }) => {
               />
               <CardContent>
                 {loading ? (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                    <CircularProgress />
-                  </Box>
+                  <ClinicalLoadingState.ResourceCard count={3} />
                 ) : (
                   <List>
                     {services.map((service, index) => (

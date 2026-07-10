@@ -40,33 +40,19 @@ import {
   FormControlLabel,
   Switch
 } from '@mui/material';
+// Shared loading / empty state system
+import ClinicalLoadingState from '../../shared/ClinicalLoadingState';
+import ClinicalEmptyState from '../../shared/ClinicalEmptyState';
 // Enhanced UX components
-import { 
-  CardSkeleton, 
-  GridSkeleton, 
-  FadeInContainer, 
-  StaggeredFadeIn,
-  LoadingOverlay 
-} from './components/EnhancedLoadingStates';
 import {
   InteractiveButton,
   InteractiveChip,
   AnimatedCounter
 } from './components/EnhancedInteractions';
 import {
-  EmptyConditions,
-  EmptyMedications,
-  EmptyAllergies,
-  EmptyImmunizations,
-  EmptyProcedures,
-  EmptyCarePlans,
-  EmptyDocuments,
-  EmptyEncounters,
-  EmptyVitals
-} from './components/EnhancedEmptyStates';
-import {
   Refresh as RefreshIcon,
   Add as AddIcon,
+  CheckCircle as CheckCircleIcon,
   Edit as EditIcon,
   Warning as WarningIcon,
   Search as SearchIcon,
@@ -540,13 +526,13 @@ const ChartReviewTabOptimized = ({
         <Grid container spacing={1} sx={{ mb: 2 }}>
           {Array.from({ length: 4 }).map((_, index) => (
             <Grid item xs={12} md={3} key={index}>
-              <CardSkeleton lines={2} showChips height={120} />
+              <ClinicalLoadingState.Card lines={2} showChips height={120} />
             </Grid>
           ))}
         </Grid>
         
         {/* Main Content Grid Skeleton */}
-        <GridSkeleton count={6} columns={2} cardProps={{ lines: 4, showAvatar: true, showChips: true }} />
+        <ClinicalLoadingState.Grid count={6} columns={2} cardProps={{ lines: 4, showAvatar: true, showChips: true }} />
       </Box>
     );
   }
@@ -638,7 +624,7 @@ const ChartReviewTabOptimized = ({
       {/* Main Content Area */}
       <Box sx={{ p: { xs: 1, sm: 2 } }}>
         {viewMode === 'dashboard' && (
-          <FadeInContainer>
+          <ClinicalLoadingState.FadeIn>
             <Box>
               {/* Summary Cards with modern gradients */}
               <Grid container spacing={1} sx={{ mb: 2 }}>
@@ -888,7 +874,14 @@ const ChartReviewTabOptimized = ({
                       {(showInactive
                         ? processedData.activeConditions.length + processedData.inactiveConditions.length
                         : processedData.activeConditions.length) === 0 ? (
-                        <EmptyConditions onAdd={() => handleOpenDialog('condition')} />
+                        <ClinicalEmptyState
+                          title="No Active Conditions"
+                          message="This patient currently has no documented active conditions. Add a condition to start building their clinical profile."
+                          icon={<HospitalIcon />}
+                          iconColor="success"
+                          severity="success"
+                          actions={[{ label: 'Add Condition', icon: <AddIcon />, onClick: () => handleOpenDialog('condition') }]}
+                        />
                       ) : (
                         <Box sx={{ 
                           maxHeight: 400, 
@@ -909,7 +902,7 @@ const ChartReviewTabOptimized = ({
                             },
                           },
                         }}>
-                          <StaggeredFadeIn staggerDelay={30}>
+                          <ClinicalLoadingState.StaggeredFadeIn staggerDelay={30}>
                             {(showInactive 
                               ? [...processedData.activeConditions, ...processedData.inactiveConditions]
                               : processedData.activeConditions
@@ -921,7 +914,7 @@ const ChartReviewTabOptimized = ({
                                 isAlternate={index % 2 === 1}  // For alternating rows
                               />
                             ))}
-                          </StaggeredFadeIn>
+                          </ClinicalLoadingState.StaggeredFadeIn>
                           {(showInactive 
                             ? processedData.activeConditions.length + processedData.inactiveConditions.length
                             : processedData.activeConditions.length
@@ -983,7 +976,14 @@ const ChartReviewTabOptimized = ({
                       {(showInactive
                         ? processedData.activeMedications.length + processedData.inactiveMedications.length
                         : processedData.activeMedications.length) === 0 ? (
-                        <EmptyMedications onAdd={() => handleOpenDialog('medication')} />
+                        <ClinicalEmptyState
+                          title="No Active Medications"
+                          message="No medications are currently prescribed for this patient. Start building their medication profile by adding prescriptions."
+                          icon={<MedicationIcon />}
+                          iconColor="info"
+                          severity="info"
+                          actions={[{ label: 'Prescribe Medication', icon: <AddIcon />, onClick: () => handleOpenDialog('medication') }]}
+                        />
                       ) : (
                         <Box sx={{ 
                           maxHeight: 400, 
@@ -1004,7 +1004,7 @@ const ChartReviewTabOptimized = ({
                             },
                           },
                         }}>
-                          <StaggeredFadeIn staggerDelay={30}>
+                          <ClinicalLoadingState.StaggeredFadeIn staggerDelay={30}>
                             {(showInactive 
                               ? [...processedData.activeMedications, ...processedData.inactiveMedications]
                               : processedData.activeMedications
@@ -1018,7 +1018,7 @@ const ChartReviewTabOptimized = ({
                                 resolvedName={getMedicationDisplay(medication)}
                               />
                             ))}
-                          </StaggeredFadeIn>
+                          </ClinicalLoadingState.StaggeredFadeIn>
                           {(showInactive 
                             ? processedData.activeMedications.length + processedData.inactiveMedications.length
                             : processedData.activeMedications.length
@@ -1082,7 +1082,14 @@ const ChartReviewTabOptimized = ({
                       </Stack>
                       
                       {(processedData.criticalAllergies.length + processedData.nonCriticalAllergies.length) === 0 ? (
-                        <EmptyAllergies onAdd={() => handleOpenDialog('allergy')} />
+                        <ClinicalEmptyState
+                          title="No Known Allergies"
+                          message="Great news! This patient has no documented allergies. You can add any allergies discovered during care."
+                          icon={<CheckCircleIcon />}
+                          iconColor="success"
+                          severity="success"
+                          actions={[{ label: 'Document Allergy', icon: <AddIcon />, variant: 'outlined', onClick: () => handleOpenDialog('allergy') }]}
+                        />
                       ) : (
                         <Box sx={{ 
                           maxHeight: 400, 
@@ -1103,7 +1110,7 @@ const ChartReviewTabOptimized = ({
                             },
                           },
                         }}>
-                          <StaggeredFadeIn staggerDelay={50}>
+                          <ClinicalLoadingState.StaggeredFadeIn staggerDelay={50}>
                             {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies]
                               .slice(0, visibleItems.allergies)
                               .map((allergy, index) => (
@@ -1114,7 +1121,7 @@ const ChartReviewTabOptimized = ({
                                   isAlternate={index % 2 === 1}  // For alternating rows
                                 />
                               ))}
-                          </StaggeredFadeIn>
+                          </ClinicalLoadingState.StaggeredFadeIn>
                           {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies].length > visibleItems.allergies && (
                             <Box sx={{ textAlign: 'center', mt: 2 }}>
                               <Button
@@ -1574,9 +1581,9 @@ const ChartReviewTabOptimized = ({
                 </Grid>
               </Grid>
             </Box>
-          </FadeInContainer>
+          </ClinicalLoadingState.FadeIn>
         )}
-        
+
         {viewMode === 'timeline' && (
           <Fade in={true}>
             <Box>
