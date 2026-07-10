@@ -73,7 +73,22 @@ const ClinicalWorkspaceEnhanced = ({
   
   // Use parent's activeModule directly
   const activeTab = activeModule;
-  
+
+  // Retain visited tabs mounted-but-hidden (R29). Switching tabs within the
+  // same patient must NOT remount previously-visited tabs — their filters,
+  // pagination and scroll position must survive leaving and returning. We
+  // track which tabs have been activated and keep them mounted, toggling
+  // visibility with CSS `display` instead of unmounting. Tabs still lazy-load
+  // on FIRST activation (never all at once on patient open), preserving the
+  // lazy-chunk win from #200. The whole component remounts on patient change
+  // (its parent, EnhancedClinicalLayout, keys the content container by patient
+  // id), which re-runs this initializer — so visited state never leaks across
+  // patients.
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set([activeTab]));
+  useEffect(() => {
+    setVisitedTabs(prev => (prev.has(activeTab) ? prev : new Set(prev).add(activeTab)));
+  }, [activeTab]);
+
   // CDS Alerts — show dialog once per patient, then stay dismissed after close
   const { alerts: cdsAlerts } = usePatientCDSAlerts(patientId);
   const [cdsDialogDismissed, setCdsDialogDismissed] = useState(false);
@@ -145,8 +160,12 @@ const ClinicalWorkspaceEnhanced = ({
         publish('clinical.action.new', { tab: activeTab, timestamp: new Date().toISOString() });
         break;
       case 'search':
-        // Focus search in current tab
-        const searchInput = document.querySelector('input[type="search"], input[placeholder*="Search"]');
+        // Focus search in the ACTIVE tab. Inactive tabs stay mounted-but-hidden
+        // (R29), so scope the query to the active tab's container — an unscoped
+        // query could grab a hidden tab's search box.
+        const searchInput = document.querySelector(
+          '[data-tab-active="true"] input[type="search"], [data-tab-active="true"] input[placeholder*="Search"]'
+        );
         if (searchInput) searchInput.focus();
         break;
       case 'refresh':
@@ -308,38 +327,46 @@ const ClinicalWorkspaceEnhanced = ({
         aria-label={`${activeTabConfig?.label || 'Clinical'} content`}
       >
         <TabErrorBoundary onReset={handleRefresh}>
-          <Suspense fallback={<TabLoadingFallback />}>
-            {(() => {
-              // Only render the active tab component for better performance
-              const activeTabConfig = TAB_CONFIG.find(tab => tab.id === activeTab);
-              if (!activeTabConfig) return null;
-              
-              const TabComponent = activeTabConfig.component;
-              
+          {/* Render every VISITED tab (plus the current one), keeping them all
+              mounted and toggling visibility with `display`. Only-active would
+              remount on each switch and reset the tab's state; rendering the
+              full registry eagerly would defeat lazy loading. Gating on
+              `visitedTabs` gives us both: a tab's chunk loads (via its own
+              Suspense boundary) on first activation, then stays mounted.
+              List key is the stable tab id — patient scoping lives entirely on
+              the parent's `key={patientId}`, so no patient id is needed here. */}
+          {activePatient && TAB_CONFIG
+            .filter(tab => tab.id === activeTab || visitedTabs.has(tab.id))
+            .map(tab => {
+              const TabComponent = tab.component;
+              const isActive = tab.id === activeTab;
               return (
                 <Box
-                  key={`${activeTabConfig.id}-${activePatient.id}`}
+                  key={tab.id}
+                  data-tab-active={isActive ? 'true' : undefined}
                   sx={{
-                    height: '100%'
+                    height: '100%',
+                    display: isActive ? 'block' : 'none'
                   }}
                 >
-                  <TabComponent
-                    patientId={activePatient.id}
-                    patient={activePatient}
-                    patientData={patientData}
-                    density={density}
-                    isMobile={isMobile}
-                    isTablet={isTablet}
-                    onRefresh={handleRefresh}
-                    onNavigateToTab={handleTabChange}
-                    department={currentUser?.department || 'general'}
-                    scrollContainerRef={scrollContainerRef}
-                    navigationContext={navigationContext}
-                  />
+                  <Suspense fallback={<TabLoadingFallback />}>
+                    <TabComponent
+                      patientId={activePatient.id}
+                      patient={activePatient}
+                      patientData={patientData}
+                      density={density}
+                      isMobile={isMobile}
+                      isTablet={isTablet}
+                      onRefresh={handleRefresh}
+                      onNavigateToTab={handleTabChange}
+                      department={currentUser?.department || 'general'}
+                      scrollContainerRef={scrollContainerRef}
+                      navigationContext={navigationContext}
+                    />
+                  </Suspense>
                 </Box>
               );
-            })()}
-          </Suspense>
+            })}
         </TabErrorBoundary>
       </Box>
 
