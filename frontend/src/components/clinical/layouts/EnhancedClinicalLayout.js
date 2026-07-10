@@ -178,9 +178,15 @@ const EnhancedClinicalLayout = ({
           </Box>
         )}
 
-        {/* Tab content — renders at natural height, page scrolls */}
+        {/* Tab content — renders at natural height, page scrolls.
+            Keyed by patient, NOT by tab (R29): switching tabs must keep the
+            workspace and every visited tab's state mounted, while switching
+            patients must remount everything for a clean reset. The route
+            param `:id` changes without unmounting this layout, so this key
+            is the single boundary that forces the per-patient reset —
+            ClinicalWorkspaceEnhanced no longer keys tab content itself. */}
         <Box
-          key={activeModule}
+          key={patientId}
           sx={{
             p: {
               xs: 1,
