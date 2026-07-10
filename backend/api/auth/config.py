@@ -7,7 +7,10 @@ from datetime import timedelta
 
 # JWT Configuration
 JWT_ENABLED = os.getenv("JWT_ENABLED", "false").lower() == "true"
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "training-secret-key-change-in-production")
+# Canonical name is JWT_SECRET_KEY; JWT_SECRET is accepted as a fallback
+# because compose files and .env templates historically used it (the two
+# names silently diverging meant the env var was ignored entirely).
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY") or os.getenv("JWT_SECRET") or "training-secret-key-change-in-production"
 JWT_ALGORITHM = "HS256"
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 hours default
 JWT_ACCESS_TOKEN_EXPIRE_DELTA = timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)

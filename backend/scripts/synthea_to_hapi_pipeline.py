@@ -158,7 +158,7 @@ def load_bundles_to_hapi(output_dir: Path):
 
     if not json_files:
         print("✗ No FHIR bundles found!")
-        return
+        return (0, 0)
 
     print(f"Found {len(json_files)} bundle files\n")
 
@@ -210,6 +210,8 @@ def load_bundles_to_hapi(output_dir: Path):
     print(f"Successful: {success_count}")
     print(f"Failed: {total_count - success_count}")
     print()
+
+    return (success_count, total_count)
 
 
 def verify_data():
@@ -281,7 +283,17 @@ def main():
         output_dir = run_synthea(num_patients, state)
 
         # Step 2: Load to HAPI FHIR
-        load_bundles_to_hapi(output_dir)
+        success_count, total_count = load_bundles_to_hapi(output_dir)
+
+        # The deploy script keys off this exit code — a load where nothing
+        # (or almost nothing) made it into HAPI must not report success.
+        if total_count == 0 or success_count == 0:
+            print("✗ Pipeline failed: no bundles were loaded")
+            sys.exit(1)
+        failed = total_count - success_count
+        if failed / total_count > 0.2:
+            print(f"✗ Pipeline failed: {failed}/{total_count} bundles failed to load")
+            sys.exit(1)
 
         # Step 3: Verify
         verify_data()
