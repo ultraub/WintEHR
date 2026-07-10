@@ -56,6 +56,8 @@ import {
   Assignment as EncountersIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { shellPalette, shellGradient } from '../themes/shellPalette';
+import { categoricalAccents } from '../themes/categoricalAccents';
 import { MedicalThemeContext } from '../App';
 import NotificationBell from './NotificationBell';
 import QuickThemeToggle from './theme/QuickThemeToggle';
@@ -70,36 +72,36 @@ const navigationConfig = {
     title: 'Clinical Workflows',
     icon: <MedicalIcon />,
     items: [
-      { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions', iconColor: '#6366F1' },
-      { text: 'Schedule', icon: <ScheduleIcon />, path: '/schedule', description: 'Appointments & scheduling', iconColor: '#8B5CF6' },
-      { text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management', iconColor: '#06B6D4' },
-      { text: 'Encounters', icon: <EncountersIcon />, path: '/encounters', description: 'Visit management', iconColor: '#F59E0B' },
-      { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing', iconColor: '#10B981' }
+      { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions', iconColor: categoricalAccents.summary },
+      { text: 'Schedule', icon: <ScheduleIcon />, path: '/schedule', description: 'Appointments & scheduling', iconColor: categoricalAccents.schedule },
+      { text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management', iconColor: categoricalAccents.patients },
+      { text: 'Encounters', icon: <EncountersIcon />, path: '/encounters', description: 'Visit management', iconColor: categoricalAccents.encounters },
+      { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing', iconColor: categoricalAccents.pharmacy }
     ]
   },
   analytics: {
     title: 'Population Health',
     icon: <AnalyticsIcon />,
     items: [
-      { text: 'Population Analytics', icon: <TrendingUpIcon />, path: '/analytics', description: 'Health trends & metrics', iconColor: '#EC4899' },
-      { text: 'Quality Measures', icon: <AssessmentIcon />, path: '/quality', description: 'Performance tracking', iconColor: '#F97316' },
-      { text: 'Care Gaps', icon: <TimelineIcon />, path: '/care-gaps', description: 'Preventive care tracking', iconColor: '#14B8A6' }
+      { text: 'Population Analytics', icon: <TrendingUpIcon />, path: '/analytics', description: 'Health trends & metrics', iconColor: categoricalAccents.analytics },
+      { text: 'Quality Measures', icon: <AssessmentIcon />, path: '/quality', description: 'Performance tracking', iconColor: categoricalAccents.quality },
+      { text: 'Care Gaps', icon: <TimelineIcon />, path: '/care-gaps', description: 'Preventive care tracking', iconColor: categoricalAccents.careGaps }
     ]
   },
   tools: {
     title: 'Developer Tools',
     icon: <ApiIcon />,
     items: [
-      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'FHIR resource exploration & queries', iconColor: '#3B82F6' },
-      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', iconColor: '#A855F7' }
+      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'FHIR resource exploration & queries', iconColor: categoricalAccents.fhirExplorer },
+      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', iconColor: categoricalAccents.cdsStudio }
     ]
   },
   admin: {
     title: 'Administration',
     icon: <SecurityIcon />,
     items: [
-      { text: 'Audit Trail', icon: <SecurityIcon />, path: '/audit-trail', description: 'Security & compliance', iconColor: '#EF4444' },
-      { text: 'System Settings', icon: <SettingsIcon />, path: '/settings', description: 'Configuration', iconColor: '#9CA3AF' }
+      { text: 'Audit Trail', icon: <SecurityIcon />, path: '/audit-trail', description: 'Security & compliance', iconColor: categoricalAccents.audit },
+      { text: 'System Settings', icon: <SettingsIcon />, path: '/settings', description: 'Configuration', iconColor: categoricalAccents.settings }
     ]
   }
 };
@@ -111,7 +113,7 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
         component="div"
         sx={{
           bgcolor: 'transparent',
-          color: '#A9A3C0',
+          color: shellPalette.textMuted,
           fontWeight: 600,
           fontSize: '0.7rem',
           textTransform: 'uppercase',
@@ -123,12 +125,12 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
           onClick={() => onToggle(sectionKey)}
           sx={{
             borderRadius: 1,
-            color: '#A9A3C0',
-            '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.12)' },
-            '& .MuiListItemIcon-root': { color: '#A9A3C0' },
+            color: shellPalette.textMuted,
+            '&:hover': { bgcolor: shellPalette.hoverBg },
+            '& .MuiListItemIcon-root': { color: shellPalette.textMuted },
           }}
         >
-          <ListItemIcon sx={{ minWidth: 36, color: '#A9A3C0' }}>
+          <ListItemIcon sx={{ minWidth: 36, color: shellPalette.textMuted }}>
             {section.icon}
           </ListItemIcon>
           <ListItemText
@@ -138,10 +140,10 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
               fontWeight: 600,
               textTransform: 'uppercase',
               letterSpacing: '0.08em',
-              color: '#A9A3C0',
+              color: shellPalette.textMuted,
             }}
           />
-          {isOpen ? <ExpandLess sx={{ color: '#A9A3C0' }} /> : <ExpandMore sx={{ color: '#A9A3C0' }} />}
+          {isOpen ? <ExpandLess sx={{ color: shellPalette.textMuted }} /> : <ExpandMore sx={{ color: shellPalette.textMuted }} />}
         </ListItemButton>
       </ListSubheader>
 
@@ -157,14 +159,14 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
                   sx={{
                     borderRadius: '6px',
                     mb: 0.5,
-                    color: '#EDEAF5',
-                    borderLeft: isActive ? '3px solid #6366F1' : '3px solid transparent',
-                    '& .MuiListItemIcon-root': { color: item.iconColor || '#9E98BA' },
+                    color: shellPalette.textBright,
+                    borderLeft: isActive ? `3px solid ${shellPalette.accent}` : '3px solid transparent',
+                    '& .MuiListItemIcon-root': { color: item.iconColor || shellPalette.iconMuted },
                     transition: 'all 0.15s ease',
                     '&:hover': {
-                      bgcolor: 'rgba(99, 102, 241, 0.12)',
-                      color: '#EDEAF5',
-                      '& .MuiListItemIcon-root': { color: item.iconColor || '#EDEAF5' },
+                      bgcolor: shellPalette.hoverBg,
+                      color: shellPalette.textBright,
+                      '& .MuiListItemIcon-root': { color: item.iconColor || shellPalette.textBright },
                     },
                     '&.Mui-selected': {
                       bgcolor: 'rgba(99, 102, 241, 0.14)',
@@ -184,13 +186,13 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
                     primary={item.text}
                     secondary={item.description}
                     primaryTypographyProps={{ fontSize: '0.875rem', color: 'inherit' }}
-                    secondaryTypographyProps={{ fontSize: '0.75rem', color: '#A9A3C0' }}
+                    secondaryTypographyProps={{ fontSize: '0.75rem', color: shellPalette.textMuted }}
                   />
                   {item.badge && (
                     <Chip
                       label={item.badge}
                       size="small"
-                      sx={{ ml: 1, height: 20, bgcolor: '#6366F1', color: '#FAFAF9' }}
+                      sx={{ ml: 1, height: 20, bgcolor: shellPalette.accent, color: shellPalette.textPrimary }}
                     />
                   )}
                 </ListItemButton>
@@ -208,18 +210,18 @@ const UserProfile = ({ user, onLogout, onProfileClick }) => {
     <Card sx={{ m: 2, mt: 'auto', bgcolor: 'rgba(0, 0, 0, 0.15)', backgroundImage: 'none', boxShadow: 'none', borderRadius: 2, border: 'none' }}>
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
         <Stack direction="row" spacing={2} alignItems="center">
-          <Avatar sx={{ bgcolor: '#6366F1', border: '2px solid #6366F1' }}>
+          <Avatar sx={{ bgcolor: shellPalette.accent, border: `2px solid ${shellPalette.accent}` }}>
             {user?.name?.[0] || 'U'}
           </Avatar>
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-            <Typography variant="subtitle2" noWrap sx={{ color: '#EDEAF5' }}>
+            <Typography variant="subtitle2" noWrap sx={{ color: shellPalette.textBright }}>
               {user?.name || 'User'}
             </Typography>
-            <Typography variant="caption" noWrap sx={{ color: '#A9A3C0' }}>
+            <Typography variant="caption" noWrap sx={{ color: shellPalette.textMuted }}>
               {user?.role || 'Clinician'}
             </Typography>
           </Box>
-          <IconButton size="small" onClick={onLogout} sx={{ color: '#A9A3C0', '&:hover': { color: '#F0EFF4', bgcolor: 'rgba(99, 102, 241, 0.12)' } }}>
+          <IconButton size="small" onClick={onLogout} sx={{ color: shellPalette.textMuted, '&:hover': { color: shellPalette.textBright, bgcolor: shellPalette.hoverBg } }}>
             <LogoutIcon fontSize="small" />
           </IconButton>
         </Stack>
@@ -323,17 +325,17 @@ function LayoutV3({ children }) {
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: 'linear-gradient(180deg, #1A1735 0%, #252244 45%, #1F1D2B 100%)',
+      background: shellGradient,
       '& .MuiList-root': { bgcolor: 'transparent' },
       '& .MuiListSubheader-root': { bgcolor: 'transparent' },
       /* Scrollbar styling */
       '& ::-webkit-scrollbar': { width: 6 },
       '& ::-webkit-scrollbar-track': { bgcolor: 'transparent' },
-      '& ::-webkit-scrollbar-thumb': { bgcolor: '#44403C', borderRadius: 3 },
-      '& ::-webkit-scrollbar-thumb:hover': { bgcolor: '#57534E' },
+      '& ::-webkit-scrollbar-thumb': { bgcolor: shellPalette.scrollbarThumb, borderRadius: 3 },
+      '& ::-webkit-scrollbar-thumb:hover': { bgcolor: shellPalette.scrollbarThumbHover },
     }}>
       {/* Logo/Brand */}
-      <Box sx={{ p: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <Box sx={{ p: 2, borderBottom: `1px solid ${shellPalette.divider}`, display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Box
           component="img"
           src="/wintehr-logo-icon.png"
@@ -341,10 +343,10 @@ function LayoutV3({ children }) {
           sx={{ width: 56, height: 56, objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
         />
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700, color: '#FAFAF9', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: shellPalette.textPrimary, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
             WintEHR
           </Typography>
-          <Typography variant="caption" sx={{ color: '#A9A3C0', letterSpacing: '0.02em', fontSize: '0.7rem' }}>
+          <Typography variant="caption" sx={{ color: shellPalette.textMuted, letterSpacing: '0.02em', fontSize: '0.7rem' }}>
             FHIR-Native Clinical Platform
           </Typography>
         </Box>
@@ -476,7 +478,7 @@ function LayoutV3({ children }) {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              background: 'linear-gradient(180deg, #1A1735 0%, #252244 45%, #1F1D2B 100%)',
+              background: shellGradient,
               borderRight: '1px solid rgba(99, 102, 241, 0.15)',
             }
           }}
@@ -490,7 +492,7 @@ function LayoutV3({ children }) {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              background: 'linear-gradient(180deg, #1A1735 0%, #252244 45%, #1F1D2B 100%)',
+              background: shellGradient,
               borderRight: '1px solid rgba(99, 102, 241, 0.15)',
             }
           }}
