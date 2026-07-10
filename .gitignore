@@ -309,3 +309,6 @@ backend/api/cds_studio/IMPLEMENTATION_SUMMARY.md
 frontend/frontend-build.tar.gz
 .serena/project.yml
 test-cds-studio.mjs
+
+# Host-rendered configs (from deploy/nginx-prod.conf.template)
+deploy/rendered/

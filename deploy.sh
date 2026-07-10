@@ -38,10 +38,17 @@ fi
 
 # Default profile (now respects config.yaml)
 PROFILE="${ENVIRONMENT:-dev}"
+SKIP_DICOM=false
 
-# Docker compose command with profile
+# Docker compose command with profile. The DICOM (dcm4chee VNA) stack lives
+# behind its own 'dicom' profile — included by default, omitted with
+# --skip-dicom for hosts that don't need imaging.
 docker_compose() {
-    docker compose --profile "$PROFILE" "$@"
+    if [ "$SKIP_DICOM" = "true" ]; then
+        docker compose --profile "$PROFILE" "$@"
+    else
+        docker compose --profile "$PROFILE" --profile dicom "$@"
+    fi
 }
 
 # Handle special commands first
@@ -49,13 +56,13 @@ case "$1" in
     stop)
         echo -e "${YELLOW}Stopping WintEHR services...${NC}"
         # Stop all profiles
-        docker compose --profile dev --profile prod down 2>/dev/null || docker compose down
+        docker compose --profile dev --profile prod --profile dicom down 2>/dev/null || docker compose down
         echo -e "${GREEN}✓ Services stopped${NC}"
         exit 0
         ;;
     clean)
         echo -e "${YELLOW}Cleaning WintEHR deployment (removing all data)...${NC}"
-        docker compose --profile dev --profile prod down -v 2>/dev/null || docker compose down -v
+        docker compose --profile dev --profile prod --profile dicom down -v 2>/dev/null || docker compose down -v
         docker system prune -f
         echo -e "${GREEN}✓ Clean complete${NC}"
         exit 0
@@ -121,6 +128,10 @@ while [[ $# -gt 0 ]]; do
             CLEAN_FIRST=true
             shift
             ;;
+        --skip-dicom)
+            SKIP_DICOM=true
+            shift
+            ;;
         --base-url)
             BASE_URL="$2"
             shift 2
@@ -149,6 +160,7 @@ Options:
   --validate-only          Validate configuration without deploying
   --skip-build             Skip Docker image builds
   --skip-data              Skip patient data generation
+  --skip-dicom             Omit the DICOM/dcm4chee (VNA) imaging stack
   --clean-first            Wipe server completely before deployment
   --base-url URL           Base URL for DICOM endpoints (e.g., https://server.com)
   --help, -h               Show this help message
@@ -217,7 +229,7 @@ if [ "$CLEAN_FIRST" = true ]; then
         echo ""
     else
         echo -e "${YELLOW}⚠️  No cleanup script found, using docker compose clean${NC}"
-        docker compose --profile dev --profile prod down -v
+        docker compose --profile dev --profile prod --profile dicom down -v
         docker system prune -f
         echo -e "${GREEN}✅ Server wiped - ready for fresh deployment${NC}"
         echo ""
@@ -321,14 +333,10 @@ if [ "$PROFILE" = "prod" ]; then
             .env
         rm -f .env.bak
 
-        # Update nginx-prod.conf SSL certificate paths
-        if [ -f "nginx-prod.conf" ]; then
-            sed -i.bak \
-                -e "s|/etc/letsencrypt/live/[^/]*/fullchain.pem|/etc/letsencrypt/live/$CURRENT_DOMAIN/fullchain.pem|g" \
-                -e "s|/etc/letsencrypt/live/[^/]*/privkey.pem|/etc/letsencrypt/live/$CURRENT_DOMAIN/privkey.pem|g" \
-                nginx-prod.conf
-            rm -f nginx-prod.conf.bak
-        fi
+        # Render nginx config from the tracked template (the old in-place
+        # sed left every server's checkout permanently dirty)
+        mkdir -p deploy/rendered
+        sed "s|\${DOMAIN}|$CURRENT_DOMAIN|g" deploy/nginx-prod.conf.template > deploy/rendered/nginx.conf
 
         # Reload .env with updated values
         set -a

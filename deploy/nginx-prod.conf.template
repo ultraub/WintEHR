@@ -89,8 +89,8 @@ http {
         server_name _;
 
         # SSL configuration
-        ssl_certificate /etc/letsencrypt/live/wintehr.eastus2.cloudapp.azure.com/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/wintehr.eastus2.cloudapp.azure.com/privkey.pem;
+        ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
 
         # SSL parameters
         ssl_protocols TLSv1.2 TLSv1.3;

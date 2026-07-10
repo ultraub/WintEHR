@@ -1,0 +1,70 @@
+# Minimal CI: both test suites run on every PR, gated against the known
+# baseline failure counts rather than zero — the suites carry documented
+# pre-existing failures (backend: CDS-hooks test-infra issues; frontend:
+# legacy suites), so "no NEW failures" is the honest, enforceable bar.
+# Ratchet the numbers DOWN as suites get fixed; never up without a PR that
+# explains why.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: "pytest (gated on baseline: 44 failed / 29 errors)"
+        run: |
+          python -m pytest tests/ -q --tb=no > pytest.out 2>&1 || true
+          tail -3 pytest.out
+          FAILED=$(grep -oE '[0-9]+ failed' pytest.out | grep -oE '[0-9]+' | head -1)
+          ERRORS=$(grep -oE '[0-9]+ error' pytest.out | grep -oE '[0-9]+' | head -1)
+          PASSED=$(grep -oE '[0-9]+ passed' pytest.out | grep -oE '[0-9]+' | head -1)
+          FAILED=${FAILED:-0}; ERRORS=${ERRORS:-0}; PASSED=${PASSED:-0}
+          echo "passed=$PASSED failed=$FAILED errors=$ERRORS (baseline: 44/29, passed >= 360)"
+          if [ "$FAILED" -gt 44 ] || [ "$ERRORS" -gt 29 ] || [ "$PASSED" -lt 360 ]; then
+            echo "::error::Test results regressed past the baseline (failed<=44, errors<=29, passed>=360)"
+            exit 1
+          fi
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --legacy-peer-deps
+      - name: eslint (report-only)
+        # The repo's own `npm run lint` is `--max-warnings 0` and already
+        # fails on master's large pre-existing warning backlog, so this can't
+        # be a hard gate yet. Report the count; the test baseline below is the
+        # enforced bar. Ratchet toward a hard gate as the backlog shrinks.
+        run: npx eslint src -f compact 2>&1 | tail -1 || true
+      - name: "jest (gated on baseline: 84 failed)"
+        run: |
+          CI=true npx craco test --watchAll=false --json --outputFile=jest.json > jest.out 2>&1 || true
+          node -e "
+            const r = require('./jest.json');
+            console.log(r.numTotalTests + ' tests, ' + r.numFailedTests + ' failed (baseline: 84, total >= 500)');
+            if (r.numFailedTests > 84 || r.numTotalTests < 500) {
+              console.error('::error::Test results regressed past the baseline (failed<=84, total>=500)');
+              process.exit(1);
+            }"

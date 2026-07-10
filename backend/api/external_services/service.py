@@ -27,6 +27,7 @@ from shared.exceptions import (
 )
 from api.cds_hooks.constants import ExtensionURLs
 
+from .url_policy import validate_external_url
 from .models import (
     ExternalServiceCreate,
     ExternalServiceUpdate,
@@ -94,6 +95,15 @@ class ExternalServiceRegistry:
             Tuple of (service_id, fhir_resource_id)
         """
         try:
+            # SSRF guard: registered URLs are fetched server-side later
+            validate_external_url(getattr(service_data, "base_url", None))
+            sub = getattr(service_data, "subscription_config", None)
+            if sub is not None:
+                validate_external_url(getattr(sub, "webhook_url", None))
+            cql = getattr(service_data, "cql_config", None)
+            if cql is not None:
+                validate_external_url(getattr(cql, "library_url", None))
+
             # Encrypt credentials if provided
             credentials_encrypted = None
             if service_data.credentials:

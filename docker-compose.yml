@@ -179,6 +179,10 @@ services:
   ldap:
     image: dcm4che/slapd-dcm4chee:2.6.10-34.2
     container_name: vna-ldap
+    # DICOM stack is optional: deploy.sh includes --profile dicom by default,
+    # pass --skip-dicom to omit the whole VNA (dcm4chee) stack.
+    profiles: ["dicom"]
+    restart: ${RESTART_POLICY:-no}
     networks:
       vna:
         aliases:
@@ -191,15 +195,21 @@ services:
       options:
         max-size: "10m"
     ports:
-      - "389:389"
+      - "127.0.0.1:389:389"
     environment:
       STORAGE_DIR: /storage/fs1
     volumes:
-      - /var/local/dcm4chee-arc/ldap:/var/lib/openldap/openldap-data
-      - /var/local/dcm4chee-arc/slapd.d:/etc/openldap/slapd.d
+      # Named volumes (portable — the old /var/local/dcm4chee-arc/* host
+      # binds broke macOS deploys and left root-owned dirs on Linux hosts).
+      # Existing deployments keeping bind-mount data can override these in
+      # an untracked docker-compose.override.yml.
+      - vna-ldap-data:/var/lib/openldap/openldap-data
+      - vna-ldap-config:/etc/openldap/slapd.d
   db:
     image: dcm4che/postgres-dcm4chee:17.4-34
     container_name: vna-db
+    profiles: ["dicom"]
+    restart: ${RESTART_POLICY:-no}
     networks:
       vna:
         aliases:
@@ -212,7 +222,7 @@ services:
       options:
         max-size: "10m"
     ports:
-     - "5433:5432"
+     - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_DB: pacsdb
       POSTGRES_USER: pacs
@@ -220,10 +230,12 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
-      - /var/local/dcm4chee-arc/db:/var/lib/postgresql/data
+      - vna-db-data:/var/lib/postgresql/data
   arc:
     image: dcm4che/dcm4chee-arc-psql:5.34.2
     container_name: vna-arc
+    profiles: ["dicom"]
+    restart: ${RESTART_POLICY:-no}
     networks:
       vna:
         aliases:
@@ -236,14 +248,17 @@ services:
       options:
         max-size: "10m"
     ports:
-      - "8080:8080"
-      - "8443:8443"
-      - "9990:9990"
-      - "9993:9993"
-      - "11112:11112"
-      - "2762:2762"
-      - "2575:2575"
-      - "12575:12575"
+      # Loopback-only: the app reaches dcm4chee over the compose network
+      # (http://arc:8080); host ports exist for local debugging and must not
+      # expose the WildFly admin console / DIMSE ports publicly.
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8443:8443"
+      - "127.0.0.1:9990:9990"
+      - "127.0.0.1:9993:9993"
+      - "127.0.0.1:11112:11112"
+      - "127.0.0.1:2762:2762"
+      - "127.0.0.1:2575:2575"
+      - "127.0.0.1:12575:12575"
     environment:
       POSTGRES_DB: pacsdb
       POSTGRES_USER: pacs
@@ -256,8 +271,8 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
-      - /var/local/dcm4chee-arc/wildfly:/opt/wildfly/standalone
-      - /var/local/dcm4chee-arc/storage:/storage
+      - vna-arc-wildfly:/opt/wildfly/standalone
+      - vna-arc-storage:/storage
 
   # ============================================================
   # HAPI FHIR SERVER
@@ -312,7 +327,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-emr_user}:${POSTGRES_PASSWORD:-emr_password}@postgres:5432/${POSTGRES_DB:-emr_db}
       - JWT_ENABLED=${JWT_ENABLED:-false}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - JWT_SECRET=${JWT_SECRET:-dev-secret-key}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-${JWT_SECRET:-dev-secret-key}}
       - REDIS_URL=redis://redis:6379/0
       - USE_REDIS_CACHE=true
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
@@ -340,7 +355,7 @@ services:
       dockerfile: Dockerfile
     container_name: emr-backend
     profiles: ["prod"]
-    restart: unless-stopped
+    restart: ${RESTART_POLICY:-unless-stopped}
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
@@ -353,7 +368,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-emr_db}
       - JWT_ENABLED=${JWT_ENABLED:-false}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-${JWT_SECRET:-change-this-in-production}}
       - REDIS_URL=redis://redis:6379/0
       - USE_REDIS_CACHE=true
       - HAPI_FHIR_URL=http://hapi-fhir:8080/fhir
@@ -414,7 +429,7 @@ services:
         - REACT_APP_WS_URL=${REACT_APP_WS_URL:-wss://${DOMAIN:-localhost}/ws}
     container_name: emr-frontend
     profiles: ["prod"]
-    restart: unless-stopped
+    restart: ${RESTART_POLICY:-unless-stopped}
     networks:
       - emr-network
     depends_on:
@@ -429,12 +444,16 @@ services:
     image: nginx:1.25-alpine
     container_name: emr-nginx
     profiles: ["prod"]
-    restart: unless-stopped
+    restart: ${RESTART_POLICY:-unless-stopped}
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
     volumes:
-      - ./nginx-prod.conf:/etc/nginx/nginx.conf:ro
+      # Rendered by deploy.sh from deploy/nginx-prod.conf.template — the
+      # template is tracked, the rendered copy is not, so per-host domains
+      # no longer dirty the checkout (raw `docker compose` users: render once
+      # with: sed "s|\${DOMAIN}|your.domain|g" deploy/nginx-prod.conf.template > deploy/rendered/nginx.conf)
+      - ./deploy/rendered/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./certbot/conf:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
     networks:
@@ -450,7 +469,7 @@ services:
     image: certbot/certbot
     container_name: emr-certbot
     profiles: ["prod"]
-    restart: unless-stopped
+    restart: ${RESTART_POLICY:-unless-stopped}
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
@@ -468,3 +487,8 @@ networks:
 
 volumes:
   postgres_data:
+  vna-ldap-data:
+  vna-ldap-config:
+  vna-db-data:
+  vna-arc-wildfly:
+  vna-arc-storage:

@@ -109,7 +109,7 @@ RUN adduser -D -H -s /sbin/nologin nginx-user && \
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost/health || exit 1
+    CMD curl -f http://127.0.0.1/health || exit 1  # 127.0.0.1: 'localhost' resolves to ::1 but internal nginx binds IPv4 only
 
 # Switch to non-root user
 USER nginx-user
