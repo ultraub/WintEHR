@@ -16,6 +16,23 @@ export class EnhancedImagingSearchService {
    * @param {Object} searchParams - Enhanced search parameters
    * @returns {Object} Enhanced search results with studies, performers, and orders
    */
+  /**
+   * Build a query string that supports repeated keys (a param whose value is
+   * an array becomes `key=v1&key=v2`). Plain `new URLSearchParams(obj)` can't
+   * represent repeated keys, which FHIR needs for AND-ed date ranges.
+   */
+  toQueryString(params) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach((v) => qs.append(key, v));
+      } else if (value !== undefined && value !== null) {
+        qs.append(key, value);
+      }
+    });
+    return qs.toString();
+  }
+
   async searchImagingStudies(patientId, searchParams = {}) {
     const cacheKey = this.generateCacheKey(patientId, searchParams);
     const cached = this.getCachedResult(cacheKey);
@@ -35,7 +52,7 @@ export class EnhancedImagingSearchService {
     const combinedParams = { ...baseParams, ...this.buildFHIRSearchParams(searchParams) };
 
     try {
-      const response = await fetch(`${this.baseUrl}/ImagingStudy?${new URLSearchParams(combinedParams)}`);
+      const response = await fetch(`${this.baseUrl}/ImagingStudy?${this.toQueryString(combinedParams)}`);
       
       if (!response.ok) {
         throw new Error(`Search failed: ${response.status} ${response.statusText}`);
@@ -89,10 +106,15 @@ export class EnhancedImagingSearchService {
         fhirParams.started = `ge${this.formatDateForFHIR(searchParams.started.from)}`;
       }
       if (searchParams.started.to) {
-        const existing = fhirParams.started || '';
-        fhirParams.started = existing ? 
-          `${existing}&started=le${this.formatDateForFHIR(searchParams.started.to)}` : 
-          `le${this.formatDateForFHIR(searchParams.started.to)}`;
+        // A FHIR date range is two repeated `started` params (ge.. AND le..).
+        // Collect them in an array; toQueryString emits repeated keys — the
+        // old string-concat put "&started=le.." INSIDE one value, which
+        // URLSearchParams then percent-encoded into a single malformed param,
+        // so the upper bound never reached HAPI.
+        const le = `le${this.formatDateForFHIR(searchParams.started.to)}`;
+        fhirParams.started = fhirParams.started
+          ? [fhirParams.started, le]
+          : le;
       }
     }
 
@@ -129,10 +151,10 @@ export class EnhancedImagingSearchService {
       fhirParams['series-count'] = `ge${searchParams.minSeries}`;
     }
     if (searchParams.maxSeries) {
-      const existing = fhirParams['series-count'] || '';
-      fhirParams['series-count'] = existing ? 
-        `${existing}&series-count=le${searchParams.maxSeries}` : 
-        `le${searchParams.maxSeries}`;
+      const le = `le${searchParams.maxSeries}`;
+      fhirParams['series-count'] = fhirParams['series-count']
+        ? [fhirParams['series-count'], le]
+        : le;
     }
 
     // Instance count filtering
@@ -140,10 +162,10 @@ export class EnhancedImagingSearchService {
       fhirParams['instance-count'] = `ge${searchParams.minInstances}`;
     }
     if (searchParams.maxInstances) {
-      const existing = fhirParams['instance-count'] || '';
-      fhirParams['instance-count'] = existing ? 
-        `${existing}&instance-count=le${searchParams.maxInstances}` : 
-        `le${searchParams.maxInstances}`;
+      const le = `le${searchParams.maxInstances}`;
+      fhirParams['instance-count'] = fhirParams['instance-count']
+        ? [fhirParams['instance-count'], le]
+        : le;
     }
 
     return fhirParams;
