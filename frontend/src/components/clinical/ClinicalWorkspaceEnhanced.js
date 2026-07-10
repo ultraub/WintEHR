@@ -11,12 +11,12 @@ import {
   Alert,
   AlertTitle,
   Button,
-  Snackbar,
   Typography
 } from '@mui/material';
 import {
   ChevronLeft as ChevronLeftIcon
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 
 // Contexts
 import { useAuth } from '../../contexts/AuthContext';
@@ -68,7 +68,7 @@ const ClinicalWorkspaceEnhanced = ({
   const { publish } = useClinicalWorkflow();
   
   // State
-  const [snackbar, setSnackbar] = useState({ open: false, message: '' });
+  const { enqueueSnackbar } = useSnackbar();
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   
   // Use parent's activeModule directly
@@ -130,12 +130,12 @@ const ClinicalWorkspaceEnhanced = ({
     if (onRefresh && activePatient) {
       try {
         await onRefresh();
-        setSnackbar({ open: true, message: 'Patient data refreshed successfully' });
+        enqueueSnackbar('Patient data refreshed successfully', { variant: 'success' });
       } catch (error) {
-        setSnackbar({ open: true, message: 'Failed to refresh data' });
+        enqueueSnackbar('Failed to refresh data', { variant: 'error' });
       }
     }
-  }, [activePatient, onRefresh]);
+  }, [activePatient, onRefresh, enqueueSnackbar]);
 
   // Handle keyboard navigation actions
   const handleKeyboardAction = useCallback((action) => {
@@ -343,15 +343,6 @@ const ClinicalWorkspaceEnhanced = ({
         </TabErrorBoundary>
       </Box>
 
-      {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ open: false, message: '' })}
-        message={snackbar.message}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      />
-      
       {/* Keyboard shortcuts help dialog */}
       <KeyboardShortcutsDialog
         open={showKeyboardHelp}

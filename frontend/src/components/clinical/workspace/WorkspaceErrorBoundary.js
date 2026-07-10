@@ -23,6 +23,7 @@ import {
   Home as HomeIcon,
   BugReport as BugReportIcon
 } from '@mui/icons-material';
+import { enqueueSnackbar } from 'notistack';
 
 class WorkspaceErrorBoundary extends React.Component {
   constructor(props) {
@@ -123,7 +124,7 @@ Component Stack: ${this.state.errorInfo?.componentStack}
       `.trim();
       
       navigator.clipboard.writeText(errorDetails).then(() => {
-        alert('Error details copied to clipboard. Please include them in your bug report.');
+        enqueueSnackbar('Error details copied to clipboard. Please include them in your bug report.', { variant: 'success' });
       });
     }
   };

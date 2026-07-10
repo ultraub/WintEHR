@@ -79,18 +79,11 @@ const useChartReviewResources = (patientId, options = {}) => {
 
   // Load all resources
   const loadResources = useCallback(async () => {
-    console.log('[useChartReviewResources] loadResources called with:', { 
-      patientId, 
-      loading: loadingRef.current,
-      loadedPatient: loadedPatientRef.current
-    });
     
     if (!patientId || loadingRef.current) {
-      console.log('[useChartReviewResources] Skipping load:', { patientId, loading: loadingRef.current });
       return;
     }
 
-    console.log('[useChartReviewResources] Starting resource load for patient:', patientId);
 
     try {
       loadingRef.current = true;
@@ -422,13 +415,6 @@ const useChartReviewResources = (patientId, options = {}) => {
   const processProcedures = (data, filters, sortOrder) => {
     let processed = data;
 
-    // Debug logging (disabled)
-    // console.log('[useChartReviewResources] Processing procedures:', {
-    //   inputCount: data.length,
-    //   filters,
-    //   sortOrder
-    // });
-
     // Filter by status - procedures use 'completed', 'in-progress', etc.
     if (filters.status !== 'all') {
       if (filters.status === 'active') {
@@ -469,10 +455,6 @@ const useChartReviewResources = (patientId, options = {}) => {
       return dateComparison !== 0 ? dateComparison : a.id.localeCompare(b.id);
     });
 
-    // console.log('[useChartReviewResources] Processed procedures:', {
-    //   outputCount: processed.length,
-    //   firstFewIds: processed.slice(0, 5).map(p => p.id)
-    // });
 
     return processed;
   };
@@ -516,13 +498,6 @@ const useChartReviewResources = (patientId, options = {}) => {
   const processCarePlans = (data, filters, sortOrder) => {
     let processed = data;
 
-    // Debug logging (disabled)
-    // console.log('[useChartReviewResources] Processing care plans:', {
-    //   inputCount: data.length,
-    //   filters,
-    //   sortOrder
-    // });
-
     // Filter by status - care plans use 'active', 'completed', 'draft', etc.
     if (filters.status !== 'all') {
       // CarePlan status values align well with 'active' filter
@@ -559,10 +534,6 @@ const useChartReviewResources = (patientId, options = {}) => {
       return dateComparison !== 0 ? dateComparison : a.id.localeCompare(b.id);
     });
 
-    // console.log('[useChartReviewResources] Processed care plans:', {
-    //   outputCount: processed.length,
-    //   firstFewIds: processed.slice(0, 5).map(cp => cp.id)
-    // });
 
     return processed;
   };
@@ -665,7 +636,6 @@ const useChartReviewResources = (patientId, options = {}) => {
 
   // Refresh data - reset and reload with debounce
   const refresh = useCallback(() => {
-    console.log('[useChartReviewResources] Refresh called');
     
     // Clear any pending refresh
     if (refreshTimerRef.current) {
@@ -674,7 +644,6 @@ const useChartReviewResources = (patientId, options = {}) => {
     
     // Debounce refresh to prevent rapid reloads
     refreshTimerRef.current = setTimeout(async () => {
-      console.log('[useChartReviewResources] Executing refresh after debounce');
       
       // Reset loading state in case it's stuck
       loadingRef.current = false;
@@ -682,7 +651,6 @@ const useChartReviewResources = (patientId, options = {}) => {
       // Clear the FHIRResourceContext cache for this patient
       if (patientId && contextRefs.current.refreshPatientResources) {
         try {
-          console.log('[useChartReviewResources] Clearing FHIR context cache for patient:', patientId);
           await contextRefs.current.refreshPatientResources(patientId);
         } catch (error) {
           console.error('[useChartReviewResources] Error clearing cache:', error);
@@ -757,7 +725,6 @@ const useChartReviewResources = (patientId, options = {}) => {
 
   // Handle incremental updates for specific resources
   const handleResourceUpdate = useCallback((eventType, eventData) => {
-    console.log('[useChartReviewResources] Handling resource update:', eventType, eventData);
     
     // Extract the resource from the event data
     const resource = eventData.condition || eventData.medication || eventData.allergy || 
@@ -913,7 +880,6 @@ const useChartReviewResources = (patientId, options = {}) => {
   useEffect(() => {
     if (!realTimeUpdates || !patientId) return;
 
-    console.log('[useChartReviewResources] Setting up real-time subscriptions for patient:', patientId);
 
     const subscriptions = [];
 
@@ -947,15 +913,8 @@ const useChartReviewResources = (patientId, options = {}) => {
         const unsubscribe = subscribe(
           eventType,
           (event) => {
-            console.log('[useChartReviewResources] Clinical event received:', {
-              eventType,
-              eventPatientId: event.patientId,
-              currentPatientId: patientId,
-              event
-            });
             // Handle update if the event is for the current patient
             if (event.patientId === patientId) {
-              console.log('[useChartReviewResources] Updating resource for event:', eventType);
               handleResourceUpdate(eventType, event);
             }
           }
@@ -965,7 +924,6 @@ const useChartReviewResources = (patientId, options = {}) => {
     });
 
     return () => {
-      console.log('[useChartReviewResources] Cleaning up subscriptions');
       subscriptions.forEach(unsub => unsub());
     };
   }, [patientId, realTimeUpdates, subscribe, handleResourceUpdate]);
@@ -974,7 +932,6 @@ const useChartReviewResources = (patientId, options = {}) => {
   useEffect(() => {
     if (!realTimeUpdates || !patientId || !websocketService.isConnected) return;
 
-    console.log('[useChartReviewResources] Setting up WebSocket patient room subscription for:', patientId);
 
     // Track subscription ID to clean up later
     let subscriptionId = null;
@@ -997,7 +954,6 @@ const useChartReviewResources = (patientId, options = {}) => {
 
         // Subscribe to patient room with specific resource types
         subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
-        console.log('[useChartReviewResources] Successfully subscribed to patient room:', subscriptionId);
       } catch (error) {
         console.error('[useChartReviewResources] Failed to subscribe to patient room:', error);
       }
@@ -1009,17 +965,14 @@ const useChartReviewResources = (patientId, options = {}) => {
     // Clean up subscription on unmount or when patient changes
     return () => {
       if (subscriptionId) {
-        console.log('[useChartReviewResources] Unsubscribing from patient room:', subscriptionId);
         websocketService.unsubscribeFromPatient(subscriptionId);
       }
     };
   }, [patientId, realTimeUpdates]);
 
-  // Add debug logging for hook creation and cleanup refresh timer
+  // Clear the debounced-refresh timer on unmount
   useEffect(() => {
-    console.log('[useChartReviewResources] Hook initialized/re-created at:', new Date().toISOString());
     return () => {
-      console.log('[useChartReviewResources] Hook cleanup at:', new Date().toISOString());
       // Clear refresh timer on unmount
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
@@ -1032,13 +985,6 @@ const useChartReviewResources = (patientId, options = {}) => {
 
   // Load data when patient changes
   useEffect(() => {
-    console.log('[useChartReviewResources] Load effect triggered:', {
-      patientId,
-      loadedPatient: loadedPatientRef.current,
-      hasLoaded: hasLoadedRef.current,
-      loading: loadingRef.current,
-      timestamp: new Date().toISOString()
-    });
 
     if (!patientId) {
       hasLoadedRef.current = false;
@@ -1048,7 +994,6 @@ const useChartReviewResources = (patientId, options = {}) => {
 
     // Skip if already loaded for this specific patient
     if (loadingRef.current || loadedPatientRef.current === patientId) {
-      console.log('[useChartReviewResources] Skipping - already loaded for patient:', patientId);
       return;
     }
 
@@ -1056,7 +1001,6 @@ const useChartReviewResources = (patientId, options = {}) => {
     loadedPatientRef.current = patientId;
 
     // Load resources directly without timeout
-    console.log('[useChartReviewResources] Calling loadResources for patient:', patientId);
     loadResources();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId]); // Only depend on patientId, loadResources is stable due to refs

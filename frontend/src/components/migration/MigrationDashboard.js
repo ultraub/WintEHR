@@ -63,6 +63,7 @@ import {
   Storage as DataIcon,
   Security as IntegrityIcon
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 import { useMigrations, useMigrationProgress } from '../../hooks/useMigrations';
 import { useFHIRResource } from '../../contexts/FHIRResourceContext';
 
@@ -306,6 +307,7 @@ const MigrationDashboard = () => {
   } = useMigrations();
 
   const { searchResources } = useFHIRResource();
+  const { enqueueSnackbar } = useSnackbar();
 
   const [selectedResourceType, setSelectedResourceType] = useState('all');
   const [migrationOptions, setMigrationOptions] = useState({
@@ -362,14 +364,14 @@ const MigrationDashboard = () => {
       const resources = searchResult.resources || [];
 
       if (resources.length === 0) {
-        alert('No resources found to migrate');
+        enqueueSnackbar('No resources found to migrate', { variant: 'warning' });
         return;
       }
 
       await migrateResources(resources, migrationOptions);
     } catch (error) {
-      
-      alert(`Migration failed: ${error.message}`);
+
+      enqueueSnackbar(`Migration failed: ${error.message}`, { variant: 'error' });
     } finally {
       setLoading(false);
     }

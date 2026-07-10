@@ -96,6 +96,7 @@ import {
   IndeterminateCheckBox as IndeterminateCheckBoxIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
+import { useSnackbar } from 'notistack';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useClinical as useClinicalContext } from '../../../../contexts/ClinicalContext';
 import { useAuth } from '../../../../contexts/AuthContext';
@@ -186,6 +187,7 @@ const BatchOperationsDialog = ({
   maxBatchSize = 50
 }) => {
   const theme = useTheme();
+  const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
   const { publish } = useClinicalContext();
   
@@ -317,7 +319,7 @@ const BatchOperationsDialog = ({
   const executeBatchOperation = useCallback(async () => {
     const validation = validateOperation();
     if (!validation.valid) {
-      alert(validation.error);
+      enqueueSnackbar(validation.error, { variant: 'warning' });
       return;
     }
 
@@ -463,11 +465,11 @@ const BatchOperationsDialog = ({
       setActiveStep(3);
     } catch (error) {
       console.error('Batch operation error:', error);
-      alert(`Batch operation failed: ${error.message}`);
+      enqueueSnackbar(`Batch operation failed: ${error.message}`, { variant: 'error' });
     } finally {
       setProcessing(false);
     }
-  }, [selectedResources, operationType, updateFields, resourceType, user, publish, onOperationComplete, validateOperation]);
+  }, [selectedResources, operationType, updateFields, resourceType, user, publish, onOperationComplete, validateOperation, enqueueSnackbar]);
 
   // Render resource row
   const renderResourceRow = useCallback((resource) => {

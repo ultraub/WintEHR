@@ -25,13 +25,11 @@ import {
   Select,
   InputLabel,
   CircularProgress,
-  Alert,
   Badge,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Snackbar,
   ToggleButton,
   ToggleButtonGroup,
   useTheme,
@@ -69,6 +67,7 @@ import {
   AccessTime as RecentIcon,
   Collections as CollectionsIcon
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -507,7 +506,7 @@ const ImagingTab = ({
   const [downloadDialog, setDownloadDialog] = useState({ open: false, study: null });
   const [shareDialog, setShareDialog] = useState({ open: false, study: null });
   const [studies, setStudies] = useState([]);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const { enqueueSnackbar } = useSnackbar();
 
   // Load imaging studies function with useCallback
   const loadImagingStudies = useCallback(async () => {
@@ -612,16 +611,12 @@ const ImagingTab = ({
       setStudies(enrichedStudies);
     } catch (error) {
       console.error('[ImagingTab] Failed to load imaging studies:', error);
-      setSnackbar({
-        open: true,
-        message: 'Failed to load imaging studies',
-        severity: 'error'
-      });
+      enqueueSnackbar('Failed to load imaging studies', { variant: 'error' });
       setStudies([]);
     } finally {
       setLoading(false);
     }
-  }, [patientId]);
+  }, [patientId, enqueueSnackbar]);
 
   // Load imaging studies when patient changes (removed separate useEffect to avoid circular dependency)
   useEffect(() => {
@@ -644,50 +639,30 @@ const ImagingTab = ({
     // Show notification based on event type
     switch (eventType) {
       case CLINICAL_EVENTS.IMAGING_STUDY_AVAILABLE:
-        setSnackbar({
-          open: true,
-          message: `New imaging study available: ${study.description || 'Imaging Study'}`,
-          severity: 'success'
-        });
+        enqueueSnackbar(`New imaging study available: ${study.description || 'Imaging Study'}`, { variant: 'success' });
         break;
         
       case CLINICAL_EVENTS.IMAGING_REPORT_READY:
-        setSnackbar({
-          open: true,
-          message: `Report ready for: ${study.description || 'Imaging Study'}`,
-          severity: 'info'
-        });
+        enqueueSnackbar(`Report ready for: ${study.description || 'Imaging Study'}`, { variant: 'info' });
         break;
         
       case CLINICAL_EVENTS.IMAGING_STUDY_UPDATED:
-        setSnackbar({
-          open: true,
-          message: `Imaging study updated: ${study.description || 'Imaging Study'}`,
-          severity: 'info'
-        });
+        enqueueSnackbar(`Imaging study updated: ${study.description || 'Imaging Study'}`, { variant: 'info' });
         break;
         
       case CLINICAL_EVENTS.ORDER_PLACED:
         if (eventData.type === 'imaging') {
-          setSnackbar({
-            open: true,
-            message: 'New imaging order placed',
-            severity: 'info'
-          });
+          enqueueSnackbar('New imaging order placed', { variant: 'info' });
         }
         break;
         
       case CLINICAL_EVENTS.RESULT_RECEIVED:
         if (eventData.type === 'imaging') {
-          setSnackbar({
-            open: true,
-            message: 'New imaging results available',
-            severity: 'success'
-          });
+          enqueueSnackbar('New imaging results available', { variant: 'success' });
         }
         break;
     }
-  }, [loadImagingStudies]);
+  }, [loadImagingStudies, enqueueSnackbar]);
 
   // Subscribe to imaging-related events
   useEffect(() => {
@@ -1002,11 +977,7 @@ const ImagingTab = ({
       console.log(study)
       if (!studyDir) {
         // Unable to determine study directory
-        setSnackbar({
-          open: true,
-          message: 'Unable to download study - missing directory information',
-          severity: 'error'
-        });
+        enqueueSnackbar('Unable to download study - missing directory information', { variant: 'error' });
         return;
       }
 
@@ -1026,11 +997,7 @@ const ImagingTab = ({
 
     } catch (error) {
       // Handle download error
-      setSnackbar({
-        open: true,
-        message: 'Failed to download study: ' + error.message,
-        severity: 'error'
-      });
+      enqueueSnackbar('Failed to download study: ' + error.message, { variant: 'error' });
     }
   };
 
@@ -1526,20 +1493,6 @@ const ImagingTab = ({
       />
 
       {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };

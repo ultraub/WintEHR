@@ -41,12 +41,14 @@ import {
   ContentPaste as TemplateIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
+import { useSnackbar } from 'notistack';
 import { useDocumentation } from '../../../contexts/DocumentationContext';
 import { useClinical } from '../../../contexts/ClinicalContext';
 import SOAPEditor from './SOAPEditor';
 import fhirClient from '../../../core/fhir/services/fhirClient';
 
 const DocumentationTab = () => {
+  const { enqueueSnackbar } = useSnackbar();
   const { currentPatient } = useClinical();
   const {
     recentNotes,
@@ -288,8 +290,8 @@ const DocumentationTab = () => {
         setAddendumContent(originalContent + noteContent + '\n\n=== ADDENDUM ===\n\n');
         setShowAddendumDialog(true);
       } catch (error) {
-        
-        alert('Error loading note content');
+
+        enqueueSnackbar('Error loading note content', { variant: 'error' });
       }
     }
     handleMenuClose();
@@ -313,7 +315,7 @@ const DocumentationTab = () => {
           status: 'draft'
         });
         
-        alert('Created a new progress note based on the encounter note. You can now edit and sign it.');
+        enqueueSnackbar('Created a new progress note based on the encounter note. You can now edit and sign it.', { variant: 'success' });
       } else {
         // For clinical notes, create an addendum
         await createAddendum(addendumNoteId, addendumContent);
@@ -328,8 +330,8 @@ const DocumentationTab = () => {
         loadRecentNotes(currentPatient.id);
       }
     } catch (error) {
-      
-      alert(`Error creating addendum: ${error.response?.data?.detail || error.message}`);
+
+      enqueueSnackbar(`Error creating addendum: ${error.response?.data?.detail || error.message}`, { variant: 'error' });
     }
   };
 

@@ -18,7 +18,6 @@ import {
   SpeedDial,
   SpeedDialIcon,
   SpeedDialAction,
-  Snackbar,
   FormControl,
   Select,
   MenuItem,
@@ -54,6 +53,7 @@ import {
   ViewAgenda as CompactIcon,
   ViewStream as StandardIcon
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 
 // Enhanced components and hooks
 import { useAdvancedOrderSearch } from '../../../../hooks/useAdvancedOrderSearch';
@@ -510,7 +510,7 @@ const EnhancedOrdersTab = ({
   // UI State
   const [tabValue, setTabValue] = useState(0);
   const [selectedOrders, setSelectedOrders] = useState(new Set());
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const { enqueueSnackbar } = useSnackbar();
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
   // Phase 4.4 (#116): the universal new-order surface is the composer.
   // `composerInitialTab` carries which tab to land on when a caller has
@@ -786,38 +786,22 @@ const EnhancedOrdersTab = ({
     switch (eventType) {
       case CLINICAL_EVENTS.ORDER_PLACED:
       case CLINICAL_EVENTS.MEDICATION_PRESCRIBED:
-        setSnackbar({
-          open: true,
-          message: `New order placed: ${order.code?.text || order.medicationCodeableConcept?.text || 'Order'}`,
-          severity: 'info'
-        });
+        enqueueSnackbar(`New order placed: ${order.code?.text || order.medicationCodeableConcept?.text || 'Order'}`, { variant: 'info' });
         break;
         
       case CLINICAL_EVENTS.ORDER_CANCELLED:
-        setSnackbar({
-          open: true,
-          message: `Order cancelled: ${order.code?.text || order.medicationCodeableConcept?.text || 'Order'}`,
-          severity: 'warning'
-        });
+        enqueueSnackbar(`Order cancelled: ${order.code?.text || order.medicationCodeableConcept?.text || 'Order'}`, { variant: 'warning' });
         break;
         
       case CLINICAL_EVENTS.ORDER_COMPLETED:
-        setSnackbar({
-          open: true,
-          message: `Order completed: ${order.code?.text || order.medicationCodeableConcept?.text || 'Order'}`,
-          severity: 'success'
-        });
+        enqueueSnackbar(`Order completed: ${order.code?.text || order.medicationCodeableConcept?.text || 'Order'}`, { variant: 'success' });
         break;
         
       case CLINICAL_EVENTS.ORDER_SIGNED:
-        setSnackbar({
-          open: true,
-          message: `Order signed: ${order.code?.text || order.medicationCodeableConcept?.text || 'Order'}`,
-          severity: 'success'
-        });
+        enqueueSnackbar(`Order signed: ${order.code?.text || order.medicationCodeableConcept?.text || 'Order'}`, { variant: 'success' });
         break;
     }
-  }, [refreshSearch]);
+  }, [refreshSearch, enqueueSnackbar]);
 
   // Filter preset management
   const handleSaveFilterPreset = (name, filterData) => {
@@ -829,18 +813,10 @@ const EnhancedOrdersTab = ({
       };
       localStorage.setItem('orderFilterPresets', JSON.stringify(presets));
       
-      setSnackbar({
-        open: true,
-        message: `Filter preset "${name}" saved successfully`,
-        severity: 'success'
-      });
+      enqueueSnackbar(`Filter preset "${name}" saved successfully`, { variant: 'success' });
     } catch (error) {
       // Error saving filter preset - showing user notification
-      setSnackbar({
-        open: true,
-        message: 'Failed to save filter preset',
-        severity: 'error'
-      });
+      enqueueSnackbar('Failed to save filter preset', { variant: 'error' });
     }
   };
 
@@ -891,11 +867,7 @@ const EnhancedOrdersTab = ({
               });
               
               refreshSearch();
-              setSnackbar({
-                open: true,
-                message: 'Order cancelled successfully',
-                severity: 'success'
-              });
+              enqueueSnackbar('Order cancelled successfully', { variant: 'success' });
             } catch (cancelError) {
               console.error('Error cancelling order:', cancelError);
               throw cancelError;
@@ -918,21 +890,13 @@ const EnhancedOrdersTab = ({
       }
     } catch (error) {
       console.error(`Error handling order action ${action}:`, error);
-      setSnackbar({
-        open: true,
-        message: `Failed to ${action} order: ${error.message || 'Unknown error'}`,
-        severity: 'error'
-      });
+      enqueueSnackbar(`Failed to ${action} order: ${error.message || 'Unknown error'}`, { variant: 'error' });
     }
   };
 
   const handleSendToPharmacy = async (order) => {
     if (order.resourceType !== 'MedicationRequest') {
-      setSnackbar({
-        open: true,
-        message: 'Only medication orders can be sent to pharmacy',
-        severity: 'error'
-      });
+      enqueueSnackbar('Only medication orders can be sent to pharmacy', { variant: 'error' });
       return;
     }
 
@@ -957,17 +921,9 @@ const EnhancedOrdersTab = ({
         prescriberId: order.requester?.reference
       });
 
-      setSnackbar({
-        open: true,
-        message: `${getMedicationName(order)} sent to pharmacy queue`,
-        severity: 'success'
-      });
+      enqueueSnackbar(`${getMedicationName(order)} sent to pharmacy queue`, { variant: 'success' });
     } catch (error) {
-      setSnackbar({
-        open: true,
-        message: 'Failed to send to pharmacy: ' + error.message,
-        severity: 'error'
-      });
+      enqueueSnackbar('Failed to send to pharmacy: ' + error.message, { variant: 'error' });
     }
   };
 
@@ -1479,25 +1435,16 @@ const EnhancedOrdersTab = ({
           setCpoeMode('add');
 
           if (failed.length > 0 && persisted.length === 0) {
-            setSnackbar({
-              open: true,
-              message: `Failed to ${isEdit ? 'update' : 'create'} order: ${failed[0].error?.message || 'unknown error'}`,
-              severity: 'error',
-            });
+            enqueueSnackbar(`Failed to ${isEdit ? 'update' : 'create'} order: ${failed[0].error?.message || 'unknown error'}`, { variant: 'error' });
           } else if (failed.length > 0) {
-            setSnackbar({
-              open: true,
-              message: `${persisted.length} of ${orderList.length} order(s) saved; ${failed.length} failed`,
-              severity: 'warning',
-            });
+            enqueueSnackbar(`${persisted.length} of ${orderList.length} order(s) saved; ${failed.length} failed`, { variant: 'warning' });
           } else {
-            setSnackbar({
-              open: true,
-              message: isEdit
+            enqueueSnackbar(
+              isEdit
                 ? 'Order updated successfully'
                 : `${persisted.length} order(s) created successfully`,
-              severity: 'success'
-            });
+              { variant: 'success' }
+            );
           }
         }}
       />
@@ -1601,18 +1548,10 @@ const EnhancedOrdersTab = ({
             });
 
             if (failed.length === 0) {
-              setSnackbar({
-                open: true,
-                message: `${succeeded.length} order(s) signed successfully`,
-                severity: 'success',
-              });
+              enqueueSnackbar(`${succeeded.length} order(s) signed successfully`, { variant: 'success' });
               setSignOrdersDialog({ open: false, orders: [] });
             } else {
-              setSnackbar({
-                open: true,
-                message: `${succeeded.length} signed, ${failed.length} failed — retry the remaining`,
-                severity: 'warning',
-              });
+              enqueueSnackbar(`${succeeded.length} signed, ${failed.length} failed — retry the remaining`, { variant: 'warning' });
               // Keep the dialog open with only the failures
               setSignOrdersDialog({ open: true, orders: failed });
             }
@@ -1622,22 +1561,6 @@ const EnhancedOrdersTab = ({
         }}
         loading={signingInProgress}
       />
-
-      {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
-          severity={snackbar.severity}
-          sx={{ width: '100%', borderRadius: 0 }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
 
       {/* Order Details Dialog */}
       <Dialog

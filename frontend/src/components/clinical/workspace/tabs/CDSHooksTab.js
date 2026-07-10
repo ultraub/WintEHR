@@ -41,7 +41,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Snackbar,
   useTheme
 } from '@mui/material';
 import {
@@ -63,6 +62,7 @@ import {
   School as TrainingIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 import { format } from 'date-fns';
 // CDSHookBuilder removed - use CDS Studio for building hooks
 import CDSHooksVerifier from '../cds/CDSHooksVerifier';
@@ -110,7 +110,7 @@ const CDSHooksTab = ({ patientId }) => {
   const [executionHistory, setExecutionHistory] = useState([]);
   const [serviceSettings, setServiceSettings] = useState({});
   const [customHooks, setCustomHooks] = useState([]);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const { enqueueSnackbar } = useSnackbar();
   const [displayBehavior, setDisplayBehavior] = useState({
     displayMode: 'immediate',
     position: 'top',
@@ -400,11 +400,7 @@ const CDSHooksTab = ({ patientId }) => {
         setCustomHooks(result.data);
       }
     } catch (error) {
-      setSnackbar({
-        open: true,
-        message: `Failed to load custom hooks: ${error.message}`,
-        severity: 'error'
-      });
+      enqueueSnackbar(`Failed to load custom hooks: ${error.message}`, { variant: 'error' });
       setCustomHooks([]);
     }
   };
@@ -479,11 +475,7 @@ const CDSHooksTab = ({ patientId }) => {
 
   const handleDismissCard = (cardIndex) => {
     setCards(prevCards => prevCards.filter((_, index) => index !== cardIndex));
-    setSnackbar({
-      open: true,
-      message: 'Alert dismissed',
-      severity: 'info'
-    });
+    enqueueSnackbar('Alert dismissed', { variant: 'info' });
   };
 
   const getCardIcon = (indicator) => {
@@ -523,11 +515,7 @@ const CDSHooksTab = ({ patientId }) => {
         const executableActions = suggestion.actions.filter(isActionExecutable);
         
         if (executableActions.length === 0) {
-          setSnackbar({
-            open: true,
-            message: 'No executable actions found in this suggestion',
-            severity: 'warning'
-          });
+          enqueueSnackbar('No executable actions found in this suggestion', { variant: 'warning' });
           return;
         }
 
@@ -568,23 +556,11 @@ const CDSHooksTab = ({ patientId }) => {
 
         // Show appropriate feedback
         if (successCount > 0 && errorCount === 0) {
-          setSnackbar({
-            open: true,
-            message: `Successfully executed ${successCount} action(s)`,
-            severity: 'success'
-          });
+          enqueueSnackbar(`Successfully executed ${successCount} action(s)`, { variant: 'success' });
         } else if (successCount > 0 && errorCount > 0) {
-          setSnackbar({
-            open: true,
-            message: `Executed ${successCount} action(s), ${errorCount} failed`,
-            severity: 'warning'
-          });
+          enqueueSnackbar(`Executed ${successCount} action(s), ${errorCount} failed`, { variant: 'warning' });
         } else {
-          setSnackbar({
-            open: true,
-            message: `All actions failed: ${errors.join('; ')}`,
-            severity: 'error'
-          });
+          enqueueSnackbar(`All actions failed: ${errors.join('; ')}`, { variant: 'error' });
         }
       }
 
@@ -618,11 +594,7 @@ const CDSHooksTab = ({ patientId }) => {
         }
 
         if (operationCount > 0) {
-          setSnackbar({
-            open: true,
-            message: `Successfully executed ${operationCount} operation(s)`,
-            severity: 'success'
-          });
+          enqueueSnackbar(`Successfully executed ${operationCount} operation(s)`, { variant: 'success' });
         }
       }
 
@@ -655,11 +627,7 @@ const CDSHooksTab = ({ patientId }) => {
     } catch (error) {
       console.error('Suggestion action failed:', error);
       setError(`Failed to execute action: ${error.message}`);
-      setSnackbar({
-        open: true,
-        message: `Action execution failed: ${error.message}`,
-        severity: 'error'
-      });
+      enqueueSnackbar(`Action execution failed: ${error.message}`, { variant: 'error' });
     }
   };
 
@@ -676,11 +644,7 @@ const CDSHooksTab = ({ patientId }) => {
         
       } catch (error) {
         
-        setSnackbar({
-          open: true,
-          message: `Failed to delete hook: ${error.message}`,
-          severity: 'error'
-        });
+        enqueueSnackbar(`Failed to delete hook: ${error.message}`, { variant: 'error' });
       }
     }
   };
@@ -753,11 +717,7 @@ const CDSHooksTab = ({ patientId }) => {
                         size="small"
                         onClick={() => {
                           setCards([]);
-                          setSnackbar({
-                            open: true,
-                            message: 'All alerts cleared',
-                            severity: 'info'
-                          });
+                          enqueueSnackbar('All alerts cleared', { variant: 'info' });
                         }}
                         disabled={loading}
                       >
@@ -1461,20 +1421,6 @@ const CDSHooksTab = ({ patientId }) => {
       </TabPanel>
 
       {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };

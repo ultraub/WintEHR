@@ -39,7 +39,6 @@ import {
   InputAdornment,
   ToggleButton,
   ToggleButtonGroup,
-  Snackbar,
   Grid,
   Avatar,
   AvatarGroup,
@@ -92,6 +91,7 @@ import {
   ArrowDownward as DownIcon,
   Remove as NoChangeIcon
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 import { format, parseISO, formatDistanceToNow, isPast, isFuture, differenceInDays, addDays, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -414,7 +414,7 @@ const CarePlanTabEnhanced = ({
   const [activityDialogOpen, setActivityDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createForm, setCreateForm] = useState({ title: '', category: 'assess-plan', description: '' });
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const { enqueueSnackbar } = useSnackbar();
   const [isSaving, setIsSaving] = useState(false);
 
   // Form refs for Goal dialog
@@ -672,11 +672,7 @@ const CarePlanTabEnhanced = ({
 
     const description = goalDescriptionRef.current?.value?.trim();
     if (!description) {
-      setSnackbar({
-        open: true,
-        message: 'Goal description is required',
-        severity: 'error'
-      });
+      enqueueSnackbar('Goal description is required', { variant: 'error' });
       return;
     }
 
@@ -756,25 +752,17 @@ const CarePlanTabEnhanced = ({
         action: selectedGoal?.id ? 'updated' : 'created'
       });
 
-      setSnackbar({
-        open: true,
-        message: selectedGoal ? 'Goal updated successfully' : 'Goal created successfully',
-        severity: 'success'
-      });
+      enqueueSnackbar(selectedGoal ? 'Goal updated successfully' : 'Goal created successfully', { variant: 'success' });
       setGoalDialogOpen(false);
       setSelectedGoal(null);
 
     } catch (error) {
       console.error('Error saving goal:', error);
-      setSnackbar({
-        open: true,
-        message: `Failed to save goal: ${error.message}`,
-        severity: 'error'
-      });
+      enqueueSnackbar(`Failed to save goal: ${error.message}`, { variant: 'error' });
     } finally {
       setIsSaving(false);
     }
-  }, [patientId, selectedGoal, refreshPatientResources, publish]);
+  }, [patientId, selectedGoal, refreshPatientResources, publish, enqueueSnackbar]);
 
   /**
    * Save Activity to CarePlan
@@ -782,21 +770,13 @@ const CarePlanTabEnhanced = ({
    */
   const handleSaveActivity = useCallback(async () => {
     if (!patientId || !activeCarePlan) {
-      setSnackbar({
-        open: true,
-        message: 'No active care plan found',
-        severity: 'error'
-      });
+      enqueueSnackbar('No active care plan found', { variant: 'error' });
       return;
     }
 
     const description = activityDescriptionRef.current?.value?.trim();
     if (!description) {
-      setSnackbar({
-        open: true,
-        message: 'Activity description is required',
-        severity: 'error'
-      });
+      enqueueSnackbar('Activity description is required', { variant: 'error' });
       return;
     }
 
@@ -881,25 +861,17 @@ const CarePlanTabEnhanced = ({
         action: 'activity_updated'
       });
 
-      setSnackbar({
-        open: true,
-        message: selectedActivity ? 'Activity updated successfully' : 'Activity added successfully',
-        severity: 'success'
-      });
+      enqueueSnackbar(selectedActivity ? 'Activity updated successfully' : 'Activity added successfully', { variant: 'success' });
       setActivityDialogOpen(false);
       setSelectedActivity(null);
 
     } catch (error) {
       console.error('Error saving activity:', error);
-      setSnackbar({
-        open: true,
-        message: `Failed to save activity: ${error.message}`,
-        severity: 'error'
-      });
+      enqueueSnackbar(`Failed to save activity: ${error.message}`, { variant: 'error' });
     } finally {
       setIsSaving(false);
     }
-  }, [patientId, activeCarePlan, selectedActivity, refreshPatientResources, publish]);
+  }, [patientId, activeCarePlan, selectedActivity, refreshPatientResources, publish, enqueueSnackbar]);
 
   /**
    * Save Team Member to CareTeam
@@ -910,11 +882,7 @@ const CarePlanTabEnhanced = ({
 
     const memberName = teamMemberNameRef.current?.value?.trim();
     if (!memberName) {
-      setSnackbar({
-        open: true,
-        message: 'Team member name is required',
-        severity: 'error'
-      });
+      enqueueSnackbar('Team member name is required', { variant: 'error' });
       return;
     }
 
@@ -999,25 +967,17 @@ const CarePlanTabEnhanced = ({
         action: selectedParticipant ? 'participant_updated' : 'participant_added'
       });
 
-      setSnackbar({
-        open: true,
-        message: selectedParticipant ? 'Team member updated successfully' : 'Team member added successfully',
-        severity: 'success'
-      });
+      enqueueSnackbar(selectedParticipant ? 'Team member updated successfully' : 'Team member added successfully', { variant: 'success' });
       setTeamDialogOpen(false);
       setSelectedParticipant(null);
 
     } catch (error) {
       console.error('Error saving team member:', error);
-      setSnackbar({
-        open: true,
-        message: `Failed to save team member: ${error.message}`,
-        severity: 'error'
-      });
+      enqueueSnackbar(`Failed to save team member: ${error.message}`, { variant: 'error' });
     } finally {
       setIsSaving(false);
     }
-  }, [patientId, careTeam, selectedParticipant, refreshPatientResources, publish]);
+  }, [patientId, careTeam, selectedParticipant, refreshPatientResources, publish, enqueueSnackbar]);
 
   // Quick actions for FAB
   const quickActions = [
@@ -1861,11 +1821,7 @@ const CarePlanTabEnhanced = ({
           <Button
             variant="contained"
             onClick={() => {
-              setSnackbar({
-                open: true,
-                message: 'Progress updated successfully',
-                severity: 'success'
-              });
+              enqueueSnackbar('Progress updated successfully', { variant: 'success' });
               setProgressDialogOpen(false);
             }}
           >
@@ -2155,10 +2111,10 @@ const CarePlanTabEnhanced = ({
                 loadAttemptedRef.current = null;
                 await refreshPatientResources(patientId, ['CarePlan']);
                 setCreateDialogOpen(false);
-                setSnackbar({ open: true, message: 'Care plan created successfully', severity: 'success' });
+                enqueueSnackbar('Care plan created successfully', { variant: 'success' });
               } catch (err) {
                 console.error('Failed to create care plan:', err);
-                setSnackbar({ open: true, message: 'Failed to create care plan', severity: 'error' });
+                enqueueSnackbar('Failed to create care plan', { variant: 'error' });
               } finally {
                 setIsSaving(false);
               }
@@ -2170,20 +2126,6 @@ const CarePlanTabEnhanced = ({
       </Dialog>
 
       {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };
