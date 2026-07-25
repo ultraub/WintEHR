@@ -39,7 +39,7 @@
     "react-syntax-highlighter": "^16.1.1",
     "react-transition-group": "^4.4.5",
     "recharts": "^3.0.2",
-    "uuid": "^11.1.0",
+    "uuid": "^11.1.1",
     "vis-data": "^8.0.1",
     "vis-timeline": "^8.2.1",
     "web-vitals": "^2.1.4"

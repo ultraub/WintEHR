@@ -1,0 +1,54 @@
+# Dependabot configuration.
+#
+# Why grouping: before this file, Dependabot opened one PR per advisory on a
+# daily cadence — 13 landed in a single week, nearly all transitive build-tool
+# bumps. Each needed its own CI run, lockfile rebase, and review, and a genuinely
+# important advisory was indistinguishable from the noise.
+#
+# The rule here: batch the boring ones, isolate the ones that need a human.
+#   - minor/patch  -> ONE grouped PR per ecosystem per week
+#   - major        -> its own PR (breaking changes deserve individual review;
+#                     e.g. uuid 11->14 was ESM repackaging needing a Jest
+#                     config change, and react-syntax-highlighter 15->16
+#                     changed a directly-imported dependency)
+#
+# Security advisories still open PRs regardless of schedule — grouping changes
+# how they are batched, never whether they are raised.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      frontend-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "build(deps)"
+      prefix-development: "build(deps-dev)"
+
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      backend-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "build(deps)"
+
+  # Keep the CI workflow's own actions current; they change rarely.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci(deps)"
