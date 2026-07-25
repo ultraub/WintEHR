@@ -13,7 +13,7 @@
  */
 
 import axios from 'axios';
-import { getFhirUrl, getEmrUrl } from '../config/apiConfig';
+import { getFhirUrl, getEmrUrl, getBackendApiUrl, getCdsHooksUrl } from '../config/apiConfig';
 
 class HttpClientFactory {
   constructor() {
@@ -27,7 +27,6 @@ class HttpClientFactory {
    */
   static createApiClient(config = {}) {
     const factory = new HttpClientFactory();
-    const { getBackendApiUrl } = require('../config/apiConfig');
     return factory.createClient('api', {
       baseURL: config.baseURL || getBackendApiUrl(),
       headers: {
@@ -109,7 +108,6 @@ class HttpClientFactory {
    */
   static createCdsClient(config = {}) {
     const factory = new HttpClientFactory();
-    const { getCdsHooksUrl } = require('../config/apiConfig');
     return factory.createClient('cds', {
       baseURL: config.baseURL || getCdsHooksUrl(),
       headers: {

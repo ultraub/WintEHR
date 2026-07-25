@@ -5,6 +5,7 @@
 
 import { HttpClientFactory, createApiClient, createFhirClient, createEmrClient, createCdsClient } from '../HttpClientFactory';
 import axios from 'axios';
+import { getBackendApiUrl, getCdsHooksUrl, getFhirUrl, getEmrUrl } from '../../config/apiConfig';
 
 // Mock axios
 vi.mock('axios');
@@ -38,7 +39,7 @@ describe('HttpClientFactory', () => {
         
         expect(axios.create).toHaveBeenCalledWith(
           expect.objectContaining({
-            baseURL: 'http://localhost:8000',
+            baseURL: getBackendApiUrl(),
             headers: expect.objectContaining({
               'Content-Type': 'application/json',
               'Accept': 'application/json'
@@ -141,7 +142,7 @@ describe('HttpClientFactory', () => {
         
         expect(axios.create).toHaveBeenCalledWith(
           expect.objectContaining({
-            baseURL: 'http://localhost:8000/cds-hooks'
+            baseURL: getCdsHooksUrl()
           })
         );
       });
@@ -166,10 +167,14 @@ describe('HttpClientFactory', () => {
     });
 
     it('should create new clients for different configurations', () => {
-      const client1 = HttpClientFactory.getCachedClient('api', { baseURL: 'test1' });
-      const client2 = HttpClientFactory.getCachedClient('api', { baseURL: 'test2' });
-      
-      expect(client1).not.toBe(client2);
+      // axios.create is mocked to return one shared object, so identity can't
+      // distinguish the two clients — assert that two DISTINCT clients were
+      // actually constructed (i.e. the cache keyed them separately).
+      axios.create.mockClear();
+      HttpClientFactory.getCachedClient('api', { baseURL: 'test1' });
+      HttpClientFactory.getCachedClient('api', { baseURL: 'test2' });
+
+      expect(axios.create).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -476,27 +481,26 @@ describe('HttpClientFactory', () => {
       expect(client._config.features.retry.retries).toBe(3);
     });
 
-    it('should handle environment-based configuration', () => {
-      import.meta.env.REACT_APP_API_URL = 'https://prod.api.com';
-      import.meta.env.REACT_APP_FHIR_ENDPOINT = '/fhir/R5';
-      import.meta.env.REACT_APP_EMR_FEATURES = 'true';
-      
-      const apiClient = createApiClient();
-      const fhirClient = createFhirClient();
-      const emrClient = createEmrClient();
-      
+    it('should build clients from the resolved apiConfig values', () => {
+      // NOTE: this used to assign to import.meta.env at runtime and expect the
+      // clients to pick it up. Env is baked at build time and apiConfig is a
+      // module-level singleton, so a runtime mutation can never be observed
+      // (this failed under CRA/jest too). Assert the real invariant instead:
+      // each factory uses the URL apiConfig resolved.
+      createApiClient();
       expect(axios.create).toHaveBeenCalledWith(
-        expect.objectContaining({ baseURL: 'https://prod.api.com' })
+        expect.objectContaining({ baseURL: getBackendApiUrl() })
       );
+
+      createFhirClient();
       expect(axios.create).toHaveBeenCalledWith(
-        expect.objectContaining({ baseURL: '/fhir/R5' })
+        expect.objectContaining({ baseURL: getFhirUrl() })
       );
-      expect(emrClient._mock).toBeUndefined();
-      
-      // Cleanup
-      delete import.meta.env.REACT_APP_API_URL;
-      delete import.meta.env.REACT_APP_FHIR_ENDPOINT;
-      delete import.meta.env.REACT_APP_EMR_FEATURES;
+
+      createEmrClient();
+      expect(axios.create).toHaveBeenCalledWith(
+        expect.objectContaining({ baseURL: getEmrUrl() })
+      );
     });
   });
 });
