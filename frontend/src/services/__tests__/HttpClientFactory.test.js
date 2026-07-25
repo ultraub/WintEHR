@@ -90,12 +90,12 @@ describe('HttpClientFactory', () => {
         );
       });
 
-      it('should use the FHIR endpoint from apiConfig', () => {
+      it('should use the FHIR endpoint from apiConfig', async () => {
         // URL resolution is consolidated onto config/apiConfig (E4), which
         // reads REACT_APP_FHIR_ENDPOINT once at module init — setting the
         // env var mid-test can no longer change it. Assert the factory uses
         // whatever apiConfig resolves.
-        const { getFhirUrl } = require('../../config/apiConfig');
+        const { getFhirUrl } = await import('../../config/apiConfig');
 
         createFhirClient();
 

@@ -245,8 +245,8 @@ describe('ServiceSelector', () => {
         expect(client1).toBe(client2);
       });
 
-      it('should pass configuration to client factory', () => {
-        const { createApiClient } = require('../HttpClientFactory');
+      it('should pass configuration to client factory', async () => {
+        const { createApiClient } = await import('../HttpClientFactory');
         selector.setFeatureFlag('useNewHttpFactory', true);
         
         const config = { timeout: 5000 };
@@ -257,8 +257,8 @@ describe('ServiceSelector', () => {
     });
 
     describe('getCachedHttpClient', () => {
-      it('should use factory cached client when feature flag enabled', () => {
-        const { getCachedClient } = require('../HttpClientFactory');
+      it('should use factory cached client when feature flag enabled', async () => {
+        const { getCachedClient } = await import('../HttpClientFactory');
         selector.setFeatureFlag('useNewHttpFactory', true);
         
         const client = selector.getCachedHttpClient('api');

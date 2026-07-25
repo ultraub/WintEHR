@@ -1,3 +1,5 @@
+import CDSHooksClient from '../cdsHooksClient';
+
 /**
  * Regression test for the patient-summary CDS latency bug.
  *
@@ -23,8 +25,6 @@ vi.mock('../cdsPrefetchResolver', () => ({
     buildCommonPrefetch: vi.fn().mockResolvedValue(null),
   },
 }));
-
-const CDSHooksClient = require('../cdsHooksClient').default;
 
 const makeService = (id, opts = {}) => ({
   id,

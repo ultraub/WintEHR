@@ -64,7 +64,10 @@
     "extends": [
       "react-app",
       "react-app/jest"
-    ]
+    ],
+    "globals": {
+      "vi": "readonly"
+    }
   },
   "browserslist": {
     "production": [
@@ -79,6 +82,7 @@
     ]
   },
   "devDependencies": {
+    "@testing-library/dom": "^8.20.1",
     "@types/jest": "^27.5.2",
     "@types/node": "^16.18.0",
     "@types/react": "^18.2.0",

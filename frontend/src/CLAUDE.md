@@ -93,7 +93,7 @@ Resource dialogs extend `components/base/BaseResourceDialog.js` (or
 
 ## Out of scope / corrections to prior doc
 
-- **No `@` webpack alias.** Prior doc told you to "always use `@` imports" — that
+- **No `@` resolve alias.** Prior doc told you to "always use `@` imports" — that
   is wrong; the alias is editor-only. Use relative imports. (See parent doc.)
 - **`services/fhirService.js` and `services/fhirClient.js` are deleted.** Prior
   doc marked `services/fhirClient.js` as "DEPRECATED – use core/..." — it is not
