@@ -4,6 +4,7 @@ Manages conversation sessions and state
 """
 
 import json
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -14,24 +15,43 @@ from .models import SessionInfo, UISpecification
 
 logger = logging.getLogger(__name__)
 
+# Session ids are generated as UUID4s; accept only that shape when one is
+# supplied by a caller. Session ids arrive from request bodies and are used to
+# build filesystem paths, so an unvalidated id like "../../etc/passwd" would
+# escape the sessions directory (arbitrary file read in get_session, arbitrary
+# file DELETE in delete_session).
+_SAFE_SESSION_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def _is_safe_session_id(session_id: str) -> bool:
+    return bool(session_id) and bool(_SAFE_SESSION_ID.match(session_id))
+
+
 class SessionManager:
     def __init__(self, base_dir: str = ".claude/sessions/ui-composer"):
         self.base_dir = Path(base_dir)
         self.sessions_dir = self.base_dir / "sessions"
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # In-memory cache
         self._sessions: Dict[str, SessionInfo] = {}
-    
+
+    def _session_file(self, session_id: str) -> Optional[Path]:
+        """Resolve a session id to its file, or None if the id is unsafe."""
+        if not _is_safe_session_id(session_id):
+            logger.warning(f"Rejected unsafe session id: {session_id!r}")
+            return None
+        return self.sessions_dir / f"{session_id}.json"
+
     async def get_session(self, session_id: str) -> Optional[SessionInfo]:
         """Get session by ID"""
         # Check cache first
         if session_id in self._sessions:
             return self._sessions[session_id]
-        
+
         # Try to load from file
-        session_file = self.sessions_dir / f"{session_id}.json"
-        if session_file.exists():
+        session_file = self._session_file(session_id)
+        if session_file and session_file.exists():
             try:
                 data = json.loads(session_file.read_text())
                 session = SessionInfo(
@@ -92,7 +112,9 @@ class SessionManager:
         }
         
         # Save to file
-        session_file = self.sessions_dir / f"{session.session_id}.json"
+        session_file = self._session_file(session.session_id)
+        if not session_file:
+            return
         try:
             session_file.write_text(json.dumps(session_data, indent=2))
             logger.debug(f"Saved session {session.session_id}")
@@ -106,8 +128,8 @@ class SessionManager:
             del self._sessions[session_id]
         
         # Delete file
-        session_file = self.sessions_dir / f"{session_id}.json"
-        if session_file.exists():
+        session_file = self._session_file(session_id)
+        if session_file and session_file.exists():
             try:
                 session_file.unlink()
                 return True

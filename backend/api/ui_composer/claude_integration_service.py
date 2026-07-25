@@ -101,7 +101,9 @@ class ClaudeIntegrationService:
     def _get_cache_key(self, prompt: str, options: Dict[str, Any]) -> str:
         """Generate cache key for prompt and options"""
         key_data = json.dumps({'prompt': prompt, 'options': options}, sort_keys=True)
-        return hashlib.md5(key_data.encode()).hexdigest()
+        # sha256, not md5: this is only a cache key, but MD5 trips security
+        # scanners and there is no reason to prefer a broken digest here.
+        return hashlib.sha256(key_data.encode()).hexdigest()
         
     def _get_from_cache(self, key: str) -> Optional[str]:
         """Get value from cache if not expired"""
