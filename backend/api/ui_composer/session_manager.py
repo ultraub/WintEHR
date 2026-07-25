@@ -37,11 +37,24 @@ class SessionManager:
         self._sessions: Dict[str, SessionInfo] = {}
 
     def _session_file(self, session_id: str) -> Optional[Path]:
-        """Resolve a session id to its file, or None if the id is unsafe."""
+        """Resolve a session id to its file, or None if the id is unsafe.
+
+        Two independent barriers: the id must match the safe charset, and the
+        resolved path must still sit inside sessions_dir (this second check
+        also defeats symlink tricks a charset check can't see).
+        """
         if not _is_safe_session_id(session_id):
             logger.warning(f"Rejected unsafe session id: {session_id!r}")
             return None
-        return self.sessions_dir / f"{session_id}.json"
+
+        sessions_dir = self.sessions_dir.resolve()
+        candidate = (sessions_dir / f"{session_id}.json").resolve()
+        try:
+            candidate.relative_to(sessions_dir)
+        except ValueError:
+            logger.warning(f"Rejected session id escaping sessions dir: {session_id!r}")
+            return None
+        return candidate
 
     async def get_session(self, session_id: str) -> Optional[SessionInfo]:
         """Get session by ID"""
