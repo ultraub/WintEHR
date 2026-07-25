@@ -22,7 +22,7 @@
     "cornerstone-tools": "^6.0.0",
     "cornerstone-wado-image-loader": "^4.1.0",
     "d3": "^7.9.0",
-    "date-fns": "^2.30.0",
+    "date-fns": "^4.4.0",
     "dicom-parser": "^1.8.0",
     "dompurify": "^3.4.12",
     "framer-motion": "^11.18.2",
