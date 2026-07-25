@@ -14,52 +14,52 @@ import {
 } from '../ServiceSelector';
 
 // Mock all the services
-jest.mock('../MedicationCRUDService', () => ({
+vi.mock('../MedicationCRUDService', () => ({
   medicationCRUDService: {
-    search: jest.fn(),
-    getMedicationById: jest.fn(),
+    search: vi.fn(),
+    getMedicationById: vi.fn(),
     COMMON_MEDICATIONS: []
   }
 }));
 
-jest.mock('../MedicationWorkflowService', () => ({
+vi.mock('../MedicationWorkflowService', () => ({
   medicationWorkflowService: {
-    getMedicationReconciliationData: jest.fn(),
-    createRefillRequest: jest.fn()
+    getMedicationReconciliationData: vi.fn(),
+    createRefillRequest: vi.fn()
   }
 }));
 
-jest.mock('../HttpClientFactory', () => ({
-  createApiClient: jest.fn(() => ({ type: 'api-factory' })),
-  createFhirClient: jest.fn(() => ({ type: 'fhir-factory' })),
-  createEmrClient: jest.fn(() => ({ type: 'emr-factory' })),
-  createCdsClient: jest.fn(() => ({ type: 'cds-factory' })),
-  getCachedClient: jest.fn(() => ({ type: 'cached-factory' }))
+vi.mock('../HttpClientFactory', () => ({
+  createApiClient: vi.fn(() => ({ type: 'api-factory' })),
+  createFhirClient: vi.fn(() => ({ type: 'fhir-factory' })),
+  createEmrClient: vi.fn(() => ({ type: 'emr-factory' })),
+  createCdsClient: vi.fn(() => ({ type: 'cds-factory' })),
+  getCachedClient: vi.fn(() => ({ type: 'cached-factory' }))
 }));
 
 // Mock legacy services
-jest.mock('../api', () => ({ type: 'legacy-api' }));
-jest.mock('../fhirClient', () => ({ fhirClient: { type: 'legacy-fhir' } }));
-jest.mock('../emrClient', () => ({ emrClient: { type: 'legacy-emr' } }));
-jest.mock('../cdsHooksClient', () => ({ cdsHooksClient: { type: 'legacy-cds' } }));
+vi.mock('../api', () => ({ type: 'legacy-api' }));
+vi.mock('../fhirClient', () => ({ fhirClient: { type: 'legacy-fhir' } }));
+vi.mock('../emrClient', () => ({ emrClient: { type: 'legacy-emr' } }));
+vi.mock('../cdsHooksClient', () => ({ cdsHooksClient: { type: 'legacy-cds' } }));
 
-jest.mock('../medicationSearchService', () => ({
-  medicationSearchService: { searchMedications: jest.fn() }
+vi.mock('../medicationSearchService', () => ({
+  medicationSearchService: { searchMedications: vi.fn() }
 }));
-jest.mock('../medicationDiscontinuationService', () => ({
-  medicationDiscontinuationService: { discontinue: jest.fn() }
+vi.mock('../medicationDiscontinuationService', () => ({
+  medicationDiscontinuationService: { discontinue: vi.fn() }
 }));
-jest.mock('../medicationReconciliationService', () => ({
-  medicationReconciliationService: { getMedicationReconciliationData: jest.fn() }
+vi.mock('../medicationReconciliationService', () => ({
+  medicationReconciliationService: { getMedicationReconciliationData: vi.fn() }
 }));
-jest.mock('../prescriptionRefillService', () => ({
-  prescriptionRefillService: { createRefillRequest: jest.fn() }
+vi.mock('../prescriptionRefillService', () => ({
+  prescriptionRefillService: { createRefillRequest: vi.fn() }
 }));
-jest.mock('../prescriptionStatusService', () => ({
-  prescriptionStatusService: { updatePrescriptionStatus: jest.fn() }
+vi.mock('../prescriptionStatusService', () => ({
+  prescriptionStatusService: { updatePrescriptionStatus: vi.fn() }
 }));
-jest.mock('../medicationWorkflowValidator', () => ({
-  medicationWorkflowValidator: { validatePatientMedicationWorkflow: jest.fn() }
+vi.mock('../medicationWorkflowValidator', () => ({
+  medicationWorkflowValidator: { validatePatientMedicationWorkflow: vi.fn() }
 }));
 
 describe('ServiceSelector', () => {
@@ -68,7 +68,7 @@ describe('ServiceSelector', () => {
   beforeEach(() => {
     originalEnv = process.env;
     process.env = { ...originalEnv };
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -77,9 +77,9 @@ describe('ServiceSelector', () => {
 
   describe('Constructor and feature flag loading', () => {
     it('should load feature flags from environment variables', () => {
-      process.env.REACT_APP_USE_NEW_MEDICATION_SERVICES = 'true';
-      process.env.REACT_APP_USE_NEW_HTTP_FACTORY = 'true';
-      process.env.REACT_APP_DEBUG_SERVICE_SELECTION = 'true';
+      import.meta.env.REACT_APP_USE_NEW_MEDICATION_SERVICES = 'true';
+      import.meta.env.REACT_APP_USE_NEW_HTTP_FACTORY = 'true';
+      import.meta.env.REACT_APP_DEBUG_SERVICE_SELECTION = 'true';
 
       const selector = new ServiceSelector();
       const flags = selector.getFeatureFlags();
@@ -115,7 +115,7 @@ describe('ServiceSelector', () => {
     });
 
     it('should clear relevant cache when feature flags change', () => {
-      const clearCacheSpy = jest.spyOn(selector, 'clearCache');
+      const clearCacheSpy = vi.spyOn(selector, 'clearCache');
       
       selector.setFeatureFlag('useNewMedicationServices', true);
       
@@ -413,7 +413,7 @@ describe('ServiceSelector', () => {
     let consoleSpy;
 
     beforeEach(() => {
-      consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      consoleSpy = vi.spyOn(console, 'log').mockImplementation();
     });
 
     afterEach(() => {
@@ -421,7 +421,7 @@ describe('ServiceSelector', () => {
     });
 
     it('should log service selection when debug mode enabled', () => {
-      process.env.REACT_APP_DEBUG_SERVICE_SELECTION = 'true';
+      import.meta.env.REACT_APP_DEBUG_SERVICE_SELECTION = 'true';
       const selector = new ServiceSelector();
       
       selector.getMedicationSearchService();

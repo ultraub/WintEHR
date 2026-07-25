@@ -7,25 +7,25 @@ import { HttpClientFactory, createApiClient, createFhirClient, createEmrClient, 
 import axios from 'axios';
 
 // Mock axios
-jest.mock('axios');
+vi.mock('axios');
 
 describe('HttpClientFactory', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     localStorage.clear();
     
     // Mock axios.create to return a mock client
     const mockClient = {
       interceptors: {
-        request: { use: jest.fn() },
-        response: { use: jest.fn() }
+        request: { use: vi.fn() },
+        response: { use: vi.fn() }
       },
-      get: jest.fn(),
-      post: jest.fn(),
-      put: jest.fn(),
-      delete: jest.fn(),
-      patch: jest.fn(),
-      request: jest.fn()
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
+      patch: vi.fn(),
+      request: vi.fn()
     };
     
     axios.create.mockReturnValue(mockClient);
@@ -123,13 +123,13 @@ describe('HttpClientFactory', () => {
       });
 
       it('should respect environment variable', () => {
-        process.env.REACT_APP_EMR_FEATURES = 'false';
+        import.meta.env.REACT_APP_EMR_FEATURES = 'false';
         
         const client = createEmrClient();
         
         expect(client._mock).toBe(true);
         
-        delete process.env.REACT_APP_EMR_FEATURES;
+        delete import.meta.env.REACT_APP_EMR_FEATURES;
       });
     });
 
@@ -180,12 +180,12 @@ describe('HttpClientFactory', () => {
     beforeEach(() => {
       factory = new HttpClientFactory();
       mockClient = {
-        get: jest.fn(),
-        post: jest.fn(),
-        request: jest.fn(),
+        get: vi.fn(),
+        post: vi.fn(),
+        request: vi.fn(),
         interceptors: {
-          request: { use: jest.fn() },
-          response: { use: jest.fn() }
+          request: { use: vi.fn() },
+          response: { use: vi.fn() }
         }
       };
     });
@@ -197,7 +197,7 @@ describe('HttpClientFactory', () => {
         expect(mockClient.get).toBeDefined();
         
         // Test that original get method is preserved
-        const originalGet = jest.fn().mockResolvedValue({ data: 'test' });
+        const originalGet = vi.fn().mockResolvedValue({ data: 'test' });
         mockClient.get = originalGet;
         factory.addCachingFeature(mockClient);
         
@@ -209,7 +209,7 @@ describe('HttpClientFactory', () => {
       });
 
       it('should cache responses and return cached data', async () => {
-        const originalGet = jest.fn().mockResolvedValue({ data: 'test' });
+        const originalGet = vi.fn().mockResolvedValue({ data: 'test' });
         mockClient.get = originalGet;
         
         factory.addCachingFeature(mockClient);
@@ -224,7 +224,7 @@ describe('HttpClientFactory', () => {
       });
 
       it('should respect noCache option', async () => {
-        const originalGet = jest.fn().mockResolvedValue({ data: 'test' });
+        const originalGet = vi.fn().mockResolvedValue({ data: 'test' });
         mockClient.get = originalGet;
         
         factory.addCachingFeature(mockClient);
@@ -238,7 +238,7 @@ describe('HttpClientFactory', () => {
 
     describe('Deduplication feature', () => {
       it('should deduplicate identical requests', async () => {
-        const originalRequest = jest.fn().mockResolvedValue({ data: 'test' });
+        const originalRequest = vi.fn().mockResolvedValue({ data: 'test' });
         mockClient.request = originalRequest;
         
         factory.addDeduplicationFeature(mockClient);
@@ -283,7 +283,7 @@ describe('HttpClientFactory', () => {
         
         // Test with 500 (should retry)
         const error500 = { response: { status: 500 }, config: {} };
-        mockClient.request = jest.fn().mockResolvedValue({ data: 'success' });
+        mockClient.request = vi.fn().mockResolvedValue({ data: 'success' });
         
         const result = await errorHandler(error500);
         expect(mockClient.request).toHaveBeenCalled();
@@ -292,8 +292,8 @@ describe('HttpClientFactory', () => {
 
     describe('Logging feature', () => {
       beforeEach(() => {
-        console.log = jest.fn();
-        console.error = jest.fn();
+        console.log = vi.fn();
+        console.error = vi.fn();
       });
 
       it('should log requests when enabled', () => {
@@ -477,9 +477,9 @@ describe('HttpClientFactory', () => {
     });
 
     it('should handle environment-based configuration', () => {
-      process.env.REACT_APP_API_URL = 'https://prod.api.com';
-      process.env.REACT_APP_FHIR_ENDPOINT = '/fhir/R5';
-      process.env.REACT_APP_EMR_FEATURES = 'true';
+      import.meta.env.REACT_APP_API_URL = 'https://prod.api.com';
+      import.meta.env.REACT_APP_FHIR_ENDPOINT = '/fhir/R5';
+      import.meta.env.REACT_APP_EMR_FEATURES = 'true';
       
       const apiClient = createApiClient();
       const fhirClient = createFhirClient();
@@ -494,9 +494,9 @@ describe('HttpClientFactory', () => {
       expect(emrClient._mock).toBeUndefined();
       
       // Cleanup
-      delete process.env.REACT_APP_API_URL;
-      delete process.env.REACT_APP_FHIR_ENDPOINT;
-      delete process.env.REACT_APP_EMR_FEATURES;
+      delete import.meta.env.REACT_APP_API_URL;
+      delete import.meta.env.REACT_APP_FHIR_ENDPOINT;
+      delete import.meta.env.REACT_APP_EMR_FEATURES;
     });
   });
 });

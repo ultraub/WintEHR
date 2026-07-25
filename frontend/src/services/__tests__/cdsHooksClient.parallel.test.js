@@ -13,14 +13,14 @@
  * card ordering still matches the input service list so on-screen
  * placement is stable.
  */
-// CRACO's jest.transformIgnorePatterns now whitelists axios so the
+// Vite/vitest transform ESM-only deps (axios) natively, so the
 // per-file ESM mock dance previous PRs needed (#113, #117) is no
 // longer required. The cdsPrefetchResolver mock stays — it stubs out
 // network behavior the tests don't want to exercise, not an ESM workaround.
-jest.mock('../cdsPrefetchResolver', () => ({
+vi.mock('../cdsPrefetchResolver', () => ({
   cdsPrefetchResolver: {
-    resolvePrefetchTemplates: jest.fn().mockResolvedValue(null),
-    buildCommonPrefetch: jest.fn().mockResolvedValue(null),
+    resolvePrefetchTemplates: vi.fn().mockResolvedValue(null),
+    buildCommonPrefetch: vi.fn().mockResolvedValue(null),
   },
 }));
 
@@ -41,7 +41,7 @@ describe('CDSHooksClient — parallel hook dispatch', () => {
 
   beforeEach(() => {
     client = new CDSHooksClient();
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   describe('firePatientView', () => {
@@ -51,10 +51,10 @@ describe('CDSHooksClient — parallel hook dispatch', () => {
         makeService('slow-b'),
         makeService('slow-c'),
       ];
-      jest.spyOn(client, 'discoverServices').mockResolvedValue(services);
+      vi.spyOn(client, 'discoverServices').mockResolvedValue(services);
 
       const PER_CALL_MS = 120;
-      jest.spyOn(client, 'executeHook').mockImplementation(async (serviceId) => {
+      vi.spyOn(client, 'executeHook').mockImplementation(async (serviceId) => {
         await sleep(PER_CALL_MS);
         return { cards: [{ summary: `card-${serviceId}` }] };
       });
@@ -77,8 +77,8 @@ describe('CDSHooksClient — parallel hook dispatch', () => {
         makeService('rejecting'),
         makeService('ok-2'),
       ];
-      jest.spyOn(client, 'discoverServices').mockResolvedValue(services);
-      jest.spyOn(client, 'executeHook').mockImplementation(async (serviceId) => {
+      vi.spyOn(client, 'discoverServices').mockResolvedValue(services);
+      vi.spyOn(client, 'executeHook').mockImplementation(async (serviceId) => {
         if (serviceId === 'rejecting') {
           throw new Error('boom');
         }
@@ -96,11 +96,11 @@ describe('CDSHooksClient — parallel hook dispatch', () => {
         makeService('bravo'),
         makeService('charlie'),
       ];
-      jest.spyOn(client, 'discoverServices').mockResolvedValue(services);
+      vi.spyOn(client, 'discoverServices').mockResolvedValue(services);
 
       // Resolve out of order: charlie first, then alpha, then bravo.
       const order = { alpha: 60, bravo: 90, charlie: 10 };
-      jest.spyOn(client, 'executeHook').mockImplementation(async (serviceId) => {
+      vi.spyOn(client, 'executeHook').mockImplementation(async (serviceId) => {
         await sleep(order[serviceId]);
         return { cards: [{ summary: `card-${serviceId}` }] };
       });
@@ -111,8 +111,8 @@ describe('CDSHooksClient — parallel hook dispatch', () => {
     });
 
     it('returns an empty list (no throw) when no services are registered', async () => {
-      jest.spyOn(client, 'discoverServices').mockResolvedValue([]);
-      const exec = jest.spyOn(client, 'executeHook');
+      vi.spyOn(client, 'discoverServices').mockResolvedValue([]);
+      const exec = vi.spyOn(client, 'executeHook');
 
       const cards = await client.firePatientView('p1', 'u1');
 
@@ -128,10 +128,10 @@ describe('CDSHooksClient — parallel hook dispatch', () => {
         makeService('mp-2', { hook: 'medication-prescribe' }),
         makeService('mp-3', { hook: 'medication-prescribe' }),
       ];
-      jest.spyOn(client, 'discoverServices').mockResolvedValue(services);
+      vi.spyOn(client, 'discoverServices').mockResolvedValue(services);
 
       const PER_CALL_MS = 100;
-      jest.spyOn(client, 'executeHook').mockImplementation(async (serviceId) => {
+      vi.spyOn(client, 'executeHook').mockImplementation(async (serviceId) => {
         await sleep(PER_CALL_MS);
         return { cards: [{ summary: `mp-${serviceId}` }] };
       });
@@ -152,10 +152,10 @@ describe('CDSHooksClient — parallel hook dispatch', () => {
         makeService('os-2', { hook: 'order-sign' }),
         makeService('os-3', { hook: 'order-sign' }),
       ];
-      jest.spyOn(client, 'discoverServices').mockResolvedValue(services);
+      vi.spyOn(client, 'discoverServices').mockResolvedValue(services);
 
       const PER_CALL_MS = 100;
-      jest.spyOn(client, 'executeHook').mockImplementation(async (serviceId) => {
+      vi.spyOn(client, 'executeHook').mockImplementation(async (serviceId) => {
         await sleep(PER_CALL_MS);
         return { cards: [{ summary: `os-${serviceId}` }] };
       });

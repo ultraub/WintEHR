@@ -34,7 +34,7 @@ test('edit mode pre-fills the form from the existing resource', async () => {
       immunization={existing}
       patientId="p1"
       onClose={() => {}}
-      onSave={jest.fn().mockResolvedValue({})}
+      onSave={vi.fn().mockResolvedValue({})}
     />,
   );
   expect(screen.getByText('Edit immunization')).toBeInTheDocument();
@@ -43,8 +43,8 @@ test('edit mode pre-fills the form from the existing resource', async () => {
 });
 
 test('saving an edit hands onSave a merged resource that preserves untouched fields', async () => {
-  const onSave = jest.fn().mockResolvedValue({});
-  const onClose = jest.fn();
+  const onSave = vi.fn().mockResolvedValue({});
+  const onClose = vi.fn();
   render(
     <ImmunizationAdminDialog
       open
@@ -74,7 +74,7 @@ test('saving an edit hands onSave a merged resource that preserves untouched fie
 });
 
 test('editing the lot number flows into the saved resource', async () => {
-  const onSave = jest.fn().mockResolvedValue({});
+  const onSave = vi.fn().mockResolvedValue({});
   render(
     <ImmunizationAdminDialog
       open

@@ -13,12 +13,12 @@ import {
 // Mock the catalog service — the conversion functions don't call it, but
 // importing the component module triggers the import of the service,
 // which (in some test environments) may try to read window.location.
-jest.mock('../../../../../services/cdsClinicalDataService', () => ({
+vi.mock('../../../../../services/cdsClinicalDataService', () => ({
   __esModule: true,
   default: {
-    getLabCatalog: jest.fn(),
-    getDynamicMedicationCatalog: jest.fn(),
-    getDynamicConditionCatalog: jest.fn()
+    getLabCatalog: vi.fn(),
+    getDynamicMedicationCatalog: vi.fn(),
+    getDynamicConditionCatalog: vi.fn()
   }
 }));
 

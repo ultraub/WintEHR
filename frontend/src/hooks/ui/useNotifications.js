@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '';
+const API_BASE_URL = import.meta.env.REACT_APP_API_URL || '';
 
 export const useNotifications = () => {
   const [count, setCount] = useState(0);

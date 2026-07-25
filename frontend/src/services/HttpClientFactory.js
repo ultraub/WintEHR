@@ -76,7 +76,7 @@ class HttpClientFactory {
    */
   static createEmrClient(config = {}) {
     const factory = new HttpClientFactory();
-    const enabled = config.enabled !== false && process.env.REACT_APP_EMR_FEATURES !== 'false';
+    const enabled = config.enabled !== false && import.meta.env.REACT_APP_EMR_FEATURES !== 'false';
     
     if (!enabled) {
       return factory.createMockClient('emr', 'EMR features disabled');
@@ -476,7 +476,7 @@ class HttpClientFactory {
     return {
       fulfilled: (config) => {
         // Add EMR capability headers
-        config.headers['EMR-Features'] = process.env.REACT_APP_EMR_FEATURES || 'basic';
+        config.headers['EMR-Features'] = import.meta.env.REACT_APP_EMR_FEATURES || 'basic';
         return config;
       },
       rejected: (error) => Promise.reject(error)

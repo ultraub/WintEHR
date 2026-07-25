@@ -176,7 +176,7 @@ describe('CDSHooksClient', () => {
 
       mock.onPost(`/cds-services/${hookId}`).reply(503);
 
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const first = await cdsHooksClient.executeHook(hookId, { hook: 'patient-view', context });
       expect(first).toEqual({ cards: [] });
       expect(mock.history.post).toHaveLength(1);
@@ -207,7 +207,7 @@ describe('CDSHooksClient', () => {
 
       mock.onPost(`/cds-services/${hookId}`).reply(404);
 
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       await cdsHooksClient.executeHook(hookId, { hook: 'patient-view', context });
       warnSpy.mockRestore();
 

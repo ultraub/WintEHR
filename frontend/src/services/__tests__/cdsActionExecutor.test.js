@@ -9,14 +9,14 @@ import CDSActionExecutor from '../cdsActionExecutor';
 
 // fhirClient and cdsFeedbackService are imported as side effects of the
 // module under test — mock them so import doesn't try to read window.
-jest.mock('../../core/fhir/services/fhirClient', () => ({
-  fhirClient: { create: jest.fn(), update: jest.fn(), delete: jest.fn() }
+vi.mock('../../core/fhir/services/fhirClient', () => ({
+  fhirClient: { create: vi.fn(), update: vi.fn(), delete: vi.fn() }
 }));
-jest.mock('../cdsFeedbackService', () => ({
-  cdsFeedbackService: { sendAcceptanceFeedback: jest.fn() }
+vi.mock('../cdsFeedbackService', () => ({
+  cdsFeedbackService: { sendAcceptanceFeedback: vi.fn() }
 }));
-jest.mock('../../config/logging', () => ({
-  cdsLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+vi.mock('../../config/logging', () => ({
+  cdsLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
 }));
 
 describe('cdsActionExecutor._injectContext', () => {

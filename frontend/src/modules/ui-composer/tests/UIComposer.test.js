@@ -220,8 +220,8 @@ describe('UI Composer', () => {
 // Mock window.claude for testing
 if (typeof window !== 'undefined') {
   window.claude = {
-    complete: jest.fn().mockResolvedValue({
-      match: jest.fn().mockReturnValue(['{"intent": "test", "scope": "population", "components": []}'])
+    complete: vi.fn().mockResolvedValue({
+      match: vi.fn().mockReturnValue(['{"intent": "test", "scope": "population", "components": []}'])
     })
   };
 }

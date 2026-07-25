@@ -5,38 +5,39 @@
  */
 
 import axios from 'axios';
+import type { Mocked } from 'vitest';
 import FHIRClient, { fhirClient } from '../fhirClient';
 import type { Patient, Condition } from '../../types';
 
-// jest.mock is hoisted above imports by babel-plugin-jest-hoist. Using a
+// vi.mock is hoisted above imports by babel-plugin-jest-hoist. Using a
 // factory lets axios.create() return a usable instance at module-load time
 // — the fhirClient module eagerly constructs a singleton at the bottom of
 // fhirClient.ts (createSingletonClient), and a default auto-mock would
 // return undefined and crash setupInterceptors before any beforeEach runs.
-jest.mock('axios', () => {
+vi.mock('axios', () => {
   const buildInstance = () => ({
-    get: jest.fn(),
-    post: jest.fn(),
-    put: jest.fn(),
-    delete: jest.fn(),
-    request: jest.fn(),
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+    request: vi.fn(),
     interceptors: {
-      request: { use: jest.fn() },
-      response: { use: jest.fn() },
+      request: { use: vi.fn() },
+      response: { use: vi.fn() },
     },
   });
   return {
     __esModule: true,
     default: {
-      create: jest.fn(buildInstance),
-      isAxiosError: jest.fn(() => false),
+      create: vi.fn(buildInstance),
+      isAxiosError: vi.fn(() => false),
     },
-    create: jest.fn(buildInstance),
-    isAxiosError: jest.fn(() => false),
+    create: vi.fn(buildInstance),
+    isAxiosError: vi.fn(() => false),
   };
 });
 
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+const mockedAxios = axios as unknown as Mocked<typeof axios>;
 
 describe('FHIRClient', () => {
   let client: FHIRClient;
@@ -44,18 +45,18 @@ describe('FHIRClient', () => {
 
   beforeEach(() => {
     // Clear all mocks
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Mock axios instance
     mockAxiosInstance = {
-      get: jest.fn(),
-      post: jest.fn(),
-      put: jest.fn(),
-      delete: jest.fn(),
-      request: jest.fn(),
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
+      request: vi.fn(),
       interceptors: {
-        request: { use: jest.fn() },
-        response: { use: jest.fn() }
+        request: { use: vi.fn() },
+        response: { use: vi.fn() }
       }
     };
     
@@ -387,14 +388,14 @@ describe('FHIRClient', () => {
 
     beforeEach(() => {
       retryInstance = {
-        get: jest.fn(),
-        post: jest.fn(),
-        put: jest.fn(),
-        delete: jest.fn(),
-        request: jest.fn(),
+        get: vi.fn(),
+        post: vi.fn(),
+        put: vi.fn(),
+        delete: vi.fn(),
+        request: vi.fn(),
         interceptors: {
-          request: { use: jest.fn() },
-          response: { use: jest.fn() },
+          request: { use: vi.fn() },
+          response: { use: vi.fn() },
         },
       };
       mockedAxios.create.mockReturnValueOnce(retryInstance);

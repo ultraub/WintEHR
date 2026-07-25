@@ -32,7 +32,7 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
       };
 
       // Mock the HTTP call
-      jest.spyOn(client.client, 'get').mockResolvedValue(mockResponse);
+      vi.spyOn(client.client, 'get').mockResolvedValue(mockResponse);
 
       const result = await client.discoverServices();
       
@@ -42,7 +42,7 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
 
     it('should handle empty service list', async () => {
       const mockResponse = { data: { services: [] } };
-      jest.spyOn(client.client, 'get').mockResolvedValue(mockResponse);
+      vi.spyOn(client.client, 'get').mockResolvedValue(mockResponse);
 
       const result = await client.discoverServices();
       
@@ -68,7 +68,7 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
         }
       };
 
-      jest.spyOn(client.client, 'post').mockResolvedValue(mockResponse);
+      vi.spyOn(client.client, 'post').mockResolvedValue(mockResponse);
 
       await client.invokeService(serviceId, request);
       
@@ -84,7 +84,7 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
         context: { patientId: '123' }
       };
 
-      jest.spyOn(client.client, 'post').mockResolvedValue({ data: { cards: [] } });
+      vi.spyOn(client.client, 'post').mockResolvedValue({ data: { cards: [] } });
 
       await client.invokeService('test', request);
       
@@ -99,7 +99,7 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
         context: { patientId: '123' }
       };
 
-      jest.spyOn(client.client, 'post').mockResolvedValue({ data: { cards: [] } });
+      vi.spyOn(client.client, 'post').mockResolvedValue({ data: { cards: [] } });
 
       await client.invokeService('test', request);
       
@@ -247,8 +247,8 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
 
   describe('Backward Compatibility', () => {
     it('should show deprecation warning for createHook', async () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-      jest.spyOn(cdsHooksService, 'createService').mockResolvedValue({ success: true });
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation();
+      vi.spyOn(cdsHooksService, 'createService').mockResolvedValue({ success: true });
 
       await cdsHooksService.createHook({});
 
@@ -261,8 +261,8 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
     });
 
     it('should show deprecation warning for listCustomHooks', async () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-      jest.spyOn(cdsHooksService, 'listCustomServices').mockResolvedValue({ data: [] });
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation();
+      vi.spyOn(cdsHooksService, 'listCustomServices').mockResolvedValue({ data: [] });
 
       await cdsHooksService.listCustomHooks();
 
@@ -279,7 +279,7 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
       const error = {
         response: { status: 404 }
       };
-      jest.spyOn(client.client, 'post').mockRejectedValue(error);
+      vi.spyOn(client.client, 'post').mockRejectedValue(error);
 
       await expect(
         client.invokeService('unknown-service', {})
@@ -293,7 +293,7 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
           data: { detail: 'Missing required field: context' }
         }
       };
-      jest.spyOn(client.client, 'post').mockRejectedValue(error);
+      vi.spyOn(client.client, 'post').mockRejectedValue(error);
 
       await expect(
         client.invokeService('test', {})
@@ -302,7 +302,7 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
 
     it('should handle network errors gracefully', async () => {
       const error = new Error('Network error');
-      jest.spyOn(client.client, 'get').mockRejectedValue(error);
+      vi.spyOn(client.client, 'get').mockRejectedValue(error);
 
       await expect(
         client.discoverServices()
@@ -360,7 +360,7 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
     });
 
     it('should send feedback to correct endpoint', async () => {
-      jest.spyOn(client.client, 'post').mockResolvedValue({});
+      vi.spyOn(client.client, 'post').mockResolvedValue({});
 
       const feedback = {
         card: 'test-card',

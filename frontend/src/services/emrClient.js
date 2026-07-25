@@ -11,9 +11,9 @@ import { getFhirUrl, getEmrUrl } from '../config/apiConfig';
 class EMRClient {
   constructor(config = {}) {
     this.baseUrl = config.baseUrl || getEmrUrl();
-    this.enabled = config.enabled !== false && process.env.REACT_APP_EMR_FEATURES !== 'false';
+    this.enabled = config.enabled !== false && import.meta.env.REACT_APP_EMR_FEATURES !== 'false';
     // Disable EMR features by default if not explicitly enabled
-    if (process.env.REACT_APP_EMR_FEATURES === undefined) {
+    if (import.meta.env.REACT_APP_EMR_FEATURES === undefined) {
       this.enabled = false;
     }
     this.auth = config.auth || null;

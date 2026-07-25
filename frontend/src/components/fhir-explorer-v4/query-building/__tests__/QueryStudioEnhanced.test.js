@@ -19,13 +19,13 @@ import { cdsClinicalDataService } from '../../../../services/cdsClinicalDataServ
 import api from '../../../../services/api';
 
 // Mock dependencies
-jest.mock('../../../../core/fhir/services/fhirClient');
-jest.mock('../../../../services/cdsClinicalDataService');
-jest.mock('../../../../services/api', () => ({
+vi.mock('../../../../core/fhir/services/fhirClient');
+vi.mock('../../../../services/cdsClinicalDataService');
+vi.mock('../../../../services/api', () => ({
   __esModule: true,
-  default: { get: jest.fn(), post: jest.fn() },
+  default: { get: vi.fn(), post: vi.fn() },
 }));
-jest.mock('@monaco-editor/react', () => ({
+vi.mock('@monaco-editor/react', () => ({
   __esModule: true,
   default: ({ value, onChange }) => (
     <textarea
@@ -49,7 +49,7 @@ describe('QueryStudioEnhanced', () => {
   };
   
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Mock FHIR client search
     fhirClient.search.mockResolvedValue({
@@ -75,7 +75,7 @@ describe('QueryStudioEnhanced', () => {
   });
   
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
   
   describe('Core Functionality', () => {
