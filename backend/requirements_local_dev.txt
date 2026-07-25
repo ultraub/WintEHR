@@ -29,7 +29,7 @@ pytest-asyncio
 python-dotenv
 
 # FHIR specific - verified version
-fhir.resources==7.1.0
+fhir.resources==8.3.0
 
 # AI integration
 anthropic
