@@ -4,6 +4,7 @@ Manages conversation sessions and state
 """
 
 import json
+import os
 import re
 import uuid
 from datetime import datetime
@@ -47,8 +48,13 @@ class SessionManager:
             logger.warning(f"Rejected unsafe session id: {session_id!r}")
             return None
 
+        # basename() is a no-op given the charset check above, but it is the
+        # canonical strip-any-directory-component idiom and static analysers
+        # recognise it as a path-injection barrier.
+        safe_name = os.path.basename(f"{session_id}.json")
+
         sessions_dir = self.sessions_dir.resolve()
-        candidate = (sessions_dir / f"{session_id}.json").resolve()
+        candidate = (sessions_dir / safe_name).resolve()
         try:
             candidate.relative_to(sessions_dir)
         except ValueError:
