@@ -17,7 +17,7 @@ export const useMedicationDispense = (patientId, options = {}) => {
   
   const searchParams = useMemo(() => ({
     subject: patientId,
-    _sort: '-whenhandover',
+    _sort: '-whenhandedover',
     _count: options.limit || 50,
     ...options.searchParams
   }), [patientId, options.limit, options.searchParams]);
@@ -133,7 +133,7 @@ export const useMedicationDispense = (patientId, options = {}) => {
     try {
       const response = await fhirClient.search('MedicationDispense', {
         prescription: prescriptionId,
-        _sort: '-whenhandover'
+        _sort: '-whenhandedover'
       });
       return response.entry?.map(entry => entry.resource) || [];
     } catch (err) {
@@ -223,7 +223,7 @@ export const useMedicationWorkflow = (prescriptionId) => {
       // Load related dispenses
       const dispensesResponse = await fhirClient.search('MedicationDispense', {
         prescription: prescriptionId,
-        _sort: '-whenhandover'
+        _sort: '-whenhandedover'
       });
       const dispenses = dispensesResponse.entry?.map(e => e.resource) || [];
       

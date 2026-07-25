@@ -91,7 +91,7 @@ class MedicationDispenseService {
   async getDispensesByPrescription(prescriptionId) {
     const searchParams = {
       prescription: prescriptionId,
-      _sort: '-whenhandover'
+      _sort: '-whenhandedover'
     };
     
     const response = await this.searchMedicationDispenses(searchParams);
@@ -104,19 +104,24 @@ class MedicationDispenseService {
   async getDispensesByPatient(patientId, options = {}) {
     const searchParams = {
       subject: patientId,
-      _sort: options.sort || '-whenhandover',
+      _sort: options.sort || '-whenhandedover',
       _count: options.limit || 50,
       ...options.additionalParams
     };
     
     // Add date range if specified
+    // A FHIR AND-ed date range is two repeated params. Concatenating
+    // '&whenhandedover=le..' into one value gets percent-encoded by
+    // URLSearchParams into a single malformed param, so the upper bound never
+    // reaches HAPI. fhirClient serializes array values as repeated keys.
     if (options.startDate) {
-      searchParams['whenhandover'] = `ge${options.startDate}`;
+      searchParams['whenhandedover'] = `ge${options.startDate}`;
     }
     if (options.endDate) {
-      searchParams['whenhandover'] = searchParams['whenhandover'] ? 
-        `${searchParams['whenhandover']}&whenhandover=le${options.endDate}` :
-        `le${options.endDate}`;
+      const le = `le${options.endDate}`;
+      searchParams['whenhandedover'] = searchParams['whenhandedover']
+        ? [searchParams['whenhandedover'], le]
+        : le;
     }
     
     const response = await this.searchMedicationDispenses(searchParams);
@@ -129,7 +134,7 @@ class MedicationDispenseService {
   async getDispensesByStatus(status, patientId = null) {
     const searchParams = {
       status: status,
-      _sort: '-whenhandover'
+      _sort: '-whenhandedover'
     };
     
     if (patientId) {
@@ -188,7 +193,7 @@ class MedicationDispenseService {
    */
   async getDispensingMetrics(patientId = null, dateRange = null) {
     const searchParams = {
-      _sort: '-whenhandover',
+      _sort: '-whenhandedover',
       _count: 100 // Reasonable limit for metrics
     };
     
@@ -206,9 +211,9 @@ class MedicationDispenseService {
         dateFilters.push(`le${dateRange.end}`);
       }
       if (dateFilters.length === 1) {
-        searchParams['whenhandover'] = dateFilters[0];
+        searchParams['whenhandedover'] = dateFilters[0];
       } else if (dateFilters.length > 1) {
-        searchParams['whenhandover'] = dateFilters; // Array becomes multiple query params
+        searchParams['whenhandedover'] = dateFilters; // Array becomes multiple query params
       }
     }
     
