@@ -5,7 +5,7 @@ pydantic>=2.5.0
 sqlalchemy>=2.0.23
 
 # WebSocket support
-websockets==12.0
+websockets==16.1.1
 
 # Database
 alembic>=1.12.1
