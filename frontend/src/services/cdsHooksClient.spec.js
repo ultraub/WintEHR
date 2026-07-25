@@ -7,8 +7,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 class CDSHooksClientSpec {
   constructor() {
-    this.baseUrl = process.env.REACT_APP_CDS_HOOKS_URL || 'http://localhost:8000';
-    this.fhirServer = process.env.REACT_APP_FHIR_SERVER || 'http://localhost:8000/fhir/R4';
+    this.baseUrl = import.meta.env.REACT_APP_CDS_HOOKS_URL || 'http://localhost:8000';
+    this.fhirServer = import.meta.env.REACT_APP_FHIR_SERVER || 'http://localhost:8000/fhir/R4';
     
     // Create axios instance with proper headers
     this.client = axios.create({

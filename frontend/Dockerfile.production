@@ -1,5 +1,5 @@
 # Multi-stage build for production frontend
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Build arguments
 ARG REACT_APP_API_URL=""

@@ -45,15 +45,15 @@ const result  = await fhirClient.search('Condition', {
 
 ## Imports are RELATIVE, not aliased
 
-`craco.config.js` defines **no `@` webpack alias**. The `@/*` entries in
+`vite.config.js` defines **no `@` resolve alias**. The `@/*` entries in
 `tsconfig.json` are editor-only (IntelliSense); they do **not** resolve at build
 or test time. Real code uses relative paths
 (`../../../../core/fhir/services/fhirClient`) — ~116 files do. Only ~15 stray
 files use `@/` and they rely on the path happening to also work; do not add
 more. Match the relative-import style of the file you are editing.
 
-(If you want a real alias, that is a `craco.config.js` + jest `moduleNameMapper`
-change — not a doc fix. Until then: relative imports.)
+(If you want a real alias, that is a `vite.config.js` `resolve.alias` change —
+not a doc fix. Until then: relative imports.)
 
 ---
 
@@ -84,9 +84,15 @@ rules live in `src/hooks/cds/CLAUDE.md`, do not reinvent a third.
 ## URL resolution — never hardcode a host
 
 All backend/FHIR/WS URLs resolve through `src/config/apiConfig.js`. Default
-config uses **empty/relative** URLs so the CRA dev proxy (`setupProxy.js`) and
-nginx route requests — a baked-in `localhost` breaks every non-localhost build
-(`REACT_APP_*` is frozen at build time). See root `CLAUDE.md` for the why.
+config uses **empty/relative** URLs so the Vite dev proxy (`server.proxy` in
+`vite.config.js`) and nginx route requests — a baked-in `localhost` breaks every
+non-localhost build (`REACT_APP_*` is frozen at build time). See root
+`CLAUDE.md` for the why.
+
+Source code reads these as **`import.meta.env.REACT_APP_*`** (not
+`process.env.*`). The names are unchanged — Docker still passes
+`ARG REACT_APP_* → ENV REACT_APP_*` and `envPrefix: 'REACT_APP_'` bakes them in.
+`process.env.NODE_ENV` still works everywhere via a Vite `define`.
 
 Exported helpers (note the exact names):
 `getBackendUrl`, `getBackendApiUrl`, `getFhirUrl`, `getCdsHooksUrl`,
@@ -134,19 +140,35 @@ re-add a parallel tab list anywhere.
 
 ```bash
 ./deploy.sh dev                    # full stack via Docker; frontend :3000
-cd frontend && npm start           # direct dev (needs backend running)
-npm test -- --watchAll=false       # CI test run
+cd frontend && npm start           # Vite dev server (needs backend running)
+npm test                           # vitest run (single pass)
+npm run test:watch                 # vitest watch
 npm run lint                       # ESLint
-npm run build                      # production build (CRACO)
+npm run build                      # vite build -> build/ + postbuild-sw.js
 ```
 
 Demo logins: `demo/password` (clinician), `nurse/password`, `pharmacist/password`,
 `admin/password`.
 
-Tests: `src/test-utils/test-utils.js` exports a custom `render` (re-exported as
-`render`) plus `generateMockPatient` / `generateMockCondition` /
-`generateMockMedicationRequest`. There is **no `TestProviders` export** — use
-the custom `render`.
+Tests: **Vitest** with `globals: true`, so `describe/it/expect` work unchanged;
+the mock API is `vi.*`, not `jest.*`. `src/test-utils/test-utils.js` exports a
+custom `render` (re-exported as `render`) plus `generateMockPatient` /
+`generateMockCondition` / `generateMockMedicationRequest`. There is **no
+`TestProviders` export** — use the custom `render`. Do not use `require()` in a
+test file; it bypasses `vi.mock` and Vite's transform.
+
+---
+
+## Build toolchain (`vite.config.js`)
+
+Vite 7 replaced CRA/CRACO. Three things there are load-bearing for deployment
+and must not drift: `build.outDir: 'build'` (Dockerfile copies `/app/build`),
+`envPrefix: 'REACT_APP_'`, and the `static/js|css|media` asset layout.
+
+`src/**/*.js` files are transformed by a custom pre-plugin using esbuild's
+**`tsx`** loader — 320+ `.js` files contain JSX and 7 carry Flow/TS-style type
+annotations that CRA's babel preset used to accept. Do not rename them; do not
+narrow that plugin to the plain `jsx` loader.
 
 ---
 
@@ -156,7 +178,7 @@ the custom `render`.
 |---|---|
 | Build/compile error `Cannot find module .../services/fhirClient` | Stale import of the deleted client — repoint to `core/fhir/services/fhirClient` |
 | `useFHIRResource must be used within a FHIRResourceProvider` | Component rendered outside `<AppProviders>` |
-| `@/...` import unresolved | No webpack `@` alias — use a relative path |
+| `@/...` import unresolved | No `@` resolve alias — use a relative path |
 | FHIR call 404s | Backend prefix mismatch — see `backend/api/CLAUDE.md` resolved-path table |
 | New tab missing from the strip | Not added to `clinicalTabRegistry.js` |
 | App reads `localhost` on a deployed host | A URL bypassed `apiConfig` or a `REACT_APP_*` localhost fallback got baked in |

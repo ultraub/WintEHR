@@ -11,7 +11,7 @@
  */
 const calls = [];
 
-jest.mock('../../../services/cdsHooksClient', () => ({
+vi.mock('../../../services/cdsHooksClient', () => ({
   __esModule: true,
   cdsHooksClient: {
     discoverServices: async () =>
@@ -24,7 +24,7 @@ jest.mock('../../../services/cdsHooksClient', () => ({
   },
 }));
 
-jest.mock('../../../services/cdsPrefetchResolver', () => ({
+vi.mock('../../../services/cdsPrefetchResolver', () => ({
   __esModule: true,
   cdsPrefetchResolver: {
     resolvePrefetchTemplates: async () => null,

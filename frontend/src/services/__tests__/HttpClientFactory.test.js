@@ -5,27 +5,28 @@
 
 import { HttpClientFactory, createApiClient, createFhirClient, createEmrClient, createCdsClient } from '../HttpClientFactory';
 import axios from 'axios';
+import { getBackendApiUrl, getCdsHooksUrl, getFhirUrl, getEmrUrl } from '../../config/apiConfig';
 
 // Mock axios
-jest.mock('axios');
+vi.mock('axios');
 
 describe('HttpClientFactory', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     localStorage.clear();
     
     // Mock axios.create to return a mock client
     const mockClient = {
       interceptors: {
-        request: { use: jest.fn() },
-        response: { use: jest.fn() }
+        request: { use: vi.fn() },
+        response: { use: vi.fn() }
       },
-      get: jest.fn(),
-      post: jest.fn(),
-      put: jest.fn(),
-      delete: jest.fn(),
-      patch: jest.fn(),
-      request: jest.fn()
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
+      patch: vi.fn(),
+      request: vi.fn()
     };
     
     axios.create.mockReturnValue(mockClient);
@@ -38,7 +39,7 @@ describe('HttpClientFactory', () => {
         
         expect(axios.create).toHaveBeenCalledWith(
           expect.objectContaining({
-            baseURL: 'http://localhost:8000',
+            baseURL: getBackendApiUrl(),
             headers: expect.objectContaining({
               'Content-Type': 'application/json',
               'Accept': 'application/json'
@@ -90,12 +91,12 @@ describe('HttpClientFactory', () => {
         );
       });
 
-      it('should use the FHIR endpoint from apiConfig', () => {
+      it('should use the FHIR endpoint from apiConfig', async () => {
         // URL resolution is consolidated onto config/apiConfig (E4), which
         // reads REACT_APP_FHIR_ENDPOINT once at module init — setting the
         // env var mid-test can no longer change it. Assert the factory uses
         // whatever apiConfig resolves.
-        const { getFhirUrl } = require('../../config/apiConfig');
+        const { getFhirUrl } = await import('../../config/apiConfig');
 
         createFhirClient();
 
@@ -123,13 +124,13 @@ describe('HttpClientFactory', () => {
       });
 
       it('should respect environment variable', () => {
-        process.env.REACT_APP_EMR_FEATURES = 'false';
+        import.meta.env.REACT_APP_EMR_FEATURES = 'false';
         
         const client = createEmrClient();
         
         expect(client._mock).toBe(true);
         
-        delete process.env.REACT_APP_EMR_FEATURES;
+        delete import.meta.env.REACT_APP_EMR_FEATURES;
       });
     });
 
@@ -141,7 +142,7 @@ describe('HttpClientFactory', () => {
         
         expect(axios.create).toHaveBeenCalledWith(
           expect.objectContaining({
-            baseURL: 'http://localhost:8000/cds-hooks'
+            baseURL: getCdsHooksUrl()
           })
         );
       });
@@ -166,10 +167,14 @@ describe('HttpClientFactory', () => {
     });
 
     it('should create new clients for different configurations', () => {
-      const client1 = HttpClientFactory.getCachedClient('api', { baseURL: 'test1' });
-      const client2 = HttpClientFactory.getCachedClient('api', { baseURL: 'test2' });
-      
-      expect(client1).not.toBe(client2);
+      // axios.create is mocked to return one shared object, so identity can't
+      // distinguish the two clients — assert that two DISTINCT clients were
+      // actually constructed (i.e. the cache keyed them separately).
+      axios.create.mockClear();
+      HttpClientFactory.getCachedClient('api', { baseURL: 'test1' });
+      HttpClientFactory.getCachedClient('api', { baseURL: 'test2' });
+
+      expect(axios.create).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -180,12 +185,12 @@ describe('HttpClientFactory', () => {
     beforeEach(() => {
       factory = new HttpClientFactory();
       mockClient = {
-        get: jest.fn(),
-        post: jest.fn(),
-        request: jest.fn(),
+        get: vi.fn(),
+        post: vi.fn(),
+        request: vi.fn(),
         interceptors: {
-          request: { use: jest.fn() },
-          response: { use: jest.fn() }
+          request: { use: vi.fn() },
+          response: { use: vi.fn() }
         }
       };
     });
@@ -197,7 +202,7 @@ describe('HttpClientFactory', () => {
         expect(mockClient.get).toBeDefined();
         
         // Test that original get method is preserved
-        const originalGet = jest.fn().mockResolvedValue({ data: 'test' });
+        const originalGet = vi.fn().mockResolvedValue({ data: 'test' });
         mockClient.get = originalGet;
         factory.addCachingFeature(mockClient);
         
@@ -209,7 +214,7 @@ describe('HttpClientFactory', () => {
       });
 
       it('should cache responses and return cached data', async () => {
-        const originalGet = jest.fn().mockResolvedValue({ data: 'test' });
+        const originalGet = vi.fn().mockResolvedValue({ data: 'test' });
         mockClient.get = originalGet;
         
         factory.addCachingFeature(mockClient);
@@ -224,7 +229,7 @@ describe('HttpClientFactory', () => {
       });
 
       it('should respect noCache option', async () => {
-        const originalGet = jest.fn().mockResolvedValue({ data: 'test' });
+        const originalGet = vi.fn().mockResolvedValue({ data: 'test' });
         mockClient.get = originalGet;
         
         factory.addCachingFeature(mockClient);
@@ -238,7 +243,7 @@ describe('HttpClientFactory', () => {
 
     describe('Deduplication feature', () => {
       it('should deduplicate identical requests', async () => {
-        const originalRequest = jest.fn().mockResolvedValue({ data: 'test' });
+        const originalRequest = vi.fn().mockResolvedValue({ data: 'test' });
         mockClient.request = originalRequest;
         
         factory.addDeduplicationFeature(mockClient);
@@ -283,7 +288,7 @@ describe('HttpClientFactory', () => {
         
         // Test with 500 (should retry)
         const error500 = { response: { status: 500 }, config: {} };
-        mockClient.request = jest.fn().mockResolvedValue({ data: 'success' });
+        mockClient.request = vi.fn().mockResolvedValue({ data: 'success' });
         
         const result = await errorHandler(error500);
         expect(mockClient.request).toHaveBeenCalled();
@@ -292,8 +297,8 @@ describe('HttpClientFactory', () => {
 
     describe('Logging feature', () => {
       beforeEach(() => {
-        console.log = jest.fn();
-        console.error = jest.fn();
+        console.log = vi.fn();
+        console.error = vi.fn();
       });
 
       it('should log requests when enabled', () => {
@@ -476,27 +481,26 @@ describe('HttpClientFactory', () => {
       expect(client._config.features.retry.retries).toBe(3);
     });
 
-    it('should handle environment-based configuration', () => {
-      process.env.REACT_APP_API_URL = 'https://prod.api.com';
-      process.env.REACT_APP_FHIR_ENDPOINT = '/fhir/R5';
-      process.env.REACT_APP_EMR_FEATURES = 'true';
-      
-      const apiClient = createApiClient();
-      const fhirClient = createFhirClient();
-      const emrClient = createEmrClient();
-      
+    it('should build clients from the resolved apiConfig values', () => {
+      // NOTE: this used to assign to import.meta.env at runtime and expect the
+      // clients to pick it up. Env is baked at build time and apiConfig is a
+      // module-level singleton, so a runtime mutation can never be observed
+      // (this failed under CRA/jest too). Assert the real invariant instead:
+      // each factory uses the URL apiConfig resolved.
+      createApiClient();
       expect(axios.create).toHaveBeenCalledWith(
-        expect.objectContaining({ baseURL: 'https://prod.api.com' })
+        expect.objectContaining({ baseURL: getBackendApiUrl() })
       );
+
+      createFhirClient();
       expect(axios.create).toHaveBeenCalledWith(
-        expect.objectContaining({ baseURL: '/fhir/R5' })
+        expect.objectContaining({ baseURL: getFhirUrl() })
       );
-      expect(emrClient._mock).toBeUndefined();
-      
-      // Cleanup
-      delete process.env.REACT_APP_API_URL;
-      delete process.env.REACT_APP_FHIR_ENDPOINT;
-      delete process.env.REACT_APP_EMR_FEATURES;
+
+      createEmrClient();
+      expect(axios.create).toHaveBeenCalledWith(
+        expect.objectContaining({ baseURL: getEmrUrl() })
+      );
     });
   });
 });

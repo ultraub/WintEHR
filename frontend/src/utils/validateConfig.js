@@ -18,15 +18,15 @@ export const validateConfiguration = () => {
 
   // Production checks
   if (process.env.NODE_ENV === 'production') {
-    if (!process.env.REACT_APP_API_URL) {
+    if (!import.meta.env.REACT_APP_API_URL) {
       errors.push('REACT_APP_API_URL not set');
     }
 
-    if (!process.env.REACT_APP_FHIR_ENDPOINT) {
+    if (!import.meta.env.REACT_APP_FHIR_ENDPOINT) {
       errors.push('REACT_APP_FHIR_ENDPOINT not set');
     }
 
-    if (!process.env.REACT_APP_WS_URL) {
+    if (!import.meta.env.REACT_APP_WS_URL) {
       errors.push('REACT_APP_WS_URL not set');
     }
   }
@@ -49,11 +49,11 @@ export const validateConfiguration = () => {
 export const getConfigurationStatus = () => {
   return {
     environment: process.env.NODE_ENV,
-    hasApiUrl: !!process.env.REACT_APP_API_URL,
-    hasFhirEndpoint: !!process.env.REACT_APP_FHIR_ENDPOINT,
-    hasWsUrl: !!process.env.REACT_APP_WS_URL,
-    apiUrl: process.env.REACT_APP_API_URL || 'not set',
-    fhirEndpoint: process.env.REACT_APP_FHIR_ENDPOINT || 'not set',
-    wsUrl: process.env.REACT_APP_WS_URL || 'not set'
+    hasApiUrl: !!import.meta.env.REACT_APP_API_URL,
+    hasFhirEndpoint: !!import.meta.env.REACT_APP_FHIR_ENDPOINT,
+    hasWsUrl: !!import.meta.env.REACT_APP_WS_URL,
+    apiUrl: import.meta.env.REACT_APP_API_URL || 'not set',
+    fhirEndpoint: import.meta.env.REACT_APP_FHIR_ENDPOINT || 'not set',
+    wsUrl: import.meta.env.REACT_APP_WS_URL || 'not set'
   };
 };

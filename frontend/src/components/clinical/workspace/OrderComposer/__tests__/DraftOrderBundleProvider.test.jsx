@@ -126,7 +126,7 @@ describe('DraftOrderBundleProvider', () => {
 
   test('throws when useDraftOrderBundle is called outside the provider', () => {
     // Suppress React's error-boundary console output for the negative case.
-    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => render(<Probe />)).toThrow(
       /useDraftOrderBundle must be used within a DraftOrderBundleProvider/,
     );

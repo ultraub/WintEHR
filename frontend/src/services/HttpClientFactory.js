@@ -13,7 +13,7 @@
  */
 
 import axios from 'axios';
-import { getFhirUrl, getEmrUrl } from '../config/apiConfig';
+import { getFhirUrl, getEmrUrl, getBackendApiUrl, getCdsHooksUrl } from '../config/apiConfig';
 
 class HttpClientFactory {
   constructor() {
@@ -27,7 +27,6 @@ class HttpClientFactory {
    */
   static createApiClient(config = {}) {
     const factory = new HttpClientFactory();
-    const { getBackendApiUrl } = require('../config/apiConfig');
     return factory.createClient('api', {
       baseURL: config.baseURL || getBackendApiUrl(),
       headers: {
@@ -76,7 +75,7 @@ class HttpClientFactory {
    */
   static createEmrClient(config = {}) {
     const factory = new HttpClientFactory();
-    const enabled = config.enabled !== false && process.env.REACT_APP_EMR_FEATURES !== 'false';
+    const enabled = config.enabled !== false && import.meta.env.REACT_APP_EMR_FEATURES !== 'false';
     
     if (!enabled) {
       return factory.createMockClient('emr', 'EMR features disabled');
@@ -109,7 +108,6 @@ class HttpClientFactory {
    */
   static createCdsClient(config = {}) {
     const factory = new HttpClientFactory();
-    const { getCdsHooksUrl } = require('../config/apiConfig');
     return factory.createClient('cds', {
       baseURL: config.baseURL || getCdsHooksUrl(),
       headers: {
@@ -476,7 +474,7 @@ class HttpClientFactory {
     return {
       fulfilled: (config) => {
         // Add EMR capability headers
-        config.headers['EMR-Features'] = process.env.REACT_APP_EMR_FEATURES || 'basic';
+        config.headers['EMR-Features'] = import.meta.env.REACT_APP_EMR_FEATURES || 'basic';
         return config;
       },
       rejected: (error) => Promise.reject(error)

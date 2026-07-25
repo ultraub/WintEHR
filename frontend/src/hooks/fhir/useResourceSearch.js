@@ -4,6 +4,8 @@
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { fhirClient } from '../../core/fhir/services/fhirClient';
+import { cdsClinicalDataService } from '../../services/cdsClinicalDataService';
+import { searchService } from '../../services/searchService';
 
 // Default search implementation using FHIR client
 const defaultSearchService = async (query, options = {}) => {
@@ -304,7 +306,6 @@ export const useMultiResourceSearch = (resourceTypes, options = {}) => {
 
 // Catalog-enhanced search hooks  
 export const useCatalogMedicationSearch = (options = {}) => {
-  const { cdsClinicalDataService } = require('../../services/cdsClinicalDataService');
   
   // Memoize the search service to prevent recreation
   const searchService = useCallback(async (query, searchOpts) => {
@@ -357,7 +358,6 @@ export const useCatalogMedicationSearch = (options = {}) => {
 };
 
 export const useCatalogConditionSearch = (options = {}) => {
-  const { cdsClinicalDataService } = require('../../services/cdsClinicalDataService');
   
   // Memoize the search service to prevent recreation
   const searchService = useCallback(async (query, searchOpts) => {
@@ -406,8 +406,6 @@ export const useCatalogConditionSearch = (options = {}) => {
 };
 
 export const useHybridSearch = (resourceTypes, options = {}) => {
-  const { searchService } = require('../../services/searchService');
-  const { cdsClinicalDataService } = require('../../services/cdsClinicalDataService');
   
   // Memoize the search service to prevent recreation
   const hybridSearchService = useCallback(async (query, searchOpts) => {
@@ -519,7 +517,6 @@ export const useHybridSearch = (resourceTypes, options = {}) => {
 };
 
 export const useLabTestSearch = (options = {}) => {
-  const { cdsClinicalDataService } = require('../../services/cdsClinicalDataService');
   
   // Memoize the search service to prevent recreation
   const searchService = useCallback(async (query, searchOpts) => {

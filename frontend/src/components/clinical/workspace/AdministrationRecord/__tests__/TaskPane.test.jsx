@@ -10,9 +10,9 @@ import { render, screen, waitFor, fireEvent } from '../../../../../test-utils/te
 import TaskPane from '../TaskPane';
 import api from '../../../../../services/api';
 
-jest.mock('../../../../../services/api', () => ({
+vi.mock('../../../../../services/api', () => ({
   __esModule: true,
-  default: { get: jest.fn(), post: jest.fn() },
+  default: { get: vi.fn(), post: vi.fn() },
 }));
 
 const tasksPayload = {
@@ -42,7 +42,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 test('renders pending and fulfilled task cards', async () => {

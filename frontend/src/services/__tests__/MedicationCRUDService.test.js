@@ -7,12 +7,12 @@ import { medicationCRUDService } from '../MedicationCRUDService';
 import { fhirClient } from '../../core/fhir/services/fhirClient';
 
 // Mock dependencies
-jest.mock('../../core/fhir/services/fhirClient');
-jest.mock('../cdsHooksService');
+vi.mock('../../core/fhir/services/fhirClient');
+vi.mock('../cdsHooksService');
 
 describe('MedicationCRUDService', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Mock common FHIR responses
     fhirClient.search.mockResolvedValue({

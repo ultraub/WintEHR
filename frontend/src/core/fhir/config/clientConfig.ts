@@ -22,7 +22,7 @@ export function createConfiguredFHIRClient() {
 
   // Create client with configuration
   const client = new FHIRClient({
-    baseUrl: process.env.REACT_APP_FHIR_ENDPOINT || '/fhir/R4',
+    baseUrl: import.meta.env.REACT_APP_FHIR_ENDPOINT || '/fhir/R4',
     auth: {
       token: getAuthToken(),
       type: 'Bearer'

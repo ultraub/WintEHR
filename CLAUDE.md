@@ -74,7 +74,7 @@ and GCP without edits.
 - **Backend**: read every external URL from an env var (`os.getenv(...)` with a
   localhost dev default).
 - **Frontend**: all URL resolution goes through `src/config/apiConfig.js`. Default
-  to empty/relative URLs (the CRA proxy / nginx route them). `REACT_APP_*` vars are
+  to empty/relative URLs (the Vite dev proxy / nginx route them). `REACT_APP_*` vars are
   baked at build time — a hardcoded `localhost` breaks every non-local deployment.
 
 ### 5. Educational platform — no PHI
@@ -115,7 +115,7 @@ module's deltas on top of this file.
 
 - **Backend**: FastAPI (Python 3.9+), HAPI FHIR JPA v8.8.0-1, PostgreSQL 15 with
   async SQLAlchemy, Redis 7, Pydantic V2, pytest.
-- **Frontend**: React 18, MUI v5, React Router v6, Context API, CRA + CRACO.
+- **Frontend**: React 18, MUI v5, React Router v6, Context API, Vite 7 (build + dev server), Vitest.
 
 ---
 

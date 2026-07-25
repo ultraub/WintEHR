@@ -393,7 +393,7 @@ describe('DocumentReferenceConverter', () => {
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'development';
       
-      const consoleSpy = jest.spyOn(console, 'debug').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
       const docRef = {
         id: 'test-doc-14',

@@ -63,10 +63,10 @@ class ServiceSelector {
    */
   loadFeatureFlags() {
     return {
-      useNewMedicationServices: process.env.REACT_APP_USE_NEW_MEDICATION_SERVICES === 'true',
-      useNewHttpFactory: process.env.REACT_APP_USE_NEW_HTTP_FACTORY === 'true',
-      useNewConverters: process.env.REACT_APP_USE_NEW_CONVERTERS === 'true',
-      debugServiceSelection: process.env.REACT_APP_DEBUG_SERVICE_SELECTION === 'true'
+      useNewMedicationServices: import.meta.env.REACT_APP_USE_NEW_MEDICATION_SERVICES === 'true',
+      useNewHttpFactory: import.meta.env.REACT_APP_USE_NEW_HTTP_FACTORY === 'true',
+      useNewConverters: import.meta.env.REACT_APP_USE_NEW_CONVERTERS === 'true',
+      debugServiceSelection: import.meta.env.REACT_APP_DEBUG_SERVICE_SELECTION === 'true'
     };
   }
 

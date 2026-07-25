@@ -85,8 +85,8 @@ class ApiConfig {
     // which reads its own DICOM_QIDO_URL / DICOM_WADO_URL env vars. A non-empty
     // value here only overrides the advisory endpoint hints attached to studies.
     return {
-      qidoUrl: process.env.REACT_APP_DICOM_QIDO_URL || '',
-      wadoUrl: process.env.REACT_APP_DICOM_WADO_URL || ''
+      qidoUrl: import.meta.env.REACT_APP_DICOM_QIDO_URL || '',
+      wadoUrl: import.meta.env.REACT_APP_DICOM_WADO_URL || ''
     };
   }
 
@@ -97,7 +97,7 @@ class ApiConfig {
    * Otherwise defaults to empty string (relative URLs via proxy/nginx).
    */
   buildBackendConfig() {
-    const envUrl = process.env.REACT_APP_API_URL;
+    const envUrl = import.meta.env.REACT_APP_API_URL;
 
     // Use env var if explicitly set to a non-empty value
     if (envUrl) {
@@ -120,7 +120,7 @@ class ApiConfig {
    * Build FHIR server configuration
    */
   buildFhirConfig() {
-    const envUrl = process.env.REACT_APP_FHIR_ENDPOINT;
+    const envUrl = import.meta.env.REACT_APP_FHIR_ENDPOINT;
 
     if (envUrl) {
       return {
@@ -142,7 +142,7 @@ class ApiConfig {
    * Build CDS Hooks configuration
    */
   buildCdsHooksConfig() {
-    const envUrl = process.env.REACT_APP_CDS_HOOKS_URL;
+    const envUrl = import.meta.env.REACT_APP_CDS_HOOKS_URL;
 
     if (envUrl) {
       return {
@@ -166,7 +166,7 @@ class ApiConfig {
    * Build WebSocket configuration
    */
   buildWebSocketConfig() {
-    const envUrl = process.env.REACT_APP_WEBSOCKET_URL;
+    const envUrl = import.meta.env.REACT_APP_WEBSOCKET_URL;
 
     if (envUrl) {
       return {
@@ -192,8 +192,8 @@ class ApiConfig {
    * Build EMR service configuration
    */
   buildEmrConfig() {
-    const envUrl = process.env.REACT_APP_EMR_API;
-    const enabled = process.env.REACT_APP_EMR_FEATURES !== 'false';
+    const envUrl = import.meta.env.REACT_APP_EMR_API;
+    const enabled = import.meta.env.REACT_APP_EMR_FEATURES !== 'false';
 
     if (envUrl) {
       return {

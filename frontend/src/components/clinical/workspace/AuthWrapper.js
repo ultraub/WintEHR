@@ -1,19 +1,10 @@
 /**
- * Auth Wrapper for Demo Mode
- * This wrapper handles the auth context import issue for demo mode
+ * Auth Wrapper
+ *
+ * Historically this used try/require/catch to fall back to a
+ * `../MockAuthProvider` in "demo mode" — but that module does not exist, so
+ * the catch branch could never succeed. Under webpack the `require` resolved
+ * and the fallback was simply dead; under Vite/ESM a bare `require` is a
+ * runtime ReferenceError. Re-export the real hook directly.
  */
-import React from 'react';
-
-// Try to import from the real auth context, but provide a fallback
-let useAuth;
-try {
-  // In normal mode, this will work
-  const authModule = require('../../../contexts/AuthContext');
-  useAuth = authModule.useAuth;
-} catch (e) {
-  // In demo mode or if there's an issue, use the mock
-  const mockAuthModule = require('../MockAuthProvider');
-  useAuth = mockAuthModule.useAuth;
-}
-
-export { useAuth };
+export { useAuth } from '../../../contexts/AuthContext';
