@@ -750,7 +750,19 @@ export function FHIRResourceProvider({ children }) {
         
         // Standardize the response
         const result = standardizeResponse(rawResult);
-      
+
+      // fhirClient.search maps EVERY bundle entry into `resources` — with
+      // _include that mixes the included resources (e.g. Medication, whose
+      // status is 'active') into the main list. Storing that mix under the
+      // searched type made Chart Review show 30 Medication resources as
+      // "Active / Unknown medication" prescription rows for MIMIC patients
+      // ("All Medications 130" = 100 requests + 30 includes). Keep only the
+      // searched type here; the include-processing block below files the
+      // rest under their own resourceType.
+      if (result.resources?.length) {
+        result.resources = result.resources.filter(r => r?.resourceType === resourceType);
+      }
+
       if (result.resources && result.resources.length > 0) {
         setResources(resourceType, result.resources);
         
@@ -810,17 +822,17 @@ export function FHIRResourceProvider({ children }) {
             if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
               const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
               const medication = medicationLookup[refId];
-              if (medication?.code) {
-                // Add resolved medication name as medicationCodeableConcept for display
+              // No .code guard: mixture Medications have no code element at
+              // all — the resource-aware display still resolves them.
+              if (medication) {
+                const resolvedDisplay = getMedicationResourceDisplay(medication);
                 return {
                   ...medRequest,
                   _resolvedMedicationCodeableConcept: medication.code,
-                  // Full-resource name (Medication.identifier can carry it
-                  // when code is a bare NDC — true for ALL MIMIC medications)
-                  _resolvedMedicationDisplay: getMedicationResourceDisplay(medication),
+                  _resolvedMedicationDisplay: resolvedDisplay,
                   medicationReference: {
                     ...medRequest.medicationReference,
-                    display: medication.code.text || medication.code.coding?.[0]?.display
+                    display: resolvedDisplay
                   }
                 };
               }
@@ -1015,16 +1027,15 @@ export function FHIRResourceProvider({ children }) {
               if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
                 const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
                 const medication = medicationLookup[refId];
-                if (medication?.code) {
+                if (medication) {
+                  const resolvedDisplay = getMedicationResourceDisplay(medication);
                   return {
                     ...medRequest,
                     _resolvedMedicationCodeableConcept: medication.code,
-                    // Full-resource name (Medication.identifier can carry it
-                    // when code is a bare NDC — true for ALL MIMIC medications)
-                    _resolvedMedicationDisplay: getMedicationResourceDisplay(medication),
+                    _resolvedMedicationDisplay: resolvedDisplay,
                     medicationReference: {
                       ...medRequest.medicationReference,
-                      display: medication.code.text || medication.code.coding?.[0]?.display
+                      display: resolvedDisplay
                     }
                   };
                 }
@@ -1316,16 +1327,15 @@ export function FHIRResourceProvider({ children }) {
               if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
                 const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
                 const medication = medicationLookup[refId];
-                if (medication?.code) {
+                if (medication) {
+                  const resolvedDisplay = getMedicationResourceDisplay(medication);
                   return {
                     ...medRequest,
                     _resolvedMedicationCodeableConcept: medication.code,
-                    // Full-resource name (Medication.identifier can carry it
-                    // when code is a bare NDC — true for ALL MIMIC medications)
-                    _resolvedMedicationDisplay: getMedicationResourceDisplay(medication),
+                    _resolvedMedicationDisplay: resolvedDisplay,
                     medicationReference: {
                       ...medRequest.medicationReference,
-                      display: medication.code.text || medication.code.coding?.[0]?.display
+                      display: resolvedDisplay
                     }
                   };
                 }
@@ -1654,16 +1664,15 @@ export function FHIRResourceProvider({ children }) {
                 if (medRequest.medicationReference && !medRequest.medicationCodeableConcept) {
                   const refId = medRequest.medicationReference.reference?.replace('Medication/', '');
                   const medication = medicationLookup[refId];
-                  if (medication?.code) {
+                  if (medication) {
+                    const resolvedDisplay = getMedicationResourceDisplay(medication);
                     return {
                       ...medRequest,
                       _resolvedMedicationCodeableConcept: medication.code,
-                    // Full-resource name (Medication.identifier can carry it
-                    // when code is a bare NDC — true for ALL MIMIC medications)
-                    _resolvedMedicationDisplay: getMedicationResourceDisplay(medication),
+                      _resolvedMedicationDisplay: resolvedDisplay,
                       medicationReference: {
                         ...medRequest.medicationReference,
-                        display: medication.code.text || medication.code.coding?.[0]?.display
+                        display: resolvedDisplay
                       }
                     };
                   }
