@@ -35,7 +35,7 @@ from database import get_db_session
 # v3.0 Architecture imports
 from .services import CDSService as CDSServiceBase, HookType as ServiceHookType
 from .conditions import ConditionEngine
-from .orchestrator import ServiceOrchestrator, get_orchestrator, execute_hook
+from .orchestrator import ServiceOrchestrator, get_orchestrator, execute_hook, ExecutionStatus
 from .registry import ServiceRegistry, get_registry, register_service, get_discovery_response
 from .prefetch import PrefetchEngine, get_prefetch_engine, execute_prefetch
 
@@ -427,8 +427,14 @@ async def execute_service(
 
             if result.success:
                 cards = result.cards
+            elif result.status == ExecutionStatus.SKIPPED:
+                # Condition gate said no — routine, not a failure. Logging this
+                # as "execution failed: None" buried real failures for months.
+                logger.debug(f"Service {service_id} skipped (should_execute=False)")
             else:
-                logger.warning(f"Service {service_id} execution failed: {result.error}")
+                logger.warning(
+                    f"Service {service_id} {result.status.value}: {result.error or 'no error detail'}"
+                )
 
         else:
             # 2. Fall back to HAPI FHIR PlanDefinition lookup

@@ -89,7 +89,7 @@ class ColonoscopyScreeningService(CDSService):
     ) -> List[Card]:
         """Generate screening reminder card if no recent screening found."""
         # Check if screening was recently done
-        procedures = prefetch.get("procedures", {}).get("entry", [])
+        procedures = (prefetch.get("procedures") or {}).get("entry", [])
         recent_screening = any(
             self.screening_name.lower() in proc.get("resource", {}).get("code", {}).get("text", "").lower()
             for proc in procedures
@@ -256,7 +256,7 @@ class MedicationInteractionService(CDSService):
         cards = []
 
         # Get current medications
-        current_meds = prefetch.get("medications", {}).get("entry", [])
+        current_meds = (prefetch.get("medications") or {}).get("entry", [])
         new_meds = context.get("medications", [])
 
         # Extract current drug names
@@ -361,7 +361,7 @@ class PotassiumMonitorService(CDSService):
         prefetch: Dict[str, Any]
     ) -> bool:
         """Execute if we have recent lab results."""
-        observations = prefetch.get("recentLabs", {}).get("entry", [])
+        observations = (prefetch.get("recentLabs") or {}).get("entry", [])
         return len(observations) > 0
 
     async def execute(
@@ -371,7 +371,7 @@ class PotassiumMonitorService(CDSService):
     ) -> List[Card]:
         """Check for critical potassium values."""
         cards = []
-        observations = prefetch.get("recentLabs", {}).get("entry", [])
+        observations = (prefetch.get("recentLabs") or {}).get("entry", [])
 
         for obs in observations:
             resource = obs.get("resource", {})
@@ -471,7 +471,7 @@ class DiabetesCareService(CDSService):
         prefetch: Dict[str, Any]
     ) -> bool:
         """Execute if patient has diabetes diagnosis."""
-        conditions = prefetch.get("conditions", {}).get("entry", [])
+        conditions = (prefetch.get("conditions") or {}).get("entry", [])
 
         for condition in conditions:
             resource = condition.get("resource", {})
@@ -489,7 +489,7 @@ class DiabetesCareService(CDSService):
     ) -> List[Card]:
         """Generate diabetes care cards with polypharmacy assessment."""
         cards = []
-        medications = prefetch.get("medications", {}).get("entry", [])
+        medications = (prefetch.get("medications") or {}).get("entry", [])
         med_count = len(medications)
 
         # Check for polypharmacy
@@ -590,7 +590,9 @@ class PatientGreeterService(SimpleCDSService):
         prefetch: Dict[str, Any]
     ) -> List[Card]:
         """Generate a welcome card with patient summary."""
-        patient = prefetch.get("patient", {})
+        # `or {}` (not a .get default): clients send {"patient": null} when
+        # their prefetch resolver fails, and None.get() crashed this service.
+        patient = (prefetch.get("patient") or {})
 
         # Extract patient name
         names = patient.get("name", [{}])

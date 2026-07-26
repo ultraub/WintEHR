@@ -99,6 +99,12 @@ class RemoteServiceProvider(BaseServiceProvider):
             card list on any failure (after tracking it). Never raises.
         """
         service_id = plan_definition.get("id", "unknown")
+        # Failure counters live in external_services.* keyed by hook_service_id
+        # ("hfpef-cds"), NOT the HAPI PlanDefinition id this method logs under
+        # ("157135"). Tracking under the PD id matched zero rows, so
+        # consecutive_failures never moved and auto-disable never engaged in
+        # production (observed: 40 fires/hour, counters pinned at 0).
+        tracking_id = (service_metadata or {}).get("hook_service_id") or service_id
         try:
             logger.info(f"Executing remote service: {service_id}")
 
@@ -177,16 +183,16 @@ class RemoteServiceProvider(BaseServiceProvider):
 
             # Reset failure count on success
             if self.db:
-                await self._reset_failure_count(service_id)
+                await self._reset_failure_count(tracking_id)
 
             return CDSHookResponse(cards=card_objects)
 
         except httpx.TimeoutException:
-            return await self._degrade(service_id, "Timeout calling external service")
+            return await self._degrade(tracking_id, "Timeout calling external service")
         except httpx.RequestError as e:
-            return await self._degrade(service_id, f"Connection error calling external service: {e}")
+            return await self._degrade(tracking_id, f"Connection error calling external service: {e}")
         except Exception as e:
-            return await self._degrade(service_id, f"Failed to execute remote service: {e}")
+            return await self._degrade(tracking_id, f"Failed to execute remote service: {e}")
 
     async def _degrade(self, service_id: str, error_msg: str) -> CDSHookResponse:
         """Track the failure, log it, and return an empty (non-blocking) response."""
