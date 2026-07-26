@@ -30,16 +30,21 @@ def client():
 
 def test_lab_catalog_constructs_service_and_returns(client, monkeypatch):
     async def fake_extract(self, limit=None):
-        # The exact keys the handler's conversion loop reads.
+        # The EXACT shape extract_lab_test_catalog emits (see
+        # dynamic_catalog_service.py) — notably NO reference_range and NO
+        # value_statistics keys. An earlier fixture mirrored the handler's
+        # expectations instead and masked a guaranteed KeyError on
+        # lab["reference_range"]; the fixture must stay the service's REAL
+        # shape, not the handler's wishes.
         return [{
-            "id": "lab-1",
-            "name": "Hemoglobin",
+            "id": "lab_718-7",
+            "name": "718-7",
             "display": "Hemoglobin [Mass/volume] in Blood",
             "loinc_code": "718-7",
-            "category": "hematology",
+            "category": "laboratory",
             "specimen_type": "blood",
-            "reference_range": None,
-            "value_statistics": None,
+            "frequency_count": 42,
+            "source": "patient_data",
         }]
 
     monkeypatch.setattr(DynamicCatalogService, "extract_lab_test_catalog", fake_extract)
@@ -54,12 +59,14 @@ def test_lab_catalog_constructs_service_and_returns(client, monkeypatch):
 
 def test_condition_catalog_constructs_service_and_returns(client, monkeypatch):
     async def fake_extract(self, limit=None):
+        # The exact shape extract_condition_catalog emits.
         return [{
-            "id": "cond-1",
-            "display": "Essential hypertension",
+            "id": "cond_59621000",
             "code": "59621000",
+            "display": "Essential hypertension",
             "system": "http://snomed.info/sct",
             "frequency_count": 12,
+            "source": "patient_data",
         }]
 
     monkeypatch.setattr(DynamicCatalogService, "extract_condition_catalog", fake_extract)

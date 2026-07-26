@@ -603,7 +603,11 @@ async def get_lab_catalog(
             "loinc_code": lab["loinc_code"],
             "category": lab["category"],
             "specimen_type": lab["specimen_type"],
-            "reference_range": lab["reference_range"] or {
+            # extract_lab_test_catalog does NOT emit reference_range (it
+            # aggregates codes only) — bare subscription here was a
+            # guaranteed KeyError that kept this endpoint 500ing even after
+            # the constructor fix (B1's second, stacked bug).
+            "reference_range": lab.get("reference_range") or {
                 "min": None,
                 "max": None,
                 "unit": "",
