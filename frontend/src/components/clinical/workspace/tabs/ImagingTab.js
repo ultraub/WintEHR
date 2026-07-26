@@ -516,7 +516,14 @@ const ImagingTab = ({
     setLoading(true);
     try {
       // Single FHIR query with _include to get both ImagingStudy and Endpoint resources
-      // This eliminates the N+1 query problem
+      // This eliminates the N+1 query problem.
+      //
+      // DELIBERATE fhirClient call (not context.searchResources): the
+      // context filters search results to the searched type before storing
+      // and returning them (the PR #281 misfiling fix), so the _include'd
+      // Endpoints this tab needs would be dropped. Migrate when the
+      // context learns to return { resources, included } separately
+      // (opportunity #2 remaining work, docs/ARCHITECTURE_DEBT.md).
       const response = await fhirClient.search('ImagingStudy', {
         patient: patientId,
         _include: 'ImagingStudy:endpoint',

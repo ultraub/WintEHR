@@ -779,6 +779,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
   const { 
     resources,
     fetchPatientBundle,
+    searchResources,
     isResourceLoading,
     currentPatient,
     relationships,
@@ -926,13 +927,13 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
       s.patient?.reference === `urn:uuid:${patientId}`
     ), [resources.ServiceRequest, patientId]);
 
-  // Load family history from HAPI FHIR (not in FHIRResourceContext cache)
+  // Load family history through the context (shared store + dedup)
   const loadFamilyHistory = useCallback(async () => {
     if (!patientId) return;
     setFamilyHistoryLoading(true);
     setFamilyHistoryError(null);
     try {
-      const response = await fhirClient.search('FamilyMemberHistory', {
+      const response = await searchResources('FamilyMemberHistory', {
         patient: `Patient/${patientId}`
       });
       const entries = extractBundleResources(response);
@@ -943,7 +944,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
     } finally {
       setFamilyHistoryLoading(false);
     }
-  }, [patientId]);
+  }, [patientId, searchResources]);
 
   useEffect(() => {
     loadFamilyHistory();
@@ -955,7 +956,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
     setRelatedPersonsLoading(true);
     setRelatedPersonsError(null);
     try {
-      const response = await fhirClient.search('RelatedPerson', {
+      const response = await searchResources('RelatedPerson', {
         patient: `Patient/${patientId}`
       });
       const entries = extractBundleResources(response);
@@ -966,7 +967,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
     } finally {
       setRelatedPersonsLoading(false);
     }
-  }, [patientId]);
+  }, [patientId, searchResources]);
 
   useEffect(() => {
     loadRelatedPersons();
@@ -978,7 +979,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
     setConsentsLoading(true);
     setConsentsError(null);
     try {
-      const response = await fhirClient.search('Consent', {
+      const response = await searchResources('Consent', {
         patient: `Patient/${patientId}`
       });
       const entries = extractBundleResources(response);
@@ -989,7 +990,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
     } finally {
       setConsentsLoading(false);
     }
-  }, [patientId]);
+  }, [patientId, searchResources]);
 
   useEffect(() => {
     loadConsents();

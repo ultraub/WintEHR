@@ -103,7 +103,6 @@ import {
   getCodeableConceptDisplay,
   getReferenceId 
 } from '../../../../core/fhir/utils/fhirFieldUtils';
-import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { classifyValueSync, getCriticalValueTable } from '../../../../services/criticalValueService';
 import CollapsibleFilterPanel from '../CollapsibleFilterPanel';
 import ClinicalTabHeader from '../ClinicalTabHeader';
@@ -304,7 +303,7 @@ const ResultsTabOptimized = ({
   onNavigateToTab // Cross-tab navigation support
 }) => {
   const theme = useTheme();
-  const { currentPatient } = useFHIRResource();
+  const { currentPatient, searchResources } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
   
   const [tabValue, setTabValue] = useState(0);
@@ -358,24 +357,30 @@ const ResultsTabOptimized = ({
     setAllData(prev => ({ ...prev, loading: true, error: null }));
     
     try {
-      // Fetch all data in parallel
+      // Fetch all data in parallel THROUGH THE CONTEXT — this tab used to
+      // issue direct fhirClient searches while sitting inside the
+      // provider, so its results never reached the shared store and the
+      // Summary tab fetched the same observations separately (opportunity
+      // #2 tab migration, docs/ARCHITECTURE_DEBT.md). searchResources
+      // standardizes the response, populates state.resources, and dedups
+      // in-flight identical searches.
       const [labResults, vitalResults, diagnosticResults] = await Promise.all([
         // Lab observations
-        fhirClient.search('Observation', {
+        searchResources('Observation', {
           patient: `Patient/${patientId}`,
           category: 'laboratory',
           _sort: '-date',
           _count: 100 // Reasonable limit for initial load
         }),
         // Vital signs
-        fhirClient.search('Observation', {
+        searchResources('Observation', {
           patient: `Patient/${patientId}`,
           category: 'vital-signs',
           _sort: '-date',
           _count: 50 // Vital signs are more limited
         }),
         // Diagnostic reports
-        fhirClient.search('DiagnosticReport', {
+        searchResources('DiagnosticReport', {
           patient: `Patient/${patientId}`,
           _sort: '-date',
           _count: 50 // Reasonable limit for reports
@@ -410,7 +415,7 @@ const ResultsTabOptimized = ({
         error: error.message || 'Failed to load results'
       }));
     }
-  }, [patientId]);
+  }, [patientId, searchResources]);
 
   // Fetch data on mount and when patient changes
   useEffect(() => {
