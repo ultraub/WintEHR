@@ -31,7 +31,7 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
-      - name: "pytest (baseline: 44 failed / 29 errors / 396 passed / 445 outcomes)"
+      - name: "pytest (baseline: 40 failed / 0 errors / 400 passed / 445 outcomes)"
         run: |
           python -m pytest tests/ -q --tb=no > pytest.out 2>&1 || true
           tail -3 pytest.out
@@ -42,7 +42,7 @@ jobs:
           FAILED=${FAILED:-0}; ERRORS=${ERRORS:-0}; PASSED=${PASSED:-0}; SKIPPED=${SKIPPED:-0}
           OUTCOMES=$((FAILED + PASSED + SKIPPED))
           echo "passed=$PASSED failed=$FAILED errors=$ERRORS skipped=$SKIPPED outcomes=$OUTCOMES"
-          echo "baseline: failed<=44, errors<=29, passed>=396, outcomes>=445"
+          echo "baseline: failed<=40, errors<=0, passed>=400, outcomes>=445"
           # OUTCOMES is the load-bearing check. A test that stops RUNNING
           # reports nothing — not a failure, not an error, not a skip — so a
           # failure-count gate reads the loss as an improvement.
@@ -53,10 +53,14 @@ jobs:
           # (failed<=44, errors<=29, passed>=360) passed it while coverage
           # shrank. Counting outcomes catches that; counting failures cannot.
           #
+          # The error budget is now ZERO. All 29 previous errors were async
+          # fixture teardown failing on a missing greenlet; declaring the
+          # sqlalchemy[asyncio] extra fixed them. Keep it at zero.
+          #
           # Never lower these to make a build green. If tests are legitimately
           # removed, lower them in that same PR and say why.
-          if [ "$FAILED" -gt 44 ] || [ "$ERRORS" -gt 29 ] || [ "$PASSED" -lt 396 ] || [ "$OUTCOMES" -lt 445 ]; then
-            echo "::error::Test results regressed past the baseline (failed<=44, errors<=29, passed>=396, outcomes>=445)"
+          if [ "$FAILED" -gt 40 ] || [ "$ERRORS" -gt 0 ] || [ "$PASSED" -lt 400 ] || [ "$OUTCOMES" -lt 445 ]; then
+            echo "::error::Test results regressed past the baseline (failed<=40, errors<=0, passed>=400, outcomes>=445)"
             exit 1
           fi
 
