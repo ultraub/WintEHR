@@ -47,6 +47,20 @@ All base URLs resolve through `config/apiConfig` (`getBackendApiUrl`,
 in the dead-code purge — see `docs/ARCHITECTURE_DEBT.md`. Transport
 consolidation is opportunity #2 there; don't hand-roll new axios clients.)
 
+## Caching rules
+
+- **Raw FHIR responses are cached by `fhirClient` ONLY** (LRU + per-type
+  TTLs + request dedup). Never put a cache in front of it — and NEVER a
+  module-level `Map` of FHIR data: those never evict, so the UI shows
+  stale clinical data forever (the `useMedicationResolver` /
+  `DiagnosisPicker` bugs, fixed in the opportunity-#2 cache collapse).
+- Services on the `api.js` transport MAY keep a short-TTL cache — it is
+  the only caching layer for backend endpoints (e.g. the 10-minute catalog
+  cache in `cdsClinicalDataService`).
+- Component-lifetime memoization (`useRef`/`useState` maps that die on
+  unmount) and derived-value memoization (e.g. `dashboardDataService`'s
+  computed aggregates) are fine — bounded staleness, different concern.
+
 ---
 
 ## Import services directly — the facades are gone

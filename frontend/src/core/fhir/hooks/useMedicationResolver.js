@@ -12,9 +12,6 @@ import { getCodeableConceptDisplay, getMedicationResourceDisplay } from '../util
 import { fhirClient } from '../services/fhirClient';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 
-// Cache for resolved medications to avoid repeated fetches
-const medicationCache = new Map();
-
 export const useMedicationResolver = (medicationRequests = []) => {
   const [resolvedMedications, setResolvedMedications] = useState({});
   const [loading, setLoading] = useState(true);
@@ -44,6 +41,14 @@ export const useMedicationResolver = (medicationRequests = []) => {
         setLoading(true);
         setError(null);
         const resolved = {};
+
+        // Working map for THIS resolution pass only. This used to be a
+        // module-level Map that never evicted — resolved medications (and
+        // even failed-fetch nulls) were stale forever. Cross-render caching
+        // belongs to fhirClient.read (LRU + dedup), which makes re-walking
+        // this map per pass a set of cheap cache hits (opportunity #2 cache
+        // collapse, docs/ARCHITECTURE_DEBT.md).
+        const medicationCache = new Map();
 
         // Helper function to resolve contained resource
         const resolveContainedMedication = (req, containedRef) => {

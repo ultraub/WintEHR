@@ -28,11 +28,11 @@ import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useDraftOrderBundle } from './DraftOrderBundleProvider';
 import { extractBundleResources } from '../../../../core/fhir/utils/bundleUtils';
 
-// Cache active-conditions by patient id within a single dialog session.
-// The dialog tears down (provider unmounts → this module-level Map
-// stays, fine across sessions). Conditions list doesn't change while
-// composing — no point re-fetching every keystroke or tab switch.
-const _cache = new Map();
+// No module-level cache here: it made a patient's condition list stale
+// FOREVER (a problem added mid-session never appeared until a full page
+// reload). fhirClient.search caches this query with a TTL and dedups
+// concurrent calls, so re-running the effect on dialog open is a cheap
+// cache hit (opportunity #2 cache collapse, docs/ARCHITECTURE_DEBT.md).
 
 // Strip the obvious clinical-stub displays from problem-list strings so
 // the autocomplete options are readable. Synthea conditions sometimes
@@ -60,15 +60,10 @@ const DiagnosisPicker = ({ value, onChange }) => {
   const [error, setError] = useState(null);
 
   // Load once per dialog open. The provider remounts on each dialog
-  // open, so this effect re-runs naturally — no need for manual cache
-  // invalidation. The module-level _cache is a defensive shortcut for
-  // tab-switch re-renders within a single dialog session.
+  // open, so this effect re-runs naturally — fhirClient's search cache
+  // absorbs tab-switch re-renders within a session.
   useEffect(() => {
     if (!patientId) return;
-    if (_cache.has(patientId)) {
-      setOptions(_cache.get(patientId));
-      return;
-    }
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -89,7 +84,6 @@ const DiagnosisPicker = ({ value, onChange }) => {
           label: conditionLabel(c),
         }));
         if (!cancelled) {
-          _cache.set(patientId, opts);
           setOptions(opts);
         }
       } catch (e) {
