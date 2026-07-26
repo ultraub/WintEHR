@@ -21,6 +21,7 @@ export async function createTestModalHook() {
       }
     } catch (e) {
       // Hook doesn't exist, create it
+      console.warn('Hook doesn\'t exist, create it:', e);
     }
     
     // Create the hook

@@ -90,7 +90,7 @@ const CDSHooksVerifier = () => {
       const discoveredServices = await cdsHooksClient.discoverServices();
       setServices(discoveredServices);
     } catch (error) {
-      
+      console.warn('CDS service discovery failed:', error);
     }
   };
 
@@ -99,7 +99,7 @@ const CDSHooksVerifier = () => {
       const result = await searchResources('Patient', { _count: 50 });
       setPatients(result.resources || []);
     } catch (error) {
-      
+      console.warn('Failed to load patients for CDS verification:', error);
     }
   };
 
@@ -240,7 +240,7 @@ const CDSHooksVerifier = () => {
         }
       }
     } catch (error) {
-      
+      console.error('CDS verification run failed:', error);
     } finally {
       setLoading(false);
     }

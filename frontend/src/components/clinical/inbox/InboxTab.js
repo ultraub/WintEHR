@@ -52,7 +52,7 @@ const InboxTab = () => {
     try {
       await markInboxItemRead(itemId);
     } catch (error) {
-      
+      console.error('Failed to mark inbox item read:', error);
     }
   };
 
@@ -61,7 +61,7 @@ const InboxTab = () => {
       // For now, just mark as completed since FHIR doesn't support delete
       await markInboxItemRead(itemId);
     } catch (error) {
-      
+      console.error('Failed to complete inbox item:', error);
     }
   };
 

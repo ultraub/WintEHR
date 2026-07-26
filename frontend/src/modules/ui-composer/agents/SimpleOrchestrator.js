@@ -103,6 +103,7 @@ class SimpleOrchestrator {
         listener(event, data);
       } catch (error) {
         // Listener error silently handled
+        console.warn('Listener error silently handled:', error);
       }
     });
   }

@@ -113,11 +113,13 @@ function FHIRExplorerApp() {
                   _count: 10
                 });
               } catch (err) {
+                console.warn('Explorer cache warm-up: one resource type failed:', err);
               }
             }));
           }
         }
       } catch (error) {
+        console.warn('Explorer cache warm-up failed:', error);
       }
     };
 

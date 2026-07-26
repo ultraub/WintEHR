@@ -555,6 +555,7 @@ export class DocumentReferenceConverter extends AbstractFHIRConverter {
                 };
               } catch (e) {
                 // Not valid base64, use as-is
+                console.warn('Not valid base64, use as-is:', e);
               }
             }
             

@@ -103,6 +103,7 @@ const ClinicalCrossReferences = ({
       setRelatedData(related);
     } catch (error) {
       // Error loading cross-references - component will handle gracefully
+      console.warn('Error loading cross-references - component will handle gracefully:', error);
     } finally {
       setLoading(false);
     }

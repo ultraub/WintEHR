@@ -113,6 +113,7 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
       }
     } catch (error) {
       // Error running workflow validation - handle gracefully
+      console.warn('Error running workflow validation - handle gracefully:', error);
     } finally {
       setLoading(false);
       // Remove from active requests
@@ -137,6 +138,7 @@ const WorkflowValidationPanel = ({ patientId, medications = [], onRefresh }) => 
       }
     } catch (error) {
       // Error auto-fixing issues - handle gracefully
+      console.warn('Error auto-fixing issues - handle gracefully:', error);
     } finally {
       setAutoFixing(false);
     }

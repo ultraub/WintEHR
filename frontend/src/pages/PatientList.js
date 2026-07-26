@@ -199,6 +199,7 @@ function PatientList() {
           });
         } catch (e) {
           // Coverage batch fetch failed, continue without insurance data
+          console.warn('Coverage batch fetch failed, continue without insurance data:', e);
         }
       }
 
@@ -291,6 +292,7 @@ function PatientList() {
           });
         } catch (e) {
           // Coverage batch fetch failed, continue without insurance data
+          console.warn('Coverage batch fetch failed, continue without insurance data:', e);
         }
       }
 

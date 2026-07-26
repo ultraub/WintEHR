@@ -226,6 +226,7 @@ class EMRClient {
         return JSON.parse(localState);
       } catch (e) {
         // Invalid JSON, ignore
+        console.warn('Invalid JSON, ignore:', e);
       }
     }
 

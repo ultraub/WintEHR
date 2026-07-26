@@ -67,6 +67,7 @@ export class ResultDocumentationService {
         notes.push(note);
       } catch (error) {
         // Continue with other results
+        console.warn('Continue with other results:', error);
       }
     }
 

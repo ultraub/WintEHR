@@ -113,6 +113,7 @@ class MedicationWorkflowValidator {
               }
             } catch (error) {
               // Monitoring plan check failed - continue with validation
+              console.warn('Monitoring plan check failed - continue with validation:', error);
             }
           }
 
@@ -351,6 +352,7 @@ class MedicationWorkflowValidator {
       }
     } catch (error) {
       // Refill workflow validation failed - continue
+      console.warn('Refill workflow validation failed - continue:', error);
     }
   }
 
@@ -471,6 +473,7 @@ class MedicationWorkflowValidator {
       }
     } catch (error) {
       // Medication list validation failed - continue
+      console.warn('Medication list validation failed - continue:', error);
     }
 
     // Check status transition validity

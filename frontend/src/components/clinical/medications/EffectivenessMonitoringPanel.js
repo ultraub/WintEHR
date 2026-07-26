@@ -113,6 +113,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
               promptsMap.set(medication.id, prompts);
             } catch (error) {
               // Skip failed medication prompt loading
+              console.warn('Skip failed medication prompt loading:', error);
             }
           })
       );
@@ -129,6 +130,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
 
     } catch (error) {
       // Failed to load effectiveness data
+      console.warn('Failed to load effectiveness data:', error);
     } finally {
       setLoading(false);
       // Remove from active requests
@@ -146,6 +148,7 @@ const EffectivenessMonitoringPanel = ({ patientId, medications = [], onRefresh }
       setAssessmentDialogOpen(true);
     } catch (error) {
       // Failed to start assessment
+      console.warn('Failed to start assessment:', error);
     }
   };
 

@@ -206,6 +206,7 @@ const AutoPopulationPreview = ({ template, patientId, onApply }) => {
       setPreviewData(autoContent);
     } catch (error) {
       // Auto-population preview failed silently
+      console.warn('Auto-population preview failed silently:', error);
     } finally {
       setLoading(false);
     }
@@ -327,6 +328,7 @@ const NoteSharing = ({ note, onShare }) => {
       setShareMessage('');
     } catch (error) {
       // Note sharing failed silently
+      console.warn('Note sharing failed silently:', error);
     } finally {
       setLoading(false);
     }
@@ -587,6 +589,7 @@ const EnhancedNoteEditor = ({
 
     } catch (error) {
       // Note data extraction failed silently
+      console.warn('Note data extraction failed silently:', error);
     }
 
     return {

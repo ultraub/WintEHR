@@ -328,7 +328,7 @@ const MigrationDashboard = () => {
       try {
         await getMigrationStatus();
       } catch (error) {
-        
+        console.warn('Failed to load migration status:', error);
       } finally {
         setLoading(false);
       }
@@ -382,7 +382,7 @@ const MigrationDashboard = () => {
     try {
       await getMigrationStatus(selectedResourceType === 'all' ? null : selectedResourceType);
     } catch (error) {
-      
+      console.warn('Failed to refresh migration status:', error);
     } finally {
       setLoading(false);
     }

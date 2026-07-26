@@ -234,6 +234,7 @@ const AdministrationDialog = ({
       onClose();
     } catch (error) {
       // Error recording administration - user will need to retry
+      console.warn('Error recording administration - user will need to retry:', error);
     } finally {
       setAdministering(false);
     }
@@ -284,6 +285,7 @@ const AdministrationDialog = ({
       onClose();
     } catch (error) {
       // Error recording missed dose - user will need to retry
+      console.warn('Error recording missed dose - user will need to retry:', error);
     } finally {
       setAdministering(false);
     }

@@ -449,6 +449,7 @@ class PrescriptionStatusService {
           callback(status);
         } catch (error) {
           // Skip failed callback
+          console.warn('Skip failed callback:', error);
         }
       });
     }

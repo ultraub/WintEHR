@@ -132,6 +132,7 @@ export class ClinicalCrossReferenceService {
                 });
               } catch (err) {
                 // Document could not be fetched, skip it
+                console.warn('Document could not be fetched, skip it:', err);
               }
             }
           }
@@ -245,6 +246,7 @@ export class ClinicalCrossReferenceService {
                 }
               } catch (err) {
                 // Resource could not be fetched, skip it
+                console.warn('Resource could not be fetched, skip it:', err);
               }
             }
           }

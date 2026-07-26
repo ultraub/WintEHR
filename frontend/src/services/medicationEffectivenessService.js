@@ -654,6 +654,7 @@ class MedicationEffectivenessService {
       return await fhirClient.update('CarePlan', updatedPlan);
     } catch (error) {
       // Silently continue if plan update fails
+      console.warn('Silently continue if plan update fails:', error);
     }
   }
 

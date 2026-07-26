@@ -81,6 +81,7 @@ const DashboardManager = () => {
       }
     } catch (error) {
       // Error loading saved dashboards
+      console.warn('Error loading saved dashboards:', error);
     }
   }, [setDashboardList]);
   
@@ -90,6 +91,7 @@ const DashboardManager = () => {
       localStorage.setItem('ui-composer-dashboards', JSON.stringify(dashboards));
     } catch (error) {
       // Error saving dashboards
+      console.warn('Error saving dashboards:', error);
     }
   }, []);
   

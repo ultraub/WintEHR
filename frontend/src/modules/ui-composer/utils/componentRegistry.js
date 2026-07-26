@@ -207,6 +207,7 @@ class ComponentRegistry {
         listener(event, componentId, data);
       } catch (error) {
         // Ignore listener errors
+        console.warn('Ignore listener errors:', error);
       }
     });
   }

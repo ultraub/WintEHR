@@ -68,7 +68,7 @@ function AppointmentsTab() {
         setPatientAppointments(result.appointments);
       }
     } catch (error) {
-      
+      console.warn('Failed to load patient appointments:', error);
     }
   };
 
@@ -104,7 +104,7 @@ function AppointmentsTab() {
         await cancelAppointment(appointment.id, 'Cancelled from clinical workspace');
         await loadPatientAppointments(); // Refresh the list
       } catch (error) {
-        
+        console.error('Failed to cancel appointment — it is still scheduled:', error);
       }
     }
   };

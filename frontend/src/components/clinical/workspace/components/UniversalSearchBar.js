@@ -112,7 +112,7 @@ const UniversalSearchBar = ({
         setSelectedResult(null);
         setSearchQuery('');
       } catch (error) {
-        
+        console.error('Failed to add resource to patient:', error);
       }
     }
   };

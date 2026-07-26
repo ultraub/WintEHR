@@ -300,6 +300,7 @@ const QuickActionsBar = ({
         setRecentActions(JSON.parse(saved));
       } catch (e) {
         // Invalid data
+        console.warn('Invalid data:', e);
       }
     }
   }, []);

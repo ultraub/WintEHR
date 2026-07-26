@@ -30,6 +30,7 @@ class ProgressiveLoader {
         listener(event, data);
       } catch (error) {
         // Progressive loader listener error
+        console.warn('Progressive loader listener error:', error);
       }
     });
   }

@@ -102,7 +102,7 @@ const DocumentationTab = () => {
       
       setEncounterNotes(notesFromEncounters);
     } catch (error) {
-      
+      console.warn('Failed to derive notes from encounters:', error);
     }
   };
 

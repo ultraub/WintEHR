@@ -47,7 +47,7 @@ const EditableModal = ({
       const response = await api.get('/api/providers');
       setProviders(response.data);
     } catch (err) {
-      
+      console.warn('Failed to load providers; provider dropdown will be empty:', err);
     }
   };
 
@@ -84,7 +84,8 @@ const EditableModal = ({
           setFormData({
             patient_id: patientId,
             encounter_id: encounterId,
-            // observation_type: 'laboratory', // Field is null in current dataset
+            // observation_type: 'laboratory',
+            // Field is null in current dataset
             code: '',
             display: '',
             value: '',

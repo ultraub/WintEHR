@@ -144,6 +144,7 @@ const searchDiagnosticReports = async (query) => {
       });
     } catch (error) {
       // Ignore errors from lab catalog
+      console.warn('Ignore errors from lab catalog:', error);
     }
     
     // Add common diagnostic report types if search is empty or general

@@ -609,7 +609,7 @@ export const ClinicalWorkflowProvider = ({ children }) => {
       });
       
     } catch (error) {
-      
+      console.warn('Failed to load clinical context for encounter:', error);
     }
   };
 

@@ -193,6 +193,7 @@ class CriticalValueDetectionService {
           }
         } catch (error) {
           // Continue searching other values despite individual errors
+          console.warn('Continue searching other values despite individual errors:', error);
         }
       }
     }

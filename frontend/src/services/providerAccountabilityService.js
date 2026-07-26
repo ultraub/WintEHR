@@ -185,6 +185,7 @@ class ProviderAccountabilityService {
         }
       } catch (error) {
         // Ordering provider not available
+        console.warn('Ordering provider not available:', error);
       }
     }
 
@@ -474,6 +475,7 @@ class ProviderAccountabilityService {
       await fhirClient.create('Task', task);
     } catch (error) {
       // Accountability task creation failed - will retry
+      console.warn('Accountability task creation failed - will retry:', error);
     }
   }
 

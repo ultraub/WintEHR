@@ -262,6 +262,7 @@ const SuggestionBuilder = ({ suggestions = [], onChange }) => {
                           updateAction(suggestion.id, action.id, { resource: parsed });
                         } catch (err) {
                           // Invalid JSON, don't update
+                          console.warn('Invalid JSON, don\'t update:', err);
                         }
                       }}
                       sx={{

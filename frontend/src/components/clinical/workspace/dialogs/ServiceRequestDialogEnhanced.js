@@ -150,6 +150,7 @@ const searchServiceRequests = async (query) => {
       });
     } catch (error) {
       // Ignore errors from lab catalog
+      console.warn('Ignore errors from lab catalog:', error);
     }
     
     // Convert to array and filter by query if provided

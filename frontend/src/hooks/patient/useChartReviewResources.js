@@ -107,6 +107,7 @@ const useChartReviewResources = (patientId, options = {}) => {
           await contextRefs.current.fetchPatientBundle(patientId, false, 'all');
         } catch (bundleError) {
           // Silently fallback to individual resource fetches
+          console.warn('Silently fallback to individual resource fetches:', bundleError);
         }
 
         // Direct search fallback for comprehensive coverage (only when cache is cold)
@@ -167,6 +168,7 @@ const useChartReviewResources = (patientId, options = {}) => {
             resources = searchResults || [];
           } catch (searchError) {
             // Silent fallback
+            console.warn('Silent fallback:', searchError);
           }
         }
         

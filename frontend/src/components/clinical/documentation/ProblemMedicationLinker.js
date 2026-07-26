@@ -76,6 +76,7 @@ const ProblemMedicationLinker = ({
       setSummary(summaryData);
     } catch (error) {
       // Error loading clinical documentation data - component will handle gracefully
+      console.warn('Error loading clinical documentation data - component will handle gracefully:', error);
     } finally {
       setLoading(false);
     }
@@ -114,6 +115,7 @@ const ProblemMedicationLinker = ({
 
     } catch (error) {
       // Error creating problem documentation - handled by parent components
+      console.warn('Error creating problem documentation - handled by parent components:', error);
     }
   }, [patientId, encounterId, publish, onCreateDocumentation, loadClinicalData]);
 
@@ -150,6 +152,7 @@ const ProblemMedicationLinker = ({
 
     } catch (error) {
       // Error creating medication documentation - handled by parent components
+      console.warn('Error creating medication documentation - handled by parent components:', error);
     }
   }, [patientId, encounterId, publish, onCreateDocumentation, loadClinicalData]);
 

@@ -89,6 +89,7 @@ const LabMonitoringDashboard = ({ patientId, patientConditions }) => {
       
     } catch (error) {
       // Error handled silently, component shows loading state
+      console.warn('Error handled silently, component shows loading state:', error);
     } finally {
       setLoading(false);
     }
@@ -248,6 +249,7 @@ const LabMonitoringDashboard = ({ patientId, patientConditions }) => {
       
     } catch (error) {
       // Error handled silently, button returns to normal state
+      console.warn('Error handled silently, button returns to normal state:', error);
     }
   };
 
