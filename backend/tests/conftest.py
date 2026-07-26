@@ -6,7 +6,6 @@ mocked services, and test data.
 """
 
 import pytest
-import asyncio
 from typing import AsyncGenerator, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
@@ -17,13 +16,9 @@ from unittest.mock import AsyncMock, MagicMock
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create event loop for async tests"""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
+# (No custom event_loop fixture: pytest-asyncio 1.x removed support for
+# overriding it — loop management is configured via asyncio_default_*_loop_scope
+# in pytest.ini instead.)
 
 @pytest.fixture(scope="function")
 async def test_db() -> AsyncGenerator[AsyncSession, None]:
