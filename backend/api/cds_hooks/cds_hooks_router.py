@@ -352,6 +352,12 @@ async def discover_services(
             logger.warning(f"Cannot connect to FHIR server for service discovery: {e}")
         except (KeyError, TypeError, ValueError) as e:
             logger.warning(f"Error parsing HAPI service data: {e}")
+        except Exception as e:
+            # HAPIFHIRClient wraps transport failures in generic Exception, so
+            # without this a dead HAPI took down the ENTIRE discovery response —
+            # including the in-process built-in services that need no HAPI at
+            # all. Discovery degrades to registry-only; it never 500s over HAPI.
+            logger.warning(f"Unexpected error discovering HAPI services: {e}")
 
     logger.info(f"Total CDS services discovered: {len(services)}")
     return CDSServicesResponse(services=services)

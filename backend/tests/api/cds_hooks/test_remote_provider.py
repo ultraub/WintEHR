@@ -36,7 +36,7 @@ class TestRemoteServiceProvider:
         hook_request = CDSHookRequest(**sample_cds_request)
 
         # Mock HTTP response
-        mock_response = AsyncMock()
+        mock_response = MagicMock()  # httpx.Response API is sync
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "cards": [{
@@ -89,7 +89,7 @@ class TestRemoteServiceProvider:
         }
 
         # Mock HTTP response
-        mock_response = AsyncMock()
+        mock_response = MagicMock()  # httpx.Response API is sync
         mock_response.status_code = 200
         mock_response.json.return_value = {"cards": []}
 
@@ -208,7 +208,7 @@ class TestRemoteServiceProvider:
         }
 
         # Mock HTTP success
-        mock_response = AsyncMock()
+        mock_response = MagicMock()  # httpx.Response API is sync
         mock_response.status_code = 200
         mock_response.json.return_value = {"cards": []}
 
@@ -281,7 +281,7 @@ class TestRemoteServiceProvider:
         }
 
         # Mock HTTP response
-        mock_response = AsyncMock()
+        mock_response = MagicMock()  # httpx.Response API is sync
         mock_response.status_code = 200
         mock_response.json.return_value = {"cards": []}
 
@@ -353,7 +353,7 @@ class TestRemoteServiceProvider:
         hook_request = CDSHookRequest(**sample_cds_request)
 
         # Mock malformed response
-        mock_response = AsyncMock()
+        mock_response = MagicMock()  # httpx.Response API is sync
         mock_response.status_code = 200
         mock_response.json.side_effect = ValueError("Invalid JSON")
 
@@ -387,7 +387,7 @@ class TestRemoteServiceProvider:
         hook_request = CDSHookRequest(**sample_cds_request)
 
         # Mock 500 error
-        mock_response = AsyncMock()
+        mock_response = MagicMock()  # httpx.Response API is sync
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
 

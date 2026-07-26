@@ -5,6 +5,7 @@ Executes built-in CDS services by dynamically importing Python classes.
 Used for services with service-origin extension = "built-in".
 """
 
+import inspect
 import logging
 import importlib
 from typing import Dict, Any, List, Optional
@@ -71,15 +72,13 @@ class LocalServiceProvider(BaseServiceProvider):
             service_metadata: Optional metadata (not used for local services)
 
         Returns:
-            CDSHookResponse with generated cards
-
-        Raises:
-            ValueError: If python-class extension not found
-            ImportError: If service class cannot be imported
-            Exception: If service execution fails
+            CDSHookResponse with generated cards, or an empty card list on any
+            failure. Never raises — CDS is advisory, and a broken legacy
+            service must not break the hook response (same contract as
+            RemoteServiceProvider).
         """
+        service_id = plan_definition.get("id", "unknown")
         try:
-            service_id = plan_definition.get("id", "unknown")
             logger.info(f"Executing local service: {service_id}")
 
             # Extract Python class from extension
@@ -89,19 +88,37 @@ class LocalServiceProvider(BaseServiceProvider):
             )
 
             if not python_class:
-                raise ValueError(f"No python-class extension found for service {service_id}")
+                logger.error(f"  ❌ No python-class extension found for service {service_id}")
+                return CDSHookResponse(cards=[])
 
             logger.debug(f"  Python class: {python_class}")
 
             # Import and instantiate service
             service_instance = self._get_service_instance(python_class, service_id)
 
-            # Execute service
+            context = hook_request.context
+            prefetch = hook_request.prefetch or {}
+
+            # Honor the canonical CDSService gate: should_execute() decides
+            # whether the card logic runs at all. The legacy path used to skip
+            # it, so gated services fired unconditionally when dispatched here.
+            gate = getattr(service_instance, "should_execute", None)
+            if callable(gate):
+                applicable = gate(context=context, prefetch=prefetch)
+                if inspect.isawaitable(applicable):
+                    applicable = await applicable
+                if not applicable:
+                    logger.info(f"  Service {service_id} should_execute=False — no cards")
+                    return CDSHookResponse(cards=[])
+
+            # Execute service. The canonical CDSService.execute is async
+            # (base_service.py) — the old code never awaited, so any async
+            # service dispatched through this path logged "Unexpected return
+            # type: <class 'coroutine'>" and silently produced zero cards.
             logger.debug(f"  Executing service logic...")
-            result = service_instance.execute(
-                context=hook_request.context,
-                prefetch=hook_request.prefetch or {}
-            )
+            result = service_instance.execute(context=context, prefetch=prefetch)
+            if inspect.isawaitable(result):
+                result = await result
 
             # Handle different return types
             if isinstance(result, dict):
@@ -128,14 +145,12 @@ class LocalServiceProvider(BaseServiceProvider):
             return CDSHookResponse(cards=card_objects)
 
         except ImportError as e:
-            error_msg = f"Failed to import service class: {str(e)}"
-            logger.error(f"  ❌ {error_msg}")
-            raise ImportError(error_msg) from e
+            logger.error(f"  ❌ Failed to import service class for {service_id}: {e}")
+            return CDSHookResponse(cards=[])
 
         except Exception as e:
-            error_msg = f"Failed to execute local service: {str(e)}"
-            logger.error(f"  ❌ {error_msg}", exc_info=True)
-            raise Exception(error_msg) from e
+            logger.error(f"  ❌ Failed to execute local service {service_id}: {e}", exc_info=True)
+            return CDSHookResponse(cards=[])
 
     def _get_service_instance(self, python_class: str, service_id: str):
         """

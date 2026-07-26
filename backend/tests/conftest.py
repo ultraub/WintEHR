@@ -153,9 +153,15 @@ def external_plan_definition() -> Dict[str, Any]:
 
 @pytest.fixture
 def sample_cds_request() -> Dict[str, Any]:
-    """Sample CDS Hooks request for testing"""
+    """Sample CDS Hooks request for testing.
+
+    hookInstance is a real UUID — the model enforces the CDS Hooks 2.0 shape.
+    fhirServer is deliberately plain http: this platform's deployments are all
+    http (synthetic data only), and the model accepting it is load-bearing —
+    an unconditional-https validator once 422'd every real hook call.
+    """
     return {
-        "hookInstance": "test-hook-123",
+        "hookInstance": "7c8a1f5e-2d34-4b6a-9e01-3f5b8c7d9a10",
         "fhirServer": "http://localhost:8888/fhir",
         "hook": "patient-view",
         "context": {
@@ -174,7 +180,13 @@ def sample_cds_request() -> Dict[str, Any]:
 
 @pytest.fixture
 def external_service_metadata() -> Dict[str, Any]:
-    """Sample external service metadata for testing"""
+    """Sample external service metadata for testing.
+
+    Mirrors the row the router's SQL actually builds (it computes service_url
+    as base_url || '/cds-services/' || hook_service_id). Tests that want to
+    exercise the provider's base_url-only derivation fallback construct their
+    own dict without service_url.
+    """
     return {
         "id": 1,
         "base_url": "https://example.com/cds",
@@ -182,7 +194,9 @@ def external_service_metadata() -> Dict[str, Any]:
         "credentials_encrypted": "encrypted_api_key_value",
         "auto_disabled": False,
         "consecutive_failures": 0,
-        "last_error_message": None
+        "last_error_message": None,
+        "hook_service_id": "external-diabetes-management",
+        "service_url": "https://example.com/cds/cds-services/external-diabetes-management",
     }
 
 

@@ -36,7 +36,13 @@ class TestCDSHooksDiscovery:
         sample_plan_definition,
         external_plan_definition
     ):
-        """Test discovery endpoint returns all services"""
+        """Unfiltered discovery merges in-process built-ins with HAPI externals.
+
+        Discovery is a MERGE: built-in services come from the in-process
+        ServiceRegistry (however many are registered), external/visual-builder
+        ones from HAPI PlanDefinitions. So assert set-membership, not exact
+        counts — an exact count couples the test to the registry's size.
+        """
         # Mock HAPI FHIR response
         mock_bundle = {
             "resourceType": "Bundle",
@@ -59,8 +65,14 @@ class TestCDSHooksDiscovery:
             # Verify
             assert response.status_code == 200
             data = response.json()
-            assert "services" in data
-            assert len(data["services"]) == 2
+            ids = [s["id"] for s in data["services"]]
+            # The HAPI external service appears...
+            assert "external-diabetes-management" in ids
+            # ...alongside registry built-ins (the merge actually happened).
+            assert len(ids) > 1
+            # A PlanDefinition marked service-origin=built-in is NOT served
+            # from HAPI — the registry is the sole authority for built-ins.
+            assert "diabetes-screening-reminder" not in ids
 
     def test_discover_services_built_in_only(
         self,
@@ -86,10 +98,15 @@ class TestCDSHooksDiscovery:
             # Execute
             response = client.get("/cds-services?service_origin=built-in")
 
-            # Verify
+            # Verify: built-in filter serves the registry only — HAPI is not
+            # consulted, so the mocked external service must NOT leak in and
+            # the HAPI built-in PlanDefinition must not appear either.
             assert response.status_code == 200
             data = response.json()
-            assert len(data["services"]) == 1
+            ids = [s["id"] for s in data["services"]]
+            assert len(ids) >= 1  # registry built-ins
+            assert "external-diabetes-management" not in ids
+            assert "diabetes-screening-reminder" not in ids
 
     def test_discover_services_external_only(
         self,
@@ -121,7 +138,12 @@ class TestCDSHooksDiscovery:
             assert len(data["services"]) == 1
 
     def test_discover_services_empty_result(self, client):
-        """Test discovery with no services in HAPI"""
+        """No PlanDefinitions in HAPI → the external filter returns nothing.
+
+        (Unfiltered discovery would still return the in-process built-ins —
+        they don't live in HAPI — so the empty-HAPI premise is only observable
+        through the external filter.)
+        """
         # Mock empty HAPI FHIR response
         mock_bundle = {
             "resourceType": "Bundle",
@@ -136,7 +158,7 @@ class TestCDSHooksDiscovery:
             mock_client_class.return_value = mock_client
 
             # Execute
-            response = client.get("/cds-services")
+            response = client.get("/cds-services?service_origin=external")
 
             # Verify
             assert response.status_code == 200
@@ -144,7 +166,12 @@ class TestCDSHooksDiscovery:
             assert data["services"] == []
 
     def test_discover_services_hapi_error(self, client):
-        """Test discovery when HAPI FHIR fails"""
+        """HAPI down → discovery degrades to registry-only, never 500s.
+
+        HAPIFHIRClient wraps transport failures in a generic Exception; the
+        endpoint used to let that propagate, so a dead HAPI took the built-in
+        services down with it even though they need no HAPI at all.
+        """
         # Mock HAPI error
         with patch('services.hapi_fhir_client.HAPIFHIRClient') as mock_client_class:
             mock_client = AsyncMock()
@@ -154,10 +181,12 @@ class TestCDSHooksDiscovery:
             # Execute
             response = client.get("/cds-services")
 
-            # Verify - should return empty services, not error
+            # Verify - built-ins still served; no external ones (HAPI is dead)
             assert response.status_code == 200
             data = response.json()
-            assert data["services"] == []
+            ids = [s["id"] for s in data["services"]]
+            assert len(ids) >= 1  # registry built-ins survive the outage
+            assert "external-diabetes-management" not in ids
 
     def test_discover_services_dedupes_visual_builder_duplicates(self, client):
         """Discovery dedupes by hook-service-id, keeping the latest by lastUpdated.
@@ -247,9 +276,12 @@ class TestCDSHooksExecution:
 
         # Mock LocalServiceProvider
         with patch('services.hapi_fhir_client.HAPIFHIRClient') as mock_hapi, \
-             patch('backend.api.cds_hooks.providers.LocalServiceProvider') as mock_provider_class:
+             patch('api.cds_hooks.providers.LocalServiceProvider') as mock_provider_class:
 
             mock_hapi_client = AsyncMock()
+            # Direct read resolves the PlanDefinition (the fixture id is not
+            # in the in-process registry, so the router takes the HAPI path).
+            mock_hapi_client.read.return_value = sample_plan_definition
             mock_hapi_client.search.return_value = mock_bundle
             mock_hapi.return_value = mock_hapi_client
 
@@ -285,10 +317,11 @@ class TestCDSHooksExecution:
 
         # Mock database query
         with patch('services.hapi_fhir_client.HAPIFHIRClient') as mock_hapi, \
-             patch('backend.api.cds_hooks.providers.RemoteServiceProvider') as mock_provider_class, \
+             patch('api.cds_hooks.providers.RemoteServiceProvider') as mock_provider_class, \
              patch('database.get_db_session'):
 
             mock_hapi_client = AsyncMock()
+            mock_hapi_client.read.return_value = external_plan_definition
             mock_hapi_client.search.return_value = mock_bundle
             mock_hapi.return_value = mock_hapi_client
 
@@ -316,6 +349,10 @@ class TestCDSHooksExecution:
 
         with patch('services.hapi_fhir_client.HAPIFHIRClient') as mock_hapi:
             mock_hapi_client = AsyncMock()
+            # HAPIFHIRClient re-raises 404 as a generic Exception whose text
+            # contains "not found" — mirror that failure shape.
+            mock_hapi_client.read.side_effect = Exception(
+                "Resource PlanDefinition/non-existent-service not found")
             mock_hapi_client.search.return_value = mock_bundle
             mock_hapi.return_value = mock_hapi_client
 
@@ -349,6 +386,7 @@ class TestCDSHooksExecution:
 
         with patch('services.hapi_fhir_client.HAPIFHIRClient') as mock_hapi:
             mock_hapi_client = AsyncMock()
+            mock_hapi_client.read.return_value = plan_def
             mock_hapi_client.search.return_value = mock_bundle
             mock_hapi.return_value = mock_hapi_client
 
@@ -358,8 +396,12 @@ class TestCDSHooksExecution:
                 json=sample_cds_request
             )
 
-            # Verify error handling
-            assert response.status_code == 500
+            # Verify: CDS Hooks is non-blocking by design — a misconfigured
+            # origin degrades to 200 + empty cards (the router's legacy
+            # fallback fails, its catch-all swallows), it must never 500 into
+            # the clinician-facing workflow.
+            assert response.status_code == 200
+            assert response.json()["cards"] == []
 
 
 class TestPlanDefinitionConversion:
@@ -471,10 +513,13 @@ class TestExecutionLogging:
         }
 
         with patch('services.hapi_fhir_client.HAPIFHIRClient') as mock_hapi, \
-             patch('backend.api.cds_hooks.providers.LocalServiceProvider') as mock_provider_class, \
-             patch('backend.api.cds_hooks.hook_persistence.log_hook_execution') as mock_log:
+             patch('api.cds_hooks.providers.LocalServiceProvider') as mock_provider_class, \
+             patch('api.cds_hooks.cds_hooks_router.log_service_execution', new_callable=AsyncMock) as mock_log:
 
             mock_hapi_client = AsyncMock()
+            # Direct read resolves the PlanDefinition (the fixture id is not
+            # in the in-process registry, so the router takes the HAPI path).
+            mock_hapi_client.read.return_value = sample_plan_definition
             mock_hapi_client.search.return_value = mock_bundle
             mock_hapi.return_value = mock_hapi_client
 
@@ -508,10 +553,13 @@ class TestExecutionLogging:
         }
 
         with patch('services.hapi_fhir_client.HAPIFHIRClient') as mock_hapi, \
-             patch('backend.api.cds_hooks.providers.LocalServiceProvider') as mock_provider_class, \
-             patch('backend.api.cds_hooks.hook_persistence.log_hook_execution') as mock_log:
+             patch('api.cds_hooks.providers.LocalServiceProvider') as mock_provider_class, \
+             patch('api.cds_hooks.cds_hooks_router.log_service_execution', new_callable=AsyncMock) as mock_log:
 
             mock_hapi_client = AsyncMock()
+            # Direct read resolves the PlanDefinition (the fixture id is not
+            # in the in-process registry, so the router takes the HAPI path).
+            mock_hapi_client.read.return_value = sample_plan_definition
             mock_hapi_client.search.return_value = mock_bundle
             mock_hapi.return_value = mock_hapi_client
 

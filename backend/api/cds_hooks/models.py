@@ -164,16 +164,25 @@ class CDSHookRequest(BaseModel):
     hook: HookType = Field(..., description="Hook type")
     hookInstance: str = Field(..., description="Unique hook instance ID (UUID)")
     context: Dict[str, Any] = Field(..., description="Hook context")
-    fhirServer: Optional[str] = Field(None, description="FHIR server base URL (must use HTTPS)")
+    fhirServer: Optional[str] = Field(None, description="FHIR server base URL (http or https)")
     fhirAuthorization: Optional[FHIRAuthorization] = Field(None, description="FHIR authorization")
     prefetch: Optional[Dict[str, Any]] = Field(None, description="Prefetched FHIR resources")
-    
+
     @field_validator('fhirServer')
     @classmethod
-    def validate_https(cls, v):
-        """CDS Hooks 2.0 requires HTTPS for fhirServer"""
-        if v and not v.startswith('https://'):
-            raise ValueError('fhirServer must use HTTPS scheme in CDS Hooks 2.0')
+    def validate_fhir_server_scheme(cls, v):
+        """Require an http(s) URL — but do NOT require https.
+
+        CDS Hooks 2.0 makes https conditional: the scheme "MUST be https when
+        production data is exchanged". This platform never exchanges production
+        data (synthetic Synthea only, by charter) and every real deployment of
+        it — localhost dev, the wintehrdev demo box — serves plain http. An
+        unconditional https check here 422'd every hook call in which the
+        frontend included fhirServer (it sends window.location.origin), which
+        silently disabled CDS on exactly the deployments this platform targets.
+        """
+        if v and not (v.startswith('https://') or v.startswith('http://')):
+            raise ValueError('fhirServer must be an http(s) URL')
         return v
 
     @field_validator('hookInstance')

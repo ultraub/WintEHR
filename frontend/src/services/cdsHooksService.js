@@ -3,6 +3,7 @@
  * Handles CRUD operations for custom CDS hooks
  */
 import axios from 'axios';
+import { v4 as uuidv4 } from 'uuid';
 import { getBackendUrl, getBackendApiUrl, getCdsHooksServicesUrl } from '../config/apiConfig';
 
 class CDSHooksService {
@@ -888,7 +889,9 @@ class CDSHooksService {
       // Create test request
       const testRequest = {
         hook: serviceData.hook,
-        hookInstance: `test-${Date.now()}`,
+        // hookInstance must be a real UUID — the backend enforces the CDS Hooks
+        // 2.0 shape and 422s anything else, which used to break this test flow.
+        hookInstance: uuidv4(),
         context: {
           patientId: testContext.patientId || 'test-patient-123',
           userId: testContext.userId || 'test-user-456',

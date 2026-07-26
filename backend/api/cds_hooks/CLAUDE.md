@@ -37,6 +37,31 @@ flows are identical.
 Providers live in `providers/` (`__init__.py` exports `BaseServiceProvider`,
 `LocalServiceProvider`, `RemoteServiceProvider`, `CQLBackedServiceProvider`).
 
+### Provider failure contract — never raise, never block
+
+`LocalServiceProvider.execute()` and `RemoteServiceProvider.execute()` NEVER
+raise: any failure logs, tracks (remote: consecutive-failure counters in
+`external_services.services`, auto-disable at 5), and returns empty cards.
+CDS is advisory — a dead service must not 500 a clinician-facing response.
+The router keeps a catch-all as a second net; discovery likewise degrades to
+registry-only when HAPI is down. Two provider details that were once bugs:
+the local provider awaits async `execute()`/`should_execute()` (the canonical
+`CDSService` is async — unawaited, every async service silently returned zero
+cards) and honors the `should_execute()` gate; the remote provider opens one
+`httpx.AsyncClient` per call inside `async with` (a per-instance client was
+never closed) and reads auth from the columns production supplies
+(`auth_type` + Fernet-encrypted `credentials_encrypted` → X-API-Key / Bearer /
+X-HMAC-Signature), not the never-passed `auth_config`.
+
+### Request validation (`models.py` `CDSHookRequest`)
+
+- `hookInstance` MUST be a UUID (spec shape; frontend senders use `uuidv4()`).
+- `fhirServer` accepts **http or https**. CDS Hooks 2.0 requires https only
+  "when production data is exchanged" — this platform is synthetic-only and
+  every deployment it targets is http. An unconditional-https validator once
+  422'd every hook call in which the frontend included `fhirServer`
+  (it sends `window.location.origin + '/fhir'`). Do not reintroduce it.
+
 ---
 
 ## The canonical patterns (don't reinvent)
@@ -183,6 +208,8 @@ support libraries, not independently-registered routers.
 | Symptom | Look at |
 |---|---|
 | Service not in `cds-services` discovery | `execute_service` discovery merge — built-in registry vs. HAPI `PlanDefinition` with `service-origin` extension |
+| Hook call 422s before reaching any service | `CDSHookRequest` validation — non-UUID `hookInstance`, or `fhirServer` not an http(s) URL |
+| External service always returns empty cards | Provider degraded a failure — check logs + `external_services.services` failure counters / `auto_disabled` |
 | CQL edit not taking effect after save | ELM cache keyed by Library name — `cql_dev_helper.py` should produce a fresh `Draft*` id; check the upload actually ran |
 | ValueSet code change not reflected | CR expansion cache — confirm `POST /admin/cr/flush-caches` fired (HAPI overlay deployed? `HAPI_ADMIN_TOKEN` set?) |
 | `$apply` returns no cards | `request_orchestration_to_cards` found no `RequestGroup`, or actions lacked title/description |

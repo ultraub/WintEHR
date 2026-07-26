@@ -129,12 +129,18 @@ class TestCreateRequestValidation:
                 codes=[CodeEntry(system="http://x", code="1")],
             )
 
-    def test_rejects_name_with_hyphens(self):
-        with pytest.raises(ValueError):
-            ValueSetCreateRequest(
-                name="diabetes-conditions",  # hyphens not allowed in CQL identifiers
-                codes=[CodeEntry(system="http://x", code="1")],
-            )
+    def test_accepts_name_with_hyphens(self):
+        # Deliberate: CQL valueset declarations take QUOTED identifiers
+        # (`valueset "diabetes-conditions": '...'`), where hyphens — like
+        # spaces — are perfectly legal, and FHIR ValueSet.name is datatype
+        # `string`. The old bare-identifier rule forced PascalCase names that
+        # then mismatched students' naturally-written retrieves. See
+        # _FHIR_NAME_RE in value_set_composer.py.
+        req = ValueSetCreateRequest(
+            name="diabetes-conditions",
+            codes=[CodeEntry(system="http://x", code="1")],
+        )
+        assert req.name == "diabetes-conditions"
 
     def test_accepts_valid_name(self):
         req = ValueSetCreateRequest(
