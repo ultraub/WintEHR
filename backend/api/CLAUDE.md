@@ -108,8 +108,9 @@ resource-created / updated / deleted / clinical-event messages.
   **not** HIPAA PHI auditing — this platform handles only synthetic Synthea
   data.
 - `services/notification_service.py` — critical-value, task, appointment, and
-  medication notifications (wrapped for clinical use by
-  `clinical/notifications_helper.py`).
+  medication notifications. (Its former wrapper,
+  `clinical/notifications_helper.py`, had zero importers and was deleted in
+  the dead-code purge — call the service directly.)
 
 ---
 

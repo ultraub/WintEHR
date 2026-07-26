@@ -119,7 +119,7 @@ scratch (the two existing importers share zero code).
 | B4 | 5 of 11 backend CDS hook types are invisible/uncreatable in every frontend surface (11 hook-type lists range 3–11 entries) | `api/cds_hooks/models.py:10` vs 10 frontend/backend lists |
 | B5 | `REFERENCE_FIELDS` drift: 12 resource types advertised by `/fhir-relationships/schema` are untraversable by the relationship cache | `api/fhir/routers/relationships.py:32` vs `api/services/fhir/relationship_cache.py:33` |
 | B6 | `nginx-default.conf` proxies `/ws` → backend `/ws`, but the WS router resolves to `/api/ws` | `nginx-default.conf:39` |
-| B7 | `notifications_helper.py` documented as live in two CLAUDE.md files; it has zero importers | `api/CLAUDE.md:112`, `api/clinical/CLAUDE.md:108` |
+| B7 | ~~`notifications_helper.py` documented as live in two CLAUDE.md files; it has zero importers~~ **Fixed in the purge** — file deleted, both CLAUDE.md files corrected | `api/CLAUDE.md`, `api/clinical/CLAUDE.md` |
 
 ---
 
@@ -127,7 +127,7 @@ scratch (the two existing importers share zero code).
 
 | # | Opportunity | Status |
 |---|-------------|--------|
-| **1** | **Dead-code purge.** Delete the 283 unreachable frontend files (~98k LOC) and ~10 dead backend modules, in reviewable slices, each gated by `find-dead-code.mjs` + basename/path grep + full build + tests + lint. Do this first: it halves the surface every later item pays tax on, and most utility "duplication" (7 `calculateAge` copies, 3 dialog frameworks, both dead consolidation layers) vanishes with it. | **in progress** |
+| **1** | **Dead-code purge.** Delete the 283 unreachable frontend files (~98k LOC) and ~10 dead backend modules, each triple-verified (import graph + path-reference grep + build/tests/lint). | **DONE** — frontend: 276 files deleted at `609841e6` (resurrect from parent `f4afc884`); backend: 10 modules + 2 empty subpackages in the follow-up commit. 9 files preserved deliberately (see below). |
 | **2** | **One frontend data-access path.** Migrate callers to the existing context/fhirClient stack — not a new layer (two previous new-layer attempts died unadopted). Port the 4 raw-transport services, export the context's bundle normalization, collapse caches onto fhirClient LRU + `intelligentCache` TTLs. Tab-by-tab, behind the truthful-display test suite. | pending |
 | **3** | **Resource-type registry.** One frontend module (icon, color, label, priority tier, sort params, export columns per type) and one backend `REFERENCE_FIELDS` source of truth; point the 14 catalogs and 7 priority lists at it. Drops "add a resource type" from 25–30 touch points to a handful. | pending |
 | **4** | **Backend registration/routing hardening.** Per-router try/except; register a health endpoint that reports `FAILED_ROUTER_GROUPS`; one prefix convention; reconcile the three proxy configs. | pending |
@@ -164,6 +164,12 @@ the workflow gets built):
   effectiveness / reconciliation / status / validator) — no reachable
   consumers; the reconciliation concept lives on in
   `MedicationWorkflowService` (kept above).
+- **Clinical scenario engine** (`api/services/data/scenario_engine.py`) —
+  guided educational scenarios (diabetes management, hypertensive crisis,
+  acute MI) is a genuinely good idea for this platform, but the deleted
+  implementation was built on the pre-HAPI custom-table architecture
+  (`from models.models import Patient…`) and cannot run against the current
+  system. Rebuild on HAPI if the idea is picked up; don't resurrect.
 
 Related hygiene noted during the purge, not yet fixed: UI Composer's backend
 prompt templates (`claude_cli_service.py`, `claude_integration_service.py`,

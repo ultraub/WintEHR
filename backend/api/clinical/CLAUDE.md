@@ -105,13 +105,13 @@ extend `drug_interactions.py` (the comprehensive one), not the inline dict.
   `administration` routers do not publish clinical events or broadcast over
   WebSocket. There is no `CLINICAL_EVENTS` dict and no `publish_event()` in
   this module. Real-time event plumbing lives in `api/websocket/`.
-- **`notifications_helper.py`** is a thin wrapper over
-  `api/services/notification_service.py` (critical-value, task-assignment,
-  appointment, and medication-interaction notifications). It holds no
-  threshold data — critical-value thresholds live in `critical_values.py`
-  (the ONE table, also served at `GET /api/clinical/critical-values` and
-  consumed by `frontend/src/services/criticalValueService.js`). Do not add
-  another threshold table anywhere.
+- Notifications go through `api/services/notification_service.py` directly
+  (the `notifications_helper.py` wrapper had zero importers and was deleted
+  in the dead-code purge). Critical-value thresholds live in
+  `critical_values.py` (the ONE table, also served at
+  `GET /api/clinical/critical-values` and consumed by
+  `frontend/src/services/criticalValueService.js`). Do not add another
+  threshold table anywhere.
 - **Catalogs are not owned here.** The unified catalog service is
   `api/catalogs/` at `/api/catalogs/...`. `cds_clinical_data.py` is a separate,
   narrower service exposing lab / vital-reference / condition catalogs under

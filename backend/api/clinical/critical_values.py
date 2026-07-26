@@ -4,8 +4,7 @@ This module owns THE critical-value threshold table. It is:
 - served to the frontend as JSON via ``critical_values_router.py``
   (``GET /api/clinical/critical-values``), consumed by
   ``frontend/src/services/criticalValueService.js``;
-- used by the backend notification path (``notifications_helper.py``) and the
-  results router (``results/results_router.py``).
+- used by the results router (``results/results_router.py``).
 
 Do not add another threshold table anywhere — extend this one.
 
