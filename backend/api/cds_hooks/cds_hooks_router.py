@@ -1397,13 +1397,14 @@ async def list_services(
        services managed via the legacy hook persistence layer).
     2. Visual-builder services from `cds_hooks.visual_builder_services` —
        these aren't in the legacy table, so without this merge they were
-       absent from the list and the EMR's `CDSHookManager` could never
-       look up their `displayBehavior`. That's why every wizard-built
+       absent from the list and the EMR's display-behavior lookup could
+       never find their `displayBehavior`. That's why every wizard-built
        service rendered as POPUP regardless of its `display_config`.
 
     For the visual-builder rows we project `display_config.presentationMode`
     onto `HookConfiguration.displayBehavior.defaultMode` so the existing
-    frontend mode-picker code path (CDSHookManager.js:222-234) just works.
+    frontend mode-picker (cdsDisplayBehaviorService.js / CDSPresentation.js)
+    just works.
     """
     try:
         manager = await get_persistence_manager(db)

@@ -2,10 +2,10 @@
  * Warm Slate shell palette — single source of truth for the dark app shell.
  *
  * The `#1A1735` gradient and its companion text/accent constants were
- * copy-pasted across `components/LayoutV3.js`,
- * `components/clinical/navigation/ClinicalSidebar.js`, and `pages/Login.js`,
- * with a 45%-vs-50% gradient-midpoint drift between LayoutV3 and Login.
- * This module owns those tokens; the three shell surfaces import from here.
+ * copy-pasted across `components/LayoutV3.js`, `pages/Login.js`, and a
+ * since-deleted clinical sidebar, with a 45%-vs-50% gradient-midpoint drift
+ * between LayoutV3 and Login. This module owns those tokens; the shell
+ * surfaces import from here.
  *
  * Scope: the dark shell chrome only (nav drawer, clinical sidebar, login
  * branding panel). Clinical severity tokens live in `clinicalThemeUtils.js`;

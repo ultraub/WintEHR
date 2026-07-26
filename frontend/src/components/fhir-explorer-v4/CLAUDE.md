@@ -85,17 +85,16 @@ fhir-explorer-v4/
 │                  RelationshipMapper (+ FilterPanel, ErrorBoundary)
 ├── query-building/  QueryStudioEnhanced (live) · NaturalLanguageInterface
 │                    QueryStudio · VisualQueryBuilder · QueryPlayground (orphaned)
-│                    components/  ChainedParameterBuilder · CompositeParameterBuilder
-│                                 ModifierSelector · QuerySuggestions
-│                                 QueryTemplates · QueryValidator
 │                    utils/naturalLanguageProcessor.js
 │                    __tests__/QueryStudioEnhanced.test.js
+│                    (the parameter-builder components/ subtree was dead and
+│                    deleted in the dead-code purge — docs/ARCHITECTURE_DEBT.md)
 ├── visualization/   DataCharts · PatientTimeline · NetworkDiagram
 │                    components/  ChartTypeSelector · NetworkControls
-│                                 TimelineControls · VitalSignsChart
+│                                 VitalSignsChart (TimelineControls deleted — dead)
 │                    utils/  forceNetwork.js · timelineExport.js
-├── hooks/         useFHIRData · useFHIRExplorerTheme · useQueryHistory
-│                  useUserPreferences
+├── hooks/         useFHIRData · useQueryHistory · useUserPreferences
+│                  (useFHIRExplorerTheme deleted — dead)
 ├── workspace/     QueryWorkspace.jsx
 ├── components/    ErrorBoundary.jsx
 └── constants/     appConstants.js · fhirResources.js

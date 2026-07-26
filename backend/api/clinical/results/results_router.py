@@ -191,9 +191,10 @@ async def acknowledge_result(acknowledgment: ResultAcknowledgment):
     Acknowledge a lab result (especially critical values).
 
     FHIR Implementation:
-    - Creates a Provenance resource targeting the Observation — the same
-      store the frontend writes (resultsManagementService.acknowledgeResult),
-      so an acknowledgment via either path is visible to both.
+    - Creates a Provenance resource targeting the Observation. (A frontend
+      acknowledgment UI existed but was never reachable and has been deleted
+      — see docs/ARCHITECTURE_DEBT.md; this endpoint is the seam a future
+      acknowledgment UI should write through, keeping both paths visible.)
     - The Observation itself is never mutated.
 
     Educational notes:

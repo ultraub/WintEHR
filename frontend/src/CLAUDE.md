@@ -66,9 +66,10 @@ The repo loads **critical data first, then enriches**. A patient selection:
 3. Tabs read from `FHIRResourceContext` (cache-warmed) rather than each
    issuing cold fetches.
 
-Hooks that encode this: `hooks/useProgressiveLoading.js`,
-`hooks/useOptimizedPatientData.js`, `hooks/useChartReviewResources.js`. Reuse
-these for new patient-scoped surfaces instead of writing a fresh fetch loop.
+The hook that encodes this: `hooks/useChartReviewResources.js`. Reuse it for
+new patient-scoped surfaces instead of writing a fresh fetch loop. (The old
+`useProgressiveLoading` / `useOptimizedPatientData` hooks were unreachable
+and deleted in the dead-code purge — see `docs/ARCHITECTURE_DEBT.md`.)
 
 Every `fhirClient` call in a component must handle loading / error / empty /
 success — silent `catch` blocks are a review failure.
@@ -81,13 +82,12 @@ success — silent `catch` blocks are a review failure.
 delegates to `EnhancedClinicalLayout` and `ClinicalWorkspaceEnhanced.js`
 (~363 lines). Tabs live in `components/clinical/workspace/tabs/`, registered via
 `clinicalTabRegistry.js` (parent doc). Clinical dialogs are in
-`components/clinical/workspace/dialogs/` — many ship in a plain + `*Enhanced`
-pair (`MedicationDialog.js` / `MedicationDialogEnhanced.js`); the `Enhanced`
-variant is the current one.
+`components/clinical/workspace/dialogs/` and use the `*Enhanced` naming
+(`MedicationDialogEnhanced.js`) — the plain-named originals are deleted; do
+not recreate the pairing.
 
-Resource dialogs extend `components/base/BaseResourceDialog.js` (or
-`EnhancedBaseResourceDialog.js`) — follow that base, do not build a bare MUI
-`<Dialog>`.
+Resource dialogs extend `components/base/BaseResourceDialog.js` — follow
+that base, do not build a bare MUI `<Dialog>`.
 
 ---
 

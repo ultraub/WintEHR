@@ -70,9 +70,6 @@ DIALOG_FILES=(
     "AllergyDialogEnhanced.js"
     "ImmunizationDialogEnhanced.js"
     "ProcedureDialogEnhanced.js"
-    "ObservationDialogEnhanced.js"
-    "DiagnosticReportDialogEnhanced.js"
-    "ServiceRequestDialogEnhanced.js"
     "MedicationDialogEnhanced.js"
     "ConditionDialogEnhanced.js"
 )

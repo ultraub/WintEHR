@@ -38,42 +38,39 @@ Three escape hatches — pick the one that already fits, do not invent a fourth.
 | Need | Use | Notes |
 |---|---|---|
 | Raw FHIR CRUD/search | `@/core/fhir/services/fhirClient` | Not in this dir; caching + batching live there |
-| Backend `/api/...` calls | `HttpClientFactory.createApiClient()` or `api.js` (`apiClient`) | axios instance, auth header injected |
+| Backend `/api/...` calls | `api.js` (`apiClient`) | axios singleton, auth header injected |
 | CDS Hooks calls | `cdsHooksClient.js` | Own axios client, base URL via `apiConfig` |
 
-`HttpClientFactory.js` exposes static factories: `createApiClient`,
-`createFhirClient`, `createEmrClient`, `createCdsClient`. All resolve their
-base URL through `config/apiConfig` (`getBackendApiUrl`, `getCdsHooksUrl`) —
-**never hardcode a host or pass a literal `baseURL`.** `api.js` is the older
-plain axios singleton; new code should prefer `HttpClientFactory`.
+All base URLs resolve through `config/apiConfig` (`getBackendApiUrl`,
+`getCdsHooksUrl`) — **never hardcode a host or pass a literal `baseURL`.**
+(`HttpClientFactory.js`, a factory layer nothing ever imported, was deleted
+in the dead-code purge — see `docs/ARCHITECTURE_DEBT.md`. Transport
+consolidation is opportunity #2 there; don't hand-roll new axios clients.)
 
 ---
 
-## Facade vs. direct imports — known inconsistency
+## Import services directly — the facades are gone
 
-Two subdirectories provide *facade* modules that wrap a family of services:
-
-- `services/cds/` — `cdsService` facade over `cdsHooksClient`,
-  `cdsHooksService`, `cdsClinicalDataService`, `cdsActionExecutor`,
-  `cdsFeedbackService`.
-- `services/medication/` — `medicationService` facade over the medication
-  services.
-
-Each facade's `index.js` documents the intended pattern
-(`import { cdsService } from '@/services/cds'`). **But adoption is thin** —
-each facade currently has ~2 importers, while the underlying services are
-imported directly ~10+ places (`cdsHooksService` especially). Both styles
-work. When touching existing code, match what that file already does; do not
-mass-migrate to the facade as a side effect of an unrelated change.
+`services/cds/` and `services/medication/` used to hold facade modules
+wrapping the service families. Both were circular barrels with **zero live
+importers** and were deleted in the dead-code purge. Import the underlying
+service directly (`cdsHooksService`, `medicationListManagementService`, …);
+do not recreate a facade layer.
 
 ### Medication services — the adjudicated layering
 
-The **standalone services are canonical**: `medicationSearchService`,
-`medicationDiscontinuationService`, `medicationEffectivenessService`,
-`medicationListManagementService`, `medicationReconciliationService`,
-`prescriptionStatusService`, `prescriptionRefillService`,
-`medicationWorkflowValidator`. The UI uses them directly (e.g. PharmacyTab →
+The **live standalone services are canonical**:
+`medicationListManagementService`, `prescriptionRefillService`,
+`medicationDispenseService`, `medicationAdministrationService`. The UI uses
+them directly (e.g. PharmacyTab →
 `medicationListManagementService.handlePrescriptionStatusUpdate`).
+
+Six further standalone services (`medicationSearchService`,
+`medicationDiscontinuationService`, `medicationEffectivenessService`,
+`medicationReconciliationService`, `prescriptionStatusService`,
+`medicationWorkflowValidator`) had no reachable consumers and were deleted
+in the dead-code purge — resurrect from git history if their workflow gets
+built out, but check `docs/ARCHITECTURE_DEBT.md` first.
 
 `MedicationCRUDService` and `MedicationWorkflowService` began as a
 consolidation of those services but were never finished or adopted; the
@@ -87,9 +84,12 @@ callers. What remains is their real, deliberately narrow surface:
 | `MedicationCRUDService.js` | local catalog (search/dosing/interaction/allergy) + patient medication-List management | `MedicationListManager`, `useMedicationLists` |
 | `MedicationWorkflowService.js` | reconciliation analysis: `getMedicationReconciliation` → `categorizeMedicationsBySource` → `analyzeReconciliationNeeds` | same two |
 
-Do not re-grow these two files toward the standalone services — extend the
-standalone service instead. `ServiceSelector.js` (the legacy-vs-consolidated
-routing layer) was deleted outright: zero importers outside its own test.
+These two files, `MedicationListManager`, and `useMedicationLists` are the
+**medication-reconciliation feature** — adjudicated worth finishing (#264)
+but not yet routed into any live surface. They are deliberately preserved
+future development (see `docs/ARCHITECTURE_DEBT.md`); wire them in rather
+than rebuilding. Do not re-grow the two services toward general medication
+workflows — extend the live standalone services instead.
 
 ---
 
@@ -108,8 +108,6 @@ pattern to use. The files *here* are the lower layers those hooks call:
 | `cdsDisplayBehaviorService.js` | Decorates cards with `displayBehavior` |
 | `cdsFeedbackService.js` / `cdsAlertPersistenceService.js` | Feedback + alert dismissal persistence |
 
-`cds/CDSService.js` is the facade tying these together.
-
 ---
 
 ## Search services and HAPI parameter mapping
@@ -125,9 +123,7 @@ Callers pass a generic `-authored` sort; the service maps it to the
 resource-specific HAPI field. If you add order search for another resource
 type, extend that table — don't assume one sort name works everywhere.
 
-`searchService.js` (cross-resource), `enhancedImagingSearch.js`,
-`medicationSearchService.js`, and `resultsManagementService.js` are the other
-search/results entry points.
+`searchService.js` (cross-resource) is the other search entry point.
 
 ---
 
@@ -135,9 +131,7 @@ search/results entry points.
 
 - `core/fhir/services/fhirClient` — not in this dir, but read it first; most
   services depend on it.
-- `HttpClientFactory.js` — how non-FHIR HTTP clients are constructed.
-- `cds/index.js` and `medication/index.js` — facade entry points + the
-  full list of underlying services they wrap.
+- `api.js` — the axios singleton for backend `/api/...` calls.
 - `MedicationWorkflowService.js` — the medication-reconciliation analysis
   pipeline (see the medication layering table above).
 - `websocket.js` — `websocketService` singleton; `getWebSocketConnection()`.
@@ -164,7 +158,7 @@ search/results entry points.
 | Symptom | Look at |
 |---|---|
 | `fhirService is not defined` / import resolves to nothing | Module is deleted — switch to `@/core/fhir/services/fhirClient` |
-| Service call 404s in prod but works in dev | Hardcoded host or literal `baseURL` — route through `HttpClientFactory` / `apiConfig` |
+| Service call 404s in prod but works in dev | Hardcoded host or literal `baseURL` — route through `apiConfig` |
 | Order search returns unsorted or empty results | `enhancedOrderSearch.js` `searchParamMappings` — wrong/missing HAPI sort param for the resource |
 | CDS cards never appear | Trace `cdsHooksClient.js` dispatch first; then the firing layer in `hooks/cds/` |
 | WebSocket events stop after a drop | `websocket.js` reconnect/backoff logic; consumers should subscribe via `ClinicalWorkflowContext` |

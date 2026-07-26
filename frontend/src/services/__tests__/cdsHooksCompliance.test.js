@@ -5,7 +5,10 @@
 // Default import: the module default-exports the class (plus a lowercase
 // singleton). The old named import resolved to undefined under real ESM —
 // every test in this suite failed at `new undefined()` in beforeEach.
-import CDSHooksClientSpec from '../cdsHooksClient.spec';
+// Reference implementation lives beside this test — it is a test fixture,
+// not a shipped service (and must not carry a .test/.spec suffix, or vitest
+// collects it as an empty suite).
+import CDSHooksClientSpec from './cdsHooksClientSpec';
 import { cdsHooksService } from '../cdsHooksService';
 import { validateCDSService } from '../../models/cdsService';
 

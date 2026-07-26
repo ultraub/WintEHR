@@ -139,6 +139,44 @@ or batch as a standalone fix PR.
 
 ---
 
+## Preserved future development (deliberately NOT deleted)
+
+Unreachable code that was adjudicated as *unfinished features worth
+finishing* rather than abandoned. Kept in the tree and documented here so
+the intent survives; wire these in rather than rebuilding:
+
+| Feature | Files kept | Evidence of intent |
+|---|---|---|
+| **SMART app launcher UI** | `frontend/src/components/smart/` (`SMARTAppLauncher`, `AppCard`, `index`) | Backend SMART OAuth2/PKCE stack is live (`api/smart/`), `SMARTContext` is live, apps are seeded (`seed_smart_apps.py`). The launcher was wired into `ClinicalSidebar`, which was orphaned by a later layout change (Feb 2026). Finish = render `SMARTAppLauncher` from a live surface. |
+| **Medication reconciliation** | `MedicationListManager.js`, `hooks/medication/useMedicationLists.js` (+ flat shim), `MedicationCRUDService.js`, `MedicationWorkflowService.js`, their tests | PR #264 explicitly adjudicated these canonical and repaired the analysis pipeline (`getMedicationReconciliation` → categorize → analyze) with regression tests. Finish = route `MedicationListManager` into a live surface (e.g. Pharmacy tab or a workspace dialog). |
+| **CDS Hooks compliance test + model** | `services/__tests__/cdsHooksCompliance.test.js`, `models/cdsService.js` | The test validates the LIVE `cdsHooksService` against the CDS Hooks 2.0 spec; the model is its validation helper (and one of the 11 hook-type lists — F5/B4). |
+
+Deleted-but-noteworthy (resurrect from git history at the pre-purge SHA if
+the workflow gets built):
+
+- **Result acknowledgment UI** — backend endpoints are live
+  (`results_router.py` `/acknowledge`, Provenance-based) with zero frontend
+  consumers; the old panel (`ResultAcknowledgmentPanel`,
+  `resultsManagementService`) was a year stale and pattern-drifted.
+- **CPOE order field components** (`components/clinical/orders/fields/`,
+  Feb 2026) — a half-landed order-dialog revamp; live order dialogs exist.
+- **Six standalone medication services** (search / discontinuation /
+  effectiveness / reconciliation / status / validator) — no reachable
+  consumers; the reconciliation concept lives on in
+  `MedicationWorkflowService` (kept above).
+
+Related hygiene noted during the purge, not yet fixed: UI Composer's backend
+prompt templates (`claude_cli_service.py`, `claude_integration_service.py`,
+`ui_composer_service.py`, `simplified_agents.py`) instruct generated code to
+import the now-deleted `hooks/useFHIRResources` — harmless today because
+generated code is display-only (`ComponentGenerator.createComponentFactory`
+is a placeholder that never executes it), but the prompts should reference
+the live data-access API when opportunity #2 lands. Several
+`src/test/debug*.js` files are also *reachable from live code* and ship in
+the bundle — untangle when their importers are next touched.
+
+---
+
 ## Method / provenance
 
 Produced 2026-07-26 by four parallel read-only survey agents over commit

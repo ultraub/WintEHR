@@ -3,7 +3,7 @@
  * Tests content extraction, validation, and FHIR compliance
  */
 
-import { DocumentReferenceConverter } from '../../core/fhir/converters/DocumentReferenceConverter';
+import { DocumentReferenceConverter } from '../DocumentReferenceConverter';
 import { DocumentContentValidator } from '../../../documents/documentContentValidator';
 
 describe('DocumentReferenceConverter', () => {
@@ -142,7 +142,10 @@ describe('DocumentReferenceConverter', () => {
         content: [{
           attachment: {
             contentType: 'text/plain',
-            data: btoa('') // Empty content
+            // btoa('') is '' — a falsy data field takes the "no content data"
+            // branch (covered by the missing-attachment test). Whitespace-only
+            // content is what actually exercises the decode-then-empty branch.
+            data: btoa('   ')
           }
         }]
       };
@@ -246,16 +249,20 @@ describe('DocumentReferenceConverter', () => {
         },
         title: 'Hypertension Follow-up',
         description: 'Routine BP check',
-        signNote: false
-      };
-
-      const context = {
-        patientId: 'patient-789',
+        signNote: false,
+        // The converter reads these from formData (context.userId is the
+        // only context fallback, for the author) — not from context.
         encounterId: 'encounter-456',
         authorId: 'practitioner-123'
       };
 
-      const fhirResource = converter._createResourceFromForm(formData, context);
+      const context = {
+        patientId: 'patient-789'
+      };
+
+      // The public API — createResource — is what live code calls; it wraps
+      // _createResourceFromForm and adds resourceType/id/subject.
+      const fhirResource = converter.createResource(formData, context.patientId, context);
 
       expect(fhirResource.resourceType).toBe('DocumentReference');
       expect(fhirResource.status).toBe('current');
@@ -560,6 +567,7 @@ describe('Integration Tests', () => {
     // Start with form data from frontend
     const formData = {
       type: 'progress',
+      status: 'current', // required by the public API's validation
       contentType: 'text',
       content: 'Patient doing well. Continue current medications. Follow up in 6 months.',
       title: 'Routine Follow-up',
@@ -571,8 +579,10 @@ describe('Integration Tests', () => {
       authorId: 'practitioner-789'
     };
 
-    // Convert to FHIR
-    const fhirResource = converter._createResourceFromForm(formData, context);
+    // Convert to FHIR via the public API (adds resourceType/subject — the
+    // document-level validation checks resourceType, so the private method
+    // alone produces a resource that can never validate)
+    const fhirResource = converter.createResource(formData, context.patientId, context);
     
     // Extract content back
     const extractedContent = converter.extractDocumentContent(fhirResource);

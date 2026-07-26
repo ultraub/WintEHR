@@ -39,6 +39,22 @@ const argv = process.argv.slice(2);
 const GREP_CHECK = argv.includes('--grep-check');
 const AS_JSON = argv.includes('--json');
 
+// Unreachable-by-design files adjudicated as preserved future development —
+// see docs/ARCHITECTURE_DEBT.md § "Preserved future development". They are
+// reported separately so genuine regressions stand out. Remove entries here
+// when the feature is wired in (or finally deleted).
+const PRESERVED = new Set([
+  'src/components/smart/AppCard.js',
+  'src/components/smart/SMARTAppLauncher.js',
+  'src/components/smart/index.js',
+  'src/components/clinical/medications/MedicationListManager.js',
+  'src/hooks/medication/useMedicationLists.js',
+  'src/hooks/useMedicationLists.js',
+  'src/services/MedicationCRUDService.js',
+  'src/services/MedicationWorkflowService.js',
+  'src/models/cdsService.js', // validation helper for cdsHooksCompliance.test.js
+]);
+
 // ---------------------------------------------------------------- collect
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -108,7 +124,9 @@ while (queue.length) {
 
 const rel = (p) => relative(FRONTEND, p);
 const nonTest = allFiles.filter((f) => !isTest(f));
-const dead = nonTest.filter((f) => !live.has(f)).sort();
+const unreachable = nonTest.filter((f) => !live.has(f)).sort();
+const preserved = unreachable.filter((f) => PRESERVED.has(rel(f)));
+const dead = unreachable.filter((f) => !PRESERVED.has(rel(f)));
 const deadSet = new Set(dead);
 
 // tests that import dead (or already-deleted) modules must go with them
@@ -146,8 +164,9 @@ if (AS_JSON) {
     JSON.stringify(
       {
         totalNonTest: nonTest.length,
-        live: nonTest.length - dead.length,
+        live: nonTest.length - unreachable.length,
         dead: dead.map(rel),
+        preserved: preserved.map(rel),
         deadLoc,
         orphanTests: orphanTests.map(rel),
         nonLiteralDynamicImports: nonLiteralDynamic.map(rel),
@@ -159,7 +178,8 @@ if (AS_JSON) {
   );
 } else {
   console.log(`non-test source files : ${nonTest.length}`);
-  console.log(`reachable from entry  : ${nonTest.length - dead.length}`);
+  console.log(`reachable from entry  : ${nonTest.length - unreachable.length}`);
+  console.log(`preserved future-dev  : ${preserved.length}  (documented in docs/ARCHITECTURE_DEBT.md)`);
   console.log(`DEAD (unreachable)    : ${dead.length}  (~${deadLoc} LOC)`);
   console.log(`tests importing dead  : ${orphanTests.length}`);
   if (nonLiteralDynamic.length) {
