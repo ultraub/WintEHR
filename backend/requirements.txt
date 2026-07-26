@@ -1,5 +1,5 @@
 # Core dependencies
-fastapi>=0.104.1
+fastapi>=0.140.0
 uvicorn[standard]>=0.24.0
 pydantic>=2.5.0
 # EmailStr in api/auth/models.py needs this. It used to arrive transitively via
