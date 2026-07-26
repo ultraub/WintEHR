@@ -20,9 +20,9 @@ psycopg2-binary>=2.9.9
 redis[hiredis]>=5.0.0
 
 # HTTP/API
-httpx==0.25.2
+httpx==0.28.1
 aiofiles==23.2.1
-aiohttp==3.14.1
+aiohttp==3.14.3
 
 # Data processing
 pandas>=2.2.0
@@ -34,7 +34,7 @@ psutil==5.9.6
 # Security
 python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.31
+python-multipart==0.0.32
 bcrypt==4.1.2
 PyJWT==2.13.0
 
@@ -45,10 +45,10 @@ pytest-asyncio==0.21.1
 aiosqlite>=0.19.0  # Async SQLite for test fixtures
 
 # FHIR specific
-fhirclient==4.2.1  # SMART on FHIR Python client for HAPI FHIR integration
+fhirclient==4.4.0  # SMART on FHIR Python client for HAPI FHIR integration
 
 # Synthea integration
-GitPython==3.1.54
+GitPython==3.1.56
 
 # Medical imaging
 pydicom==3.0.2
@@ -56,12 +56,12 @@ pillow>=10.3.0
 numpy>=1.26.0
 scipy>=1.11.0  # For realistic DICOM generation
 # For DICOM image processing (basic support)
-pylibjpeg==2.0.0
-pylibjpeg-libjpeg==2.0.0
+pylibjpeg==2.1.0
+pylibjpeg-libjpeg==2.4.0
 # pylibjpeg-openjpeg==2.0.0  # Has CMake compatibility issues with newer versions
 
 # AI and utilities
-anthropic==0.25.0
+anthropic==0.120.0
 python-dotenv==1.2.2
 # LLM Providers
 openai>=1.0.0
