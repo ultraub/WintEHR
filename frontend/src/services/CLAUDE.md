@@ -56,9 +56,8 @@ Two subdirectories provide *facade* modules that wrap a family of services:
 - `services/cds/` — `cdsService` facade over `cdsHooksClient`,
   `cdsHooksService`, `cdsClinicalDataService`, `cdsActionExecutor`,
   `cdsFeedbackService`.
-- `services/medication/` — `medicationService` facade over
-  `MedicationCRUDService`, `MedicationWorkflowService`,
-  `medicationAdministrationService`, `medicationDispenseService`, and others.
+- `services/medication/` — `medicationService` facade over the medication
+  services.
 
 Each facade's `index.js` documents the intended pattern
 (`import { cdsService } from '@/services/cds'`). **But adoption is thin** —
@@ -66,6 +65,31 @@ each facade currently has ~2 importers, while the underlying services are
 imported directly ~10+ places (`cdsHooksService` especially). Both styles
 work. When touching existing code, match what that file already does; do not
 mass-migrate to the facade as a side effect of an unrelated change.
+
+### Medication services — the adjudicated layering
+
+The **standalone services are canonical**: `medicationSearchService`,
+`medicationDiscontinuationService`, `medicationEffectivenessService`,
+`medicationListManagementService`, `medicationReconciliationService`,
+`prescriptionStatusService`, `prescriptionRefillService`,
+`medicationWorkflowValidator`. The UI uses them directly (e.g. PharmacyTab →
+`medicationListManagementService.handlePrescriptionStatusUpdate`).
+
+`MedicationCRUDService` and `MedicationWorkflowService` began as a
+consolidation of those services but were never finished or adopted; the
+unfinished paths (discontinuation, effectiveness monitoring, refills, status
+tracking, list synchronization) were **removed** — they called methods that
+were never written, behind a feature flag that defaulted off, with zero
+callers. What remains is their real, deliberately narrow surface:
+
+| File | Kept surface | Real consumers |
+|---|---|---|
+| `MedicationCRUDService.js` | local catalog (search/dosing/interaction/allergy) + patient medication-List management | `MedicationListManager`, `useMedicationLists` |
+| `MedicationWorkflowService.js` | reconciliation analysis: `getMedicationReconciliation` → `categorizeMedicationsBySource` → `analyzeReconciliationNeeds` | same two |
+
+Do not re-grow these two files toward the standalone services — extend the
+standalone service instead. `ServiceSelector.js` (the legacy-vs-consolidated
+routing layer) was deleted outright: zero importers outside its own test.
 
 ---
 
@@ -114,8 +138,8 @@ search/results entry points.
 - `HttpClientFactory.js` — how non-FHIR HTTP clients are constructed.
 - `cds/index.js` and `medication/index.js` — facade entry points + the
   full list of underlying services they wrap.
-- `MedicationWorkflowService.js` — largest workflow service; the model for
-  multi-step clinical orchestration on the frontend.
+- `MedicationWorkflowService.js` — the medication-reconciliation analysis
+  pipeline (see the medication layering table above).
 - `websocket.js` — `websocketService` singleton; `getWebSocketConnection()`.
   Auto-reconnect lives here; consumers usually go through
   `ClinicalWorkflowContext` rather than importing this directly.
