@@ -25,99 +25,21 @@ from collections import defaultdict
 from services.hapi_fhir_client import HAPIFHIRClient
 from shared.exceptions import FHIRConnectionError, FHIRResourceNotFoundError
 
+from api.fhir.reference_fields import REFERENCE_FIELDS as CANONICAL_REFERENCE_FIELDS
+
 logger = logging.getLogger(__name__)
 
 
 # FHIR reference field mappings by resource type
 # Maps field names to their target resource types and relationship cardinality
+# Derived from the shared canonical map (api/fhir/reference_fields.py —
+# bug B5): the traversal engine now follows every type the schema
+# endpoint advertises (25, up from 13).
 REFERENCE_FIELDS = {
-    "Patient": {
-        "generalPractitioner": {"targets": ["Practitioner", "Organization", "PractitionerRole"], "cardinality": "0..*"},
-        "managingOrganization": {"targets": ["Organization"], "cardinality": "0..1"},
-    },
-    "Observation": {
-        "subject": {"targets": ["Patient", "Group", "Device", "Location"], "cardinality": "0..1"},
-        "encounter": {"targets": ["Encounter"], "cardinality": "0..1"},
-        "performer": {"targets": ["Practitioner", "PractitionerRole", "Organization", "CareTeam", "Patient", "RelatedPerson"], "cardinality": "0..*"},
-        "basedOn": {"targets": ["CarePlan", "DeviceRequest", "MedicationRequest", "ServiceRequest"], "cardinality": "0..*"},
-        "specimen": {"targets": ["Specimen"], "cardinality": "0..1"},
-    },
-    "Condition": {
-        "subject": {"targets": ["Patient", "Group"], "cardinality": "1..1"},
-        "encounter": {"targets": ["Encounter"], "cardinality": "0..1"},
-        "recorder": {"targets": ["Practitioner", "PractitionerRole", "Patient", "RelatedPerson"], "cardinality": "0..1"},
-        "asserter": {"targets": ["Practitioner", "PractitionerRole", "Patient", "RelatedPerson"], "cardinality": "0..1"},
-    },
-    "MedicationRequest": {
-        "subject": {"targets": ["Patient", "Group"], "cardinality": "1..1"},
-        "encounter": {"targets": ["Encounter"], "cardinality": "0..1"},
-        "requester": {"targets": ["Practitioner", "PractitionerRole", "Organization", "Patient", "RelatedPerson", "Device"], "cardinality": "0..1"},
-        "performer": {"targets": ["Practitioner", "PractitionerRole", "Organization", "Patient", "RelatedPerson", "Device", "CareTeam"], "cardinality": "0..1"},
-        "reasonReference": {"targets": ["Condition", "Observation"], "cardinality": "0..*"},
-        "basedOn": {"targets": ["CarePlan", "MedicationRequest", "ServiceRequest"], "cardinality": "0..*"},
-    },
-    "Encounter": {
-        "subject": {"targets": ["Patient", "Group"], "cardinality": "0..1"},
-        "appointment": {"targets": ["Appointment"], "cardinality": "0..*"},
-        "reasonReference": {"targets": ["Condition", "Procedure", "Observation"], "cardinality": "0..*"},
-        "serviceProvider": {"targets": ["Organization"], "cardinality": "0..1"},
-        "partOf": {"targets": ["Encounter"], "cardinality": "0..1"},
-    },
-    "Procedure": {
-        "subject": {"targets": ["Patient", "Group"], "cardinality": "1..1"},
-        "encounter": {"targets": ["Encounter"], "cardinality": "0..1"},
-        "location": {"targets": ["Location"], "cardinality": "0..1"},
-        "reasonReference": {"targets": ["Condition", "Observation", "Procedure", "DiagnosticReport", "DocumentReference"], "cardinality": "0..*"},
-        "basedOn": {"targets": ["CarePlan", "ServiceRequest"], "cardinality": "0..*"},
-    },
-    "DiagnosticReport": {
-        "subject": {"targets": ["Patient", "Group", "Device", "Location"], "cardinality": "0..1"},
-        "encounter": {"targets": ["Encounter"], "cardinality": "0..1"},
-        "basedOn": {"targets": ["CarePlan", "MedicationRequest", "ServiceRequest"], "cardinality": "0..*"},
-        "specimen": {"targets": ["Specimen"], "cardinality": "0..*"},
-        "result": {"targets": ["Observation"], "cardinality": "0..*"},
-    },
-    "AllergyIntolerance": {
-        "patient": {"targets": ["Patient"], "cardinality": "1..1"},
-        "encounter": {"targets": ["Encounter"], "cardinality": "0..1"},
-        "recorder": {"targets": ["Practitioner", "PractitionerRole", "Patient", "RelatedPerson"], "cardinality": "0..1"},
-        "asserter": {"targets": ["Patient", "RelatedPerson", "Practitioner", "PractitionerRole"], "cardinality": "0..1"},
-    },
-    "Immunization": {
-        "patient": {"targets": ["Patient"], "cardinality": "1..1"},
-        "encounter": {"targets": ["Encounter"], "cardinality": "0..1"},
-        "location": {"targets": ["Location"], "cardinality": "0..1"},
-        "manufacturer": {"targets": ["Organization"], "cardinality": "0..1"},
-    },
-    "ServiceRequest": {
-        "subject": {"targets": ["Patient", "Group", "Location", "Device"], "cardinality": "1..1"},
-        "encounter": {"targets": ["Encounter"], "cardinality": "0..1"},
-        "requester": {"targets": ["Practitioner", "PractitionerRole", "Organization", "Patient", "RelatedPerson", "Device"], "cardinality": "0..1"},
-        "performer": {"targets": ["Practitioner", "PractitionerRole", "Organization", "CareTeam", "Patient", "Device", "RelatedPerson"], "cardinality": "0..*"},
-        "reasonReference": {"targets": ["Condition", "Observation", "DiagnosticReport", "DocumentReference"], "cardinality": "0..*"},
-    },
-    "CarePlan": {
-        "subject": {"targets": ["Patient", "Group"], "cardinality": "1..1"},
-        "encounter": {"targets": ["Encounter"], "cardinality": "0..1"},
-        "author": {"targets": ["Practitioner", "PractitionerRole", "Patient", "RelatedPerson", "Organization", "CareTeam", "Device"], "cardinality": "0..1"},
-        "careTeam": {"targets": ["CareTeam"], "cardinality": "0..*"},
-        "addresses": {"targets": ["Condition"], "cardinality": "0..*"},
-        "goal": {"targets": ["Goal"], "cardinality": "0..*"},
-    },
-    "ImagingStudy": {
-        "subject": {"targets": ["Patient", "Device", "Group"], "cardinality": "1..1"},
-        "encounter": {"targets": ["Encounter"], "cardinality": "0..1"},
-        "basedOn": {"targets": ["CarePlan", "ServiceRequest", "Appointment"], "cardinality": "0..*"},
-        "referrer": {"targets": ["Practitioner", "PractitionerRole"], "cardinality": "0..1"},
-        "location": {"targets": ["Location"], "cardinality": "0..1"},
-        "procedureReference": {"targets": ["Procedure"], "cardinality": "0..1"},
-    },
-    "DocumentReference": {
-        "subject": {"targets": ["Patient", "Practitioner", "Group", "Device"], "cardinality": "0..1"},
-        "author": {"targets": ["Practitioner", "PractitionerRole", "Organization", "Device", "Patient", "RelatedPerson"], "cardinality": "0..*"},
-        "custodian": {"targets": ["Organization"], "cardinality": "0..1"},
-    },
+    rt: {f: {"targets": m["targets"], "cardinality": m["cardinality"]} for f, m in fields.items()}
+    for rt, fields in CANONICAL_REFERENCE_FIELDS.items()
 }
+
 
 # Common reverse reference search parameters
 # Maps source resource types to the search parameter they use to reference a target
