@@ -7,7 +7,7 @@
  * coding[0].display with no text, and ships Medication resources that are
  * bare NDC codes. "Unknown" when a real code exists is not truthful.
  */
-import { getCodeableConceptDisplay, getMedicationDisplay, getMedicationResourceDisplay, isConditionActive, isMedicationActive } from '../fhirFieldUtils';
+import { getCodeableConceptDisplay, getMedicationDisplay, getMedicationResourceDisplay, isConditionActive, isMedicationActive, getObservationValueDisplay, isObservationPending, getPatientDisplay } from '../fhirFieldUtils';
 import { getMedicationName } from '../medicationDisplayUtils';
 
 // Real shapes from mimic-iv-clinical-database-demo-on-fhir-2.1.0
@@ -184,5 +184,50 @@ describe('one definition of active (preview page vs Summary tab)', () => {
       clinicalStatus: { coding: [{ code: 'active' }] },
     })).toBe(true);
     expect(isMedicationActive({ status: 'active' })).toBe(true);
+  });
+});
+
+describe('one observation value chain (Summary card vs Results tab)', () => {
+  // The literal MIMIC MicroSusc shape: a final-status observation whose
+  // whole meaning is the v3-ObservationInterpretation coded value. The
+  // Summary tab once showed these as "Pending" while the Results tab said
+  // "Susceptible" — same record, two answers.
+  const microSusc = {
+    status: 'final',
+    valueCodeableConcept: {
+      coding: [{
+        system: 'http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation',
+        code: 'S',
+        display: 'Susceptible',
+      }],
+    },
+  };
+
+  it('surfaces the coded susceptibility as the value', () => {
+    expect(getObservationValueDisplay(microSusc)).toBe('Susceptible');
+  });
+
+  it('a final observation with no value is NOT pending', () => {
+    expect(isObservationPending({ status: 'final' })).toBe(false);
+  });
+
+  it('pending only when the status says so', () => {
+    expect(isObservationPending({ status: 'preliminary' })).toBe(true);
+    expect(isObservationPending({ status: 'registered' })).toBe(true);
+  });
+
+  it('quantity values render with their unit and without one', () => {
+    expect(getObservationValueDisplay({ valueQuantity: { value: 7.2, unit: 'mg/dL' } })).toBe('7.2 mg/dL');
+    expect(getObservationValueDisplay({ valueQuantity: { value: 3 } })).toBe('3');
+  });
+});
+
+describe('single-part patient names (breadcrumb regression)', () => {
+  it('family-only MIMIC names render without a literal "undefined"', () => {
+    // De-identified MIMIC patients carry family-only names; a raw
+    // `${given?.[0]} ${family}` template rendered "undefined Patient_10019003".
+    const name = getPatientDisplay({ name: [{ family: 'Patient_10019003' }] });
+    expect(name).toBe('Patient_10019003');
+    expect(name).not.toMatch(/undefined/);
   });
 });

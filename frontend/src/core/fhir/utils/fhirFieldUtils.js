@@ -801,6 +801,17 @@ export const getPatientDisplay = (patientOrRef, defaultValue = 'Unknown Patient'
 };
 
 /**
+ * True only when the Observation's own status says the result is not in yet.
+ * A missing value on a final-status observation is NOT pending — rendering
+ * it as such misstates the record (the exact bug MicroSusc rows exposed).
+ *
+ * @param {Object} observation - FHIR Observation
+ * @returns {boolean}
+ */
+export const isObservationPending = (observation) =>
+  ['registered', 'preliminary'].includes(observation?.status);
+
+/**
  * Standard FHIR status mappings for consistent filtering
  */
 export const FHIR_STATUS_VALUES = {

@@ -505,6 +505,22 @@ const CollapsiblePatientHeaderOptimized = ({
     return fullName;
   }, [currentPatient, dataQuality]);
 
+  // The record says deceased -> the header must too. A hardcoded "Active"
+  // chip on a deceased patient misstates the record (a third of the MIMIC
+  // demo patients are deceased). Same rule PatientSummaryV4 applies.
+  const deceased = useMemo(() => {
+    const isDeceased = Boolean(
+      currentPatient?.deceasedDateTime || currentPatient?.deceasedBoolean
+    );
+    if (!isDeceased) return null;
+    const d = currentPatient?.deceasedDateTime
+      ? parseISO(currentPatient.deceasedDateTime)
+      : null;
+    return {
+      label: d && isValid(d) ? `Deceased ${format(d, 'MMM d, yyyy')}` : 'Deceased',
+    };
+  }, [currentPatient]);
+
   // Menu handlers
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -634,9 +650,9 @@ const CollapsiblePatientHeaderOptimized = ({
             </Typography>
             <Chip
               icon={<ActiveIcon sx={{ fontSize: 10 }} />}
-              label="Active"
+              label={deceased ? deceased.label : 'Active'}
               size="small"
-              color="success"
+              color={deceased ? 'default' : 'success'}
               sx={{ height: 20 }}
             />
             <Typography variant="body2" color="text.secondary">
@@ -727,9 +743,9 @@ const CollapsiblePatientHeaderOptimized = ({
                 </Typography>
                 <Chip
                   icon={<ActiveIcon sx={{ fontSize: 12 }} />}
-                  label="Active"
+                  label={deceased ? deceased.label : 'Active'}
                   size="small"
-                  color="success"
+                  color={deceased ? 'default' : 'success'}
                   sx={{ height: 22 }}
                 />
                 {/* Action buttons integrated into header */}

@@ -23,6 +23,7 @@ import {
   BookmarkBorder as BookmarkBorderIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { getPatientDisplay } from '../../../core/fhir/utils/fhirFieldUtils';
 
 const ClinicalBreadcrumbs = ({
   patient,
@@ -49,7 +50,10 @@ const ClinicalBreadcrumbs = ({
       clickable: true
     },
     ...(patient ? [{
-      label: `${patient.name?.[0]?.given?.[0]} ${patient.name?.[0]?.family}`,
+      // getPatientDisplay handles single-part names (e.g. MIMIC's
+      // family-only "Patient_10019003") — a raw template literal here
+      // rendered the literal string "undefined Patient_10019003".
+      label: getPatientDisplay(patient),
       icon: PatientIcon,
       path: `/clinical/${patient.id}?tab=${activeModule?.id || 'summary'}`,
       clickable: true,

@@ -86,7 +86,9 @@ import {
   isConditionActive,
   isMedicationActive,
   getResourceDisplayText,
-  getCodeableConceptDisplay
+  getCodeableConceptDisplay,
+  getObservationValueDisplay,
+  isObservationPending
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import CareTeamSummary from '../components/CareTeamSummary';
 import EnhancedProviderDisplay from '../components/EnhancedProviderDisplay';
@@ -1650,10 +1652,12 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
                             }
                             secondary={
                               <>
-                                {lab.valueQuantity ?
-                                  `${lab.valueQuantity.value} ${lab.valueQuantity.unit}` :
-                                  lab.valueString || 'Pending'
-                                }
+                                {/* Canonical value chain — includes
+                                    valueCodeableConcept (micro
+                                    susceptibilities). 'Pending' only when
+                                    the status actually says so. */}
+                                {getObservationValueDisplay(lab) ||
+                                  (isObservationPending(lab) ? 'Pending' : '—')}
                                 {' • '}
                                 {formatClinicalDate(lab.effectiveDateTime || lab.issued, 'monthDay')}
                               </>
