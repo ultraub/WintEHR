@@ -8,21 +8,25 @@ import { useEffect, useCallback, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useClinicalWorkflow } from '../../contexts/ClinicalWorkflowContext';
+import { CLINICAL_TABS, TAB_ID_LIST } from '../../components/clinical/workspace/clinicalTabRegistry';
 
-// Define keyboard shortcuts for the clinical workspace
+// Digit shortcuts derive from the tab registry: ctrl+N is the Nth tab in
+// the strip (ctrl+0 = 10th). Hand-maintained copies of the tab list here
+// had drifted to 10 entries vs the registry's 12 — Administration and
+// Inbox had no shortcut, and ctrl+Tab from either jumped to Summary
+// because indexOf returned -1 (bug B2, docs/ARCHITECTURE_DEBT.md).
+const digitForIndex = (i) => (i < 9 ? String(i + 1) : i === 9 ? '0' : null);
+export const TAB_SHORTCUTS = Object.fromEntries(
+  CLINICAL_TABS.slice(0, 10).map((tab, i) => [
+    `ctrl+${digitForIndex(i)}, cmd+${digitForIndex(i)}`,
+    { tab: tab.id, description: `Go to ${tab.label}` },
+  ])
+);
+
 const KEYBOARD_SHORTCUTS = {
-  // Tab navigation
-  'ctrl+1, cmd+1': { tab: 'summary', description: 'Go to Summary' },
-  'ctrl+2, cmd+2': { tab: 'chart-review', description: 'Go to Chart Review' },
-  'ctrl+3, cmd+3': { tab: 'encounters', description: 'Go to Encounters' },
-  'ctrl+4, cmd+4': { tab: 'results', description: 'Go to Results' },
-  'ctrl+5, cmd+5': { tab: 'orders', description: 'Go to Orders' },
-  'ctrl+6, cmd+6': { tab: 'pharmacy', description: 'Go to Pharmacy' },
-  'ctrl+7, cmd+7': { tab: 'imaging', description: 'Go to Imaging' },
-  'ctrl+8, cmd+8': { tab: 'documentation', description: 'Go to Documentation' },
-  'ctrl+9, cmd+9': { tab: 'care-plan', description: 'Go to Care Plan' },
-  'ctrl+0, cmd+0': { tab: 'timeline', description: 'Go to Timeline' },
-  
+  // Tab navigation — derived, see above
+  ...TAB_SHORTCUTS,
+
   // Quick actions
   'ctrl+n, cmd+n': { action: 'new', description: 'Create new (context-aware)' },
   'ctrl+e, cmd+e': { action: 'edit', description: 'Edit selected item' },
@@ -47,19 +51,9 @@ const KEYBOARD_SHORTCUTS = {
   'esc': { action: 'escape', description: 'Close dialogs/Cancel' }
 };
 
-// Tab order for cycling
-const TAB_ORDER = [
-  'summary',
-  'chart-review',
-  'encounters',
-  'results',
-  'orders',
-  'pharmacy',
-  'imaging',
-  'documentation',
-  'care-plan',
-  'timeline'
-];
+// Tab order for cycling — ALL registry tabs, in strip order (ctrl+Tab
+// cycles through every tab, including the ones beyond the 10 digit keys).
+export const TAB_ORDER = TAB_ID_LIST;
 
 export const useKeyboardNavigation = ({
   activeTab,

@@ -35,27 +35,24 @@ import {
   NavigateBefore as PrevIcon
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CLINICAL_TABS } from '../../workspace/clinicalTabRegistry';
 
 // Platform detection for showing correct modifier keys
 const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 const modifierKey = isMac ? '⌘' : 'Ctrl';
 
-// Keyboard shortcut categories
+// Keyboard shortcut categories. Tab shortcuts derive from the tab
+// registry — this dialog used to hand-maintain its own copy of the tab
+// list, which drifted from the strip (B2).
 const shortcutCategories = {
   navigation: {
     label: 'Tab Navigation',
     icon: '🧭',
     shortcuts: [
-      { keys: [`${modifierKey}+1`], description: 'Go to Summary' },
-      { keys: [`${modifierKey}+2`], description: 'Go to Chart Review' },
-      { keys: [`${modifierKey}+3`], description: 'Go to Encounters' },
-      { keys: [`${modifierKey}+4`], description: 'Go to Results' },
-      { keys: [`${modifierKey}+5`], description: 'Go to Orders' },
-      { keys: [`${modifierKey}+6`], description: 'Go to Pharmacy' },
-      { keys: [`${modifierKey}+7`], description: 'Go to Imaging' },
-      { keys: [`${modifierKey}+8`], description: 'Go to Documentation' },
-      { keys: [`${modifierKey}+9`], description: 'Go to Care Plan' },
-      { keys: [`${modifierKey}+0`], description: 'Go to Timeline' },
+      ...CLINICAL_TABS.slice(0, 10).map((tab, i) => ({
+        keys: [`${modifierKey}+${i < 9 ? i + 1 : 0}`],
+        description: `Go to ${tab.label}`,
+      })),
       { keys: ['Alt+←'], description: 'Go back' },
       { keys: ['Alt+→'], description: 'Go forward' },
       { keys: [`${modifierKey}+Tab`], description: 'Next tab' },
