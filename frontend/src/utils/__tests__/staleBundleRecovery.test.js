@@ -87,3 +87,37 @@ describe('recoverFromStaleBundle', () => {
     expect(deps.reload).toHaveBeenCalled();
   });
 });
+
+
+describe('installStaleBundleRecovery signal coverage', () => {
+  it('fires recovery from a vite:preloadError event (the boundary-swallowed path)', async () => {
+    // React error boundaries swallow lazy-import rejections, so
+    // unhandledrejection never fires for a failed tab chunk. Vite's own
+    // vite:preloadError event is the only global signal left — losing it
+    // means the kill-switch sits idle while the user stares at a dead tab.
+    const { installStaleBundleRecovery } = await import('../staleBundleRecovery');
+    const storage = new Map();
+    const reload = vi.fn();
+    installStaleBundleRecovery({
+      storage: { getItem: (k) => storage.get(k), setItem: (k, v) => storage.set(k, v) },
+      sw: null,
+      cacheStore: null,
+      reload,
+    });
+
+    const event = new Event('vite:preloadError');
+    event.payload = new TypeError('Failed to fetch dynamically imported module: /static/js/x.js');
+    window.dispatchEvent(event);
+
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('attemptStaleBundleRecovery', () => {
+  it('is a no-op for non-chunk errors', async () => {
+    const { attemptStaleBundleRecovery } = await import('../staleBundleRecovery');
+    await expect(
+      attemptStaleBundleRecovery(new TypeError("Cannot read properties of undefined"))
+    ).resolves.toBe(false);
+  });
+});

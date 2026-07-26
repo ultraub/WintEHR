@@ -190,10 +190,28 @@ export const getTabIndex = (id) => TAB_ID_LIST.indexOf(id);
  * Constructed on demand (not at module scope) so consumers that never render
  * tab content don't pay for it.
  */
+/**
+ * lazy() with one retry: a tab's chunk fetch can fail transiently (backend
+ * or nginx mid-restart). One short-delay retry absorbs those without any
+ * user-visible error. If BOTH attempts fail the rejection propagates so
+ * TabErrorBoundary + staleBundleRecovery can classify it (stale deploy vs
+ * server down) — do not retry more than once here or the update-recovery
+ * reload gets needlessly delayed.
+ */
+const RETRY_DELAY_MS = 1500;
+
+/** Run a dynamic-import loader; on rejection, wait and try exactly once more. */
+export const retryOnce = (loader, delayMs = RETRY_DELAY_MS) =>
+  loader().catch(
+    () => new Promise((resolve) => setTimeout(resolve, delayMs)).then(loader)
+  );
+
+const lazyWithRetry = (loader) => lazy(() => retryOnce(loader));
+
 export const buildTabContentConfig = () =>
   CLINICAL_TABS.map((t) => ({
     id: t.id,
     label: t.label,
     icon: t.icon,
-    component: lazy(t.loader),
+    component: lazyWithRetry(t.loader),
   }));

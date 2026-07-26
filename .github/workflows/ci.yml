@@ -108,9 +108,9 @@ jobs:
                 if (m.severity === 2) console.log(f.filePath + ':' + m.line + ' [' + m.ruleId + '] ' + m.message);
               process.exit(1);
             }"
-      - name: "vitest (baseline: 0 failed / 517 total)"
+      - name: "vitest (baseline: 0 failed / 553 total)"
         run: |
-          # The suite is fully green: 517 tests, 0 failed. The failed budget
+          # The suite is fully green: 553 tests, 0 failed. The failed budget
           # is a hard zero; the total/passed floors keep coverage from
           # silently shrinking (a test that stops RUNNING reports nothing —
           # see the backend job's comment). If tests are legitimately
@@ -124,8 +124,8 @@ jobs:
           npx vitest run --reporter=json --outputFile=vitest.json > vitest.out 2>&1 || true
           node -e "
             const r = require('./vitest.json');
-            console.log(r.numTotalTests + ' tests, ' + r.numFailedTests + ' failed, ' + r.numPassedTests + ' passed (baseline: failed<=0, total>=517, passed>=517)');
-            if (r.numFailedTests > 0 || r.numTotalTests < 517 || r.numPassedTests < 517) {
-              console.error('::error::Test results regressed past the baseline (failed<=0, total>=517, passed>=517)');
+            console.log(r.numTotalTests + ' tests, ' + r.numFailedTests + ' failed, ' + r.numPassedTests + ' passed (baseline: failed<=0, total>=553, passed>=553)');
+            if (r.numFailedTests > 0 || r.numTotalTests < 553 || r.numPassedTests < 553) {
+              console.error('::error::Test results regressed past the baseline (failed<=0, total>=553, passed>=553)');
               process.exit(1);
             }"
