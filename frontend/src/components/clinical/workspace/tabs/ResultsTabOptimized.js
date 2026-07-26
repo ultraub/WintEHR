@@ -115,6 +115,7 @@ import {
   ObservationCardTemplate,
   ClinicalSummaryCard
 } from '../../shared';
+import { extractBundleResources } from '../../../../core/fhir/utils/bundleUtils';
 
 // Reference ranges for common lab tests (based on LOINC codes)
 const REFERENCE_RANGES = {
@@ -383,9 +384,9 @@ const ResultsTabOptimized = ({
 
       // Process bundles and extract entries
       // Check if response is standardized or raw bundle
-      const labEntries = labResults.resources || labResults.entry?.map(e => e.resource) || [];
-      const vitalEntries = vitalResults.resources || vitalResults.entry?.map(e => e.resource) || [];
-      const diagnosticEntries = diagnosticResults.resources || diagnosticResults.entry?.map(e => e.resource) || [];
+      const labEntries = extractBundleResources(labResults);
+      const vitalEntries = extractBundleResources(vitalResults);
+      const diagnosticEntries = extractBundleResources(diagnosticResults);
       
       const labObservations = labEntries.map(resource => enhanceObservationWithReferenceRange(resource));
       const vitalObservations = vitalEntries;

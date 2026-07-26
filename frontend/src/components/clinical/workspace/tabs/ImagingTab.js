@@ -93,6 +93,7 @@ import {
 } from '../../shared';
 import ClinicalTabHeader from '../ClinicalTabHeader';
 import { useDensity } from '../../shared/layout';
+import { extractBundleResources } from '../../../../core/fhir/utils/bundleUtils';
 
 // Body regions map
 const bodyRegions = {
@@ -526,11 +527,7 @@ const ImagingTab = ({
       // fhirClient.search returns a SearchResult wrapper ({ resources, bundle, total }),
       // not a raw Bundle — the raw Bundle.entry lives at response.bundle.entry. Fall
       // back to response.entry for any caller that's already handing us a Bundle.
-      const allResources =
-        response?.bundle?.entry?.map(e => e.resource).filter(Boolean) ||
-        response?.resources ||
-        response?.entry?.map(e => e.resource).filter(Boolean) ||
-        [];
+      const allResources = extractBundleResources(response);
 
       const imagingStudies = allResources.filter(r => r?.resourceType === 'ImagingStudy');
       const endpoints = allResources.filter(r => r?.resourceType === 'Endpoint');

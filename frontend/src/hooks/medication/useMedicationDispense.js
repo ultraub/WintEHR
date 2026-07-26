@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fhirClient } from '../../core/fhir/services/fhirClient';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../contexts/ClinicalWorkflowContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { extractBundleResources } from '../../core/fhir/utils/bundleUtils';
 
 export const useMedicationDispense = (patientId, options = {}) => {
   const [dispenses, setDispenses] = useState([]);
@@ -33,7 +34,7 @@ export const useMedicationDispense = (patientId, options = {}) => {
     
     try {
       const response = await fhirClient.search('MedicationDispense', searchParams);
-      const dispenseList = response.entry?.map(entry => entry.resource) || [];
+      const dispenseList = extractBundleResources(response);
       setDispenses(dispenseList);
     } catch (err) {
       setError(err);
@@ -135,7 +136,7 @@ export const useMedicationDispense = (patientId, options = {}) => {
         prescription: prescriptionId,
         _sort: '-whenhandedover'
       });
-      return response.entry?.map(entry => entry.resource) || [];
+      return extractBundleResources(response);
     } catch (err) {
       return [];
     }
@@ -225,7 +226,7 @@ export const useMedicationWorkflow = (prescriptionId) => {
         prescription: prescriptionId,
         _sort: '-whenhandedover'
       });
-      const dispenses = dispensesResponse.entry?.map(e => e.resource) || [];
+      const dispenses = extractBundleResources(dispensesResponse);
       
       // Load related administrations (Phase 2 implementation)
       let administrations = [];
@@ -234,7 +235,7 @@ export const useMedicationWorkflow = (prescriptionId) => {
           request: prescriptionId,
           _sort: '-effective-time'
         });
-        administrations = administrationsResponse.entry?.map(e => e.resource) || [];
+        administrations = extractBundleResources(administrationsResponse);
       } catch (err) {
         // Administrations may not exist for this prescription
         administrations = [];

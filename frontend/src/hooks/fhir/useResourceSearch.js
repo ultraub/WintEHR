@@ -6,6 +6,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { fhirClient } from '../../core/fhir/services/fhirClient';
 import { cdsClinicalDataService } from '../../services/cdsClinicalDataService';
 import { searchService } from '../../services/searchService';
+import { extractBundleResources } from '../../core/fhir/utils/bundleUtils';
 
 // Default search implementation using FHIR client
 const defaultSearchService = async (query, options = {}) => {
@@ -23,10 +24,10 @@ const defaultSearchService = async (query, options = {}) => {
         const response = await fhirClient.search(resourceType, params, { signal });
         
         // Handle both Bundle and direct array responses
-        const resources = response.entry 
-          ? response.entry.map(entry => entry.resource)
-          : Array.isArray(response) 
-            ? response 
+        const resources = response.entry
+          ? extractBundleResources(response)
+          : Array.isArray(response)
+            ? response
             : [response];
             
         results.push(...resources.filter(Boolean));

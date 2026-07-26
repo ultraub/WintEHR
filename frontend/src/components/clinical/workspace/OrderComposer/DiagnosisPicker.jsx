@@ -26,6 +26,7 @@ import {
 
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import { useDraftOrderBundle } from './DraftOrderBundleProvider';
+import { extractBundleResources } from '../../../../core/fhir/utils/bundleUtils';
 
 // Cache active-conditions by patient id within a single dialog session.
 // The dialog tears down (provider unmounts → this module-level Map
@@ -82,9 +83,7 @@ const DiagnosisPicker = ({ value, onChange }) => {
         // fhirClient.search returns either {resources: []} or {entry: []}
         // depending on whether the response interceptor unwrapped it.
         // Defensive: handle both shapes.
-        const conditions =
-          (bundle?.resources && Array.isArray(bundle.resources) && bundle.resources)
-          || (bundle?.entry || []).map((e) => e.resource).filter(Boolean);
+        const conditions = extractBundleResources(bundle);
         const opts = conditions.map((c) => ({
           id: c.id,
           label: conditionLabel(c),

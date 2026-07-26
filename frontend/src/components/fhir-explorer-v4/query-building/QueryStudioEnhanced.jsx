@@ -141,6 +141,7 @@ import Editor from '@monaco-editor/react';
 
 // Debounce hook for performance
 import { debounce } from 'lodash';
+import { extractBundleResources } from '../../../core/fhir/utils/bundleUtils';
 
 // Configuration
 const QUERY_STUDIO_CONFIG = {
@@ -1260,7 +1261,7 @@ const EnhancedResultsTable = ({ data }) => {
   const [expandedRows, setExpandedRows] = useState(new Set());
   
   // Extract resources from various response formats
-  const resources = data?.resources || data?.bundle?.entry?.map(e => e.resource) || data?.entry?.map(e => e.resource) || [];
+  const resources = extractBundleResources(data);
   
   // Get all available fields from the first resource
   const availableFields = useMemo(() => {

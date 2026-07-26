@@ -10,6 +10,7 @@ import { getMedicationResourceDisplay } from '../core/fhir/utils/fhirFieldUtils'
 import { intelligentCache } from '../core/fhir/utils/intelligentCache';
 import { useStableCallback } from '../hooks/ui/useStableReferences';
 import performanceMonitor from '../utils/performanceMonitor';
+import { extractBundleResources } from '../core/fhir/utils/bundleUtils';
 
 // Action Types
 const FHIR_ACTIONS = {
@@ -372,7 +373,7 @@ const standardizeResponse = (result) => {
 
   // Direct Bundle format
   if (result.resourceType === 'Bundle') {
-    const resources = result.entry?.map(e => e.resource).filter(Boolean) || [];
+    const resources = extractBundleResources(result);
     return {
       resources: resources,
       total: result.total || resources.length,
@@ -1312,7 +1313,7 @@ export function FHIRResourceProvider({ children }) {
 
               if (resource.resourceType === 'Bundle') {
                 // This is a search result bundle
-                const searchResults = resource.entry?.map(e => e.resource) || [];
+                const searchResults = extractBundleResources(resource);
                 searchResults.forEach(res => {
                   if (!resourcesByType[res.resourceType]) {
                     resourcesByType[res.resourceType] = [];
@@ -1652,7 +1653,7 @@ export function FHIRResourceProvider({ children }) {
               if (result.success && result.resource) {
                 const resource = result.resource;
                 if (resource.resourceType === 'Bundle') {
-                  const searchResults = resource.entry?.map(e => e.resource) || [];
+                  const searchResults = extractBundleResources(resource);
                   searchResults.forEach(res => {
                     if (!resourcesByType[res.resourceType]) {
                       resourcesByType[res.resourceType] = [];

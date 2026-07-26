@@ -95,6 +95,7 @@ import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContex
 import { useAuth } from '../../../../contexts/AuthContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
+import { extractBundleResources } from '../../../../core/fhir/utils/bundleUtils';
 
 const searchAllergens = async (query) => {
   try {
@@ -109,7 +110,7 @@ const searchAllergens = async (query) => {
     }
     
     const bundle = await fhirClient.search('AllergyIntolerance', searchParams);
-    const allergies = bundle.entry?.map(entry => entry.resource) || [];
+    const allergies = extractBundleResources(bundle);
     
     // Extract unique allergens
     const allergenMap = new Map();

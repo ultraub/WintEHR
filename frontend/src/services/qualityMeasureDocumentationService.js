@@ -5,6 +5,7 @@
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import api from './api';
+import { extractBundleResources } from '../core/fhir/utils/bundleUtils';
 
 export class QualityMeasureDocumentationService {
   constructor() {
@@ -145,10 +146,10 @@ export class QualityMeasureDocumentationService {
 
       const patientData = {
         patient,
-        conditions: conditions?.entry?.map(e => e.resource) || [],
-        observations: observations?.entry?.map(e => e.resource) || [],
-        procedures: procedures?.entry?.map(e => e.resource) || [],
-        encounters: encounters?.entry?.map(e => e.resource) || []
+        conditions: extractBundleResources(conditions),
+        observations: extractBundleResources(observations),
+        procedures: extractBundleResources(procedures),
+        encounters: extractBundleResources(encounters)
       };
 
       // Assess each quality measure

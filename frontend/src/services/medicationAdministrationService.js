@@ -10,6 +10,7 @@
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { apiClient } from './api';
 import { v4 as uuidv4 } from 'uuid';
+import { extractBundleResources } from '../core/fhir/utils/bundleUtils';
 
 class MedicationAdministrationService {
   constructor() {
@@ -136,7 +137,7 @@ class MedicationAdministrationService {
         }
 
         const fhirResponse = await fhirClient.search(this.resourceType, searchParams);
-        return fhirResponse.entry?.map(entry => entry.resource) || [];
+        return extractBundleResources(fhirResponse);
       } catch (fhirError) {
         throw new Error(`Failed to fetch patient administrations: ${fhirError.message}`);
       }
@@ -203,7 +204,7 @@ class MedicationAdministrationService {
         request: medicationRequestId,
         _sort: '-effective-time'
       });
-      return response.entry?.map(entry => entry.resource) || [];
+      return extractBundleResources(response);
     } catch (error) {
       throw new Error(`Failed to fetch administrations by request: ${error.message}`);
     }
@@ -297,7 +298,7 @@ class MedicationAdministrationService {
 
       // Build MAR structure
       const marData = this.buildMARStructure(
-        medicationRequests.entry?.map(e => e.resource) || [],
+        extractBundleResources(medicationRequests),
         administrations,
         date
       );

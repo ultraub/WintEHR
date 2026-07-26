@@ -4,6 +4,7 @@
  */
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
+import { extractBundleResources } from '../core/fhir/utils/bundleUtils';
 
 // Core note template definitions
 export const NOTE_TEMPLATES = {
@@ -279,13 +280,13 @@ export class NoteAutoPopulationService {
 
       this.patientData = {
         patient,
-        conditions: conditions?.entry?.map(e => e.resource) || [],
-        medications: medications?.entry?.map(e => e.resource) || [],
-        allergies: allergies?.entry?.map(e => e.resource) || [],
-        observations: observations?.entry?.map(e => e.resource) || [],
-        procedures: procedures?.entry?.map(e => e.resource) || [],
-        encounters: encounters?.entry?.map(e => e.resource) || [],
-        carePlans: carePlans?.entry?.map(e => e.resource) || []
+        conditions: extractBundleResources(conditions),
+        medications: extractBundleResources(medications),
+        allergies: extractBundleResources(allergies),
+        observations: extractBundleResources(observations),
+        procedures: extractBundleResources(procedures),
+        encounters: extractBundleResources(encounters),
+        carePlans: extractBundleResources(carePlans)
       };
 
       return this.patientData;

@@ -49,6 +49,7 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format, addDays, subDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday, isSameDay, parseISO } from 'date-fns';
 import { fhirClient } from '../core/fhir/services/fhirClient';
+import { extractBundleResources } from '../core/fhir/utils/bundleUtils';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -505,7 +506,7 @@ function NewAppointmentDialog({ open, onClose, onSave, providers, selectedDate }
     setPatientLoading(true);
     try {
       const data = await fhirClient.search('Patient', { name: query, _count: 10 });
-      const patientResources = data.resources || (data.entry || []).map(e => e.resource);
+      const patientResources = extractBundleResources(data);
       const patients = patientResources.map(r => {
         const name = r.name?.[0];
         const display = name
@@ -756,7 +757,7 @@ const Schedule = () => {
     const fetchProviders = async () => {
       try {
         const bundle = await fhirClient.search('Practitioner', { _count: 50, active: true });
-        const pracResources = bundle.resources || (bundle.entry || []).map(e => e.resource);
+        const pracResources = extractBundleResources(bundle);
         const pracs = pracResources.map(r => {
           const name = r.name?.[0];
           const display = name
@@ -795,7 +796,7 @@ const Schedule = () => {
       }
 
       const bundle = await fhirClient.search('Appointment', params);
-      const apptResources = bundle.resources || (bundle.entry || []).map(e => e.resource);
+      const apptResources = extractBundleResources(bundle);
       const entries = apptResources.map(r => {
         // Flatten FHIR Appointment to the shape the UI expects
         const patientParticipant = r.participant?.find(p => p.actor?.reference?.startsWith('Patient/'));

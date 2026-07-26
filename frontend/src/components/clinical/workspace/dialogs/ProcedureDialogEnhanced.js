@@ -82,6 +82,7 @@ import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import cdsClinicalDataService from '../../../../services/cdsClinicalDataService';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
+import { extractBundleResources } from '../../../../core/fhir/utils/bundleUtils';
 
 const searchProcedures = async (query) => {
   try {
@@ -98,7 +99,7 @@ const searchProcedures = async (query) => {
     }
     
     const bundle = await fhirClient.search('Procedure', searchParams);
-    const procedures = bundle.entry?.map(entry => entry.resource) || [];
+    const procedures = extractBundleResources(bundle);
     
     // Extract unique procedure codes and names
     const procedureMap = new Map();

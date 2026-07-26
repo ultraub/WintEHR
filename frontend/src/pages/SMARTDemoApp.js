@@ -56,6 +56,7 @@ import {
   Info as InfoIcon,
   Refresh as RefreshIcon
 } from '@mui/icons-material';
+import { extractBundleResources } from '../core/fhir/utils/bundleUtils';
 
 // =============================================================================
 // OAuth Flow Steps (Educational)
@@ -152,7 +153,7 @@ const SMARTDemoApp = () => {
         );
         if (conditionsResponse.ok) {
           const bundle = await conditionsResponse.json();
-          setConditions(bundle.entry?.map(e => e.resource) || []);
+          setConditions(extractBundleResources(bundle));
         }
 
         // Fetch medications
@@ -162,7 +163,7 @@ const SMARTDemoApp = () => {
         );
         if (medsResponse.ok) {
           const bundle = await medsResponse.json();
-          setMedications(bundle.entry?.map(e => e.resource) || []);
+          setMedications(extractBundleResources(bundle));
         }
 
         // Fetch allergies
@@ -172,7 +173,7 @@ const SMARTDemoApp = () => {
         );
         if (allergiesResponse.ok) {
           const bundle = await allergiesResponse.json();
-          setAllergies(bundle.entry?.map(e => e.resource) || []);
+          setAllergies(extractBundleResources(bundle));
         }
 
         // Fetch recent observations
@@ -182,7 +183,7 @@ const SMARTDemoApp = () => {
         );
         if (obsResponse.ok) {
           const bundle = await obsResponse.json();
-          setObservations(bundle.entry?.map(e => e.resource) || []);
+          setObservations(extractBundleResources(bundle));
         }
 
         // Store token info if available

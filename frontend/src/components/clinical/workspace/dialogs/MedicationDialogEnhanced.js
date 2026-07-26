@@ -99,6 +99,7 @@ import { useOrderSelectHook } from '../../../../hooks/cds/useCDSHooks';
 import CDSCard from '../../cds/CDSCard';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
+import { extractBundleResources } from '../../../../core/fhir/utils/bundleUtils';
 
 // Helper functions
 const getMedicationName = (medication) => {
@@ -536,7 +537,7 @@ const MedicationDialogEnhanced = ({
             patient: `Patient/${patientId}`,
             _count: 100
           });
-          const allergies = response.resources || response.entry?.map(e => e.resource) || [];
+          const allergies = extractBundleResources(response);
           setPatientAllergies(allergies);
         } catch (error) {
           // Failed to fetch patient allergies

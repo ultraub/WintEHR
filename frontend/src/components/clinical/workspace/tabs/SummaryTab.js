@@ -101,6 +101,7 @@ import {
   ClinicalLoadingState,
   ClinicalEmptyState
 } from '../../shared';
+import { extractBundleResources } from '../../../../core/fhir/utils/bundleUtils';
 
 // Family relationship codes (v3-RoleCode)
 const RELATIONSHIP_OPTIONS = [
@@ -934,7 +935,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
       const response = await fhirClient.search('FamilyMemberHistory', {
         patient: `Patient/${patientId}`
       });
-      const entries = response.entry?.map(e => e.resource) || [];
+      const entries = extractBundleResources(response);
       setFamilyHistory(entries);
     } catch (err) {
       console.error('Failed to load family history:', err);
@@ -957,7 +958,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
       const response = await fhirClient.search('RelatedPerson', {
         patient: `Patient/${patientId}`
       });
-      const entries = response.entry?.map(e => e.resource) || [];
+      const entries = extractBundleResources(response);
       setRelatedPersons(entries);
     } catch (err) {
       console.error('Failed to load related persons:', err);
@@ -980,7 +981,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
       const response = await fhirClient.search('Consent', {
         patient: `Patient/${patientId}`
       });
-      const entries = response.entry?.map(e => e.resource) || [];
+      const entries = extractBundleResources(response);
       setConsents(entries);
     } catch (err) {
       console.error('Failed to load consents:', err);

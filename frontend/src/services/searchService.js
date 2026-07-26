@@ -5,6 +5,7 @@
  */
 import { fhirClient } from '../core/fhir/services/fhirClient';
 import { cdsClinicalDataService } from './cdsClinicalDataService';
+import { extractBundleResources } from '../core/fhir/utils/bundleUtils';
 
 // Search backends
 const SEARCH_BACKENDS = {
@@ -91,7 +92,7 @@ class SearchService {
         // Handle both Bundle and array responses
         let resources = [];
         if (response.entry) {
-          resources = response.entry.map(entry => entry.resource);
+          resources = extractBundleResources(response);
         } else if (Array.isArray(response)) {
           resources = response;
         } else if (response.resourceType) {
