@@ -82,6 +82,43 @@ describe('getMedicationResourceDisplay — traverse the WHOLE Medication', () =>
   });
 });
 
+describe('medication mixtures (MIMIC MedicationMix shape — no code at all)', () => {
+  // Literal shape from MimicMedicationMix.ndjson.gz
+  const mixMedication = {
+    id: 'mix-1',
+    status: 'active',
+    identifier: [{
+      system: 'http://mimic.mit.edu/fhir/mimic/identifier/medication-mix',
+      value: 'Sodium Phosphate--NAPH15I--00409739172_0.9% Sodium Chloride--NS250--00338004902',
+    }],
+    ingredient: [
+      { itemReference: { reference: 'Medication/comp-a' } },
+      { itemReference: { reference: 'Medication/comp-b' } },
+    ],
+  };
+  const componentA = {
+    id: 'comp-a',
+    code: { coding: [{ code: '00409739172', system: 'http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-ndc' }] },
+    identifier: [{ system: 'http://mimic.mit.edu/fhir/mimic/identifier/mimic-medication-name', value: 'Sodium Phosphate' }],
+  };
+  const componentB = {
+    id: 'comp-b',
+    code: { coding: [{ code: '00338004902', system: 'http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-ndc' }] },
+    identifier: [{ system: 'http://mimic.mit.edu/fhir/mimic/identifier/mimic-medication-name', value: '0.9% Sodium Chloride' }],
+  };
+
+  it('resolves component names through the lookup (ingredient traversal)', () => {
+    expect(getMedicationResourceDisplay(mixMedication, 'Unknown medication',
+      { 'comp-a': componentA, 'comp-b': componentB }))
+      .toBe('Sodium Phosphate + 0.9% Sodium Chloride');
+  });
+
+  it('parses the mix identifier when components are not loadable', () => {
+    expect(getMedicationResourceDisplay(mixMedication))
+      .toBe('Sodium Phosphate + 0.9% Sodium Chloride');
+  });
+});
+
 describe('name-system codings in CodeableConcepts (MIMIC Dispense shape)', () => {
   it('prefers the name-system coding over other bare codes', () => {
     const concept = { coding: [

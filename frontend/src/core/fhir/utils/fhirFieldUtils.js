@@ -604,7 +604,7 @@ export const getObservationValueDisplay = (observation) => {
  * bare NDC. Chain: code text/display → name-system coding → name-system
  * identifier → any code.
  */
-export const getMedicationResourceDisplay = (medication, defaultValue = 'Unknown medication') => {
+export const getMedicationResourceDisplay = (medication, defaultValue = 'Unknown medication', lookup = null) => {
   if (!medication) return defaultValue;
 
   const concept = medication.code;
@@ -617,6 +617,37 @@ export const getMedicationResourceDisplay = (medication, defaultValue = 'Unknown
     i => /-name$/.test(i.system || '') && i.value
   );
   if (nameIdentifier) return nameIdentifier.value;
+
+  // Mixtures (e.g. MIMIC MedicationMix) have NO code at all — the composition
+  // lives in ingredient[].itemReference. Resolve components through the
+  // lookup when the caller has one, joining their names.
+  if (medication.ingredient?.length) {
+    const componentNames = medication.ingredient
+      .map(ing => {
+        const ref = ing.itemReference?.reference || '';
+        const compId = ref.replace('Medication/', '');
+        const component = lookup &&
+          (Array.isArray(lookup) ? lookup.find(m => m.id === compId) : lookup[compId]);
+        // note: components carry their own identifier names — recurse
+        return ing.itemCodeableConcept
+          ? getCodeableConceptDisplay(ing.itemCodeableConcept, null)
+          : (component ? getMedicationResourceDisplay(component, null, lookup) : null);
+      })
+      .filter(Boolean);
+    if (componentNames.length) return componentNames.join(' + ');
+
+    // No lookup can resolve the components, but the mix identifier itself
+    // encodes them: "{name}--{formulary}--{ndc}_{name}--{formulary}--{ndc}".
+    const mixIdentifier = medication.identifier?.find(
+      i => /medication-mix$/.test(i.system || '') && i.value
+    );
+    if (mixIdentifier) {
+      const names = mixIdentifier.value.split('_')
+        .map(part => part.split('--')[0].trim())
+        .filter(Boolean);
+      if (names.length) return names.join(' + ');
+    }
+  }
 
   return concept?.coding?.[0]?.code || defaultValue;
 };
@@ -656,7 +687,7 @@ export const getMedicationDisplay = (medicationRequest, options = {}) => {
         ? medicationLookup.find(m => m.id === medId)
         : medicationLookup[medId];
       if (medication) {
-        display = getMedicationResourceDisplay(medication, defaultValue);
+        display = getMedicationResourceDisplay(medication, defaultValue, medicationLookup);
       }
     }
   }

@@ -61,7 +61,7 @@ export const getMedicationName = (medicationRequest, medicationsLookup = null) =
       }
 
       if (medication) {
-        return getMedicationResourceDisplay(medication, 'Unknown medication');
+        return getMedicationResourceDisplay(medication, 'Unknown medication', medicationsLookup);
       }
     }
 
