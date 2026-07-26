@@ -241,6 +241,33 @@ http {
             proxy_connect_timeout 75s;
         }
 
+        # POST [base] is the FHIR-standard transaction submit. nginx's
+        # trailing-slash prefix location 301s the bare /fhir, and HTTP
+        # clients turn a redirected POST into a GET — the transaction is
+        # silently discarded. Exact-match locations proxy the base directly
+        # (the backend has matching explicit /fhir and /fhir/R4 routes).
+        location = /fhir {
+            limit_req zone=api_limit burst=200 nodelay;
+            proxy_pass http://backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            client_max_body_size 50M;
+        }
+
+        location = /fhir/R4 {
+            limit_req zone=api_limit burst=200 nodelay;
+            proxy_pass http://backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            client_max_body_size 50M;
+        }
+
         # FHIR Server - Standard /fhir/ path (also through FastAPI for SMART validation)
         # Same CORS rationale as /fhir/R4/ above.
         location /fhir/ {
