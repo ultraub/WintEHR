@@ -53,6 +53,22 @@ export async function recoverFromStaleBundle({ storage, sw, cacheStore, reload }
   return true;
 }
 
+/**
+ * Convenience entry point for callers that hold a caught error (most
+ * importantly TabErrorBoundary): attempt recovery with the default deps.
+ * Resolves true if a recovery reload was initiated, false if this session
+ * already used its one attempt (caller should offer a manual reload).
+ */
+export function attemptStaleBundleRecovery(reason) {
+  if (!isChunkLoadError(reason)) return Promise.resolve(false);
+  return recoverFromStaleBundle({
+    storage: window.sessionStorage,
+    sw: 'serviceWorker' in navigator ? navigator.serviceWorker : null,
+    cacheStore: 'caches' in window ? window.caches : null,
+    reload: () => window.location.reload(),
+  });
+}
+
 /** Wire the kill-switch to the global chunk-failure signals. */
 export function installStaleBundleRecovery({
   storage = window.sessionStorage,
@@ -68,4 +84,10 @@ export function installStaleBundleRecovery({
   window.addEventListener('unhandledrejection', (e) => handler(e.reason));
   // <script>/module-load failures surface as error events, not rejections
   window.addEventListener('error', (e) => handler(e.error || e.message), true);
+  // Vite dispatches this when a dynamic import's preload chain fails. It is
+  // the ONLY global signal for lazy chunks whose rejection something else
+  // handles — React error boundaries in particular swallow the rejection, so
+  // unhandledrejection never fires for a failed lazy tab. (That gap is why
+  // the kill-switch sat idle while TabErrorBoundary showed a dead tab.)
+  window.addEventListener('vite:preloadError', (e) => handler(e.payload || e.reason || e));
 }
