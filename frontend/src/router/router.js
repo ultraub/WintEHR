@@ -178,14 +178,7 @@ export const router = createBrowserRouter([
     path: '*',
     element: page(<NotFound />)
   }
-], {
-  // Enable future flags to prevent deprecation warnings
-  future: {
-    v7_startTransition: true,
-    v7_relativeSplatPath: true,
-    v7_fetcherPersist: true,
-    v7_normalizeFormMethod: true,
-    v7_partialHydration: true,
-    v7_skipActionErrorRevalidation: true
-  }
-});
+]);
+// (The v6 `future` block is gone: every v7_* flag it enabled is simply the
+// default behavior in React Router 7, which is why this upgrade was safe —
+// the app had been running v7 semantics on v6 since the flags went on.)
