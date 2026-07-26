@@ -1408,6 +1408,81 @@ class FHIRClient {
   }
 
   /**
+   * Validate a resource against the server's StructureDefinitions via
+   * `$validate`, BEFORE writing it.
+   *
+   * Why this exists: HAPI is the authority on FHIR conformance (it validates
+   * on write regardless), so hand-rolling structural checks in app code is
+   * guaranteed to drift from the spec and gives false confidence — you can
+   * pass a local check and still have the write rejected. Asking the server
+   * is the only answer that can't drift.
+   *
+   * HAPI returns TWO different shapes and callers should not have to care:
+   *   1. Parseable resource -> HTTP 200 + OperationOutcome listing issues
+   *      (e.g. "DocumentReference.content: minimum required = 1, found 0")
+   *   2. Unparseable resource (bad enum, wrong datatype) -> HTTP 400, the
+   *      body is an OperationOutcome carrying a HAPI-#### parse error
+   * Both are normalised here into one result. Network/transport failures
+   * still throw — a validator that silently "passes" when it can't reach the
+   * server would be worse than none.
+   */
+  async validateResource(
+    resourceType: ResourceType,
+    resource: any,
+    options: { profile?: string } = {}
+  ): Promise<{ valid: boolean; errors: string[]; warnings: string[]; raw?: any }> {
+    const url = options.profile
+      ? `${resourceType}/$validate?profile=${encodeURIComponent(options.profile)}`
+      : `${resourceType}/$validate`;
+
+    // Constraints the server reports that are not actionable for our forms.
+    // dom-6 ("a resource should have narrative") is a SHOULD, and we do not
+    // author narrative — surfacing it would train users to ignore warnings.
+    const NOISE = [/\bdom-6\b/i];
+    const isNoise = (text: string) => NOISE.some((re) => re.test(text));
+
+    const collect = (outcome: any) => {
+      const errors: string[] = [];
+      const warnings: string[] = [];
+      for (const issue of outcome?.issue || []) {
+        const where = issue.expression?.[0] || issue.location?.[0] || '';
+        const text = issue.diagnostics || issue.details?.text || issue.code || 'Unknown issue';
+        if (isNoise(text)) continue;
+        const msg = where ? `${where}: ${text}` : text;
+        if (issue.severity === 'error' || issue.severity === 'fatal') errors.push(msg);
+        else if (issue.severity === 'warning') warnings.push(msg);
+      }
+      return { errors, warnings };
+    };
+
+    let outcome: any;
+    try {
+      const response = await this.httpClient.post<any>(url, resource);
+      outcome = response.data;
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const body = error?.response?.data;
+      // Shape 2: HAPI rejected the body at parse time. That IS a validation
+      // result, not a transport failure, so report it rather than throwing.
+      if (status === 400 && body?.resourceType === 'OperationOutcome') {
+        outcome = body;
+      } else if (status === 400 && body) {
+        return {
+          valid: false,
+          errors: [typeof body === 'string' ? body : (body.detail || 'Resource could not be parsed')],
+          warnings: [],
+          raw: body,
+        };
+      } else {
+        throw error; // network / 5xx / auth — caller decides
+      }
+    }
+
+    const { errors, warnings } = collect(outcome);
+    return { valid: errors.length === 0, errors, warnings, raw: outcome };
+  }
+
+  /**
    * Get resource history
    */
   async history(resourceType: ResourceType, id?: string): Promise<Bundle> {

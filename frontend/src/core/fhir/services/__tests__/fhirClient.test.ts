@@ -534,3 +534,98 @@ describe('fhirClient singleton', () => {
     expect(fhirClient).toBeInstanceOf(FHIRClient);
   });
 });
+describe('FHIRClient.validateResource', () => {
+  let client: FHIRClient;
+  let mockAxiosInstance: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAxiosInstance = {
+      get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), request: vi.fn(),
+      interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } },
+    };
+    mockedAxios.create.mockReturnValue(mockAxiosInstance);
+    client = new FHIRClient({ baseUrl: '/fhir/R4' });
+  });
+
+  const outcome = (issues: any[]) => ({ resourceType: 'OperationOutcome', issue: issues });
+
+  test('posts to the type-level $validate endpoint', async () => {
+    mockAxiosInstance.post.mockResolvedValue({ data: outcome([]) });
+    await client.validateResource('DocumentReference' as any, { resourceType: 'DocumentReference' });
+    expect(mockAxiosInstance.post).toHaveBeenCalledWith('DocumentReference/$validate', expect.any(Object));
+  });
+
+  test('a clean resource is valid', async () => {
+    mockAxiosInstance.post.mockResolvedValue({ data: outcome([]) });
+    const r = await client.validateResource('DocumentReference' as any, {});
+    expect(r).toMatchObject({ valid: true, errors: [], warnings: [] });
+  });
+
+  // Shape 1: parseable resource -> HTTP 200 + OperationOutcome
+  test('reports cardinality errors and prefixes the FHIRPath expression', async () => {
+    mockAxiosInstance.post.mockResolvedValue({
+      data: outcome([{ severity: 'error', expression: ['DocumentReference.content'],
+                       diagnostics: 'minimum required = 1, but only found 0' }]),
+    });
+    const r = await client.validateResource('DocumentReference' as any, {});
+    expect(r.valid).toBe(false);
+    expect(r.errors).toEqual(['DocumentReference.content: minimum required = 1, but only found 0']);
+  });
+
+  // Shape 2: unparseable resource -> HTTP 400, body IS an OperationOutcome.
+  // This must be reported as a validation result, NOT thrown.
+  test('a 400 parse failure is a validation result, not an exception', async () => {
+    mockAxiosInstance.post.mockRejectedValue({
+      response: { status: 400, data: outcome([{ severity: 'error',
+        diagnostics: 'HAPI-1821: [element="status"] Invalid attribute value "nope"' }]) },
+    });
+    const r = await client.validateResource('DocumentReference' as any, { status: 'nope' });
+    expect(r.valid).toBe(false);
+    expect(r.errors[0]).toContain('HAPI-1821');
+  });
+
+  test('a 400 with a non-OperationOutcome body still returns a result', async () => {
+    mockAxiosInstance.post.mockRejectedValue({
+      response: { status: 400, data: { detail: 'Malformed JSON' } },
+    });
+    const r = await client.validateResource('DocumentReference' as any, {});
+    expect(r).toMatchObject({ valid: false, errors: ['Malformed JSON'] });
+  });
+
+  test('separates warnings from errors', async () => {
+    mockAxiosInstance.post.mockResolvedValue({
+      data: outcome([
+        { severity: 'warning', diagnostics: 'Reference could not be resolved' },
+        { severity: 'error', diagnostics: 'Required field missing' },
+      ]),
+    });
+    const r = await client.validateResource('DocumentReference' as any, {});
+    expect(r.valid).toBe(false);
+    expect(r.errors).toEqual(['Required field missing']);
+    expect(r.warnings).toEqual(['Reference could not be resolved']);
+  });
+
+  // dom-6 is a SHOULD about narrative; surfacing it trains users to ignore warnings
+  test('filters the dom-6 narrative constraint as noise', async () => {
+    mockAxiosInstance.post.mockResolvedValue({
+      data: outcome([{ severity: 'warning',
+        diagnostics: "Constraint failed: dom-6: 'A resource should have narrative...'" }]),
+    });
+    const r = await client.validateResource('DocumentReference' as any, {});
+    expect(r).toMatchObject({ valid: true, warnings: [] });
+  });
+
+  // A validator that silently "passes" when unreachable is worse than none
+  test('rethrows transport failures instead of reporting valid', async () => {
+    mockAxiosInstance.post.mockRejectedValue({ response: { status: 503 } });
+    await expect(client.validateResource('DocumentReference' as any, {})).rejects.toBeDefined();
+  });
+
+  test('passes a profile through as a query parameter', async () => {
+    mockAxiosInstance.post.mockResolvedValue({ data: outcome([]) });
+    await client.validateResource('DocumentReference' as any, {},
+      { profile: 'http://hl7.org/fhir/StructureDefinition/DocumentReference' });
+    expect(mockAxiosInstance.post.mock.calls[0][0]).toContain('$validate?profile=http%3A%2F%2Fhl7.org');
+  });
+});
