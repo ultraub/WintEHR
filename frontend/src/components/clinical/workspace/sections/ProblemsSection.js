@@ -42,7 +42,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { ClinicalResourceCard } from '../../shared/cards';
 import { ClinicalDataList } from '../../shared/tables';
 import { ClinicalFilterBar } from '../../shared/inputs';
