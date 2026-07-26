@@ -40,9 +40,12 @@ bcrypt==5.0.0
 PyJWT==2.13.0
 
 # Development tools
-pytest==7.4.3
-pytest-cov==4.1.0
-pytest-asyncio==0.21.1
+# pytest 9 + pytest-asyncio 1.x move TOGETHER: asyncio 0.21 pins pytest<8 and
+# under pytest 9 it silently no-op'd every async test (the incident that gave
+# CI its outcome-count gate — see .github/workflows/ci.yml).
+pytest==9.1.1
+pytest-cov==7.1.0
+pytest-asyncio==1.4.0
 aiosqlite>=0.19.0  # Async SQLite for test fixtures
 
 # FHIR specific
