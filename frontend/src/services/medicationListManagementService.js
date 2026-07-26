@@ -584,6 +584,7 @@ class MedicationListManagementService {
           callback(update);
         } catch (error) {
           // Skip failed callback
+          console.warn('Skip failed callback:', error);
         }
       });
     }

@@ -428,6 +428,7 @@ const EnhancedDispenseDialog = ({
       onClose();
     } catch (error) {
       // Error handled by parent component
+      console.warn('Error handled by parent component:', error);
     } finally {
       setDispensing(false);
     }

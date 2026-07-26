@@ -167,7 +167,8 @@ import { useSnackbar } from 'notistack';
 // Import animation libraries
 import { motion, AnimatePresence, useScroll, useTransform, useSpring, useAnimation, useInView } from 'framer-motion';
 import { Chrono } from 'react-chrono';
-// import { ResponsiveCalendar } from '@nivo/calendar'; // Temporarily disabled due to rendering issues
+// import { ResponsiveCalendar } from '@nivo/calendar';
+// Temporarily disabled due to rendering issues
 import { 
   Tooltip as RechartsTooltip,
   ResponsiveContainer,

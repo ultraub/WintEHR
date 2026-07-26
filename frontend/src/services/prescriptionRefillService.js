@@ -95,6 +95,7 @@ class PrescriptionRefillService {
         enriched.medicationReference = originalPrescription?.medicationReference;
       } catch (error) {
         // Enrichment is best-effort; the Task summary still renders
+        console.warn('Enrichment is best-effort; the Task summary still renders:', error);
       }
     }
 
@@ -103,6 +104,7 @@ class PrescriptionRefillService {
         enriched.patient = await fhirClient.read('Patient', refill.patient_id);
       } catch (error) {
         // Enrichment is best-effort
+        console.warn('Enrichment is best-effort:', error);
       }
     }
 

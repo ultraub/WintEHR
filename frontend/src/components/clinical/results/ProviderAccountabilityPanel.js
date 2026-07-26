@@ -96,6 +96,7 @@ const ProviderAccountabilityPanel = ({
       setProviderResults(resultCounts);
     } catch (error) {
       // Error loading patient providers - component will show empty state
+      console.warn('Error loading patient providers - component will show empty state:', error);
     } finally {
       setLoading(false);
     }
@@ -129,6 +130,7 @@ const ProviderAccountabilityPanel = ({
         onResultsUpdate(results);
       } catch (error) {
         // Error filtering by provider - keeping current results
+        console.warn('Error filtering by provider - keeping current results:', error);
       } finally {
         setLoading(false);
       }
@@ -152,6 +154,7 @@ const ProviderAccountabilityPanel = ({
       onResultsUpdate(results);
     } catch (error) {
       // Error filtering by provider type - keeping current results
+      console.warn('Error filtering by provider type - keeping current results:', error);
     } finally {
       setLoading(false);
     }

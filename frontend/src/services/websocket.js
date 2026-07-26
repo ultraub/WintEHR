@@ -126,6 +126,7 @@ class WebSocketService {
         this.handleMessage(data);
       } catch (error) {
         // Failed to parse message
+        console.warn('Failed to parse message:', error);
       }
     };
 
@@ -380,6 +381,7 @@ class WebSocketService {
           callback(data);
         } catch (error) {
           // Error in listener
+          console.warn('Error in listener:', error);
         }
       });
     }
@@ -548,6 +550,7 @@ class WebSocketService {
         callback(state, data);
       } catch (error) {
         // Error in connection listener
+        console.warn('Error in connection listener:', error);
       }
     });
   }

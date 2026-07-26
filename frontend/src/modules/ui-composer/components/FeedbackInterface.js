@@ -112,6 +112,7 @@ const FeedbackInterface = () => {
       
     } catch (error) {
       // Error submitting feedback
+      console.warn('Error submitting feedback:', error);
     } finally {
       setSubmitting(false);
     }

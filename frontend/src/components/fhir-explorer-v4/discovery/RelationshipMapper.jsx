@@ -326,6 +326,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       }
     } catch (err) {
       // Error fetching relationship schema - silently handled
+      console.warn('Error fetching relationship schema - silently handled:', err);
     } finally {
       requestsInFlightRef.current.delete('schema');
     }
@@ -352,6 +353,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
       }
     } catch (err) {
       // Error fetching statistics - non-critical, don't show error
+      console.warn('Error fetching statistics - non-critical, don\'t show error:', err);
     } finally {
       requestsInFlightRef.current.delete('statistics');
       if (isMountedRef.current) {

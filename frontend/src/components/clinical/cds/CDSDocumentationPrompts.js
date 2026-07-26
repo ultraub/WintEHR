@@ -79,6 +79,7 @@ const CDSDocumentationPrompts = ({
 
     } catch (error) {
       // Failed to generate documentation prompts
+      console.warn('Failed to generate documentation prompts:', error);
     }
   }, [cdsAlerts, patientId, encounterId]);
 
@@ -109,6 +110,7 @@ const CDSDocumentationPrompts = ({
 
     } catch (error) {
       // Failed to create note from prompt
+      console.warn('Failed to create note from prompt:', error);
     }
   }, [onCreateNote, publish, patientId, encounterId]);
 

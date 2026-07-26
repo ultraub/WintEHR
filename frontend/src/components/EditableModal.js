@@ -84,7 +84,8 @@ const EditableModal = ({
           setFormData({
             patient_id: patientId,
             encounter_id: encounterId,
-            // observation_type: 'laboratory', // Field is null in current dataset
+            // observation_type: 'laboratory',
+            // Field is null in current dataset
             code: '',
             display: '',
             value: '',

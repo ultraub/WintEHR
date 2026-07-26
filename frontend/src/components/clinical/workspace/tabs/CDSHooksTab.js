@@ -223,6 +223,7 @@ const CDSHooksTab = ({ patientId }) => {
           }
         } catch (serviceError) {
           // Continue with other services
+          console.warn('Continue with other services:', serviceError);
         }
       }
       
@@ -304,6 +305,7 @@ const CDSHooksTab = ({ patientId }) => {
           }
         } catch (serviceError) {
           // Error executing service - add to results with error status
+          console.warn('Error executing service - add to results with error status:', serviceError);
         }
       }
       

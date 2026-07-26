@@ -41,6 +41,7 @@ const CostDisplay = ({ sessionId, loading, onCostUpdate }) => {
       }
     } catch (error) {
       // Failed to fetch cost data - error handled silently
+      console.warn('Failed to fetch cost data - error handled silently:', error);
     } finally {
       setFetchingCost(false);
     }

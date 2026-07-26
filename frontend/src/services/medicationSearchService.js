@@ -214,6 +214,7 @@ class MedicationSearchService {
         backendResults = response.data;
       } catch (error) {
         // Backend medication search unavailable, using local database
+        console.warn('Backend medication search unavailable, using local database:', error);
       }
 
       // Search local database

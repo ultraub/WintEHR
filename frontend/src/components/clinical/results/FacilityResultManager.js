@@ -153,6 +153,7 @@ const FacilityResultManager = ({
 
     } catch (error) {
       // Error loading lab facilities - component will show empty state
+      console.warn('Error loading lab facilities - component will show empty state:', error);
     } finally {
       setLoading(false);
     }
@@ -199,6 +200,7 @@ const FacilityResultManager = ({
         onResultsUpdate(results);
       } catch (error) {
         // Error filtering by facility - keeping current results
+        console.warn('Error filtering by facility - keeping current results:', error);
       } finally {
         setLoading(false);
       }

@@ -96,6 +96,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
               });
             } catch (everythingError) {
               // Both methods failed, but continue anyway
+              console.warn('Both methods failed, but continue anyway:', everythingError);
             }
           }
         }

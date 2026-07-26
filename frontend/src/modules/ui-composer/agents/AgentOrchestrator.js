@@ -34,6 +34,7 @@ class AgentOrchestrator {
         listener(event, data);
       } catch (error) {
         // Ignore listener errors
+        console.warn('Ignore listener errors:', error);
       }
     });
   }

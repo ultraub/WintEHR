@@ -283,6 +283,7 @@ const EncountersTab = ({
         });
       } catch (error) {
         // Failed to load encounters
+        console.warn('Failed to load encounters:', error);
       }
     }
   }, [patientId, searchResources, isLoading]);

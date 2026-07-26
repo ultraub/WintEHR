@@ -115,6 +115,7 @@ const ResultTrendAnalysis = ({ patientId, initialTestCode = null }) => {
       calculateStatistics(formattedData);
     } catch (error) {
       // Error handled silently, component shows loading state
+      console.warn('Error handled silently, component shows loading state:', error);
     } finally {
       setLoading(false);
     }

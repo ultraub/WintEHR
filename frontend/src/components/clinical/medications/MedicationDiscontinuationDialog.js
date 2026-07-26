@@ -258,6 +258,7 @@ const MedicationDiscontinuationDialog = ({
       onClose();
     } catch (error) {
       // Error discontinuing medication - handle gracefully
+      console.warn('Error discontinuing medication - handle gracefully:', error);
     } finally {
       setLoading(false);
     }

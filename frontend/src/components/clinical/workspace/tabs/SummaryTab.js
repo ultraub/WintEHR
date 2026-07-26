@@ -854,6 +854,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
     } catch (error) {
       // Error loading summary stats - stats will not be displayed
       // Log error but don't call fetchPatientBundle to avoid infinite loop
+      console.warn('Error loading summary stats - stats will not be displayed:', error);
     }
   }, [patientId, fhirClient]);
 
@@ -864,7 +865,8 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
   //   if (patientId) {
   //     loadSummaryStats();
   //   }
-  // }, [patientId]); // Only depend on patientId to avoid infinite loop
+  // }, [patientId]);
+  // Only depend on patientId to avoid infinite loop
 
   // Get resources from context - these are already cached and shared
   const conditions = useMemo(() => {
@@ -1064,6 +1066,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
       setLastRefresh(new Date());
     } catch (error) {
       // Error loading summary data - in production this would show an error notification to the user
+      console.warn('Error loading summary data - in production this would show an error notification to the:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);

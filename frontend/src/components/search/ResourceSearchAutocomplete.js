@@ -390,6 +390,7 @@ const ResourceSearchAutocomplete = ({
               if (optionKey && valueKey && optionKey === valueKey) return true;
             } catch (e) {
               // Fall through to other matching strategies
+              console.warn('Fall through to other matching strategies:', e);
             }
           }
           

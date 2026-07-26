@@ -374,6 +374,7 @@ const AdvancedLabValueFilter = ({
         }
       } catch (error) {
         // Failed to load saved filters - will use defaults
+        console.warn('Failed to load saved filters - will use defaults:', error);
       }
     };
     loadSavedFilters();

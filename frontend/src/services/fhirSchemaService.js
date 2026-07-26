@@ -74,6 +74,7 @@ class FHIRSchemaService {
           return response.data;
         } catch (v2Error) {
           // fall through to the original endpoint
+          console.warn('fall through to the original endpoint:', v2Error);
         }
       }
 
@@ -216,6 +217,7 @@ class FHIRSchemaService {
           return response.data;
         } catch (v2Error) {
           // fall through to the v1 endpoint
+          console.warn('fall through to the v1 endpoint:', v2Error);
         }
       }
 

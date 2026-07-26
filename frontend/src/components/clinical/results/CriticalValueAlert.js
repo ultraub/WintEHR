@@ -238,6 +238,7 @@ const CriticalValueAlert = ({
       onClose();
     } catch (error) {
       // Error handled silently, acknowledgment button returns to normal state
+      console.warn('Error handled silently, acknowledgment button returns to normal state:', error);
     } finally {
       setAcknowledging(false);
     }

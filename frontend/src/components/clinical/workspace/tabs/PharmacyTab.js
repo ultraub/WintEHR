@@ -361,6 +361,7 @@ const PharmacyTab = ({
         }
       } catch (error) {
         // Handle error silently to prevent console clutter
+        console.warn('Handle error silently to prevent console clutter:', error);
       }
     };
 

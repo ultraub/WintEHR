@@ -877,6 +877,7 @@ class CDSHooksService {
         serviceExists = true;
       } catch (e) {
         // Service doesn't exist yet
+        console.warn('Service doesn\'t exist yet:', e);
       }
 
       // Save the service first

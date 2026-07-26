@@ -196,6 +196,7 @@ const SMARTDemoApp = () => {
             }
           } catch {
             // Token is opaque, not JWT
+            console.warn('Token is opaque, not JWT');
           }
         }
 

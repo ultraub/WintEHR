@@ -84,6 +84,7 @@ const GeographicTimelineFilter = ({
       }
     } catch (error) {
       // Error loading nearby providers - geographic filter will be unavailable
+      console.warn('Error loading nearby providers - geographic filter will be unavailable:', error);
     } finally {
       setLoadingNearby(false);
     }

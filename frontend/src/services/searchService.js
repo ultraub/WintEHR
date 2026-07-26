@@ -238,6 +238,7 @@ class SearchService {
 
         } catch (error) {
           // Catalog search failed for resource type
+          console.warn('Catalog search failed for resource type:', error);
         }
       }
 
@@ -575,6 +576,7 @@ class SearchService {
           }
         } catch (error) {
           // Fallback catalog search failed
+          console.warn('Fallback catalog search failed:', error);
         }
       }
 

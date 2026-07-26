@@ -243,6 +243,7 @@ class CDSHooksClient {
             prefetch = await cdsPrefetchResolver.resolvePrefetchTemplates(service, context);
           } catch (error) {
             // Prefetch resolution failed, continuing without prefetch
+            console.warn('Prefetch resolution failed, continuing without prefetch:', error);
           }
         }
 
@@ -309,6 +310,7 @@ class CDSHooksClient {
             prefetch = await cdsPrefetchResolver.resolvePrefetchTemplates(service, context);
           } catch (error) {
             // Prefetch resolution failed, continuing without prefetch
+            console.warn('Prefetch resolution failed, continuing without prefetch:', error);
           }
         } else {
           // Use common prefetch for medication-prescribe if no templates defined

@@ -134,6 +134,7 @@ const MedicationEffectivenessDialog = ({
       onClose();
     } catch (error) {
       // Error submitting assessment - handle gracefully
+      console.warn('Error submitting assessment - handle gracefully:', error);
     } finally {
       setLoading(false);
     }

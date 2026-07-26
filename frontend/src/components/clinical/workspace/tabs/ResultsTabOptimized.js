@@ -447,6 +447,7 @@ const ResultsTabOptimized = ({
         // Successfully subscribed to patient room
       } catch (error) {
         // Failed to subscribe to patient room
+        console.warn('Failed to subscribe to patient room:', error);
       }
     };
 

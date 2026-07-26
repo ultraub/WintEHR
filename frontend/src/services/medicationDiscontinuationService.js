@@ -79,6 +79,7 @@ class MedicationDiscontinuationService {
         );
       } catch (error) {
         // Error updating medication lists - continue with rest of process
+        console.warn('Error updating medication lists - continue with rest of process:', error);
       }
 
       // Create follow-up appointments if required
