@@ -82,13 +82,13 @@ jobs:
         # be a hard gate yet. Report the count; the test baseline below is the
         # enforced bar. Ratchet toward a hard gate as the backlog shrinks.
         run: npx eslint src -f compact 2>&1 | tail -1 || true
-      - name: "vitest (baseline: 104 failed / 561 total)"
+      - name: "vitest (baseline: 66 failed / 561 total)"
         run: |
-          # Baseline 104 failed of 561 under Vitest. Vitest collects more than
-          # CRA/jest did because two suites jest could not even collect now run
-          # — cdsHooksClient.parallel (6, all pass) and QueryStudioEnhanced
-          # (19, a known-broken suite tracked for fix/removal). The failure
-          # count rose only because more tests execute.
+          # Baseline 66 failed of 561. The remaining failures are: the
+          # unfinished medication consolidation layer (37, tracked for
+          # finish-or-delete adjudication), QueryStudioEnhanced (18,
+          # known-broken suite tracked for fix/removal), ServiceSelector (6),
+          # UIComposer (3), ErrorBoundary (2).
           #
           # numTotalTests is the counterpart to the backend's OUTCOMES check:
           # it catches tests that stop running, which a failure-count gate
@@ -98,8 +98,8 @@ jobs:
           npx vitest run --reporter=json --outputFile=vitest.json > vitest.out 2>&1 || true
           node -e "
             const r = require('./vitest.json');
-            console.log(r.numTotalTests + ' tests, ' + r.numFailedTests + ' failed, ' + r.numPassedTests + ' passed (baseline: failed<=104, total>=561, passed>=448)');
-            if (r.numFailedTests > 104 || r.numTotalTests < 561 || r.numPassedTests < 448) {
-              console.error('::error::Test results regressed past the baseline (failed<=104, total>=561, passed>=448)');
+            console.log(r.numTotalTests + ' tests, ' + r.numFailedTests + ' failed, ' + r.numPassedTests + ' passed (baseline: failed<=66, total>=561, passed>=495)');
+            if (r.numFailedTests > 66 || r.numTotalTests < 561 || r.numPassedTests < 495) {
+              console.error('::error::Test results regressed past the baseline (failed<=66, total>=561, passed>=495)');
               process.exit(1);
             }"

@@ -2,7 +2,10 @@
  * CDS Hooks Compliance Test Suite
  * Tests to ensure our implementation follows CDS Hooks 1.0 specification
  */
-import { CDSHooksClientSpec } from '../cdsHooksClient.spec';
+// Default import: the module default-exports the class (plus a lowercase
+// singleton). The old named import resolved to undefined under real ESM —
+// every test in this suite failed at `new undefined()` in beforeEach.
+import CDSHooksClientSpec from '../cdsHooksClient.spec';
 import { cdsHooksService } from '../cdsHooksService';
 import { validateCDSService } from '../../models/cdsService';
 
@@ -35,9 +38,11 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
       vi.spyOn(client.client, 'get').mockResolvedValue(mockResponse);
 
       const result = await client.discoverServices();
-      
+
       expect(client.client.get).toHaveBeenCalledWith('/cds-services');
-      expect(result).toEqual(mockResponse.data.services);
+      // The spec's discovery response body IS {"services": [...]} — the
+      // client returns the wire shape.
+      expect(result).toEqual(mockResponse.data);
     });
 
     it('should handle empty service list', async () => {
@@ -45,8 +50,8 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
       vi.spyOn(client.client, 'get').mockResolvedValue(mockResponse);
 
       const result = await client.discoverServices();
-      
-      expect(result).toEqual([]);
+
+      expect(result).toEqual({ services: [] });
     });
   });
 
@@ -197,7 +202,7 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
       };
 
       const result = validateCDSService(validService);
-      expect(result.isValid).toBe(true);
+      expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
@@ -210,9 +215,9 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
       };
 
       const result = validateCDSService(invalidService);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('hook is required');
-      expect(result.errors).toContain('description is required');
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Hook type is required');
+      expect(result.errors).toContain('Service description is required');
     });
 
     it('should validate hook type', () => {
@@ -224,8 +229,8 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
       };
 
       const result = validateCDSService(invalidHook);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContain('Invalid hook type: invalid-hook-type');
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e => e.startsWith('Invalid hook type'))).toBe(true);
     });
 
     it('should validate prefetch templates', () => {
@@ -241,7 +246,10 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
       };
 
       const result = validateCDSService(service);
-      expect(result.warnings).toContain('Prefetch template "invalid" may be invalid');
+      // A template with no {{context}} token and no FHIR-query shape is an
+      // ERROR in the model (there is no warnings channel here).
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e => e.includes("Prefetch template 'invalid'"))).toBe(true);
     });
   });
 
@@ -325,8 +333,8 @@ describe('CDS Hooks 1.0 Specification Compliance', () => {
       };
 
       const validation = cdsHooksService.validateServiceData(service);
-      expect(validation.warnings).toContain(
-        expect.stringContaining('Summary is quite long')
+      expect(validation.warnings).toEqual(
+        expect.arrayContaining([expect.stringContaining('Summary is quite long')])
       );
     });
   });
