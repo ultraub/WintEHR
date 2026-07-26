@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { fhirClient } from '../core/fhir/services/fhirClient';
+import {
+  typesForPriority,
+  PATIENT_CLINICAL_TYPES,
+  SUMMARY_TYPES,
+  getSortParam,
+} from '../core/fhir/resourceRegistry';
 import { getMedicationResourceDisplay } from '../core/fhir/utils/fhirFieldUtils';
 import { intelligentCache } from '../core/fhir/utils/intelligentCache';
 import { useStableCallback } from '../hooks/ui/useStableReferences';
@@ -1147,14 +1153,8 @@ export function FHIRResourceProvider({ children }) {
                 // Some resources from $everything might not have explicit patient references
                 // but are still related to the patient (e.g., some Organizations, Practitioners)
                 // For clinical resources, we should still establish the relationship
-                const clinicalResourceTypes = [
-                  'Condition', 'MedicationRequest', 'Observation', 'Procedure',
-                  'AllergyIntolerance', 'Immunization', 'DiagnosticReport',
-                  'Encounter', 'CarePlan', 'CareTeam', 'Goal', 'DocumentReference'
-                ];
-                
                 // For clinical resources from $everything, assume they belong to the patient
-                if (clinicalResourceTypes.includes(resource.resourceType)) {
+                if (PATIENT_CLINICAL_TYPES.includes(resource.resourceType)) {
                   referencesThisPatient = true;
                 }
               }
@@ -1207,21 +1207,9 @@ export function FHIRResourceProvider({ children }) {
 
   // Optimized fetchPatientBundle using FHIR batch requests
   const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false, priority = 'all') => {
-    // Map priority to resource types for backward compatibility
-    const resourceTypesByPriority = {
-      critical: ['Patient', 'Encounter', 'Condition', 'MedicationRequest', 'AllergyIntolerance'],
-      important: ['Observation', 'Procedure', 'DiagnosticReport', 'Coverage', 'DocumentReference'],
-      optional: ['Immunization', 'CarePlan', 'CareTeam', 'Goal', 'ImagingStudy']
-    };
-    
-    let types;
-    if (priority === 'critical') {
-      types = resourceTypesByPriority.critical;
-    } else if (priority === 'important') {
-      types = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important];
-    } else {
-      types = [...resourceTypesByPriority.critical, ...resourceTypesByPriority.important, ...resourceTypesByPriority.optional];
-    }
+    // Tier membership comes from the resource registry — the single source
+    // (this used to be one of 7 drifting copies of the priority lists).
+    const types = typesForPriority(priority);
 
     const cacheKey = `patient_bundle_batch_${patientId}_${priority}`;
     const requestKey = `batch_${cacheKey}`;
@@ -1592,7 +1580,7 @@ export function FHIRResourceProvider({ children }) {
         } else if (priority === 'summary') {
           // For summary view, use batch to get exactly what we need
           // This ensures we get ALL conditions, meds, and allergies, not limited by observation count
-          const summaryTypes = ['Patient', 'Condition', 'MedicationRequest', 'AllergyIntolerance', 'Observation', 'Encounter', 'Procedure', 'DiagnosticReport', 'Immunization'];
+          const summaryTypes = SUMMARY_TYPES;
           
           // Build targeted batch requests with appropriate limits
           const batchRequests = summaryTypes.map(resourceType => {
@@ -1805,14 +1793,10 @@ export function FHIRResourceProvider({ children }) {
       // Clear the relationships for this patient to ensure fresh data
       dispatch({ type: FHIR_ACTIONS.SET_RELATIONSHIPS, payload: { patientId, relationships: {} } });
       
-      // Clear related search caches
-      const resourceTypes = [
-        'Encounter', 'Condition', 'Observation', 'MedicationRequest',
-        'Procedure', 'DiagnosticReport', 'AllergyIntolerance', 'Immunization',
-        'CarePlan', 'CareTeam', 'Goal', 'Coverage', 'DocumentReference', 'ImagingStudy'
-      ];
-      
-      resourceTypes.forEach(resourceType => {
+      // Clear related search caches — every patient-scoped clinical type
+      // (registry-derived, so cache invalidation can never drift from the
+      // set of types the fetch paths actually populate).
+      PATIENT_CLINICAL_TYPES.forEach(resourceType => {
         // Use smaller counts for refresh to prevent memory issues
         let refreshCount = 20; // Reduced default from 50 to 20
         if (resourceType === 'Observation') {
@@ -1822,49 +1806,18 @@ export function FHIRResourceProvider({ children }) {
         }
         let params = { patient: patientId, _count: refreshCount };
         
-        // Add appropriate sort parameters for each resource type
-        switch (resourceType) {
-          case 'Procedure':
-            params._sort = '-date';
-            break;
-          case 'Observation':
-            params._sort = '-date';
-            // Add date filter for observations - last 6 months only
-            const sixMonthsAgo = new Date();
-            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-            params.date = `ge${sixMonthsAgo.toISOString().split('T')[0]}`;
-            break;
-          case 'Encounter':
-            params._sort = '-date';
-            break;
-          case 'MedicationRequest':
-            params._sort = '-authoredon';
-            break;
-          case 'Condition':
-            params._sort = '-recorded-date';
-            break;
-          case 'DiagnosticReport':
-            params._sort = '-date';
-            // Add date filter for diagnostic reports - last year only
-            const oneYearAgo = new Date();
-            oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-            params.date = `ge${oneYearAgo.toISOString().split('T')[0]}`;
-            break;
-          case 'DocumentReference':
-            params._sort = '-date';
-            break;
-          case 'ImagingStudy':
-            params._sort = '-started';
-            break;
-          case 'AllergyIntolerance':
-            params._sort = '-date';
-            break;
-          case 'Immunization':
-            params._sort = '-date';
-            break;
-          default:
-            // Most resources use -date as default
-            params._sort = '-date';
+        // HAPI's real per-type sort name comes from the registry ('-date'
+        // default). Date-window narrowing for the two high-volume types
+        // stays here — it's a cache-refresh policy, not type metadata.
+        params._sort = getSortParam(resourceType);
+        if (resourceType === 'Observation') {
+          const sixMonthsAgo = new Date();
+          sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+          params.date = `ge${sixMonthsAgo.toISOString().split('T')[0]}`;
+        } else if (resourceType === 'DiagnosticReport') {
+          const oneYearAgo = new Date();
+          oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+          params.date = `ge${oneYearAgo.toISOString().split('T')[0]}`;
         }
         
         const searchKey = `${resourceType}_${JSON.stringify(params)}`;

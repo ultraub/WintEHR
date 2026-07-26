@@ -10,6 +10,7 @@ import { useFHIRResource } from '../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow } from '../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_EVENTS } from '../../constants/clinicalEvents';
 import websocketService from '../../services/websocket';
+import { PATIENT_CLINICAL_TYPES } from '../../core/fhir/resourceRegistry';
 
 const useChartReviewResources = (patientId, options = {}) => {
   const {
@@ -941,21 +942,10 @@ const useChartReviewResources = (patientId, options = {}) => {
     // Subscribe to patient room for real-time updates from other users
     const setupPatientSubscription = async () => {
       try {
-        // Define the resource types we want to receive updates for
-        const resourceTypes = [
-          'Condition',
-          'MedicationRequest',
-          'AllergyIntolerance',
-          'Immunization',
-          'Observation',
-          'Procedure',
-          'Encounter',
-          'CarePlan',
-          'DocumentReference'
-        ];
-
-        // Subscribe to patient room with specific resource types
-        subscriptionId = await websocketService.subscribeToPatient(patientId, resourceTypes);
+        // Subscribe to updates for every patient-scoped clinical type —
+        // registry-derived, so a newly registered type gets live updates
+        // without anyone remembering this list exists.
+        subscriptionId = await websocketService.subscribeToPatient(patientId, PATIENT_CLINICAL_TYPES);
       } catch (error) {
         console.error('[useChartReviewResources] Failed to subscribe to patient room:', error);
       }

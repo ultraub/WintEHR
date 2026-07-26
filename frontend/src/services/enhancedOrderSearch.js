@@ -6,6 +6,7 @@
  */
 
 import { getMedicationResourceDisplay } from '../core/fhir/utils/fhirFieldUtils';
+import { RESOURCE_REGISTRY } from '../core/fhir/resourceRegistry';
 import { cdsClinicalDataService } from './cdsClinicalDataService';
 
 class EnhancedOrderSearchService {
@@ -13,16 +14,6 @@ class EnhancedOrderSearchService {
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
     this.baseUrl = '/fhir/R4';
-
-    // HAPI FHIR search parameter mappings (different from old backend)
-    this.searchParamMappings = {
-      ServiceRequest: {
-        sortParam: 'authored',  // HAPI FHIR uses 'authored' for ServiceRequest
-      },
-      MedicationRequest: {
-        sortParam: 'authoredon', // HAPI FHIR uses 'authoredon' for MedicationRequest
-      }
-    };
   }
 
   /**
@@ -98,9 +89,11 @@ class EnhancedOrderSearchService {
       const sortDirection = sort.startsWith('-') ? '-' : '';
       const sortField = sort.replace(/^-/, '');
 
-      // Map old backend parameter names to HAPI FHIR names
-      const mapping = this.searchParamMappings[resourceType];
-      const hapiFhirSortField = mapping?.sortParam || sortField;
+      // HAPI's real per-type sort name comes from the resource registry
+      // (ServiceRequest → 'authored', MedicationRequest → 'authoredon');
+      // types without a registry entry keep the caller's field.
+      const registrySort = RESOURCE_REGISTRY[resourceType]?.sortParam;
+      const hapiFhirSortField = registrySort ? registrySort.replace(/^-/, '') : sortField;
 
       url.searchParams.append('_sort', `${sortDirection}${hapiFhirSortField}`);
     }
