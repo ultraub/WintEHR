@@ -4,23 +4,38 @@ JWT token handling utilities
 
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 from .config import JWT_SECRET_KEY, JWT_ALGORITHM, JWT_ACCESS_TOKEN_EXPIRE_DELTA
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Direct bcrypt, not passlib. passlib 1.7.4 (its final release, 2020) reads
+# bcrypt.__about__.__version__, which bcrypt 5.0 removed — failing that probe
+# silently enabled a $2$ workaround bcrypt then rejected, so every login died
+# on any modern bcrypt (see the near-miss recorded in
+# tests/api/auth/test_password_hashing.py). bcrypt's own API is two calls.
+
+
+def _truncate(password: str) -> bytes:
+    # bcrypt only reads the first 72 bytes; 5.x raises on longer input rather
+    # than truncating silently. Truncate explicitly so behavior is identical
+    # to the passlib era and long passphrases keep verifying against their
+    # stored hashes.
+    return password.encode("utf-8")[:72]
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify a password against its bcrypt hash"""
+    try:
+        return bcrypt.checkpw(_truncate(plain_password), hashed_password.encode("utf-8"))
+    except ValueError:
+        # Malformed/non-bcrypt stored hash — treat as non-matching, never 500.
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a password"""
-    return pwd_context.hash(password)
+    """Hash a password with bcrypt (unique salt per call)"""
+    return bcrypt.hashpw(_truncate(password), bcrypt.gensalt()).decode("utf-8")
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

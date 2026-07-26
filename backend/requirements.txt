@@ -33,9 +33,10 @@ psutil==5.9.6
 
 # Security
 python-jose[cryptography]==3.5.0
-passlib[bcrypt]==1.7.4
 python-multipart==0.0.32
-bcrypt==4.1.2
+# Used directly (api/auth/jwt_handler.py) — passlib was dropped: unmaintained
+# since 2020 and permanently incompatible with bcrypt >= 5.
+bcrypt==5.0.0
 PyJWT==2.13.0
 
 # Development tools
