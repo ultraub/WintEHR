@@ -772,6 +772,14 @@ export function FHIRResourceProvider({ children }) {
       const cached = getCachedData('searches', searchKey);
       if (cached) {
         setResources(resourceType, cached.resources);
+        // Re-file cached _include'd resources under their own types too —
+        // a cache-served search must populate the store the same way a
+        // network-served one does.
+        if (cached.includedResources) {
+          Object.entries(cached.includedResources).forEach(([includedType, res]) => {
+            if (res?.length) setResources(includedType, res);
+          });
+        }
         // Track cache hit
         performanceMonitor.recordMetric('fhirSearch', {
           resourceType,
@@ -805,6 +813,12 @@ export function FHIRResourceProvider({ children }) {
       // ("All Medications 130" = 100 requests + 30 includes). Keep only the
       // searched type here; the include-processing block below files the
       // rest under their own resourceType.
+      // Capture the non-searched-type resources BEFORE the filter: when
+      // fhirClient returns the pre-standardized shape (no raw bundle),
+      // this is the only place the _include'd resources still exist.
+      const mixedIncludes = (result.resources || []).filter(
+        r => r?.resourceType && r.resourceType !== resourceType
+      );
       if (result.resources?.length) {
         result.resources = result.resources.filter(r => r?.resourceType === resourceType);
       }
@@ -828,17 +842,23 @@ export function FHIRResourceProvider({ children }) {
         }
       }
       
-      // Process included resources from _include parameter
-      if (result.bundle?.entry) {
+      // Process included resources from _include parameter. Source them
+      // from the raw bundle when available, else from the pre-filter
+      // capture above — includes survive BOTH response shapes (this is
+      // what unblocks include-consumers like ImagingTab migrating onto
+      // the context; opportunity #2).
+      const includeSource = result.bundle?.entry
+        ? result.bundle.entry.map(e => e?.resource)
+        : mixedIncludes;
+      if (includeSource.length) {
         const includedResources = {};
-        
-        result.bundle.entry.forEach(entry => {
-          const resource = entry.resource;
+
+        includeSource.forEach(resource => {
           if (!resource || !resource.resourceType) return;
-          
+
           // Skip the main resources we already processed
           if (resource.resourceType === resourceType) return;
-          
+
           // Group included resources by type
           if (!includedResources[resource.resourceType]) {
             includedResources[resource.resourceType] = [];

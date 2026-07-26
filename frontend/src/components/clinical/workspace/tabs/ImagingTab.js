@@ -71,7 +71,6 @@ import { useSnackbar } from 'notistack';
 import { format, parseISO, formatDistanceToNow, isWithinInterval, subDays, subMonths } from 'date-fns';
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
-import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import DICOMViewer from '../../imaging/DICOMViewer';
 import ImagingReportDialog from '../../imaging/ImagingReportDialog';
 import DownloadDialog from '../../imaging/DownloadDialog';
@@ -490,7 +489,7 @@ const ImagingTab = ({
   onNavigateToTab // Cross-tab navigation support
 }) => {
   const theme = useTheme();
-  const { currentPatient } = useFHIRResource();
+  const { currentPatient, searchResources } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
   const [density, setDensity] = useDensity('comfortable');
   
@@ -516,28 +515,19 @@ const ImagingTab = ({
     setLoading(true);
     try {
       // Single FHIR query with _include to get both ImagingStudy and Endpoint resources
-      // This eliminates the N+1 query problem.
-      //
-      // DELIBERATE fhirClient call (not context.searchResources): the
-      // context filters search results to the searched type before storing
-      // and returning them (the PR #281 misfiling fix), so the _include'd
-      // Endpoints this tab needs would be dropped. Migrate when the
-      // context learns to return { resources, included } separately
-      // (opportunity #2 remaining work, docs/ARCHITECTURE_DEBT.md).
-      const response = await fhirClient.search('ImagingStudy', {
+      // This eliminates the N+1 query problem. Through the context:
+      // searchResources returns the searched type in `resources` and files
+      // _include'd resources by type in `includedResources` (and into the
+      // shared store) — both response shapes covered (opportunity #2).
+      const response = await searchResources('ImagingStudy', {
         patient: patientId,
         _include: 'ImagingStudy:endpoint',
         _sort: '-_lastUpdated',
         _count: 100
       });
 
-      // fhirClient.search returns a SearchResult wrapper ({ resources, bundle, total }),
-      // not a raw Bundle — the raw Bundle.entry lives at response.bundle.entry. Fall
-      // back to response.entry for any caller that's already handing us a Bundle.
-      const allResources = extractBundleResources(response);
-
-      const imagingStudies = allResources.filter(r => r?.resourceType === 'ImagingStudy');
-      const endpoints = allResources.filter(r => r?.resourceType === 'Endpoint');
+      const imagingStudies = extractBundleResources(response, 'ImagingStudy');
+      const endpoints = response.includedResources?.Endpoint || [];
 
       // Create lookup map for Endpoint resources
       const endpointMap = new Map();
@@ -620,7 +610,7 @@ const ImagingTab = ({
     } finally {
       setLoading(false);
     }
-  }, [patientId, enqueueSnackbar]);
+  }, [patientId, enqueueSnackbar, searchResources]);
 
   // Load imaging studies when patient changes (removed separate useEffect to avoid circular dependency)
   useEffect(() => {
