@@ -8,7 +8,7 @@
  * and memoizes results in a module-level cache shared across consumers.
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getCodeableConceptDisplay } from '../utils/fhirFieldUtils';
+import { getCodeableConceptDisplay, getMedicationResourceDisplay } from '../utils/fhirFieldUtils';
 import { fhirClient } from '../services/fhirClient';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 
@@ -175,7 +175,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
           if (containedCacheKey && medicationCache.has(containedCacheKey)) {
             const medication = medicationCache.get(containedCacheKey);
             if (medication) {
-              const medName = getCodeableConceptDisplay(medication.code, 'Unknown medication');
+              const medName = getMedicationResourceDisplay(medication, 'Unknown medication');
               resolved[req.id] = {
                 name: medName,
                 code: medication.code,
@@ -192,7 +192,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
               const medication = medicationCache.get(medicationId);
 
               if (medication) {
-                const medName = getCodeableConceptDisplay(medication.code, 'Unknown medication');
+                const medName = getMedicationResourceDisplay(medication, 'Unknown medication');
                 resolved[req.id] = {
                   name: medName,
                   code: medication.code,
@@ -239,6 +239,10 @@ export const useMedicationResolver = (medicationRequests = []) => {
     }
 
     // Check for enriched medication data (from _include resolution)
+    if (medicationRequest._resolvedMedicationDisplay) {
+      return medicationRequest._resolvedMedicationDisplay;
+    }
+
     if (medicationRequest._resolvedMedicationCodeableConcept) {
       const enrichedName = getCodeableConceptDisplay(
         medicationRequest._resolvedMedicationCodeableConcept, null);
