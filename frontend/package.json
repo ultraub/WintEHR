@@ -99,5 +99,9 @@
     "typescript": "^4.9.5",
     "vite": "^7.3.6",
     "vitest": "^3.2.7"
+  },
+  "overrides": {
+    "js-yaml": "^4.3.0",
+    "postcss": "^8.5.18"
   }
 }
