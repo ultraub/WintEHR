@@ -12,7 +12,7 @@ from api.cds_hooks.constants import ExtensionURLs
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/clinical/orders", tags=["clinical-orders"])
+router = APIRouter(prefix="/api/clinical/orders", tags=["clinical-orders"])
 
 
 # Pydantic schemas

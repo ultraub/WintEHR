@@ -12,7 +12,7 @@ from api.auth.service import AuthService, get_auth_service
 from api.auth.jwt_handler import verify_token
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 # Check if JWT is enabled
 JWT_ENABLED = os.getenv("JWT_ENABLED", "false").lower() == "true"

@@ -82,7 +82,7 @@ from .actions.executor import ActionExecutor, ActionExecutionRequest
 # Configure logging
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["CDS Hooks"])
+router = APIRouter(prefix="/api", tags=["CDS Hooks"])
 
 # Initialize v3.0 service registry
 # Built-in services will be registered via services/builtin/ module

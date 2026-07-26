@@ -34,18 +34,19 @@ FAILED_ROUTERS = []
 
 # (name, module path, attribute, include_router kwargs)
 #
-# The resolved URL of a route is the router file's own APIRouter(prefix=...)
-# plus the "prefix" kwarg here — see backend/CLAUDE.md §Routing for the
-# lookup table. New routers: full `/api/...` prefix in the router file,
-# no prefix kwarg here.
+# Every router carries its FULL public prefix in its own APIRouter(prefix=...)
+# — no prefix kwargs are passed here, so the router file alone tells the
+# truth about its URLs. Exceptions that predate the convention and
+# deliberately live outside /api: the FHIR proxy (/fhir/...) and SMART
+# (/oauth, /.well-known). See backend/CLAUDE.md §Routing.
 ROUTERS = [
     # -- Core FHIR APIs --------------------------------------------------
     ("HAPI FHIR proxy", "api.fhir.proxy", "router",
      {"tags": ["FHIR R4 (HAPI Proxy)"]}),
     ("FHIR relationships", "api.fhir.routers.relationships", "relationships_router",
-     {"prefix": "/api", "tags": ["FHIR Relationships"]}),
+     {"tags": ["FHIR Relationships"]}),
     ("FHIR search values", "api.fhir.search_values", "router",
-     {"prefix": "/api", "tags": ["FHIR Search Values"]}),
+     {"tags": ["FHIR Search Values"]}),
 
     # -- Authentication & Authorization ----------------------------------
     ("Authentication", "api.auth", "router", {"tags": ["Authentication"]}),
@@ -54,7 +55,7 @@ ROUTERS = [
     # -- Clinical Workflows ----------------------------------------------
     ("Clinical catalogs", "api.catalogs", "router", {"tags": ["Clinical Catalogs"]}),
     ("Clinical orders (CPOE)", "api.clinical.orders.orders_router", "router",
-     {"prefix": "/api", "tags": ["Clinical Orders (CPOE)"]}),
+     {"tags": ["Clinical Orders (CPOE)"]}),
     ("Pharmacy", "api.clinical.pharmacy.pharmacy_router", "router",
      {"tags": ["Pharmacy Workflows"]}),
     ("Clinical results", "api.clinical.results.results_router", "router",
@@ -64,7 +65,7 @@ ROUTERS = [
     ("Medication lists", "api.clinical.medication_lists_router", "router",
      {"tags": ["Medication Lists"]}),
     ("Drug safety", "api.clinical.drug_safety_router", "router",
-     {"prefix": "/api/clinical", "tags": ["Drug Safety"]}),
+     {"tags": ["Drug Safety"]}),
     ("Clinical notes", "api.clinical.documentation.notes_router", "router",
      {"tags": ["Clinical Documentation"]}),
     ("Clinical tasks", "api.clinical.tasks.router", "router",
@@ -81,14 +82,14 @@ ROUTERS = [
 
     # -- Integration Services ---------------------------------------------
     ("CDS Hooks", "api.cds_hooks.cds_hooks_router", "router",
-     {"prefix": "/api", "tags": ["CDS Hooks"]}),
+     {"tags": ["CDS Hooks"]}),
     ("CDS visual builder", "api.cds_studio.visual_builder_router", "router",
      {"tags": ["CDS Visual Builder"]}),
     ("CDS value sets", "api.cds_studio.value_set_composer", "router",
      {"tags": ["CDS Studio — ValueSets"]}),
     ("UI Composer", "api.ui_composer", "router", {"tags": ["UI Composer"]}),
     ("WebSocket", "api.websocket.websocket_router", "router",
-     {"prefix": "/api", "tags": ["WebSocket"]}),
+     {"tags": ["WebSocket"]}),
     ("WebSocket monitoring", "api.websocket.monitoring", "router",
      {"tags": ["WebSocket Monitoring"]}),
     ("FHIR schemas", "api.fhir.routers.schema", "router", {"tags": ["FHIR Schemas"]}),

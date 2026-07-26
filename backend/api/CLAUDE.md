@@ -50,21 +50,15 @@ There is **no `fhir/core/` subdir** and **no `core/storage.py`**.
 
 ## Resolving an endpoint's real URL
 
-A router's URL = its own `APIRouter(prefix=...)` + the `prefix=` passed at
-registration. Routers in this tree are inconsistent — some self-prefix the full
-`/api/...`, some self-prefix a short segment, some carry no prefix. Always
-confirm against `routers/__init__.py`.
+**Normalized convention: the router file's own `APIRouter(prefix="/api/...")`
+IS the full public prefix — registration passes no prefix.** Read the
+`APIRouter(...)` line and you have the truth; no cross-referencing needed.
 
-| Router | File prefix | Registered | Resolved base |
-|---|---|---|---|
-| `fhir/proxy.py` | (none) | (none) | `/fhir/...` |
-| `auth/router.py` | `/api/auth` | (none) | `/api/auth` |
-| `cds_hooks/cds_hooks_router.py` | (none) | `prefix="/api"` | `/api/cds-services` |
-| `catalogs/router.py` | `/api/catalogs` | (none) | `/api/catalogs` |
-| `websocket/websocket_router.py` | (none) | `prefix="/api"` | `/api/ws`, `/api/ws/{client_id}` |
-| `clinical/drug_safety_router.py` | `/drug-safety` | `prefix="/api/clinical"` | `/api/clinical/drug-safety` |
-
-Clinical-module prefixes have their own quirks — see `clinical/CLAUDE.md`.
+Exceptions deliberately outside `/api`: `fhir/proxy.py` (`/fhir/...` —
+spec-visible FHIR base), `smart/router.py` (`/.well-known`, `/oauth` —
+spec-mandated locations), and two pre-convention escapees pending the
+proxy-config reconciliation: `clinical/documentation/notes_router.py`
+(`/clinical/notes`) and `dicom/router.py` (`/dicom`).
 
 ---
 

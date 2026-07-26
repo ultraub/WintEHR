@@ -18,26 +18,27 @@ are below.
 
 ## Routers and their real prefixes
 
-Prefixes are inconsistent across this module — some routers carry the full
-`/api/clinical/...` prefix themselves, others carry a short prefix and get
-`/api` prepended at registration in `api/routers/__init__.py`. **Always
-confirm the resolved path before wiring a frontend call.**
+**Normalized: every router here carries its full public prefix in its own
+`APIRouter(prefix=...)`; registration adds nothing.** The one escapee is
+`documentation/notes_router.py` at `/clinical/notes` (no `/api`) — a
+public-URL change pending the proxy-config reconciliation
+(docs/ARCHITECTURE_DEBT.md #4).
 
-| File | Router prefix | Registered with | Resolved base |
-|---|---|---|---|
-| `orders/orders_router.py` | `/clinical/orders` | `prefix="/api"` | `/api/clinical/orders` |
-| `pharmacy/pharmacy_router.py` | `/api/clinical/pharmacy` | (none) | `/api/clinical/pharmacy` |
-| `administration/router.py` | `/api/clinical/administration` | (none) | `/api/clinical/administration` |
-| `results/results_router.py` | `/api/clinical/results` | (none) | `/api/clinical/results` |
-| `critical_values_router.py` | `/api/clinical` | (none) | `/api/clinical/critical-values` (threshold reference table, R33) |
-| `tasks/router.py` | `/api/clinical/tasks` | (none) | `/api/clinical/tasks` |
-| `alerts/router.py` | `/api/clinical/alerts` | (none) | `/api/clinical/alerts` |
-| `inbox/router.py` | `/api/clinical/inbox` | (none) | `/api/clinical/inbox` |
-| `documentation/notes_router.py` | `/clinical/notes` | (none) | `/clinical/notes` *(no `/api`)* |
-| `medication_lists_router.py` | `/api/clinical/medication-lists` | (none) | `/api/clinical/medication-lists` |
-| `cds_clinical_data.py` | `/api/clinical` | (none) | `/api/clinical` (lab/vital/condition catalogs) |
-| `drug_safety_router.py` | `/drug-safety` | `prefix="/api/clinical"` | `/api/clinical/drug-safety` |
-| `provider_directory_router.py` | `/api/provider-directory` | (none) | `/api/provider-directory` |
+| File | Prefix (= resolved base) |
+|---|---|
+| `orders/orders_router.py` | `/api/clinical/orders` |
+| `pharmacy/pharmacy_router.py` | `/api/clinical/pharmacy` |
+| `administration/router.py` | `/api/clinical/administration` |
+| `results/results_router.py` | `/api/clinical/results` |
+| `critical_values_router.py` | `/api/clinical` → `/critical-values` (threshold reference table, R33) |
+| `tasks/router.py` | `/api/clinical/tasks` |
+| `alerts/router.py` | `/api/clinical/alerts` |
+| `inbox/router.py` | `/api/clinical/inbox` |
+| `documentation/notes_router.py` | `/clinical/notes` *(no `/api` — see above)* |
+| `medication_lists_router.py` | `/api/clinical/medication-lists` |
+| `cds_clinical_data.py` | `/api/clinical` (lab/vital/condition catalogs) |
+| `drug_safety_router.py` | `/api/clinical/drug-safety` |
+| `provider_directory_router.py` | `/api/provider-directory` |
 
 `drug_interactions.py` defines a prefix-less router that is **mounted inside
 `drug_safety_router.py`** (`router.include_router(...)`) — it is not

@@ -23,7 +23,7 @@ from shared.exceptions import FHIRConnectionError, FHIRResourceNotFoundError
 logger = logging.getLogger(__name__)
 
 relationships_router = APIRouter(
-    prefix="/fhir-relationships",
+    prefix="/api/fhir-relationships",
     tags=["fhir-relationships"]
 )
 

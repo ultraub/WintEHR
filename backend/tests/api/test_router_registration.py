@@ -92,11 +92,13 @@ def test_api_health_is_mains_and_reports_router_failures():
 
 
 def test_cds_hooks_health_moved_not_removed():
+    # The router now carries its full /api prefix in the file, so route
+    # paths are the real public URLs.
     from api.cds_hooks.cds_hooks_router import router
 
     paths = {getattr(r, "path", None) for r in router.routes}
-    assert "/cds-hooks/health" in paths
-    assert "/health" not in paths, (
-        "A bare /health on this router resolves to /api/health and shadows "
-        "the app health endpoint (B3) — keep it namespaced"
+    assert "/api/cds-hooks/health" in paths
+    assert "/api/health" not in paths, (
+        "This router owning /api/health shadows the app health endpoint "
+        "in main.py (B3) — keep the CDS diagnostics namespaced"
     )

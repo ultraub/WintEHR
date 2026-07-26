@@ -27,25 +27,21 @@ deltas are below.
 
 ---
 
-## Routing — confirm the resolved path, never trust the prefix
+## Routing — the router file carries its full public prefix
 
-Routers are **inconsistent**: some carry a full `/api/...` prefix in their own
-`APIRouter(prefix=...)`, some carry a short prefix and get `/api` prepended at
-registration, some carry no prefix at all. The resolved path is
-`router-file prefix` + `registration prefix`.
+**Convention (normalized): every router declares its complete public prefix
+in its own `APIRouter(prefix="/api/...")`; `register_all_routers` passes NO
+prefix.** The router file alone tells the truth about its URLs. New routers
+follow this — do not reintroduce registration-time prefixes.
 
-| Router | File prefix | Registered with | Resolved base |
-|---|---|---|---|
-| `api/fhir/proxy.py` | (none) | (none) | `/fhir/...` (HAPI proxy) |
-| `api/auth/router.py` | `/api/auth` | (none) | `/api/auth` |
-| `api/cds_hooks/cds_hooks_router.py` | (none) | `prefix="/api"` | `/api/cds-services` |
-| `api/clinical/orders/orders_router.py` | `/clinical/orders` | `prefix="/api"` | `/api/clinical/orders` |
-| `api/clinical/drug_safety_router.py` | `/drug-safety` | `prefix="/api/clinical"` | `/api/clinical/drug-safety` |
-| `api/catalogs/router.py` | `/api/catalogs` | (none) | `/api/catalogs` |
-| `api/websocket/websocket_router.py` | (none) | `prefix="/api"` | `/api/ws` |
+Deliberate exceptions that live outside `/api`:
 
-When in doubt, grep `api/routers/__init__.py` for the `include_router` call —
-that, plus the `APIRouter(...)` line in the router file, gives the truth.
+| Router | Paths | Why |
+|---|---|---|
+| `api/fhir/proxy.py` | `/fhir/...` | The FHIR base URL is spec-visible; nginx/vite route it separately |
+| `api/smart/router.py` | `/.well-known/...`, `/oauth/...` | SMART/OIDC discovery paths are spec-mandated locations |
+| `api/clinical/documentation/notes_router.py` | `/clinical/notes` | pre-convention escapee — normalizing changes a public URL; pending the proxy-config reconciliation (ARCHITECTURE_DEBT #4) |
+| `api/dicom/router.py` | `/dicom` | same |
 
 ---
 

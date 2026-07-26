@@ -8,7 +8,7 @@ from api.clinical.drug_interactions import router as drug_interactions_router
 
 # Create main router
 router = APIRouter(
-    prefix="/drug-safety",
+    prefix="/api/clinical/drug-safety",
     tags=["drug-safety"]
 )
 

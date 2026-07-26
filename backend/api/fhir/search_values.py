@@ -20,7 +20,7 @@ from api.services.fhir.search_value_cache import (
 from shared.exceptions import FHIRConnectionError
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/fhir/search-values", tags=["fhir-search-values"])
+router = APIRouter(prefix="/api/fhir/search-values", tags=["fhir-search-values"])
 
 
 def get_cache() -> SearchValueCache:

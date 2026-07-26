@@ -60,7 +60,7 @@ class TestCDSHooksDiscovery:
             mock_client_class.return_value = mock_client
 
             # Execute
-            response = client.get("/cds-services")
+            response = client.get("/api/cds-services")
 
             # Verify
             assert response.status_code == 200
@@ -96,7 +96,7 @@ class TestCDSHooksDiscovery:
             mock_client_class.return_value = mock_client
 
             # Execute
-            response = client.get("/cds-services?service_origin=built-in")
+            response = client.get("/api/cds-services?service_origin=built-in")
 
             # Verify: built-in filter serves the registry only — HAPI is not
             # consulted, so the mocked external service must NOT leak in and
@@ -130,7 +130,7 @@ class TestCDSHooksDiscovery:
             mock_client_class.return_value = mock_client
 
             # Execute
-            response = client.get("/cds-services?service_origin=external")
+            response = client.get("/api/cds-services?service_origin=external")
 
             # Verify
             assert response.status_code == 200
@@ -158,7 +158,7 @@ class TestCDSHooksDiscovery:
             mock_client_class.return_value = mock_client
 
             # Execute
-            response = client.get("/cds-services?service_origin=external")
+            response = client.get("/api/cds-services?service_origin=external")
 
             # Verify
             assert response.status_code == 200
@@ -179,7 +179,7 @@ class TestCDSHooksDiscovery:
             mock_client_class.return_value = mock_client
 
             # Execute
-            response = client.get("/cds-services")
+            response = client.get("/api/cds-services")
 
             # Verify - built-ins still served; no external ones (HAPI is dead)
             assert response.status_code == 200
@@ -234,7 +234,7 @@ class TestCDSHooksDiscovery:
             mock_client.search.return_value = mock_bundle
             mock_client_class.return_value = mock_client
 
-            response = client.get("/cds-services?service_origin=external")
+            response = client.get("/api/cds-services?service_origin=external")
 
             assert response.status_code == 200
             data = response.json()
@@ -291,7 +291,7 @@ class TestCDSHooksExecution:
 
             # Execute
             response = client.post(
-                "/cds-services/diabetes-screening-reminder",
+                "/api/cds-services/diabetes-screening-reminder",
                 json=sample_cds_request
             )
 
@@ -331,7 +331,7 @@ class TestCDSHooksExecution:
 
             # Execute
             response = client.post(
-                "/cds-services/external-diabetes-management",
+                "/api/cds-services/external-diabetes-management",
                 json=sample_cds_request
             )
 
@@ -358,7 +358,7 @@ class TestCDSHooksExecution:
 
             # Execute
             response = client.post(
-                "/cds-services/non-existent-service",
+                "/api/cds-services/non-existent-service",
                 json=sample_cds_request
             )
 
@@ -392,7 +392,7 @@ class TestCDSHooksExecution:
 
             # Execute
             response = client.post(
-                "/cds-services/test-service",
+                "/api/cds-services/test-service",
                 json=sample_cds_request
             )
 
@@ -529,7 +529,7 @@ class TestExecutionLogging:
 
             # Execute
             response = client.post(
-                "/cds-services/diabetes-screening-reminder",
+                "/api/cds-services/diabetes-screening-reminder",
                 json=sample_cds_request
             )
 
@@ -569,7 +569,7 @@ class TestExecutionLogging:
 
             # Execute
             response = client.post(
-                "/cds-services/diabetes-screening-reminder",
+                "/api/cds-services/diabetes-screening-reminder",
                 json=sample_cds_request
             )
 
@@ -606,7 +606,7 @@ class TestCDSDebugEndpoint:
             mock_client.search.return_value = empty_bundle
             mock_hapi.return_value = mock_client
 
-            response = client.get("/cds-debug/totally-fake-service")
+            response = client.get("/api/cds-debug/totally-fake-service")
 
         assert response.status_code == 200
         data = response.json()
@@ -650,7 +650,7 @@ class TestCDSDebugEndpoint:
             mock_client.search.return_value = bundle
             mock_hapi.return_value = mock_client
 
-            response = client.get("/cds-debug/stacked-service")
+            response = client.get("/api/cds-debug/stacked-service")
 
         assert response.status_code == 200
         data = response.json()
