@@ -422,7 +422,16 @@ export function FHIRResourceProvider({ children }) {
   const coalescedRequests = useRef(new Map());
 
   // Enhanced cache utilities using intelligent cache
-  const getCachedData = useCallback((cacheType, key) => {
+  // IDENTITY POLICY (opportunity #2, docs/ARCHITECTURE_DEBT.md):
+  // ACTION/WRITER callbacks use useStableCallback — stable identity,
+  // latest closure — so consumer effects can list them as honest deps
+  // without looping (setResources used to re-create on every dispatch,
+  // which made fetch effects refire forever). Render-time READERS
+  // (getResource, getResourcesByType, getPatientResources,
+  // isResourceLoading, isCacheWarm, getError) deliberately KEEP reactive
+  // useCallback identities — their identity change is what tells
+  // consumers' useMemo to recompute when the store changes.
+  const getCachedData = useStableCallback((cacheType, key) => {
     // First check intelligent cache
     const intelligentCacheKey = `${cacheType}:${key}`;
     const intelligentData = intelligentCache.get(intelligentCacheKey);
@@ -445,7 +454,7 @@ export function FHIRResourceProvider({ children }) {
     }
     
     return cached.data;
-  }, [state.cache]);
+  });
 
   const setCachedData = useCallback((cacheType, key, data, ttl, resourceType = null) => {
     // Store in intelligent cache
@@ -469,7 +478,7 @@ export function FHIRResourceProvider({ children }) {
   // at the old cap of 50, rows fetched for the current patient were evicted
   // the moment they landed. Eviction also prefers keeping the current
   // patient's compartment — the pool is shared across patients.
-  const cleanupOldResources = useCallback(() => {
+  const cleanupOldResources = useStableCallback(() => {
     const MAX_RESOURCES_PER_TYPE = 300;
     const currentPatientId = state.currentPatient?.id;
     const resourceTypes = Object.keys(state.resources);
@@ -514,10 +523,10 @@ export function FHIRResourceProvider({ children }) {
         });
       }
     });
-  }, [state.resources, state.currentPatient]);
+  });
 
   // Resource Management Functions
-  const setResources = useCallback((resourceType, resources) => {
+  const setResources = useStableCallback((resourceType, resources) => {
     dispatch({
       type: FHIR_ACTIONS.SET_RESOURCES,
       payload: { resourceType, resources }
@@ -529,9 +538,9 @@ export function FHIRResourceProvider({ children }) {
     if (resourceCount > 300) {
       setTimeout(cleanupOldResources, 0);
     }
-  }, [state.resources, cleanupOldResources]);
+  });
 
-  const addResource = useCallback((resourceType, resource) => {
+  const addResource = useStableCallback((resourceType, resource) => {
     dispatch({
       type: FHIR_ACTIONS.ADD_RESOURCE,
       payload: { resourceType, resource }
@@ -548,7 +557,7 @@ export function FHIRResourceProvider({ children }) {
         }
       });
     }
-  }, [state.currentPatient]);
+  });
 
   const updateResource = useCallback((resourceType, resourceId, updates) => {
     dispatch({
@@ -1207,7 +1216,7 @@ export function FHIRResourceProvider({ children }) {
   }, [setCachedData, getCachedData, setResources]);
 
   // Optimized fetchPatientBundle using FHIR batch requests
-  const fetchPatientBundle = useCallback(async (patientId, forceRefresh = false, priority = 'all') => {
+  const fetchPatientBundle = useStableCallback(async (patientId, forceRefresh = false, priority = 'all') => {
     // Tier membership comes from the resource registry — the single source
     // (this used to be one of 7 drifting copies of the priority lists).
     const types = typesForPriority(priority);
@@ -1465,7 +1474,7 @@ export function FHIRResourceProvider({ children }) {
     
     inFlightRequests.current.set(requestKey, batchPromise);
     return batchPromise;
-  }, [fetchResource, searchResources, setResources, state.resources, setCachedData, getCachedData]);
+  });
 
   // Patient Context Management - using stable callback to prevent infinite loops
   const setCurrentPatient = useStableCallback(async (patientId) => {
@@ -1767,7 +1776,7 @@ export function FHIRResourceProvider({ children }) {
     return state.errors[resourceType] || null;
   }, [state.errors]);
 
-  const clearCache = useCallback((cacheType = null) => {
+  const clearCache = useStableCallback((cacheType = null) => {
     // getCachedData consults intelligentCache BEFORE the state cache, so an
     // invalidation that only touches state leaves stale reads for up to the
     // intelligent-cache TTL (~5 min after an edit). Clear both layers.
@@ -1781,7 +1790,7 @@ export function FHIRResourceProvider({ children }) {
         dispatch({ type: FHIR_ACTIONS.INVALIDATE_CACHE, payload: { cacheType: type } });
       });
     }
-  }, [state.cache]);
+  });
 
   const refreshPatientResources = useStableCallback(async (patientId) => {
     try {
