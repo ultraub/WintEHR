@@ -415,7 +415,14 @@ const ResultsTabOptimized = ({
         error: error.message || 'Failed to load results'
       }));
     }
-  }, [patientId, searchResources]);
+    // searchResources is deliberately NOT a dependency: the context's
+    // callbacks get new identities on every store dispatch (setResources
+    // depends on state.resources), so listing it refires this effect in an
+    // infinite fetch->dispatch->new-identity loop (permanent skeleton).
+    // patientId is the real trigger. Remove this exclusion when the
+    // context's callback identities are stabilized (ARCHITECTURE_DEBT #2).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
 
   // Fetch data on mount and when patient changes
   useEffect(() => {

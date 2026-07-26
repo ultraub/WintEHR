@@ -944,7 +944,10 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
     } finally {
       setFamilyHistoryLoading(false);
     }
-  }, [patientId, searchResources]);
+    // searchResources deliberately excluded — unstable identity refires
+    // this in a loop; see ResultsTabOptimized note (ARCHITECTURE_DEBT #2).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
 
   useEffect(() => {
     loadFamilyHistory();
@@ -967,7 +970,10 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
     } finally {
       setRelatedPersonsLoading(false);
     }
-  }, [patientId, searchResources]);
+    // searchResources deliberately excluded — unstable identity refires
+    // this in a loop; see ResultsTabOptimized note (ARCHITECTURE_DEBT #2).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
 
   useEffect(() => {
     loadRelatedPersons();
@@ -990,7 +996,10 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
     } finally {
       setConsentsLoading(false);
     }
-  }, [patientId, searchResources]);
+    // searchResources deliberately excluded — unstable identity refires
+    // this in a loop; see ResultsTabOptimized note (ARCHITECTURE_DEBT #2).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
 
   useEffect(() => {
     loadConsents();
