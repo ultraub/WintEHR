@@ -5,6 +5,7 @@
  * with advanced filtering, sorting, and analytics support.
  */
 
+import { getMedicationResourceDisplay } from '../core/fhir/utils/fhirFieldUtils';
 import { cdsClinicalDataService } from './cdsClinicalDataService';
 
 class EnhancedOrderSearchService {
@@ -116,6 +117,14 @@ class EnhancedOrderSearchService {
       url.searchParams.append('_include', `${resourceType}:encounter`);
     }
 
+    // ALWAYS pull the referenced Medication for medication orders — the
+    // order's display name lives in that resource for reference-style
+    // requests (every MIMIC MedicationRequest), and without it the Orders
+    // tab can only render "Medication (reference)".
+    if (resourceType === 'MedicationRequest') {
+      url.searchParams.append('_include', 'MedicationRequest:medication');
+    }
+
     // Check cache first
     const cacheKey = url.toString();
     const cached = this.getCachedResult(cacheKey);
@@ -171,6 +180,31 @@ class EnhancedOrderSearchService {
 
       totalResults += bundle.total || 0;
     });
+
+    // Resolve medication display names from the _include'd Medication
+    // resources onto their requests (same stamp the FHIR context uses, so
+    // getMedicationName finds it first).
+    const medicationById = {};
+    includedResources.forEach(entry => {
+      if (entry.resource?.resourceType === 'Medication' && entry.resource.id) {
+        medicationById[entry.resource.id] = entry.resource;
+      }
+    });
+    if (Object.keys(medicationById).length > 0) {
+      combinedEntries.forEach(entry => {
+        const r = entry.resource;
+        if (r._orderType === 'MedicationRequest' &&
+            r.medicationReference?.reference &&
+            !r.medicationCodeableConcept &&
+            !r._resolvedMedicationDisplay) {
+          const medication = medicationById[r.medicationReference.reference.replace('Medication/', '')];
+          if (medication) {
+            r._resolvedMedicationDisplay = getMedicationResourceDisplay(medication);
+            r._resolvedMedicationCodeableConcept = medication.code;
+          }
+        }
+      });
+    }
 
     // Sort combined entries by date (most recent first)
     combinedEntries.sort((a, b) => {
