@@ -3,24 +3,20 @@
  * Provides access to clinical reference data, lab catalogs with reference ranges,
  * and vital sign references for CDS Hooks condition evaluation
  */
-import axios from 'axios';
-import { buildUrl } from '../config/apiConfig';
+// Shared backend transport (auth interceptor, one baseURL) — this service
+// used to hand-roll its own axios instance, one of the four parallel HTTP
+// transports (opportunity #2, docs/ARCHITECTURE_DEBT.md). Requests are
+// identical; they now just flow through the same client as every other
+// backend call.
+import api from './api';
 
 class CDSClinicalDataService {
   constructor() {
-    // Use centralized configuration for backend URL
-    this.baseUrl = buildUrl('backend', '/api/catalogs');
+    // Relative to the shared client's baseURL.
+    this.baseUrl = '/api/catalogs';
 
     this.cache = new Map();
     this.cacheTimeout = 10 * 60 * 1000; // 10 minutes for reference data
-
-    // Create a dedicated HTTP client
-    this.httpClient = axios.create({
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
-    });
   }
 
   /**
@@ -43,7 +39,7 @@ class CDSClinicalDataService {
       if (category) params.category = category;
       params.limit = limit;
 
-      const response = await this.httpClient.get(`${this.baseUrl}/lab-tests`, { params });
+      const response = await api.get(`${this.baseUrl}/lab-tests`, { params });
       
       const data = response.data || [];
       this.setCache(cacheKey, data);
@@ -72,7 +68,7 @@ class CDSClinicalDataService {
       if (search) params.search = search;
       params.limit = limit;
 
-      const response = await this.httpClient.get(`${this.baseUrl}/medications`, { params });
+      const response = await api.get(`${this.baseUrl}/medications`, { params });
       
       const data = response.data || [];
       this.setCache(cacheKey, data);
@@ -101,7 +97,7 @@ class CDSClinicalDataService {
       if (search) params.search = search;
       params.limit = limit;
 
-      const response = await this.httpClient.get(`${this.baseUrl}/conditions`, { params });
+      const response = await api.get(`${this.baseUrl}/conditions`, { params });
       
       const data = response.data || [];
       this.setCache(cacheKey, data);
@@ -127,7 +123,7 @@ class CDSClinicalDataService {
 
     try {
       const params = { q: query, limit_per_type: limit };
-      const response = await this.httpClient.get(`${this.baseUrl}/search`, { params });
+      const response = await api.get(`${this.baseUrl}/search`, { params });
       
       const data = response.data || {};
       this.setCache(cacheKey, data);
@@ -148,7 +144,7 @@ class CDSClinicalDataService {
       const params = {};
       if (limit) params.limit = limit;
 
-      const response = await this.httpClient.post(`${this.baseUrl}/refresh`, null, { params });
+      const response = await api.post(`${this.baseUrl}/refresh`, null, { params });
       
       // Clear our cache since catalogs have been refreshed
       this.clearCache();
@@ -166,7 +162,7 @@ class CDSClinicalDataService {
    */
   async getDynamicCatalogStatistics() {
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/stats`);
+      const response = await api.get(`${this.baseUrl}/stats`);
       return response.data;
     } catch (error) {
       // Error fetching catalog statistics - re-throwing with context
@@ -187,7 +183,7 @@ class CDSClinicalDataService {
     }
 
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/lab-tests/${labId}`);
+      const response = await api.get(`${this.baseUrl}/lab-tests/${labId}`);
       
       const data = response.data;
       this.setCache(cacheKey, data);
@@ -214,7 +210,7 @@ class CDSClinicalDataService {
       const params = {};
       if (vitalType) params.vital_type = vitalType;
 
-      const response = await this.httpClient.get(`${this.baseUrl}/vital-references`, { params });
+      const response = await api.get(`${this.baseUrl}/vital-references`, { params });
       
       const data = response.data || [];
       this.setCache(cacheKey, data);
@@ -238,7 +234,7 @@ class CDSClinicalDataService {
     }
 
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/vital-references/${vitalId}`);
+      const response = await api.get(`${this.baseUrl}/vital-references/${vitalId}`);
       
       const data = response.data;
       this.setCache(cacheKey, data);
@@ -269,7 +265,7 @@ class CDSClinicalDataService {
       if (category) params.category = category;
       params.limit = limit;
 
-      const response = await this.httpClient.get(`${this.baseUrl}/conditions`, { params });
+      const response = await api.get(`${this.baseUrl}/conditions`, { params });
       
       const data = response.data || [];
       this.setCache(cacheKey, data);
@@ -293,7 +289,7 @@ class CDSClinicalDataService {
     }
 
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/condition-catalog/${conditionId}`);
+      const response = await api.get(`${this.baseUrl}/condition-catalog/${conditionId}`);
       
       const data = response.data;
       this.setCache(cacheKey, data);
@@ -316,7 +312,7 @@ class CDSClinicalDataService {
     }
 
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/lab-categories`);
+      const response = await api.get(`${this.baseUrl}/lab-categories`);
       
       const data = response.data || [];
       this.setCache(cacheKey, data);
@@ -339,7 +335,7 @@ class CDSClinicalDataService {
     }
 
     try {
-      const response = await this.httpClient.get(`${this.baseUrl}/condition-categories`);
+      const response = await api.get(`${this.baseUrl}/condition-categories`);
       
       const data = response.data || [];
       this.setCache(cacheKey, data);

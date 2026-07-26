@@ -7,13 +7,16 @@
 
 import { getMedicationResourceDisplay } from '../core/fhir/utils/fhirFieldUtils';
 import { RESOURCE_REGISTRY } from '../core/fhir/resourceRegistry';
+import { fhirClient } from '../core/fhir/services/fhirClient';
+import api from './api';
 import { cdsClinicalDataService } from './cdsClinicalDataService';
 
 class EnhancedOrderSearchService {
   constructor() {
+    // Only getOrderResults uses this cache now (2-minute backend-result
+    // caching); FHIR searches ride fhirClient's shared cache instead.
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
-    this.baseUrl = '/fhir/R4';
   }
 
   /**
@@ -70,78 +73,63 @@ class EnhancedOrderSearchService {
   async searchResourceType(resourceType, patientId, searchParams, options = {}) {
     const { sort, count, page, includeRelated = false } = options;
 
-    // Build URL with parameters
-    const url = new URL(`${this.baseUrl}/${resourceType}`, window.location.origin);
-
-    // Add patient filter
+    // Build a fhirClient params object. Repeated parameters (multiple
+    // _include) are arrays — fhirClient's paramsSerializer renders them as
+    // FHIR-style repeats. This method used to issue a raw fetch() with its
+    // own URL building and its own 5-minute cache: one of the four parallel
+    // HTTP transports (opportunity #2, docs/ARCHITECTURE_DEBT.md). It now
+    // rides fhirClient's shared cache, dedup, and retry queue.
+    const params = {};
     if (patientId) {
-      url.searchParams.append('subject', `Patient/${patientId}`);
+      params.subject = `Patient/${patientId}`;
     }
-
-    // Add search parameters
     for (const [key, value] of searchParams.entries()) {
-      url.searchParams.append(key, value);
+      params[key] = params[key] === undefined ? value : [].concat(params[key], value);
     }
 
-    // Add sorting and pagination
     if (sort) {
-      // Convert sort parameter to HAPI FHIR format if needed
       const sortDirection = sort.startsWith('-') ? '-' : '';
       const sortField = sort.replace(/^-/, '');
-
       // HAPI's real per-type sort name comes from the resource registry
       // (ServiceRequest → 'authored', MedicationRequest → 'authoredon');
       // types without a registry entry keep the caller's field.
       const registrySort = RESOURCE_REGISTRY[resourceType]?.sortParam;
       const hapiFhirSortField = registrySort ? registrySort.replace(/^-/, '') : sortField;
-
-      url.searchParams.append('_sort', `${sortDirection}${hapiFhirSortField}`);
+      params._sort = `${sortDirection}${hapiFhirSortField}`;
     }
-    if (count) url.searchParams.append('_count', count);
+    if (count) params._count = count;
     if (page > 1) {
-      const offset = (page - 1) * count;
-      url.searchParams.append('_offset', offset);
+      params._offset = (page - 1) * count;
     }
 
-    // Add common includes for enhanced data (optional - can cause timeouts with large datasets)
+    const includes = [];
+    // Optional relateds (can cause timeouts with large datasets)
     if (includeRelated) {
-      url.searchParams.append('_include', `${resourceType}:requester`);
-      url.searchParams.append('_include', `${resourceType}:performer`);
-      url.searchParams.append('_include', `${resourceType}:encounter`);
+      includes.push(`${resourceType}:requester`, `${resourceType}:performer`, `${resourceType}:encounter`);
     }
-
     // ALWAYS pull the referenced Medication for medication orders — the
     // order's display name lives in that resource for reference-style
     // requests (every MIMIC MedicationRequest), and without it the Orders
     // tab can only render "Medication (reference)".
     if (resourceType === 'MedicationRequest') {
-      url.searchParams.append('_include', 'MedicationRequest:medication');
+      includes.push('MedicationRequest:medication');
+    }
+    if (includes.length) {
+      params._include = includes.concat(params._include ?? []);
     }
 
-    // Check cache first
-    const cacheKey = url.toString();
-    const cached = this.getCachedResult(cacheKey);
-    if (cached) {
-      return cached;
-    }
+    const result = await fhirClient.search(resourceType, params);
 
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/fhir+json',
-        'Accept': 'application/fhir+json'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`${resourceType} search failed: ${response.statusText}`);
-    }
-
-    const bundle = await response.json();
-    
-    // Cache the result
-    this.setCachedResult(cacheKey, bundle);
-    
-    return bundle;
+    // Downstream (combineSearchResults) consumes a Bundle and separates
+    // searched-type entries from _include'd ones by resourceType, so a
+    // bundle synthesized from the flattened resources is equivalent when
+    // the raw bundle isn't available on the result.
+    return result.bundle ?? {
+      resourceType: 'Bundle',
+      type: 'searchset',
+      total: result.total,
+      entry: (result.resources || []).map((resource) => ({ resource })),
+    };
   }
 
   /**
@@ -594,16 +582,14 @@ class EnhancedOrderSearchService {
         return cached;
       }
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) {
+      // Shared backend client (auth interceptor, one baseURL) instead of a
+      // raw fetch — opportunity #2 transport consolidation.
+      let results;
+      try {
+        const response = await api.get(url);
+        results = response.data;
+      } catch (err) {
+        if (err.response?.status === 404) {
           return {
             order_id: orderId,
             order_type: resourceType === 'MedicationRequest' ? 'medication' : 'procedure',
@@ -614,10 +600,8 @@ class EnhancedOrderSearchService {
             result_status: 'not_found'
           };
         }
-        throw new Error(`Failed to get order results: ${response.statusText}`);
+        throw new Error(`Failed to get order results: ${err.response?.statusText || err.message}`);
       }
-
-      const results = await response.json();
 
       // Cache for 2 minutes (results can change more frequently)
       this.setCachedResult(cacheKey, results);
