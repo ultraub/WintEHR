@@ -1,8 +1,8 @@
-# Minimal CI: both test suites run on every PR, gated against known baselines.
-# The BACKEND suite is fully green (0 failed / 0 errors) — that gate is now a
-# hard zero. The frontend still carries documented legacy failures, so its gate
-# is "no NEW failures". Ratchet the frontend numbers DOWN as suites get fixed;
-# never loosen either gate without a PR that explains why.
+# Minimal CI: both test suites run on every PR. BOTH gates are hard zeros —
+# 0 failed / 0 errors, with pass-count and outcome floors so tests cannot
+# silently stop running (see the backend job's comment for the incident that
+# motivated the floors). Never loosen either gate without a PR that explains
+# why; if tests are legitimately removed, lower the floors in that same PR.
 name: CI
 
 on:
@@ -82,15 +82,13 @@ jobs:
         # be a hard gate yet. Report the count; the test baseline below is the
         # enforced bar. Ratchet toward a hard gate as the backlog shrinks.
         run: npx eslint src -f compact 2>&1 | tail -1 || true
-      - name: "vitest (baseline: 23 failed / 517 total)"
+      - name: "vitest (baseline: 0 failed / 517 total)"
         run: |
-          # Baseline 23 failed of 517. The remaining failures are:
-          # QueryStudioEnhanced (18, known-broken suite tracked for
-          # fix/removal), UIComposer (3), ErrorBoundary (2). The total DROPPED
-          # from 561 deliberately: the unfinished medication consolidation
-          # layer was adjudicated and deleted along with tests written against
-          # its never-implemented API (see the medication layering section in
-          # frontend/src/services/CLAUDE.md).
+          # The suite is fully green: 517 tests, 0 failed. The failed budget
+          # is a hard zero; the total/passed floors keep coverage from
+          # silently shrinking (a test that stops RUNNING reports nothing —
+          # see the backend job's comment). If tests are legitimately
+          # removed, lower the floors in that same PR and say why.
           #
           # numTotalTests is the counterpart to the backend's OUTCOMES check:
           # it catches tests that stop running, which a failure-count gate
@@ -100,8 +98,8 @@ jobs:
           npx vitest run --reporter=json --outputFile=vitest.json > vitest.out 2>&1 || true
           node -e "
             const r = require('./vitest.json');
-            console.log(r.numTotalTests + ' tests, ' + r.numFailedTests + ' failed, ' + r.numPassedTests + ' passed (baseline: failed<=23, total>=517, passed>=494)');
-            if (r.numFailedTests > 23 || r.numTotalTests < 517 || r.numPassedTests < 494) {
-              console.error('::error::Test results regressed past the baseline (failed<=23, total>=517, passed>=494)');
+            console.log(r.numTotalTests + ' tests, ' + r.numFailedTests + ' failed, ' + r.numPassedTests + ' passed (baseline: failed<=0, total>=517, passed>=517)');
+            if (r.numFailedTests > 0 || r.numTotalTests < 517 || r.numPassedTests < 517) {
+              console.error('::error::Test results regressed past the baseline (failed<=0, total>=517, passed>=517)');
               process.exit(1);
             }"

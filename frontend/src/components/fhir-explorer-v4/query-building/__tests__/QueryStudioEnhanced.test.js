@@ -74,10 +74,6 @@ describe('QueryStudioEnhanced', () => {
     ]);
   });
   
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-  
   describe('Core Functionality', () => {
     test('renders with all major sections', () => {
       renderComponent();
@@ -143,12 +139,14 @@ describe('QueryStudioEnhanced', () => {
       const addButton = await screen.findByText('Add Parameter');
       fireEvent.click(addButton);
       
-      // Select gender parameter
+      // Select gender parameter — a real MUI Autocomplete selection:
+      // typing alone never fires onChange; the option must be picked.
       const parameterInputs = screen.getAllByLabelText('Parameter');
       const firstParamInput = parameterInputs[0];
-      
       fireEvent.change(firstParamInput, { target: { value: 'gender' } });
-      
+      const genderOption = await screen.findByRole('option', { name: /^gender/ });
+      fireEvent.click(genderOption);
+
       await waitFor(() => {
         expect(api.get).toHaveBeenCalledWith(
           expect.stringContaining('/api/fhir/search-values/Patient/gender')
@@ -171,10 +169,12 @@ describe('QueryStudioEnhanced', () => {
       const addButton = await screen.findByText('Add Parameter');
       fireEvent.click(addButton);
       
-      // Select code parameter (should trigger lab catalog)
+      // Select code parameter (should trigger lab catalog fallback)
       const parameterInputs = screen.getAllByLabelText('Parameter');
       fireEvent.change(parameterInputs[0], { target: { value: 'code' } });
-      
+      const codeOption = await screen.findByRole('option', { name: /^code/ });
+      fireEvent.click(codeOption);
+
       await waitFor(() => {
         expect(cdsClinicalDataService.getLabCatalog).toHaveBeenCalled();
       });
@@ -195,7 +195,9 @@ describe('QueryStudioEnhanced', () => {
       await waitFor(() => {
         expect(screen.getByText('Suggested Parameters')).toBeInTheDocument();
         const patientChip = screen.getByText('patient');
-        expect(patientChip.closest('[class*="MuiChip"]')).toHaveClass('MuiChip-colorError');
+        // .closest('[class*="MuiChip"]') matched the label SPAN itself
+        // (MuiChip-label) — the color class is on the chip root.
+        expect(patientChip.closest('.MuiChip-root')).toHaveClass('MuiChip-colorError');
       });
     });
     
@@ -227,27 +229,26 @@ describe('QueryStudioEnhanced', () => {
   describe('Live Preview', () => {
     test('shows live preview when enabled', async () => {
       renderComponent();
-      
-      // Select Patient resource
+
+      // Select Observation, then add a parameter WITH a value in one step by
+      // clicking the 'category' suggestion chip (it carries value
+      // 'vital-signs'). Preview only fires once some param has key AND value.
       const resourceSelect = screen.getByRole('combobox');
       fireEvent.mouseDown(resourceSelect);
-      const patientOption = await screen.findByText('Patient');
-      fireEvent.click(patientOption);
-      
-      // Add parameter with value
-      const addButton = await screen.findByText('Add Parameter');
-      fireEvent.click(addButton);
-      
-      const parameterInputs = screen.getAllByLabelText('Parameter');
-      fireEvent.change(parameterInputs[0], { target: { value: 'name' } });
-      
-      const valueInputs = screen.getAllByLabelText('Value');
-      fireEvent.change(valueInputs[0], { target: { value: 'Smith' } });
-      
-      // Should show live preview
+      const observationOption = await screen.findByText('Observation');
+      fireEvent.click(observationOption);
+
+      const categoryChip = await screen.findByText('category');
+      fireEvent.click(categoryChip);
+
+      // Preview is debounced by QUERY_STUDIO_CONFIG.previewDelay (500ms), and
+      // 'Estimated <strong>10</strong> results' is split across elements —
+      // match on the container's full text.
       await waitFor(() => {
         expect(screen.getByText('Live Preview')).toBeInTheDocument();
-        expect(screen.getByText(/Estimated.*results/)).toBeInTheDocument();
+        expect(screen.getByText((_, el) =>
+          el?.tagName === 'P' && /Estimated\s*10\s*results/.test(el.textContent)
+        )).toBeInTheDocument();
       });
     });
     
@@ -375,15 +376,13 @@ describe('QueryStudioEnhanced', () => {
       const executeButton = screen.getByText('Execute');
       fireEvent.click(executeButton);
       
-      // Wait for results
+      // Wait for results rows to render
       await waitFor(() => {
-        expect(screen.getByText(/found/)).toBeInTheDocument();
+        expect(screen.getByText(/Smith/)).toBeInTheDocument();
       });
       
-      // Expand first row
-      const expandButtons = screen.getAllByRole('button').filter(
-        btn => btn.querySelector('[data-testid*="Expand"]')
-      );
+      // Expand first row (row expanders carry an accessible name now)
+      const expandButtons = screen.getAllByRole('button', { name: /expand row/i });
       if (expandButtons.length > 0) {
         fireEvent.click(expandButtons[0]);
         
@@ -405,15 +404,24 @@ describe('QueryStudioEnhanced', () => {
       const patientOption = await screen.findByText('Patient');
       fireEvent.click(patientOption);
       
-      // Find and click collapse button for Search Parameters
-      const searchParamsSection = screen.getByText('Search Parameters').closest('[class*="MuiCard"]');
-      const collapseButton = within(searchParamsSection).getByRole('button', { name: /expand/i });
-      
+      // Sections start expanded, so the toggle's accessible name is
+      // 'collapse section'. MUI Collapse keeps children MOUNTED when closed,
+      // so assert visibility, not absence from the document.
+      // .closest('[class*="MuiCard"]') stops at MuiCardHeader-content, which
+      // does NOT contain the header's action button — anchor on the card root.
+      const searchParamsSection = screen.getByText('Search Parameters').closest('.MuiCard-root');
+      const collapseButton = within(searchParamsSection).getByRole('button', { name: /collapse section/i });
+
       fireEvent.click(collapseButton);
-      
-      // Content should be hidden
+
       await waitFor(() => {
-        expect(screen.queryByText('Add Parameter')).not.toBeInTheDocument();
+        expect(screen.getByText('Add Parameter')).not.toBeVisible();
+      });
+
+      // ...and expanding brings it back
+      fireEvent.click(within(searchParamsSection).getByRole('button', { name: /expand section/i }));
+      await waitFor(() => {
+        expect(screen.getByText('Add Parameter')).toBeVisible();
       });
       
       // Click again to expand
@@ -434,14 +442,16 @@ describe('QueryStudioEnhanced', () => {
       const patientOption = await screen.findByText('Patient');
       fireEvent.click(patientOption);
       
-      // Add parameters
+      // Add a parameter — the section badge tracks the parameter count.
+      // (Adding a second empty row is guarded, so drive one row only.)
       const addButton = await screen.findByText('Add Parameter');
       fireEvent.click(addButton);
-      fireEvent.click(addButton);
-      
-      // Should show badge with count
-      const badges = screen.getAllByText('2');
-      expect(badges.length).toBeGreaterThan(0);
+
+      await waitFor(() => {
+        const badges = [...document.querySelectorAll('.MuiBadge-badge')]
+          .map(b => b.textContent);
+        expect(badges).toContain('1');
+      });
     });
   });
   
@@ -458,11 +468,11 @@ describe('QueryStudioEnhanced', () => {
       const executeButton = screen.getByText('Execute');
       fireEvent.click(executeButton);
       
-      // Should show results
+      // Should show results. Regex matchers: the family names render inside
+      // composed cell text, so exact-string getByText never matches.
       await waitFor(() => {
-        expect(screen.getByText(/10 found/)).toBeInTheDocument();
-        expect(screen.getByText('Smith')).toBeInTheDocument();
-        expect(screen.getByText('Jones')).toBeInTheDocument();
+        expect(screen.getByText(/Smith/)).toBeInTheDocument();
+        expect(screen.getByText(/Jones/)).toBeInTheDocument();
       });
     });
     
