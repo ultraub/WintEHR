@@ -82,16 +82,32 @@ jobs:
         # duplicate keys) — the backlog was fixed when the gate went hard, so
         # any new error fails the build. The ~1950 warnings are legacy
         # (mostly no-unused-vars); ratchet them separately.
+        #
+        # JSON format + explicit exit-code handling, NOT a grep over a text
+        # formatter: the previous grep counted 0 errors when eslint itself
+        # crashed (exit 2 after `-f compact` left core), silently bypassing
+        # the gate. eslint exit 0/1 = ran (1 means findings); >=2 = eslint
+        # broke and the gate must fail loudly, never pass by default.
         run: |
-          npx eslint src -f compact > eslint.out 2>&1 || true
-          tail -1 eslint.out
-          ERRORS=$(grep -cE ", Error - " eslint.out || true)
-          echo "eslint errors=$ERRORS (hard gate: 0)"
-          if [ "$ERRORS" -gt 0 ]; then
-            grep -E ", Error - " eslint.out | head -20
-            echo "::error::New eslint error-level findings (gate is zero)"
+          set +e
+          npx eslint src --format json --output-file eslint.json
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -ge 2 ]; then
+            echo "::error::eslint itself failed (exit $STATUS) — gate cannot be evaluated"
+            npx eslint src 2>&1 | head -5 || true
             exit 1
           fi
+          node -e "
+            const r = require('./eslint.json');
+            let e = 0, w = 0;
+            for (const f of r) { e += f.errorCount; w += f.warningCount; }
+            console.log('eslint: ' + e + ' errors, ' + w + ' warnings (hard gate: 0 errors)');
+            if (e > 0) {
+              for (const f of r) for (const m of f.messages)
+                if (m.severity === 2) console.log(f.filePath + ':' + m.line + ' [' + m.ruleId + '] ' + m.message);
+              process.exit(1);
+            }"
       - name: "vitest (baseline: 0 failed / 517 total)"
         run: |
           # The suite is fully green: 517 tests, 0 failed. The failed budget

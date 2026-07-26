@@ -3,6 +3,12 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import './patriotic-styles.css';
 import App from './App';
+import { installStaleBundleRecovery } from './utils/staleBundleRecovery';
+
+// Must be installed before the router mounts: the first lazy chunk that 404s
+// against a stale service-worker cache triggers unregister + cache purge +
+// one reload. See src/utils/staleBundleRecovery.js for the failure mode.
+installStaleBundleRecovery();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
