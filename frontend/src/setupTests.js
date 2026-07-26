@@ -4,19 +4,24 @@
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
 
-// Mock window.matchMedia
+// Mock window.matchMedia — as a PLAIN function, deliberately not a vi.fn().
+// A vi.fn() here is a time bomb: any suite calling vi.restoreAllMocks() in
+// an afterEach strips its implementation, so matchMedia(query) returns
+// undefined and every later MUI useMediaQuery render in that file dies with
+// "Cannot read properties of undefined (reading 'matches')" (this is exactly
+// what broke QueryStudioEnhanced: 1 test passed, the next 18 failed).
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: vi.fn().mockImplementation(query => ({
+  value: (query) => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: vi.fn(), // deprecated
-    removeListener: vi.fn(), // deprecated
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
+    addListener: () => {}, // deprecated
+    removeListener: () => {}, // deprecated
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }),
 });
 
 // Mock IntersectionObserver

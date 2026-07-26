@@ -377,7 +377,8 @@ const CollapsibleSection = ({ title, icon, children, defaultExpanded = true, bad
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {actions}
             <IconButton 
-              size="small" 
+              size="small"
+              aria-label={expanded ? 'collapse section' : 'expand section'}
               onClick={() => setExpanded(!expanded)}
               sx={{ ml: 1 }}
             >
@@ -1410,6 +1411,7 @@ const EnhancedResultsTable = ({ data }) => {
                       <TableCell>
                         <IconButton
                           size="small"
+                          aria-label={isExpanded ? 'collapse row' : 'expand row'}
                           onClick={() => toggleRowExpansion(globalIndex)}
                         >
                           {isExpanded ? <ExpandLess /> : <ExpandMore />}
@@ -1675,12 +1677,12 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
             size="small"
             sx={{ mr: 2 }}
           >
-            <ToggleButton value="visual">
+            <ToggleButton value="visual" aria-label="visual builder">
               <Tooltip title="Visual Builder">
                 <BuildIcon fontSize="small" />
               </Tooltip>
             </ToggleButton>
-            <ToggleButton value="code">
+            <ToggleButton value="code" aria-label="code editor">
               <Tooltip title="Code Editor">
                 <CodeIcon fontSize="small" />
               </Tooltip>
@@ -1701,8 +1703,9 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
           </Button>
           
           {/* Settings */}
-          <IconButton 
-            size="small" 
+          <IconButton
+            size="small"
+            aria-label="settings"
             onClick={() => setShowSettings(!showSettings)}
             color={showSettings ? 'primary' : 'default'}
           >

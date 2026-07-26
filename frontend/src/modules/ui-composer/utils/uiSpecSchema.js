@@ -89,8 +89,11 @@ export const validateUISpec = (spec) => {
   if (!spec.layout || !spec.layout.type) {
     errors.push('Missing layout.type');
   }
-  
-  if (!spec.layout.structure) {
+
+  // Optional-chain: with layout missing entirely, the bare dereference made
+  // validateUISpec({}) THROW instead of returning { valid: false } — a
+  // validator that crashes on invalid input defeats its purpose.
+  if (!spec.layout?.structure) {
     errors.push('Missing layout.structure');
   }
   

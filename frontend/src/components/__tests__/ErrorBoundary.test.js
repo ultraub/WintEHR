@@ -53,8 +53,10 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
-    expect(screen.getByText(/Error: Test error/)).toBeInTheDocument();
-    
+    // The message appears in both the summary line and the stack trace —
+    // assert presence, not uniqueness.
+    expect(screen.getAllByText(/Error: Test error/).length).toBeGreaterThan(0);
+
     // Can toggle error details
     const toggleButton = screen.getByText(/Show Error Details/);
     fireEvent.click(toggleButton);
@@ -84,15 +86,16 @@ describe('ErrorBoundary', () => {
 
     expect(screen.getByText('Oops! Something went wrong')).toBeInTheDocument();
 
-    // Click Try Again
-    fireEvent.click(screen.getByText('Try Again'));
-
-    // Rerender with non-throwing component
+    // Swap in a non-throwing child FIRST — resetting while the child still
+    // throws just re-triggers the boundary on the very next render.
     rerender(
       <ErrorBoundary>
         <ThrowError shouldThrow={false} />
       </ErrorBoundary>
     );
+
+    // Then reset the boundary so it re-renders its (now safe) children
+    fireEvent.click(screen.getByText('Try Again'));
 
     expect(screen.getByText('No error')).toBeInTheDocument();
   });
