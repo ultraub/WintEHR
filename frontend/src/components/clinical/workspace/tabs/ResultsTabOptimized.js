@@ -186,6 +186,26 @@ const detectAbnormalFromReferenceRange = (observation) => {
 
 // Get result status icon and color
 const getResultStatus = (observation) => {
+  // Microbiology susceptibilities (e.g. MIMIC MicroSusc) carry their entire
+  // meaning as a v3-ObservationInterpretation valueCodeableConcept — R/S/I.
+  // Rendering a Resistant organism as "Normal" is the exact opposite of the
+  // record; surface the susceptibility verdict as the status.
+  const suscCoding = observation.valueCodeableConcept?.coding?.find(
+    c => c.system === 'http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation'
+  );
+  if (suscCoding) {
+    switch (suscCoding.code) {
+      case 'R':
+        return { icon: <AbnormalIcon color="error" />, color: 'error', label: 'Resistant', isCritical: false };
+      case 'S':
+        return { icon: <NormalIcon color="success" />, color: 'success', label: 'Susceptible', isCritical: false };
+      case 'I':
+        return { icon: <AbnormalIcon color="warning" />, color: 'warning', label: 'Intermediate', isCritical: false };
+      default:
+        return { icon: <NormalRangeIcon />, color: 'default', label: suscCoding.display || suscCoding.code, isCritical: false };
+    }
+  }
+
   const interpretation = getObservationInterpretation(observation);
 
   // First check explicit interpretation codes
@@ -244,7 +264,14 @@ const getResultStatus = (observation) => {
       : { icon: <LowIcon color="error" />, color: 'error', label: 'Low', isCritical: false };
   }
 
-  return { icon: <NormalRangeIcon />, color: 'default', label: 'Normal', isCritical: false };
+  // No interpretation, no threshold match, no reference-range flag. For a
+  // numeric value that cleared the checks above, "Normal" would be earned —
+  // but for everything else the record asserts nothing, and the UI must not
+  // either.
+  if (observation.valueQuantity?.value !== undefined) {
+    return { icon: <NormalRangeIcon />, color: 'default', label: 'Normal', isCritical: false };
+  }
+  return { icon: <NormalRangeIcon />, color: 'default', label: '—', isCritical: false };
 };
 
 // Get status icon and color for DiagnosticReport rows — reports carry a
@@ -853,7 +880,12 @@ const ResultsTabOptimized = ({
                   '-')) :
                 (item.valueQuantity ?
                   `${item.valueQuantity.value} ${item.valueQuantity.unit || ''}` :
-                  item.valueString || 'Pending');
+                  item.valueString ||
+                  getCodeableConceptDisplay(item.valueCodeableConcept, null) ||
+                  // 'Pending' is only truthful when the record says the
+                  // result is still coming; a final observation with no
+                  // value is simply valueless.
+                  (['registered', 'preliminary'].includes(item.status) ? 'Pending' : '—'));
 
               // Format reference range from low/high values
               const refRange = item.referenceRange?.[0];

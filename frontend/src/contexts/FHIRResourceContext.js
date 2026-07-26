@@ -575,9 +575,12 @@ export function FHIRResourceProvider({ children }) {
       const currentRelationships = state.relationships[patientId];
       const currentResources = resourceType ? state.resources[resourceType] : state.resources;
       
-      // Use simple comparison for validity check
+      // Use simple comparison for validity check. MedicationRequest results
+      // are name-stamped from the Medication store below, so they must also
+      // invalidate when Medications arrive after the requests did.
       if (cached.relationships === currentRelationships && 
-          cached.resources === currentResources) {
+          cached.resources === currentResources &&
+          (resourceType !== 'MedicationRequest' || cached.medications === state.resources.Medication)) {
         return cached.result;
       }
     }
@@ -597,17 +600,44 @@ export function FHIRResourceProvider({ children }) {
 
     if (resourceType) {
       const resourceIds = relationships[resourceType] || [];
-      const resources = resourceIds.map(id => {
+      let resources = resourceIds.map(id => {
         const resource = state.resources[resourceType]?.[id];
         return resource;
       }).filter(Boolean);
-      
-      
+
+      // Read-time medication-name stamping: MedicationRequests that arrived
+      // via a fetch path that did NOT resolve _include (Pharmacy/Orders load
+      // them through plain searches) get their display resolved here from
+      // whatever Medication resources the store holds. This is the one
+      // chokepoint every consumer reads through — without it, each tab needs
+      // its own resolver wiring and the misses render "Medication (reference)".
+      if (resourceType === 'MedicationRequest') {
+        const medicationStore = state.resources.Medication;
+        if (medicationStore) {
+          resources = resources.map(req => {
+            if (req._resolvedMedicationDisplay ||
+                req.medicationCodeableConcept ||
+                !req.medicationReference?.reference) {
+              return req;
+            }
+            const medId = req.medicationReference.reference.replace('Medication/', '');
+            const medication = medicationStore[medId];
+            if (!medication) return req;
+            return {
+              ...req,
+              _resolvedMedicationDisplay: getMedicationResourceDisplay(medication),
+              _resolvedMedicationCodeableConcept: medication.code,
+            };
+          });
+        }
+      }
+
       // Cache the result
       getPatientResourcesMemo.current.set(memoKey, {
         result: resources,
         relationships: state.relationships[patientId],
-        resources: state.resources[resourceType]
+        resources: state.resources[resourceType],
+        medications: state.resources.Medication
       });
       
       return resources;
