@@ -76,12 +76,22 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --legacy-peer-deps
-      - name: eslint (report-only)
-        # The repo's own `npm run lint` is `--max-warnings 0` and already
-        # fails on master's large pre-existing warning backlog, so this can't
-        # be a hard gate yet. Report the count; the test baseline below is the
-        # enforced bar. Ratchet toward a hard gate as the backlog shrinks.
-        run: npx eslint src -f compact 2>&1 | tail -1 || true
+      - name: "eslint (errors are a hard zero; warnings report-only)"
+        # ESLint 9 flat config (eslint.config.mjs). Error-level findings are
+        # real bugs by construction (undefined JSX components, no-undef,
+        # duplicate keys) — the backlog was fixed when the gate went hard, so
+        # any new error fails the build. The ~1950 warnings are legacy
+        # (mostly no-unused-vars); ratchet them separately.
+        run: |
+          npx eslint src -f compact > eslint.out 2>&1 || true
+          tail -1 eslint.out
+          ERRORS=$(grep -cE ", Error - " eslint.out || true)
+          echo "eslint errors=$ERRORS (hard gate: 0)"
+          if [ "$ERRORS" -gt 0 ]; then
+            grep -E ", Error - " eslint.out | head -20
+            echo "::error::New eslint error-level findings (gate is zero)"
+            exit 1
+          fi
       - name: "vitest (baseline: 0 failed / 517 total)"
         run: |
           # The suite is fully green: 517 tests, 0 failed. The failed budget

@@ -2,7 +2,7 @@
  * Performance Optimization Utilities
  * Tools for improving React performance and user experience
  */
-import { memo, useMemo, useCallback, useRef, useEffect, useState } from 'react';
+import React, { memo, useMemo, useCallback, useRef, useEffect, useState } from 'react';
 import { debounce, throttle } from 'lodash';
 
 /**

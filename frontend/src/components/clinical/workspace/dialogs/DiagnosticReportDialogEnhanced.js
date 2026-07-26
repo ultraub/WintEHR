@@ -56,6 +56,7 @@ import {
   Close as CloseIcon,
   Search as SearchIcon,
   Description as ReportIcon,
+  Description as DescriptionIcon,
   Event as EventIcon,
   LocationOn as LocationIcon,
   Person as PersonIcon,
