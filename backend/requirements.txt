@@ -2,6 +2,10 @@
 fastapi>=0.104.1
 uvicorn[standard]>=0.24.0
 pydantic>=2.5.0
+# EmailStr in api/auth/models.py needs this. It used to arrive transitively via
+# fhir.resources, which was an unused shim and has been removed — so the
+# dependency is now declared where it is actually used.
+email-validator>=2.3.0
 sqlalchemy>=2.0.23
 
 # WebSocket support
@@ -41,7 +45,6 @@ pytest-asyncio==0.21.1
 aiosqlite>=0.19.0  # Async SQLite for test fixtures
 
 # FHIR specific
-fhir.resources==7.1.0
 fhirclient==4.2.1  # SMART on FHIR Python client for HAPI FHIR integration
 
 # Synthea integration
