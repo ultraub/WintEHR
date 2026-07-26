@@ -4,13 +4,11 @@ Provides clinical reference data, lab catalogs with reference ranges,
 and vital sign references for CDS Hooks condition evaluation
 """
 
-from fastapi import APIRouter, Query, HTTPException, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Query, HTTPException
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
 
-from database import get_db_session
 from api.services.clinical.dynamic_catalog_service import DynamicCatalogService
 
 router = APIRouter(prefix="/api/clinical", tags=["CDS Clinical Data"])
@@ -575,12 +573,13 @@ async def get_lab_catalog(
     search: Optional[str] = Query(None, description="Search term for lab test"),
     category: Optional[str] = Query(None, description="Filter by category"),
     limit: int = Query(50, ge=1, le=100),
-    db: AsyncSession = Depends(get_db_session)
 ):
     """Get lab test catalog with reference ranges for CDS Hooks - DYNAMIC ONLY."""
-    
-    # Use dynamic catalog from actual patient data - NO FALLBACK
-    dynamic_service = DynamicCatalogService(db)
+
+    # Use dynamic catalog from actual patient data - NO FALLBACK.
+    # The service reads from HAPI over HTTP; it takes no DB session (passing
+    # one was a TypeError that 500'd this endpoint on every request).
+    dynamic_service = DynamicCatalogService()
     dynamic_labs = await dynamic_service.extract_lab_test_catalog(limit)
     
     # Convert to the expected format
@@ -667,12 +666,12 @@ async def get_condition_catalog(
     search: Optional[str] = Query(None, description="Search term for condition"),
     category: Optional[str] = Query(None, description="Filter by category"),
     limit: int = Query(50, ge=1, le=100),
-    db: AsyncSession = Depends(get_db_session)
 ):
     """Get medical condition catalog for CDS Hooks - DYNAMIC ONLY."""
-    
-    # Use dynamic catalog from actual patient data - NO FALLBACK
-    dynamic_service = DynamicCatalogService(db)
+
+    # Use dynamic catalog from actual patient data - NO FALLBACK.
+    # No DB session — see get_lab_catalog.
+    dynamic_service = DynamicCatalogService()
     dynamic_conditions = await dynamic_service.extract_condition_catalog(limit)
     
     # Convert to the expected format

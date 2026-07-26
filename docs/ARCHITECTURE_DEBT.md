@@ -113,7 +113,7 @@ scratch (the two existing importers share zero code).
 
 | # | Bug | Where |
 |---|-----|-------|
-| B1 | `DynamicCatalogService(db)` called with a session its `__init__` doesn't accept → `TypeError` at request time on `/api/clinical/lab-catalog` and `/api/clinical/condition-catalog` | `api/clinical/cds_clinical_data.py:583,675` vs `api/services/clinical/dynamic_catalog_service.py:31` |
+| B1 | ~~`DynamicCatalogService(db)` called with a session its `__init__` doesn't accept → `TypeError` at request time on `/api/clinical/lab-catalog` and `/api/clinical/condition-catalog`~~ **Fixed** — argless construction, unused db dependency dropped, 3 regression tests | `api/clinical/cds_clinical_data.py`, `tests/api/clinical/test_cds_clinical_data_catalogs.py` |
 | B2 | Keyboard tab lists have 10 entries vs registry's 12 — Administration and Inbox have no shortcut, and ctrl+Tab from either jumps to Summary (`indexOf → -1`) | `hooks/ui/useKeyboardNavigation.js:14-62`, `KeyboardShortcutsDialog.js:49-58` |
 | B3 | `GET /api/health` in `main.py` is shadowed by the CDS Hooks router's `/health` (registered at bare `/api` prefix, earlier) | `main.py:84` vs `cds_hooks_router.py:1736` |
 | B4 | 5 of 11 backend CDS hook types are invisible/uncreatable in every frontend surface (11 hook-type lists range 3–11 entries) | `api/cds_hooks/models.py:10` vs 10 frontend/backend lists |
