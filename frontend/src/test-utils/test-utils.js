@@ -3,7 +3,7 @@ import { render } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { createMedicalTheme } from '../themes/medicalTheme';
 import { AppProviders } from '../providers/AppProviders';
 import ErrorBoundary from '../components/ErrorBoundary';

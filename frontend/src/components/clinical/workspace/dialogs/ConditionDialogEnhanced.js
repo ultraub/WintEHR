@@ -75,7 +75,7 @@ import {
   HealthAndSafety as SafetyIcon
 } from '@mui/icons-material';
 import { DateTimePicker, LocalizationProvider } from '@mui/x-date-pickers';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 

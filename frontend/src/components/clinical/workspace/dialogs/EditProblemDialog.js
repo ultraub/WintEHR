@@ -4,7 +4,7 @@
  */
 import React, { useMemo } from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { Button } from '@mui/material';
 import { Delete as DeleteIcon } from '@mui/icons-material';
 import EnhancedBaseResourceDialog from '../../../base/EnhancedBaseResourceDialog';

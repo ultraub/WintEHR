@@ -71,7 +71,7 @@ import {
 } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { format, differenceInMinutes, addMinutes, isAfter, isBefore } from 'date-fns';
 import { debounce } from 'lodash';
 

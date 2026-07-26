@@ -4,7 +4,7 @@
  */
 import React, { useMemo, useRef, useState } from 'react';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import BaseResourceDialog from '../../../base/BaseResourceDialog';
 import ServiceRequestFormFields from './components/ServiceRequestFormFields';
 import {
