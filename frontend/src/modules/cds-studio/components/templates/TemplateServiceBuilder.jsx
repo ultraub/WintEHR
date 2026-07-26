@@ -37,6 +37,7 @@ import {
 import ConditionBuilder from '../builders/ConditionBuilder';
 import CardDesigner from '../builders/CardDesigner';
 import DisplayConfigPanel from '../builders/DisplayConfigPanel';
+import { CDS_HOOK_TYPE_OPTIONS } from '../../../../constants/cdsHookTypes';
 
 /**
  * Template Customization Wizard Component
@@ -317,12 +318,9 @@ const TemplateServiceBuilder = ({
                   label="Hook Type"
                   onChange={(e) => updateServiceInfo('hook', e.target.value)}
                 >
-                  <MenuItem value="patient-view">Patient View</MenuItem>
-                  <MenuItem value="medication-prescribe">Medication Prescribe</MenuItem>
-                  <MenuItem value="order-select">Order Select</MenuItem>
-                  <MenuItem value="order-sign">Order Sign</MenuItem>
-                  <MenuItem value="encounter-start">Encounter Start</MenuItem>
-                  <MenuItem value="encounter-discharge">Encounter Discharge</MenuItem>
+                  {CDS_HOOK_TYPE_OPTIONS.map(({ value, label }) => (
+                    <MenuItem key={value} value={value}>{label}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
 

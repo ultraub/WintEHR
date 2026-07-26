@@ -48,14 +48,12 @@ const CDSHooksContext = createContext(null);
 // don't have to import a separate constants file. Patient-view is the
 // only one fired automatically by this provider; the rest are fired by
 // callers via fireHook() or by dialog-scoped useCDSHooks instances.
-export const CDS_HOOK_TYPES = {
-  PATIENT_VIEW: 'patient-view',
-  MEDICATION_PRESCRIBE: 'medication-prescribe',
-  ORDER_SIGN: 'order-sign',
-  ORDER_SELECT: 'order-select',
-  ENCOUNTER_START: 'encounter-start',
-  ENCOUNTER_DISCHARGE: 'encounter-discharge',
-};
+// One hook-type source for the whole frontend (mirrors the backend enum;
+// this used to be one of 11 divergent lists — B4). Imported and re-exported
+// because most CDS consumers already import it from this context, and this
+// file uses it internally too.
+import { CDS_HOOK_TYPES } from '../constants/cdsHookTypes';
+export { CDS_HOOK_TYPES };
 
 // Map displayBehavior.defaultMode strings → CDSPresentation constants.
 // Sourced from the old CDSContext; the wizard exposes 'card', 'compact',

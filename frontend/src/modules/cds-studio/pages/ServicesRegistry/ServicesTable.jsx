@@ -40,6 +40,7 @@ import {
   Cloud as CloudIcon
 } from '@mui/icons-material';
 import cdsStudioApi from '../../services/cdsStudioApi';
+import { CDS_HOOK_TYPE_OPTIONS } from '../../../../constants/cdsHookTypes';
 
 const ServicesTable = ({ onSelectService, onEditService, onRefresh }) => {
   const [services, setServices] = useState([]);
@@ -208,12 +209,9 @@ const ServicesTable = ({ onSelectService, onEditService, onRefresh }) => {
             onChange={(e) => setFilters({ ...filters, hook_type: e.target.value })}
           >
             <MenuItem value="">All</MenuItem>
-            <MenuItem value="patient-view">patient-view</MenuItem>
-            <MenuItem value="medication-prescribe">medication-prescribe</MenuItem>
-            <MenuItem value="order-select">order-select</MenuItem>
-            <MenuItem value="order-sign">order-sign</MenuItem>
-            <MenuItem value="encounter-start">encounter-start</MenuItem>
-            <MenuItem value="encounter-discharge">encounter-discharge</MenuItem>
+            {CDS_HOOK_TYPE_OPTIONS.map(({ value }) => (
+              <MenuItem key={value} value={value}>{value}</MenuItem>
+            ))}
           </Select>
         </FormControl>
 

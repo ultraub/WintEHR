@@ -56,6 +56,7 @@ import cdsStudioApi from '../../services/cdsStudioApi';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { extractCardDefinesFromCQL, detectCardDefines } from '../../utils/cqlDefineExtractor';
 import axios from 'axios';
+import { CDS_HOOK_TYPE_OPTIONS } from '../../../../constants/cdsHookTypes';
 
 const CQL_SERVICE_TYPE = 'cql-based';
 
@@ -658,9 +659,11 @@ const VisualBuilderWizard = ({ open, onClose, onSuccess, existingService = null 
               onChange={(e) => setServiceConfig({ ...serviceConfig, hook_type: e.target.value })}
               label="Hook Type"
             >
-              <MenuItem value="patient-view">Patient View</MenuItem>
-              <MenuItem value="order-select">Order Select</MenuItem>
-              <MenuItem value="order-sign">Order Sign</MenuItem>
+              {/* All backend-supported hooks — this wizard silently offered
+                  only 3 of 11 before (B4) */}
+              {CDS_HOOK_TYPE_OPTIONS.map(({ value, label }) => (
+                <MenuItem key={value} value={value}>{label}</MenuItem>
+              ))}
             </Select>
           </FormControl>
         </Grid>

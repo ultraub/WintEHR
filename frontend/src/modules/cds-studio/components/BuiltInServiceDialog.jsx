@@ -28,15 +28,10 @@ import {
 } from '@mui/icons-material';
 import CodeEditor from './CodeEditor';
 import cdsStudioApi from '../services/cdsStudioApi';
+import { CDS_HOOK_TYPE_OPTIONS } from '../../../constants/cdsHookTypes';
 
-const HOOK_TYPES = [
-  { value: 'patient-view', label: 'Patient View' },
-  { value: 'medication-prescribe', label: 'Medication Prescribe' },
-  { value: 'order-select', label: 'Order Select' },
-  { value: 'order-sign', label: 'Order Sign' },
-  { value: 'encounter-start', label: 'Encounter Start' },
-  { value: 'encounter-discharge', label: 'Encounter Discharge' }
-];
+// One hook-type source (B4) — all 11 backend-supported hooks.
+const HOOK_TYPES = CDS_HOOK_TYPE_OPTIONS;
 
 const SERVICE_STATUS = [
   { value: 'draft', label: 'Draft' },

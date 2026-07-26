@@ -3,6 +3,10 @@
  * Based on CDS Hooks 1.0 specification
  */
 
+// Single frontend hook-type source (B4) — the full set the backend engine
+// supports, not just the 6 standard hooks.
+import { CDS_HOOK_TYPES } from '../constants/cdsHookTypes';
+
 /**
  * CDS Service Definition
  * @typedef {Object} CDSService
@@ -17,14 +21,7 @@
 /**
  * Valid hook types per CDS Hooks specification
  */
-export const HOOK_TYPES = {
-  PATIENT_VIEW: 'patient-view',
-  MEDICATION_PRESCRIBE: 'medication-prescribe',
-  ORDER_SIGN: 'order-sign',
-  ORDER_SELECT: 'order-select',
-  ENCOUNTER_START: 'encounter-start',
-  ENCOUNTER_DISCHARGE: 'encounter-discharge'
-};
+export const HOOK_TYPES = CDS_HOOK_TYPES;
 
 /**
  * Card indicator levels
