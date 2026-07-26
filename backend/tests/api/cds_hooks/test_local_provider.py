@@ -241,10 +241,13 @@ class TestLocalServiceProvider:
                 return True
 
             async def execute(self, context, prefetch):
+                # source is REQUIRED on a Card per the CDS Hooks spec —
+                # the Card model enforces it.
                 return {
                     "cards": [{
                         "summary": "Dynamic class test",
-                        "indicator": "info"
+                        "indicator": "info",
+                        "source": {"label": "Dynamic Test Service"}
                     }]
                 }
 

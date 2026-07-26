@@ -508,7 +508,9 @@ class CDSHooksClient {
         hook: hookType,
         hookInstance: uuidv4(),
         context,
-        fhirServer: window.location.origin + '/fhir/R4'
+        // The HAPI proxy is mounted at /fhir (not /fhir/R4). http is fine —
+        // this platform's deployments are http and the backend accepts it.
+        fhirServer: window.location.origin + '/fhir'
       };
       
       if (prefetch) {

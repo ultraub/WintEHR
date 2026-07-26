@@ -113,7 +113,7 @@ module's deltas on top of this file.
 
 ## Tech stack
 
-- **Backend**: FastAPI (Python 3.9+), HAPI FHIR JPA v8.8.0-1, PostgreSQL 15 with
+- **Backend**: FastAPI (Python 3.12 — Dockerfiles and CI both pin it), HAPI FHIR JPA v8.8.0-1, PostgreSQL 15 with
   async SQLAlchemy, Redis 7, Pydantic V2, pytest.
 - **Frontend**: React 18, MUI v5, React Router v6, Context API, Vite 7 (build + dev server), Vitest.
 

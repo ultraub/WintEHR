@@ -10,6 +10,7 @@ Features:
 - Timeout handling and graceful degradation
 """
 
+import inspect
 import logging
 import httpx
 import hmac
@@ -25,6 +26,10 @@ from ..models import CDSHookRequest, CDSHookResponse, Card
 
 logger = logging.getLogger(__name__)
 
+# One timeout policy for all external calls; a slow external service must
+# never hold a hook response open indefinitely.
+_HTTP_TIMEOUT_SECONDS = 30.0
+
 
 class RemoteServiceProvider(BaseServiceProvider):
     """
@@ -32,17 +37,17 @@ class RemoteServiceProvider(BaseServiceProvider):
 
     Execution flow:
     1. Check if service is auto-disabled
-    2. Retrieve service endpoint from database
+    2. Resolve the service endpoint from metadata
     3. Prepare authentication headers
     4. POST CDS Hooks request to external service
     5. Parse response and return cards
     6. Track failures and auto-disable if threshold exceeded
 
-    Educational notes:
-    - Implements CDS Hooks 1.0 HTTP request/response specification
-    - Handles various authentication mechanisms
-    - Provides graceful degradation on failures
-    - Prevents cascading failures via auto-disable
+    Failure contract: `execute()` NEVER raises. Any failure is tracked
+    (consecutive-failure counters in external_services.services) and degrades
+    to an empty card list — CDS is advisory, and a dead external service must
+    not break the clinician-facing hook response. The router keeps its own
+    catch-all as a second net, but the contract lives here.
     """
 
     def __init__(self, db_session=None):
@@ -55,10 +60,6 @@ class RemoteServiceProvider(BaseServiceProvider):
         super().__init__()
         self.provider_type = "remote"
         self.db = db_session
-        self.http_client = httpx.AsyncClient(
-            timeout=30.0,  # 30 second timeout
-            follow_redirects=True
-        )
         self.failure_threshold = 5  # Auto-disable after 5 consecutive failures
 
     async def should_execute(
@@ -94,14 +95,11 @@ class RemoteServiceProvider(BaseServiceProvider):
             service_metadata: External service DB record with URL and auth
 
         Returns:
-            CDSHookResponse with cards from external service
-
-        Raises:
-            ValueError: If service metadata not provided
-            Exception: If HTTP request fails
+            CDSHookResponse with cards from the external service, or an empty
+            card list on any failure (after tracking it). Never raises.
         """
+        service_id = plan_definition.get("id", "unknown")
         try:
-            service_id = plan_definition.get("id", "unknown")
             logger.info(f"Executing remote service: {service_id}")
 
             if not service_metadata:
@@ -112,38 +110,51 @@ class RemoteServiceProvider(BaseServiceProvider):
                 logger.warning(f"  Service {service_id} is auto-disabled due to consecutive failures")
                 return CDSHookResponse(cards=[])
 
-            # Extract service endpoint
-            service_url = service_metadata.get("service_url")
+            service_url = self._resolve_service_url(plan_definition, service_metadata)
             if not service_url:
                 raise ValueError(f"No service URL found for service {service_id}")
 
             logger.debug(f"  Service URL: {service_url}")
 
-            # Prepare authentication
-            headers = self._prepare_auth_headers(service_metadata)
-
-            # Prepare request body (CDS Hooks specification)
+            # Prepare request body (CDS Hooks specification). fhirAuthorization
+            # is a pydantic model — serialize it, or json encoding blows up the
+            # first time a caller actually supplies one.
             request_body = {
                 "hook": hook_request.hook,
                 "hookInstance": hook_request.hookInstance,
                 "fhirServer": hook_request.fhirServer,
-                "fhirAuthorization": hook_request.fhirAuthorization,
+                "fhirAuthorization": (
+                    hook_request.fhirAuthorization.model_dump()
+                    if hook_request.fhirAuthorization is not None else None
+                ),
                 "context": hook_request.context,
                 "prefetch": hook_request.prefetch or {}
             }
 
+            # Prepare authentication (HMAC signs the body, so body comes first)
+            headers = self._prepare_auth_headers(service_metadata, request_body)
+
             logger.debug(f"  Sending CDS Hooks request...")
 
-            # POST to external service
-            response = await self.http_client.post(
-                service_url,
-                json=request_body,
-                headers=headers
-            )
+            # One client per call, closed deterministically. The previous
+            # long-lived client was created per provider instance and the
+            # router constructs a provider per request without ever calling
+            # close() — leaking a connection pool on every external hook fire.
+            async with httpx.AsyncClient(
+                timeout=_HTTP_TIMEOUT_SECONDS,
+                follow_redirects=True
+            ) as client:
+                response = await client.post(
+                    service_url,
+                    json=request_body,
+                    headers=headers
+                )
 
-            response.raise_for_status()
+            # Explicit status check (rather than raise_for_status) so the
+            # failure path is uniform with every other failure below.
+            if response.status_code >= 400:
+                raise Exception(f"HTTP error from external service: {response.status_code}")
 
-            # Parse response
             response_data = response.json()
 
             logger.info(f"  ✅ Received response from external service")
@@ -170,30 +181,98 @@ class RemoteServiceProvider(BaseServiceProvider):
 
             return CDSHookResponse(cards=card_objects)
 
-        except httpx.HTTPStatusError as e:
-            error_msg = f"HTTP error from external service: {e.response.status_code}"
-            logger.error(f"  ❌ {error_msg}")
-            await self._handle_failure(service_id, error_msg)
-            raise Exception(error_msg) from e
-
-        except httpx.TimeoutException as e:
-            error_msg = f"Timeout calling external service"
-            logger.error(f"  ❌ {error_msg}")
-            await self._handle_failure(service_id, error_msg)
-            raise Exception(error_msg) from e
-
+        except httpx.TimeoutException:
+            return await self._degrade(service_id, "Timeout calling external service")
+        except httpx.RequestError as e:
+            return await self._degrade(service_id, f"Connection error calling external service: {e}")
         except Exception as e:
-            error_msg = f"Failed to execute remote service: {str(e)}"
-            logger.error(f"  ❌ {error_msg}", exc_info=True)
-            await self._handle_failure(service_id, error_msg)
-            raise Exception(error_msg) from e
+            return await self._degrade(service_id, f"Failed to execute remote service: {e}")
 
-    def _prepare_auth_headers(self, service_metadata: Dict[str, Any]) -> Dict[str, str]:
+    async def _degrade(self, service_id: str, error_msg: str) -> CDSHookResponse:
+        """Track the failure, log it, and return an empty (non-blocking) response."""
+        logger.error(f"  ❌ {error_msg}")
+        await self._handle_failure(service_id, error_msg)
+        return CDSHookResponse(cards=[])
+
+    def _resolve_service_url(
+        self,
+        plan_definition: Dict[str, Any],
+        service_metadata: Dict[str, Any]
+    ) -> Optional[str]:
         """
-        Prepare authentication headers based on service auth type
+        Resolve the endpoint to POST to.
+
+        The production SQL row computes it directly
+        (base_url || '/cds-services/' || hook_service_id AS service_url).
+        When only base_url is present, derive the same shape the CDS Hooks
+        spec defines: {baseUrl}/cds-services/{service.id}, taking the service
+        id from the metadata row or the PlanDefinition's hook-service-id
+        extension.
+        """
+        service_url = service_metadata.get("service_url")
+        if service_url:
+            return service_url
+
+        base_url = service_metadata.get("base_url")
+        if not base_url:
+            return None
+
+        hook_service_id = service_metadata.get("hook_service_id")
+        if not hook_service_id:
+            for ext in plan_definition.get("extension", []):
+                if ext.get("url") == "http://wintehr.local/fhir/StructureDefinition/hook-service-id":
+                    hook_service_id = ext.get("valueString")
+                    break
+        if not hook_service_id:
+            return None
+
+        return f"{base_url.rstrip('/')}/cds-services/{hook_service_id}"
+
+    def _decrypt_credentials(self, service_metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Recover the credentials dict from external_services.services.credentials_encrypted.
+
+        The registry (api/external_services/service.py) stores Fernet-encrypted
+        JSON, so that path is tried first. Plain JSON and bare-string secrets
+        are accepted as fallbacks — this is a training platform and fixtures /
+        hand-registered services routinely hold unencrypted values.
+        """
+        raw = service_metadata.get("credentials_encrypted")
+        if not raw:
+            return {}
+
+        try:
+            from api.external_services.service import EncryptionService
+            return EncryptionService().decrypt(raw)
+        except Exception:
+            pass
+
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return parsed
+        except (ValueError, TypeError):
+            pass
+
+        # Bare string — treat it as the secret itself.
+        return {"secret": raw}
+
+    def _prepare_auth_headers(
+        self,
+        service_metadata: Dict[str, Any],
+        request_body: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, str]:
+        """
+        Prepare authentication headers from the external_services.services row.
+
+        Reads the columns the production query actually supplies (auth_type +
+        credentials_encrypted). The earlier implementation read an "auth_config"
+        key that no caller ever passed, so external-service auth silently never
+        attached credentials.
 
         Args:
-            service_metadata: Service database record with auth configuration
+            service_metadata: Service database record
+            request_body: The outgoing CDS Hooks body (HMAC signs it)
 
         Returns:
             Headers dictionary with authentication
@@ -203,27 +282,38 @@ class RemoteServiceProvider(BaseServiceProvider):
             "Accept": "application/json"
         }
 
-        auth_config = service_metadata.get("auth_config", {})
-        auth_type = auth_config.get("type", "none")
+        auth_type = (service_metadata.get("auth_type") or "none").lower()
+        if auth_type == "none":
+            return headers
+
+        creds = self._decrypt_credentials(service_metadata)
 
         if auth_type == "api_key":
-            # API Key authentication
-            api_key = auth_config.get("api_key")
-            header_name = auth_config.get("header_name", "Authorization")
-            header_value = auth_config.get("header_value_format", "Bearer {api_key}")
-
+            api_key = creds.get("api_key") or creds.get("key") or creds.get("secret")
+            header_name = creds.get("header_name", "X-API-Key")
             if api_key:
-                headers[header_name] = header_value.format(api_key=api_key)
+                headers[header_name] = api_key
+            else:
+                logger.warning("  api_key auth configured but no key found in credentials")
 
         elif auth_type == "oauth2":
-            # OAuth2 Bearer token
-            access_token = auth_config.get("access_token")
-            if access_token:
-                headers["Authorization"] = f"Bearer {access_token}"
+            token = creds.get("access_token") or creds.get("token") or creds.get("secret")
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            else:
+                logger.warning("  oauth2 auth configured but no token found in credentials")
 
         elif auth_type == "hmac":
-            # HMAC signature (future implementation)
-            logger.warning("HMAC authentication not yet implemented")
+            secret = creds.get("secret") or creds.get("hmac_secret")
+            if secret and request_body is not None:
+                payload = json.dumps(request_body, sort_keys=True, default=str).encode()
+                signature = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+                headers["X-HMAC-Signature"] = signature
+            else:
+                logger.warning("  hmac auth configured but no secret found in credentials")
+
+        else:
+            logger.warning(f"  Unknown auth_type '{auth_type}' — sending unauthenticated")
 
         return headers
 
@@ -264,6 +354,11 @@ class RemoteServiceProvider(BaseServiceProvider):
                 RETURNING s.consecutive_failures, s.auto_disabled
             """), {"err": error_message, "threshold": self.failure_threshold, "sid": service_id})).first()
             await self.db.commit()
+
+            # Mocked sessions in tests hand back awaitables; unwrap so the
+            # logging below never explodes inside an error handler.
+            if inspect.isawaitable(row):
+                row = None
 
             if row is None:
                 logger.warning(f"  Service {service_id} not found in external_services registry")
@@ -307,7 +402,3 @@ class RemoteServiceProvider(BaseServiceProvider):
 
         except Exception as e:
             logger.error(f"  Error resetting failure count: {e}")
-
-    async def close(self):
-        """Close HTTP client connection"""
-        await self.http_client.aclose()

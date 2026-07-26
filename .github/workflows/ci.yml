@@ -1,9 +1,8 @@
-# Minimal CI: both test suites run on every PR, gated against the known
-# baseline failure counts rather than zero — the suites carry documented
-# pre-existing failures (backend: CDS-hooks test-infra issues; frontend:
-# legacy suites), so "no NEW failures" is the honest, enforceable bar.
-# Ratchet the numbers DOWN as suites get fixed; never up without a PR that
-# explains why.
+# Minimal CI: both test suites run on every PR, gated against known baselines.
+# The BACKEND suite is fully green (0 failed / 0 errors) — that gate is now a
+# hard zero. The frontend still carries documented legacy failures, so its gate
+# is "no NEW failures". Ratchet the frontend numbers DOWN as suites get fixed;
+# never loosen either gate without a PR that explains why.
 name: CI
 
 on:
@@ -31,7 +30,7 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
-      - name: "pytest (baseline: 40 failed / 0 errors / 400 passed / 445 outcomes)"
+      - name: "pytest (baseline: 0 failed / 0 errors / 440 passed / 445 outcomes)"
         run: |
           python -m pytest tests/ -q --tb=no > pytest.out 2>&1 || true
           tail -3 pytest.out
@@ -42,7 +41,7 @@ jobs:
           FAILED=${FAILED:-0}; ERRORS=${ERRORS:-0}; PASSED=${PASSED:-0}; SKIPPED=${SKIPPED:-0}
           OUTCOMES=$((FAILED + PASSED + SKIPPED))
           echo "passed=$PASSED failed=$FAILED errors=$ERRORS skipped=$SKIPPED outcomes=$OUTCOMES"
-          echo "baseline: failed<=40, errors<=0, passed>=400, outcomes>=445"
+          echo "baseline: failed<=0, errors<=0, passed>=440, outcomes>=445"
           # OUTCOMES is the load-bearing check. A test that stops RUNNING
           # reports nothing — not a failure, not an error, not a skip — so a
           # failure-count gate reads the loss as an improvement.
@@ -59,8 +58,8 @@ jobs:
           #
           # Never lower these to make a build green. If tests are legitimately
           # removed, lower them in that same PR and say why.
-          if [ "$FAILED" -gt 40 ] || [ "$ERRORS" -gt 0 ] || [ "$PASSED" -lt 400 ] || [ "$OUTCOMES" -lt 445 ]; then
-            echo "::error::Test results regressed past the baseline (failed<=40, errors<=0, passed>=400, outcomes>=445)"
+          if [ "$FAILED" -gt 0 ] || [ "$ERRORS" -gt 0 ] || [ "$PASSED" -lt 440 ] || [ "$OUTCOMES" -lt 445 ]; then
+            echo "::error::Test results regressed past the baseline (failed<=0, errors<=0, passed>=440, outcomes>=445)"
             exit 1
           fi
 

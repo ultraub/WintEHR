@@ -168,7 +168,7 @@ class TestFailureTracking:
         }
 
         # Mock successful response
-        mock_response = AsyncMock()
+        mock_response = MagicMock()  # httpx.Response API is sync
         mock_response.status_code = 200
         mock_response.json.return_value = {"cards": []}
 
@@ -375,7 +375,7 @@ class TestFailureTypes:
         test_db
     ):
         """Test HTTP error status codes are tracked"""
-        mock_response = AsyncMock()
+        mock_response = MagicMock()  # httpx.Response API is sync
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
 
@@ -405,7 +405,7 @@ class TestFailureTypes:
         test_db
     ):
         """Test malformed responses are tracked as failures"""
-        mock_response = AsyncMock()
+        mock_response = MagicMock()  # httpx.Response API is sync
         mock_response.status_code = 200
         mock_response.json.side_effect = ValueError("Invalid JSON")
 
