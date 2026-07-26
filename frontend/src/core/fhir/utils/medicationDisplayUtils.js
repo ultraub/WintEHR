@@ -3,6 +3,8 @@
  * Shared functions for consistent medication information display across the application
  */
 
+import { getCodeableConceptDisplay } from './fhirFieldUtils';
+
 /**
  * Gets medication name from either R4 (medicationCodeableConcept) or R5 (medication.concept) format
  * Also supports resolving medicationReference if a lookup map or array is provided
@@ -16,19 +18,19 @@ export const getMedicationName = (medicationRequest, medicationsLookup = null) =
   // R5 format: medication.concept
   if (medicationRequest.medication?.concept) {
     const concept = medicationRequest.medication.concept;
-    return concept.text || concept.coding?.[0]?.display || 'Unknown medication';
+    return getCodeableConceptDisplay(concept, 'Unknown medication');
   }
 
   // R4 format: medicationCodeableConcept (legacy support)
   if (medicationRequest.medicationCodeableConcept) {
     const concept = medicationRequest.medicationCodeableConcept;
-    return concept.text || concept.coding?.[0]?.display || 'Unknown medication';
+    return getCodeableConceptDisplay(concept, 'Unknown medication');
   }
 
   // Check for resolved medication concept (added by FHIRResourceContext from _include)
   if (medicationRequest._resolvedMedicationCodeableConcept) {
     const concept = medicationRequest._resolvedMedicationCodeableConcept;
-    return concept.text || concept.coding?.[0]?.display || 'Unknown medication';
+    return getCodeableConceptDisplay(concept, 'Unknown medication');
   }
 
   // Reference format - try to resolve from lookup
@@ -54,7 +56,7 @@ export const getMedicationName = (medicationRequest, medicationsLookup = null) =
       }
 
       if (medication?.code) {
-        return medication.code.text || medication.code.coding?.[0]?.display || 'Unknown medication';
+        return getCodeableConceptDisplay(medication.code, 'Unknown medication');
       }
     }
 

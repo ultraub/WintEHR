@@ -87,6 +87,7 @@ import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { useMedicationResolver } from '../../../../core/fhir/hooks/useMedicationResolver';
+import { getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import ResourceDataGrid from '../../../common/ResourceDataGrid';
 import ConditionDialogEnhanced from '../dialogs/ConditionDialogEnhanced';
@@ -1837,10 +1838,7 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
 
 const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNavigateToTab, resolvedName }) => {
   const theme = useTheme();
-  const medicationDisplay = resolvedName ||
-                          medication.medicationCodeableConcept?.text ||
-                          medication.medicationCodeableConcept?.coding?.[0]?.display ||
-                          'Unknown medication';
+  const medicationDisplay = resolvedName || getMedicationName(medication);
   const dosage = medication.dosageInstruction?.[0];
   const isActive = ['active', 'on-hold'].includes(medication.status);
   

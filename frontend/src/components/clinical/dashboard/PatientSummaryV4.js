@@ -41,6 +41,11 @@ import CDSPresentation from '../cds/CDSPresentation';
 import { usePatientCDSAlerts } from '../../../contexts/CDSHooksContext';
 import { cdsDisplayBehaviorService } from '../../../services/cdsDisplayBehaviorService';
 import { useMedicationResolver } from '../../../core/fhir/hooks/useMedicationResolver';
+import {
+  getCodeableConceptDisplay,
+  isConditionActive,
+  isMedicationActive,
+} from '../../../core/fhir/utils/fhirFieldUtils';
 
 const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
   
@@ -242,25 +247,20 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
     };
   }, [currentPatient]);
 
-  // Active conditions
+  // Active conditions — same strict definition the Summary tab uses
+  // (isConditionActive). Conditions without a clinicalStatus (e.g. MIMIC
+  // billing diagnoses, where the field is legitimately absent) are not
+  // claimed as active: this card previously said "ACTIVE PROBLEMS 5" while
+  // the Summary tab said 0 for the same patient.
   const activeConditions = useMemo(() => {
-    return conditions
-      .filter(condition => 
-        condition.clinicalStatus?.coding?.[0]?.code === 'active' ||
-        !condition.clinicalStatus
-      )
-      .slice(0, 5);
+    return conditions.filter(isConditionActive).slice(0, 5);
   }, [conditions]);
 
-  // Current medications
+  // Current medications — strict isMedicationActive, matching the Summary
+  // tab. This card previously counted status=completed (and status-absent)
+  // as "current", which misrepresents finished historical orders.
   const currentMedications = useMemo(() => {
-    return medications
-      .filter(med => 
-        med.status === 'active' || 
-        med.status === 'completed' ||
-        !med.status
-      )
-      .slice(0, 5);
+    return medications.filter(isMedicationActive).slice(0, 5);
   }, [medications]);
 
   // Recent vitals
@@ -585,7 +585,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   {activeConditions.slice(0, 3).map((condition, index) => (
                     <Box key={condition.id} sx={{ py: 0.5 }}>
                       <Typography variant="body2" noWrap>
-                        {condition.code?.text || 'Unknown condition'}
+                        {getCodeableConceptDisplay(condition.code, 'Unknown condition')}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {condition.onsetDateTime ? format(parseISO(condition.onsetDateTime), 'MMM yyyy') : 'Unknown onset'}
@@ -725,7 +725,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   {recentVitals.slice(0, 3).map((vital, index) => (
                     <Box key={vital.id} sx={{ py: 0.5 }}>
                       <Typography variant="body2" noWrap>
-                        {vital.code?.text || 'Unknown vital'}
+                        {getCodeableConceptDisplay(vital.code, 'Unknown vital')}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {vital.valueQuantity?.value || '--'} {vital.valueQuantity?.unit || ''}
@@ -793,7 +793,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                   {activeAllergies.slice(0, 3).map((allergy, index) => (
                     <Box key={allergy.id} sx={{ py: 0.5 }}>
                       <Typography variant="body2" noWrap>
-                        {allergy.code?.text || 'Unknown allergen'}
+                        {getCodeableConceptDisplay(allergy.code, 'Unknown allergen')}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {allergy.criticality || 'Unknown'} severity
