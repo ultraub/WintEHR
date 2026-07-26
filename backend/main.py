@@ -103,6 +103,9 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
+        # Security middleware already sets "Server: HealthcareServer";
+        # uvicorn's own header duplicated it (nginx warned on every response).
+        server_header=False,
         port=8000,
         reload=True
     )

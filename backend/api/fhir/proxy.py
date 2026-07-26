@@ -169,6 +169,17 @@ _raw_hapi_url = os.getenv("HAPI_FHIR_URL", "http://hapi-fhir:8080/fhir")
 HAPI_FHIR_BASE_URL = _raw_hapi_url.rstrip("/").removesuffix("/fhir")
 
 
+# Explicit base routes: `POST [base]` is the FHIR-standard way to submit a
+# transaction Bundle, but FastAPI's redirect_slashes 301'd the bare paths —
+# and HTTP clients turn a redirected POST into a GET, silently discarding the
+# transaction. Every spec-compliant FHIR client hits this.
+@router.api_route("/fhir", methods=["GET", "POST"])
+@router.api_route("/fhir/R4", methods=["GET", "POST"])
+async def proxy_fhir_base(request: Request):
+    """Proxy FHIR base requests (transaction/batch Bundles, capability)."""
+    return await proxy_to_hapi_fhir("", request)
+
+
 @router.api_route("/fhir/R4/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_fhir_r4(path: str, request: Request):
     """Proxy /fhir/R4/* requests (used by frontend)."""
