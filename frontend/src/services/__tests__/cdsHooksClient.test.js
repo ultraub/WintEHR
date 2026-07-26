@@ -5,10 +5,20 @@
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import { cdsHooksClient } from '../cdsHooksClient';
+import { cdsPrefetchResolver } from '../cdsPrefetchResolver';
 import { v4 as uuidv4 } from 'uuid';
 
-// Create mock adapter
-const mock = new MockAdapter(axios);
+// The prefetch resolver reaches for the real FHIR client — in tests that's a
+// live network call that hangs to the 30s axios timeout and blows the 5s test
+// budget. Hooks under test only need it to resolve fast.
+vi.spyOn(cdsPrefetchResolver, 'resolvePrefetchTemplates').mockResolvedValue({});
+vi.spyOn(cdsPrefetchResolver, 'buildCommonPrefetch').mockResolvedValue({});
+
+// Mock the CLIENT'S OWN axios instance. The client builds a private
+// instance via axios.create(), so an adapter on the global `axios` export
+// intercepts nothing — every request passed through and failed, and the
+// client's graceful degradation turned each test into `[]`.
+const mock = new MockAdapter(cdsHooksClient.httpClient);
 
 describe('CDSHooksClient', () => {
   beforeEach(() => {
