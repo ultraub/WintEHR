@@ -46,6 +46,7 @@ import {
   Close as CloseIcon,
   Search as SearchIcon,
   Assignment as ServiceIcon,
+  Assignment as AssignmentIcon,
   Event as EventIcon,
   LocationOn as LocationIcon,
   Person as PersonIcon,

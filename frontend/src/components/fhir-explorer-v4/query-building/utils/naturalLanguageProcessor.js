@@ -41,7 +41,6 @@ const MEDICAL_TERMS = {
   'oxygen saturation': { codes: ['2708-6'], system: 'http://loinc.org', display: 'Oxygen saturation' },
   'o2 sat': { codes: ['2708-6'], system: 'http://loinc.org', display: 'Oxygen saturation' },
   'spo2': { codes: ['2708-6'], system: 'http://loinc.org', display: 'Oxygen saturation' },
-  'blood pressure': { codes: ['85354-9'], system: 'http://loinc.org', display: 'Blood pressure panel' },
   'bp': { codes: ['85354-9'], system: 'http://loinc.org', display: 'Blood pressure panel' },
   'weight': { codes: ['29463-7'], system: 'http://loinc.org', display: 'Body weight' },
   'height': { codes: ['8302-2'], system: 'http://loinc.org', display: 'Body height' },

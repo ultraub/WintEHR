@@ -63,7 +63,9 @@ function PaginatedPatientList() {
   // UI state
   const [openNewPatient, setOpenNewPatient] = useState(false);
   const [activeTab, setActiveTab] = useState(1); // 0: My Patients, 1: All Patients
-  const [, setMyPatientsCount] = useState(0);
+  // The tab badge renders this value — discarding it made the badge a
+  // ReferenceError. (Found when the lint gate went hard.)
+  const [myPatientsCount, setMyPatientsCount] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Responsive columns configuration

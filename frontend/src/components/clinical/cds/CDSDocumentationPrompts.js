@@ -345,7 +345,7 @@ const CDSDocumentationPrompts = ({
               <Stack spacing={1}>
                 {selectedPrompt.suggestedActions.map((action, index) => (
                   <Chip
-                    key={`bullet-${bullet.substring(0, 20)}-${index}`}
+                    key={`action-${(action.description || '').substring(0, 20)}-${index}`}
                     label={action.description}
                     variant="outlined"
                     color="primary"

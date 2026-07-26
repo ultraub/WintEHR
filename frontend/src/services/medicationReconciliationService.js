@@ -564,13 +564,16 @@ class MedicationReconciliationService {
       content: [{
         attachment: {
           contentType: 'application/json',
-          data: Buffer.from(JSON.stringify({
+          // btoa, not Buffer — this runs in the browser, where Buffer does
+          // not exist (it threw ReferenceError the moment this path ran).
+          // encodeURIComponent round-trip keeps non-ASCII JSON btoa-safe.
+          data: btoa(unescape(encodeURIComponent(JSON.stringify({
             reconciliationDate: new Date().toISOString(),
             changesRequested: changes.length,
             changesApplied: results.filter(r => r.result.success).length,
             changesFailed: results.filter(r => !r.result.success).length,
             details: results
-          })).toString('base64')
+          }))))
         }
       }]
     };
