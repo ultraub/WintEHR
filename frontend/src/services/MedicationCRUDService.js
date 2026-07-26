@@ -1,21 +1,21 @@
 /**
  * Medication CRUD Service
- * Consolidated service for medication search, CRUD operations, and basic workflows
- * 
- * This service consolidates functionality from:
- * - medicationSearchService (search, drug interactions, allergies)
- * - medicationDiscontinuationService (discontinuation workflows)
- * - medicationEffectivenessService (monitoring and assessment)
- * - medicationListManagementService (list management and synchronization)
- * 
- * Note: All existing services remain unchanged and functional.
- * This provides an alternative unified interface.
+ *
+ * Scope (deliberately narrow): the local medication catalog (search, dosing,
+ * interaction/allergy checks against COMMON_MEDICATIONS) and patient
+ * medication-List management. Real consumers: MedicationListManager and
+ * useMedicationLists.
+ *
+ * History: this began as a consolidation of six medication services, but the
+ * discontinuation / effectiveness-monitoring / list-synchronization paths were
+ * never finished (they called methods that were never written) and never
+ * gained a caller. Those paths were removed — the standalone services
+ * (medicationDiscontinuationService, medicationEffectivenessService,
+ * medicationListManagementService, ...) remain the canonical implementations.
+ * Do not re-grow this file toward them; extend the standalone services.
  */
 
 import { fhirClient } from '../core/fhir/services/fhirClient';
-import { CLINICAL_EVENTS } from '../contexts/ClinicalWorkflowContext';
-import { format, addDays, addWeeks, addMonths, parseISO, isAfter, differenceInDays } from 'date-fns';
-import { EXTENSION_URLS } from '../constants/fhirExtensions';
 import api from './api';
 
 class MedicationCRUDService {
@@ -256,235 +256,6 @@ class MedicationCRUDService {
   }
 
   // ====================================================================
-  // MEDICATION DISCONTINUATION FUNCTIONALITY
-  // ====================================================================
-
-  /**
-   * Discontinuation status definitions
-   * From medicationDiscontinuationService
-   */
-  DISCONTINUATION_STATUSES = {
-    PLANNED: 'planned',
-    IN_PROGRESS: 'in-progress',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-    FAILED: 'failed'
-  };
-
-  /**
-   * Discontinue a medication with comprehensive tracking
-   * From medicationDiscontinuationService.discontinueMedication()
-   */
-  async discontinue(discontinuationData) {
-    try {
-      const { medicationRequestId } = discontinuationData;
-      
-      // Get the original medication request
-      const originalRequest = await fhirClient.read('MedicationRequest', medicationRequestId);
-      
-      // Update the medication request status
-      const updatedRequest = {
-        ...originalRequest,
-        status: discontinuationData.discontinuationType === 'immediate' ? 'stopped' : 'on-hold',
-        statusReason: this.buildStatusReason(discontinuationData),
-        note: [
-          ...(originalRequest.note || []),
-          {
-            text: this.buildDiscontinuationNote(discontinuationData),
-            time: new Date().toISOString()
-          }
-        ],
-        extension: [
-          ...(originalRequest.extension || []),
-          {
-            url: EXTENSION_URLS.MEDICATION_DISCONTINUATION,
-            extension: this.buildDiscontinuationExtension(discontinuationData)
-          }
-        ]
-      };
-
-      // Update the medication request
-      const updatedMedicationRequest = await fhirClient.update('MedicationRequest', updatedRequest);
-
-      // Create discontinuation tracking resource
-      const discontinuationTracking = await this.createDiscontinuationTracking(
-        originalRequest,
-        discontinuationData
-      );
-
-      // Handle tapering schedule if applicable
-      let taperingPlan = null;
-      if (discontinuationData.discontinuationType === 'tapered') {
-        taperingPlan = await this.createTaperingPlan(originalRequest, discontinuationData);
-      }
-
-      // Update medication lists
-      try {
-        await this.handlePrescriptionStatusUpdate(
-          medicationRequestId,
-          updatedRequest.status,
-          originalRequest.status
-        );
-      } catch (error) {
-        console.warn('Error updating medication lists during discontinuation:', error);
-      }
-
-      return {
-        success: true,
-        updatedMedicationRequest,
-        discontinuationTracking,
-        taperingPlan,
-        statusChange: {
-          from: originalRequest.status,
-          to: updatedRequest.status
-        }
-      };
-
-    } catch (error) {
-      console.error('Error discontinuing medication:', error);
-      throw error;
-    }
-  }
-
-  // ====================================================================
-  // MEDICATION EFFECTIVENESS MONITORING
-  // ====================================================================
-
-  /**
-   * Effectiveness monitoring parameters by medication class
-   * From medicationEffectivenessService
-   */
-  MONITORING_PARAMETERS = {
-    'antihypertensive': {
-      targetConditions: ['hypertension', 'high blood pressure'],
-      monitoringMetrics: ['blood_pressure', 'heart_rate'],
-      followUpIntervals: { initial: 14, ongoing: 84 },
-      therapeuticGoals: {
-        systolic_bp: { target: 130, range: [120, 140] },
-        diastolic_bp: { target: 80, range: [70, 90] }
-      },
-      assessmentQuestions: [
-        'Any dizziness or lightheadedness?',
-        'Experiencing fatigue or weakness?',
-        'Any swelling in legs or ankles?'
-      ]
-    },
-    'antidiabetic': {
-      targetConditions: ['diabetes', 'diabetes mellitus'],
-      monitoringMetrics: ['glucose', 'hba1c', 'weight'],
-      followUpIntervals: { initial: 14, ongoing: 91 },
-      therapeuticGoals: {
-        hba1c: { target: 7.0, range: [6.5, 8.0] },
-        fasting_glucose: { target: 100, range: [80, 130] }
-      },
-      assessmentQuestions: [
-        'How is your blood sugar control?',
-        'Any episodes of low blood sugar?',
-        'Changes in appetite or weight?',
-        'Increased thirst or urination?'
-      ]
-    }
-  };
-
-  /**
-   * Create monitoring plan for medication effectiveness
-   * From medicationEffectivenessService.createMonitoringPlan()
-   */
-  async createMonitoringPlan(medicationRequest, options = {}) {
-    try {
-      const medication = await this.getMedicationFromRequest(medicationRequest);
-      const parameters = this.getMonitoringParameters(medication);
-      
-      if (!parameters) {
-        return null; // No monitoring needed for this medication
-      }
-
-      const monitoringPlan = {
-        resourceType: 'CarePlan',
-        id: `monitoring-${medicationRequest.id}`,
-        status: 'active',
-        intent: 'plan',
-        category: [{
-          coding: [{
-            system: 'http://hl7.org/fhir/care-plan-category',
-            code: 'medication-monitoring',
-            display: 'Medication Effectiveness Monitoring'
-          }]
-        }],
-        subject: medicationRequest.subject,
-        period: {
-          start: new Date().toISOString(),
-          end: addMonths(new Date(), 6).toISOString()
-        },
-        basedOn: [{
-          reference: `MedicationRequest/${medicationRequest.id}`
-        }],
-        activity: this.buildMonitoringActivities(parameters),
-        note: [{
-          text: `Monitoring plan for ${medication.name || 'medication'} effectiveness`
-        }],
-        extension: [{
-          url: EXTENSION_URLS.MEDICATION_MONITORING,
-          extension: [
-            {
-              url: 'medication-class',
-              valueString: medication.category || 'unknown'
-            },
-            {
-              url: 'monitoring-frequency',
-              valueString: `Initial: ${parameters.followUpIntervals.initial} days, Ongoing: ${parameters.followUpIntervals.ongoing} days`
-            }
-          ]
-        }]
-      };
-
-      const createdPlan = await fhirClient.create('CarePlan', monitoringPlan);
-
-      // Schedule follow-up appointments if needed
-      if (options.scheduleFollowUp) {
-        await this.scheduleMonitoringFollowUp(createdPlan, parameters);
-      }
-
-      return createdPlan;
-
-    } catch (error) {
-      console.error('Error creating monitoring plan:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get effectiveness alerts for patient medications
-   * From medicationEffectivenessService.getEffectivenessAlerts()
-   */
-  async getEffectivenessAlerts(patientId, options = {}) {
-    try {
-      const alerts = [];
-      
-      // Get active medication requests for patient
-      const medicationRequests = await fhirClient.search('MedicationRequest', {
-        patient: patientId,
-        status: 'active'
-      });
-
-      for (const request of medicationRequests.entry || []) {
-        const medicationRequest = request.resource;
-        const alert = await this.checkMedicationEffectiveness(medicationRequest);
-        
-        if (alert) {
-          alerts.push(alert);
-        }
-      }
-
-      return alerts;
-
-    } catch (error) {
-      console.error('Error getting effectiveness alerts:', error);
-      return [];
-    }
-  }
-
-  // ====================================================================
   // MEDICATION LIST MANAGEMENT
   // ====================================================================
 
@@ -534,77 +305,6 @@ class MedicationCRUDService {
     }
   }
 
-  /**
-   * Handle prescription status update
-   * From medicationListManagementService.handlePrescriptionStatusUpdate()
-   */
-  async handlePrescriptionStatusUpdate(medicationRequestId, newStatus, oldStatus) {
-    if (!this.autoUpdateEnabled) return;
-
-    try {
-      const medicationRequest = await fhirClient.read('MedicationRequest', medicationRequestId);
-      const patientId = medicationRequest.subject?.reference?.split('/')[1];
-      
-      if (!patientId) return;
-
-      // Handle status-specific updates
-      switch (newStatus) {
-        case 'completed':
-          await this.handlePrescriptionCompleted(patientId, medicationRequest);
-          break;
-        case 'stopped':
-        case 'cancelled':
-          await this.handlePrescriptionStopped(patientId, medicationRequest);
-          break;
-        case 'on-hold':
-          await this.handlePrescriptionOnHold(patientId, medicationRequest);
-          break;
-      }
-
-    } catch (error) {
-      console.error('Error handling prescription status update:', error);
-    }
-  }
-
-  /**
-   * Synchronize medication lists across all sources
-   * From medicationListManagementService.synchronizeMedicationLists()
-   */
-  async synchronizeMedicationLists(patientId, options = {}) {
-    try {
-      const { forceRefresh = false } = options;
-      
-      // Get all medication-related resources for patient
-      const [medicationRequests, medicationStatements, medicationDispenses] = await Promise.all([
-        fhirClient.search('MedicationRequest', { patient: patientId }),
-        fhirClient.search('MedicationStatement', { patient: patientId }),
-        fhirClient.search('MedicationDispense', { patient: patientId })
-      ]);
-
-      // Reconcile and update lists
-      const reconciliation = this.reconcileMedicationSources(
-        medicationRequests.entry || [],
-        medicationStatements.entry || [],
-        medicationDispenses.entry || []
-      );
-
-      // Update each list type
-      for (const listType of Object.values(this.LIST_TYPES)) {
-        await this.updateMedicationList(patientId, listType, reconciliation);
-      }
-
-      return {
-        success: true,
-        reconciliation,
-        listsUpdated: Object.values(this.LIST_TYPES)
-      };
-
-    } catch (error) {
-      console.error('Error synchronizing medication lists:', error);
-      throw error;
-    }
-  }
-
   // ====================================================================
   // PRIVATE HELPER METHODS
   // ====================================================================
@@ -619,11 +319,13 @@ class MedicationCRUDService {
         _count: options.limit || 10
       });
 
-      return (searchResults.entry || []).map(entry => ({
-        id: entry.resource.id,
-        name: entry.resource.code?.text || entry.resource.code?.coding?.[0]?.display || 'Unknown',
-        genericName: entry.resource.code?.text || 'Unknown',
-        form: entry.resource.form?.text || 'Unknown',
+      // fhirClient.search returns { resources, ... } — it never exposes the
+      // raw bundle's .entry, so the old .entry read always produced [].
+      return (searchResults.resources || []).map(resource => ({
+        id: resource.id,
+        name: resource.code?.text || resource.code?.coding?.[0]?.display || 'Unknown',
+        genericName: resource.code?.text || 'Unknown',
+        form: resource.form?.text || 'Unknown',
         source: 'fhir'
       }));
     } catch (error) {
@@ -675,46 +377,6 @@ class MedicationCRUDService {
            (medication.brandNames || []).some(brand => 
              brand.toLowerCase().includes(allergenLower)
            );
-  }
-
-  /**
-   * Build status reason for discontinuation
-   */
-  buildStatusReason(discontinuationData) {
-    return {
-      coding: [{
-        system: 'http://terminology.hl7.org/CodeSystem/medicationrequest-status-reason',
-        code: discontinuationData.reason || 'other',
-        display: discontinuationData.reasonText || 'Other reason'
-      }]
-    };
-  }
-
-  /**
-   * Build discontinuation note
-   */
-  buildDiscontinuationNote(discontinuationData) {
-    return `Medication discontinued: ${discontinuationData.reasonText || 'No reason provided'}. Type: ${discontinuationData.discontinuationType || 'immediate'}.`;
-  }
-
-  /**
-   * Build discontinuation extension
-   */
-  buildDiscontinuationExtension(discontinuationData) {
-    return [
-      {
-        url: 'discontinuation-type',
-        valueString: discontinuationData.discontinuationType || 'immediate'
-      },
-      {
-        url: 'discontinuation-reason',
-        valueString: discontinuationData.reasonText || 'Not specified'
-      },
-      {
-        url: 'discontinuation-date',
-        valueDateTime: new Date().toISOString()
-      }
-    ];
   }
 
   /**

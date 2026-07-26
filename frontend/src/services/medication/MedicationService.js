@@ -27,6 +27,9 @@ import { medicationDiscontinuationService } from '../medicationDiscontinuationSe
 import { medicationListManagementService } from '../medicationListManagementService';
 import { medicationReconciliationService } from '../medicationReconciliationService';
 import { medicationSearchService } from '../medicationSearchService';
+import { prescriptionStatusService } from '../prescriptionStatusService';
+import { prescriptionRefillService } from '../prescriptionRefillService';
+import { medicationWorkflowValidator } from '../medicationWorkflowValidator';
 
 /**
  * Unified Medication Service
@@ -42,6 +45,12 @@ class MedicationService {
     this.list = medicationListManagementService;
     this.reconciliation = medicationReconciliationService;
     this.searchService = medicationSearchService;
+    // Status / refill / validation delegate to the canonical standalone
+    // services. The consolidated MedicationWorkflowService's copies of these
+    // paths were unfinished and unreached, and were removed — see its header.
+    this.status = prescriptionStatusService;
+    this.refill = prescriptionRefillService;
+    this.validator = medicationWorkflowValidator;
   }
 
   // ============================================================================
@@ -216,7 +225,7 @@ class MedicationService {
    * @returns {Promise<Array>} Prescription statuses
    */
   async getPrescriptionStatuses(patientId) {
-    return this.workflow.getPatientPrescriptionStatuses(patientId);
+    return this.status.getPatientPrescriptionStatuses(patientId);
   }
 
   /**
@@ -227,7 +236,7 @@ class MedicationService {
    * @returns {Promise<Object>} Updated prescription
    */
   async updatePrescriptionStatus(prescriptionId, status, options = {}) {
-    return this.workflow.updatePrescriptionStatus(prescriptionId, status, options);
+    return this.status.updatePrescriptionStatus(prescriptionId, status, options.notes ?? '');
   }
 
   /**
@@ -238,7 +247,7 @@ class MedicationService {
    * @returns {Promise<Object>} Refill request result
    */
   async createRefillRequest(patientId, prescriptionId, refillData = {}) {
-    return this.workflow.createRefillRequest(patientId, prescriptionId, refillData);
+    return this.refill.createRefillRequest(prescriptionId, refillData);
   }
 
   /**
@@ -248,7 +257,7 @@ class MedicationService {
    * @returns {Promise<Array>} Refill history
    */
   async getRefillHistory(patientId, prescriptionId) {
-    return this.workflow.getRefillHistory(patientId, prescriptionId);
+    return this.refill.getRefillHistory(prescriptionId);
   }
 
   // ============================================================================
@@ -263,7 +272,7 @@ class MedicationService {
    * @returns {Promise<Object>} Adherence metrics
    */
   async calculateAdherence(patientId, medicationId, options = {}) {
-    return this.workflow.calculateMedicationAdherence(patientId, medicationId, options);
+    return this.refill.calculateMedicationAdherence(medicationId, options.days ?? 90);
   }
 
   // ============================================================================
@@ -376,7 +385,7 @@ class MedicationService {
    * @returns {Promise<Object>} Validation results
    */
   async validatePatientWorkflow(patientId) {
-    return this.workflow.validatePatientMedicationWorkflow(patientId);
+    return this.validator.validatePatientMedicationWorkflow(patientId);
   }
 
   // ============================================================================
