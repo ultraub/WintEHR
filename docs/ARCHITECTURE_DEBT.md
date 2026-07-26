@@ -1,0 +1,151 @@
+# Architecture Debt & Opportunity Map
+
+**Last Updated**: July 2026
+
+A measured survey of cleaning / harmonizing / modularity opportunities across
+WintEHR, produced by four parallel static-analysis sweeps (frontend data-access
+census, frontend reachability census, backend structure survey, extensibility
+audit) plus first-hand findings from the MIMIC-on-FHIR import work. Numbers
+below are measured — import-graph analysis, route resolution, literal counts —
+not impressions. This document tracks the findings and the agreed remediation
+order; strike items through (with the PR number) as they land.
+
+---
+
+## Motivating case study
+
+Rendering a medication's *name* required fixes in **six** places (PRs #275,
+#277, #279, #281, #282, #283) because six code paths privately re-implemented
+"resolve what to call this medication": the patient preview page, Chart Review,
+the FHIRResourceContext fetch stamps, Pharmacy's lookup path, mixture
+(ingredient-traversal) handling, and the Orders tab's private search service.
+That is the signature of the debt catalogued here: the platform repeatedly
+solves one concept in N private copies, and the copies drift.
+
+---
+
+## Findings (measured)
+
+### F1 — ~43% of the frontend is unreachable dead code
+
+283 of 662 non-test source files (~98,000 LOC) are unreachable from
+`src/index.js`. Verified two ways: static import graph (including literal lazy
+`import()` chunks) plus a path-based reference scan of all live code. It
+clusters into whole abandoned subsystems rather than scattering:
+
+- `components/clinical/results/` — 11/11 files dead (5,041 LOC)
+- `components/clinical/dialogs/` — 13 files, an entire second dialog framework
+- `components/clinical/workspace/cds/` — 12 files, a complete CDS card-builder UI
+- `components/fhir-explorer-v4/query-building/components/` — 6/6 dead
+- `services/` — 27 of 54 files dead (~14,300 LOC), incl. two circular-barrel
+  "unified facades" (`services/cds/`, `services/medication/`) nothing imports
+- Two failed consolidation layers: `HttpClientFactory.js` (569 LOC, 0 importers)
+  and the `utils/{date,status,fhir,collection,string}` TS layer (2 live consumers)
+- `hooks/` — 33 backwards-compat re-export shims, 17 with zero importers
+- Backend: ~3,680 dead lines incl. `api/services/data/` and
+  `api/services/analytics/` (whole subpackages), verified by repo-wide grep
+
+Tooling: `frontend/scripts/find-dead-code.mjs` (reachability + orphan-test +
+grep safety nets). Re-run it before and after any deletion PR.
+
+### F2 — No single data-access path (the medication saga, generalized)
+
+- ~30 distinct fetch entry points; 118 files import `fhirClient` directly
+  (301 call sites); 60 of them are components.
+- **Four parallel HTTP transports** reach the same FHIR server: `fhirClient`
+  (axios + cache + queue), raw `fetch` (`enhancedOrderSearch`,
+  `enhancedImagingSearch`, `providerResolverService`), raw axios + `buildUrl`
+  (`cdsClinicalDataService` — 31 importers, the most-imported data service),
+  and `services/api.js`.
+- **46 independent `Map` caches across 30 files, 25 uncoordinated TTLs.** The
+  same Observation can be "fresh" for 5, 10, or 30 minutes depending on which
+  layer answers. `fhirClient.ts` and `clientConfig.ts` declare contradictory
+  TTL/maxSize for the same client.
+- 9 of 11 clinical tabs mix ≥2 data paths; 6 bypass the context entirely.
+- Bundle `entry→resource` normalization is re-implemented in 29 files;
+  `_include` handling in 29; patient-reference parsing in 31.
+
+### F3 — Resource-type knowledge has no home
+
+- 163 hardcoded resource-type array literals (75 frontend / 88 backend).
+- 14 parallel frontend metadata catalogs (icons, colors, labels, groups) with
+  memberships from 6 to ~140 types; 4 independent timeline implementations
+  each with per-type switches.
+- 7 conflicting copies of "which resources to load for a patient, at what
+  priority" — measurably drifted (e.g. `AllergyIntolerance` is critical in one
+  copy, important in another).
+- Backend: two `REFERENCE_FIELDS` maps (25 vs 13 resource types) — the
+  relationships API advertises links the traversal engine cannot follow.
+- Sort-param knowledge (`authoredon` vs `authored` etc.) inlined as string
+  literals at ~15 sites; the only structured mapping has 2 entries.
+
+### F4 — Backend structure violates its own stated rules
+
+- 13 files >800 lines under `api/` (15,745 lines = 26% of `api/`); the four
+  god routers (cds_hooks 1,770 · orders 1,567 · visual_builder 1,539 ·
+  pharmacy 1,526) hold business logic inline — 331-line handlers exist.
+- 14 of 23 router directories have **no `service.py`**; `HAPIFHIRClient()` is
+  constructed 137 times, never injected; 17 files bypass it with raw httpx.
+- Route registration: 6 distinct prefix conventions across 37 registrations,
+  leaking into **three proxy configs that disagree** (`vite.config.js`,
+  `nginx-default.conf`, `nginx-ssl.conf`).
+- `api/routers/__init__.py` try/except groups are all-or-nothing: one bad
+  import in any of 12 clinical routers silently 404s all 12 (22 of 37 routers
+  sit in two such blocks). The `FAILED_ROUTER_GROUPS` mitigation is dead —
+  its only reader (`api/system/health.py`) is never registered.
+- Duplicated service domains: catalog extraction ×3 (one with a live
+  `TypeError` — see bugs), CDS service CRUD ×5, audit ×2, notification ×3,
+  terminology ×3, WebSocket connection manager ×2.
+
+### F5 — Where registries exist, they work
+
+The tab registry (`clinicalTabRegistry.js`) genuinely drives 5 consumers;
+adding a built-in CDS service is 3 edits in one file with fully derived
+discovery. The codebase knows the pattern — it just wasn't applied to
+resource types, routes, or data access. Extension cost today: new workspace
+tab = 4 files (registry + 3 stale keyboard lists); new FHIR resource type =
+25–30+ files; new CDS *hook type* = 11 lists; new data importer = from
+scratch (the two existing importers share zero code).
+
+---
+
+## Live bugs found by the surveys
+
+| # | Bug | Where |
+|---|-----|-------|
+| B1 | `DynamicCatalogService(db)` called with a session its `__init__` doesn't accept → `TypeError` at request time on `/api/clinical/lab-catalog` and `/api/clinical/condition-catalog` | `api/clinical/cds_clinical_data.py:583,675` vs `api/services/clinical/dynamic_catalog_service.py:31` |
+| B2 | Keyboard tab lists have 10 entries vs registry's 12 — Administration and Inbox have no shortcut, and ctrl+Tab from either jumps to Summary (`indexOf → -1`) | `hooks/ui/useKeyboardNavigation.js:14-62`, `KeyboardShortcutsDialog.js:49-58` |
+| B3 | `GET /api/health` in `main.py` is shadowed by the CDS Hooks router's `/health` (registered at bare `/api` prefix, earlier) | `main.py:84` vs `cds_hooks_router.py:1736` |
+| B4 | 5 of 11 backend CDS hook types are invisible/uncreatable in every frontend surface (11 hook-type lists range 3–11 entries) | `api/cds_hooks/models.py:10` vs 10 frontend/backend lists |
+| B5 | `REFERENCE_FIELDS` drift: 12 resource types advertised by `/fhir-relationships/schema` are untraversable by the relationship cache | `api/fhir/routers/relationships.py:32` vs `api/services/fhir/relationship_cache.py:33` |
+| B6 | `nginx-default.conf` proxies `/ws` → backend `/ws`, but the WS router resolves to `/api/ws` | `nginx-default.conf:39` |
+| B7 | `notifications_helper.py` documented as live in two CLAUDE.md files; it has zero importers | `api/CLAUDE.md:112`, `api/clinical/CLAUDE.md:108` |
+
+---
+
+## Ranked opportunity map
+
+| # | Opportunity | Status |
+|---|-------------|--------|
+| **1** | **Dead-code purge.** Delete the 283 unreachable frontend files (~98k LOC) and ~10 dead backend modules, in reviewable slices, each gated by `find-dead-code.mjs` + basename/path grep + full build + tests + lint. Do this first: it halves the surface every later item pays tax on, and most utility "duplication" (7 `calculateAge` copies, 3 dialog frameworks, both dead consolidation layers) vanishes with it. | **in progress** |
+| **2** | **One frontend data-access path.** Migrate callers to the existing context/fhirClient stack — not a new layer (two previous new-layer attempts died unadopted). Port the 4 raw-transport services, export the context's bundle normalization, collapse caches onto fhirClient LRU + `intelligentCache` TTLs. Tab-by-tab, behind the truthful-display test suite. | pending |
+| **3** | **Resource-type registry.** One frontend module (icon, color, label, priority tier, sort params, export columns per type) and one backend `REFERENCE_FIELDS` source of truth; point the 14 catalogs and 7 priority lists at it. Drops "add a resource type" from 25–30 touch points to a handful. | pending |
+| **4** | **Backend registration/routing hardening.** Per-router try/except; register a health endpoint that reports `FAILED_ROUTER_GROUPS`; one prefix convention; reconcile the three proxy configs. | pending |
+| **5** | **Service extraction for the four god routers** (pharmacy, orders, cds_hooks, visual_builder — ~6,400 lines of inline logic). After #4, one router at a time, adding tests per extracted service. | pending |
+| **6** | **Importer toolkit.** Extract the shared concerns both existing importers solved independently (NDJSON reading, dependency ordering, transaction chunking, reference-cycle closure, idempotent PUT, provenance tagging) into `backend/scripts/lib/`; make the Synthea pipeline and the MIMIC notebook thin consumers. | pending |
+
+Live bugs B1–B7 are small; fold each into whichever slice touches its area,
+or batch as a standalone fix PR.
+
+---
+
+## Method / provenance
+
+Produced 2026-07-26 by four parallel read-only survey agents over commit
+`cec2d9d8`, cross-checked by an independent reachability analyzer
+(`frontend/scripts/find-dead-code.mjs`). Dead-list validation: every file is
+(a) unreachable in the static import graph from `src/index.js` (lazy chunk
+imports followed), and (b) free of path-based references from live code —
+each grep hit was individually adjudicated (all were substring collisions
+with live files, e.g. `LabTrends` vs `LabTrendsChart`, or comments). Tests
+that import dead modules are deleted with their modules.
