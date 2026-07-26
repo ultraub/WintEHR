@@ -77,14 +77,28 @@ async def root():
         "health": "/health"
     }
 
-# Health check endpoints
+# Health check endpoints.
+# /health stays minimal and dependency-free — docker-compose and deploy.sh
+# gate on it. /api/health is the detailed one: it reports routers that
+# failed to register (FAILED_ROUTERS), so a feature that silently 404s
+# shows up here instead of looking like a frontend bug. (This route was
+# shadowed by the CDS Hooks router's generic /health for months — that
+# route now lives at /api/cds-hooks/health.)
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "Teaching EMR API"}
 
-@app.get("/api/health") 
+@app.get("/api/health")
 async def api_health_check():
-    return {"status": "healthy", "service": "Teaching EMR API"}
+    from api.routers import FAILED_ROUTERS, ROUTERS
+    return {
+        "status": "degraded" if FAILED_ROUTERS else "healthy",
+        "service": "Teaching EMR API",
+        "routers": {
+            "registered": len(ROUTERS) - len(FAILED_ROUTERS),
+            "failed": FAILED_ROUTERS,
+        },
+    }
 
 from api.websocket.connection_pool import connection_pool
 

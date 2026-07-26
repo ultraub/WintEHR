@@ -13,10 +13,13 @@ deltas are below.
 ## Start here
 
 - `main.py` — app construction: middleware order, then `register_all_routers`.
+  Owns `/health` (minimal, container checks) and `/api/health` (detailed —
+  reports routers that failed to register).
 - `api/routers/__init__.py` — **the single source of truth for routing.** Every
-  router is registered here, in numbered groups. A router's real URL is its own
-  prefix *plus* whatever `prefix=` is passed at registration. Read this file
-  before wiring any frontend call (see "Routing" below).
+  router is an entry in the flat `ROUTERS` list (one try/except each; failures
+  land in `FAILED_ROUTERS` and surface at `/api/health`). A router's real URL
+  is its own prefix *plus* whatever `prefix=` is passed at registration. Read
+  this file before wiring any frontend call (see "Routing" below).
 - `services/hapi_fhir_client.py` — `HAPIFHIRClient`: the only sanctioned path to
   FHIR data. Methods: `search`, `read`, `create`, `update`, `delete`,
   `search_with_includes`, `operation` (for `$everything` etc.).
@@ -79,7 +82,7 @@ auto-discovered.
 | `api/services/` | Cross-cutting services: `audit_service.py`, `notification_service.py`, plus `analytics/`, `clinical/`, `data/`, `fhir/`. |
 | `api/smart/` | SMART-on-FHIR authorization + token middleware. |
 | `api/imaging/`, `api/dicom/` | Imaging studies / DICOM. |
-| `api/system/` | `health.py`, `monitoring.py`, `debug_router.py` (only registered when `DEBUG=true`). |
+| `api/system/` | `monitoring.py`, `debug_router.py` (only registered when `DEBUG=true`). App health endpoints live in `main.py`. |
 | `api/quality/`, `api/analytics/`, `api/scheduling/`, `api/questionnaires/`, `api/ui_composer/` | Self-named feature modules. |
 | `clinical_canvas/` | AI-driven UI generation (top-level, not under `api/`). |
 | `scripts/` | Data tooling: `active/`, `data/`, `migrations/`, `synthea/`. |
@@ -133,7 +136,7 @@ Key env vars: `DATABASE_URL`, `HAPI_FHIR_URL`, `REDIS_URL`, `JWT_ENABLED`,
 |---|---|
 | Frontend call 404s | Prefix mismatch — re-derive the resolved path from `api/routers/__init__.py` + the router's `APIRouter(...)` line |
 | New router never reachable | Not added to `register_all_routers` in `api/routers/__init__.py` |
-| `register_all_routers` silently skips a group | Each numbered block is wrapped in `try/except` that logs and continues — check backend logs for `Failed to register ...` |
+| A feature area 404s after a deploy | `GET /api/health` — `routers.failed` names any router whose registration failed (also in backend logs as `Failed to register ...`); one bad router no longer disables its former group |
 | FHIR write "succeeds" but data missing | Wrote to a custom table instead of HAPI — all FHIR resources go through `HAPIFHIRClient` |
 | Import error for `FHIRStorageEngine` / `fhir.core.storage` | Both removed; use `HAPIFHIRClient` |
 

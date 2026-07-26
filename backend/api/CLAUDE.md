@@ -14,8 +14,11 @@ to navigating `api/` itself.
 
 - `routers/__init__.py` — `register_all_routers(app)`. The ONLY place routers
   are wired. Nothing is auto-discovered; a new router that is not added here is
-  unreachable. Routers are grouped in numbered `try/except` blocks — a failed
-  group logs `Failed to register ...` and is silently skipped.
+  unreachable. Registration is a flat, ORDER-PRESERVING `ROUTERS` list with
+  one `try/except` per router — a failure disables exactly that router, is
+  logged, and is reported by `GET /api/health` (`FAILED_ROUTERS`). New
+  routers: full `/api/...` prefix in the router file, no prefix kwarg in the
+  list entry.
 - `../main.py` — middleware order then `register_all_routers`.
 - Each subdomain dir (`auth/`, `clinical/`, `cds_hooks/`, ...) holds its own
   `router.py` + `service.py`; several have their own `CLAUDE.md`.
@@ -38,7 +41,7 @@ to navigating `api/` itself.
 | `services/` | Cross-cutting: `audit_service.py`, `notification_service.py`, + `analytics/`, `clinical/`, `data/`, `fhir/` subpkgs | — |
 | `smart/` | SMART-on-FHIR auth + token middleware | yes |
 | `imaging/`, `dicom/` | Imaging studies / DICOM | — |
-| `system/` | `health.py`, `monitoring.py`, `debug_router.py` (only when `DEBUG=true`) | — |
+| `system/` | `monitoring.py`, `debug_router.py` (only when `DEBUG=true`); app health endpoints live in `../main.py` | — |
 | `quality/`, `analytics/`, `scheduling/`, `questionnaires/`, `ui_composer/` | Self-named feature modules | — |
 
 There is **no `fhir/core/` subdir** and **no `core/storage.py`**.

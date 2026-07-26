@@ -1734,9 +1734,15 @@ async def get_registry_service(service_id: str):
 
 
 # Health check endpoint
-@router.get("/health")
+@router.get("/cds-hooks/health")
 async def health_check(db: AsyncSession = Depends(get_db_session)):
-    """Health check endpoint"""
+    """CDS subsystem health/diagnostics (DB hooks, registry counts).
+
+    Deliberately NOT "/health": this router is registered at the bare /api
+    prefix, so a generic /health here resolved to /api/health and shadowed
+    the app-level health endpoint in main.py (bug B3,
+    docs/ARCHITECTURE_DEBT.md). Nothing consumed the old path's
+    CDS-specific payload."""
     try:
         # Test database connectivity
         db_hooks = await load_hooks_from_database(db)
