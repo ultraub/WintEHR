@@ -324,6 +324,24 @@ export const DocumentationProvider = ({ children }) => {
     try {
       const fhirDoc = transformToFHIRDocument(currentNote);
 
+      // Ask HAPI whether this conforms BEFORE writing. HAPI validates on
+      // write anyway, so this just moves the rejection earlier where we can
+      // show a useful message instead of losing the user's note to a raw
+      // OperationOutcome. Transport failures fall through to the write —
+      // an unreachable validator must not block documentation.
+      try {
+        const check = await fhirClient.validateResource('DocumentReference', fhirDoc);
+        if (!check.valid) {
+          throw new Error(`This note is not valid FHIR:\n${check.errors.join('\n')}`);
+        }
+        if (check.warnings.length) {
+          console.warn('DocumentReference validation warnings:', check.warnings);
+        }
+      } catch (validationError) {
+        if (validationError?.message?.startsWith('This note is not valid FHIR')) throw validationError;
+        console.warn('DocumentReference $validate unavailable, proceeding to write:', validationError);
+      }
+
       let result;
       if (currentNote.id) {
         // Update existing note
@@ -456,6 +474,16 @@ export const DocumentationProvider = ({ children }) => {
           reference: `DocumentReference/${parentNoteId}`
         }
       }];
+
+      try {
+        const check = await fhirClient.validateResource('DocumentReference', fhirDoc);
+        if (!check.valid) {
+          throw new Error(`This addendum is not valid FHIR:\n${check.errors.join('\n')}`);
+        }
+      } catch (validationError) {
+        if (validationError?.message?.startsWith('This addendum is not valid FHIR')) throw validationError;
+        console.warn('DocumentReference $validate unavailable, proceeding to write:', validationError);
+      }
 
       const result = await fhirClient.create('DocumentReference', fhirDoc);
 
