@@ -108,13 +108,19 @@ jobs:
                 if (m.severity === 2) console.log(f.filePath + ':' + m.line + ' [' + m.ruleId + '] ' + m.message);
               process.exit(1);
             }"
-      - name: "vitest (baseline: 0 failed / 553 total)"
+      - name: "vitest (baseline: 0 failed / 539 total)"
         run: |
-          # The suite is fully green: 553 tests, 0 failed. The failed budget
+          # The suite is fully green: 539 tests, 0 failed. The failed budget
           # is a hard zero; the total/passed floors keep coverage from
           # silently shrinking (a test that stops RUNNING reports nothing —
           # see the backend job's comment). If tests are legitimately
           # removed, lower the floors in that same PR and say why.
+          #
+          # 553 -> 539 (dead-code purge, 609841e6): deleted the test files of
+          # deleted dead modules (HttpClientFactory, UIComposer agents, ~46
+          # tests), while DocumentReferenceConverter.test.js — broken import,
+          # never executed — was repaired and now contributes 30 running
+          # tests. Net -14, all accounted for.
           #
           # numTotalTests is the counterpart to the backend's OUTCOMES check:
           # it catches tests that stop running, which a failure-count gate
@@ -124,8 +130,8 @@ jobs:
           npx vitest run --reporter=json --outputFile=vitest.json > vitest.out 2>&1 || true
           node -e "
             const r = require('./vitest.json');
-            console.log(r.numTotalTests + ' tests, ' + r.numFailedTests + ' failed, ' + r.numPassedTests + ' passed (baseline: failed<=0, total>=553, passed>=553)');
-            if (r.numFailedTests > 0 || r.numTotalTests < 553 || r.numPassedTests < 553) {
-              console.error('::error::Test results regressed past the baseline (failed<=0, total>=553, passed>=553)');
+            console.log(r.numTotalTests + ' tests, ' + r.numFailedTests + ' failed, ' + r.numPassedTests + ' passed (baseline: failed<=0, total>=539, passed>=539)');
+            if (r.numFailedTests > 0 || r.numTotalTests < 539 || r.numPassedTests < 539) {
+              console.error('::error::Test results regressed past the baseline (failed<=0, total>=539, passed>=539)');
               process.exit(1);
             }"
