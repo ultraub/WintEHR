@@ -8,6 +8,7 @@
  * and memoizes results in a module-level cache shared across consumers.
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { getCodeableConceptDisplay } from '../utils/fhirFieldUtils';
 import { fhirClient } from '../services/fhirClient';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 
@@ -162,7 +163,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
           // Handle concept-based medications (inline)
           if (req.medication?.concept) {
             const concept = req.medication.concept;
-            const medName = concept.text || concept.coding?.[0]?.display || 'Unknown medication';
+            const medName = getCodeableConceptDisplay(concept, 'Unknown medication');
             resolved[req.id] = {
               name: medName,
               code: concept
@@ -174,7 +175,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
           if (containedCacheKey && medicationCache.has(containedCacheKey)) {
             const medication = medicationCache.get(containedCacheKey);
             if (medication) {
-              const medName = medication.code?.text || medication.code?.coding?.[0]?.display || 'Unknown medication';
+              const medName = getCodeableConceptDisplay(medication.code, 'Unknown medication');
               resolved[req.id] = {
                 name: medName,
                 code: medication.code,
@@ -191,7 +192,7 @@ export const useMedicationResolver = (medicationRequests = []) => {
               const medication = medicationCache.get(medicationId);
 
               if (medication) {
-                const medName = medication.code?.text || medication.code?.coding?.[0]?.display || 'Unknown medication';
+                const medName = getCodeableConceptDisplay(medication.code, 'Unknown medication');
                 resolved[req.id] = {
                   name: medName,
                   code: medication.code,
@@ -239,8 +240,8 @@ export const useMedicationResolver = (medicationRequests = []) => {
 
     // Check for enriched medication data (from _include resolution)
     if (medicationRequest._resolvedMedicationCodeableConcept) {
-      const enrichedName = medicationRequest._resolvedMedicationCodeableConcept.text ||
-                          medicationRequest._resolvedMedicationCodeableConcept.coding?.[0]?.display;
+      const enrichedName = getCodeableConceptDisplay(
+        medicationRequest._resolvedMedicationCodeableConcept, null);
       if (enrichedName) {
         return enrichedName;
       }
@@ -254,17 +255,10 @@ export const useMedicationResolver = (medicationRequests = []) => {
     // Fallback to medication field (R5 format) or medicationCodeableConcept (R4 format)
     if (medicationRequest.medication?.concept) {
       // FHIR R5 format
-      const concept = medicationRequest.medication.concept;
-      const fallbackName = concept.text ||
-                          concept.coding?.[0]?.display ||
-                          'Unknown medication';
-      return fallbackName;
+      return getCodeableConceptDisplay(medicationRequest.medication.concept, 'Unknown medication');
     } else if (medicationRequest.medicationCodeableConcept) {
       // FHIR R4 format
-      const fallbackName = medicationRequest.medicationCodeableConcept.text ||
-                          medicationRequest.medicationCodeableConcept.coding?.[0]?.display ||
-                          'Unknown medication';
-      return fallbackName;
+      return getCodeableConceptDisplay(medicationRequest.medicationCodeableConcept, 'Unknown medication');
     }
 
     return 'Unknown medication';

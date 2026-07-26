@@ -145,8 +145,12 @@ export const getResourceDisplayText = (resource) => {
 export const getCodeableConceptDisplay = (codeableConcept, defaultValue = 'Unknown') => {
   if (!codeableConcept) return defaultValue;
 
+  // text is optional in FHIR; display is optional per coding. Fall back to
+  // the FIRST coding that has a display (not blindly coding[0] — datasets
+  // like MIMIC-on-FHIR put a bare NDC first), then to the first code:
+  // showing the real code is truthful; "Unknown" when a code exists is not.
   return codeableConcept.text ||
-         codeableConcept.coding?.[0]?.display ||
+         codeableConcept.coding?.find(c => c.display)?.display ||
          codeableConcept.coding?.[0]?.code ||
          defaultValue;
 };
@@ -589,7 +593,7 @@ export const getObservationValueDisplay = (observation) => {
  * @returns {string} - Human-readable medication description
  */
 export const getMedicationDisplay = (medicationRequest, options = {}) => {
-  const { includeDosage = false, defaultValue = 'Unknown Medication' } = options;
+  const { includeDosage = false, defaultValue = 'Unknown Medication', medicationLookup = null } = options;
 
   if (!medicationRequest) return defaultValue;
 
@@ -600,9 +604,26 @@ export const getMedicationDisplay = (medicationRequest, options = {}) => {
   if (medicationRequest.medicationCodeableConcept) {
     display = getCodeableConceptDisplay(medicationRequest.medicationCodeableConcept, defaultValue);
   }
-  // medicationReference (need to resolve separately)
-  else if (medicationRequest.medicationReference?.display) {
-    display = medicationRequest.medicationReference.display;
+  // Concept stamped onto the request by FHIRResourceContext from the
+  // _include'd Medication resource
+  else if (medicationRequest._resolvedMedicationCodeableConcept) {
+    display = getCodeableConceptDisplay(medicationRequest._resolvedMedicationCodeableConcept, defaultValue);
+  }
+  // medicationReference: inline display, else resolve through the caller's
+  // lookup (id -> Medication) — MedicationRequest.medicationReference is
+  // first-class R4 and the fetch layer already _includes the targets.
+  else if (medicationRequest.medicationReference) {
+    if (medicationRequest.medicationReference.display) {
+      display = medicationRequest.medicationReference.display;
+    } else if (medicationLookup) {
+      const medId = (medicationRequest.medicationReference.reference || '').replace('Medication/', '');
+      const medication = Array.isArray(medicationLookup)
+        ? medicationLookup.find(m => m.id === medId)
+        : medicationLookup[medId];
+      if (medication?.code) {
+        display = getCodeableConceptDisplay(medication.code, defaultValue);
+      }
+    }
   }
 
   // Optionally include dosage
