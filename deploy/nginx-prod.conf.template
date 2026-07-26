@@ -115,21 +115,9 @@ http {
             proxy_set_header X-Forwarded-Proto $scheme;
         }
 
-        # Root WebSocket endpoint (alternative path)
-        location /ws {
-            proxy_pass http://backend;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection $connection_upgrade;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_read_timeout 86400s;
-            proxy_send_timeout 86400s;
-            proxy_connect_timeout 75s;
-            proxy_buffering off;
-        }
+        # (No bare /ws location: the backend WebSocket router lives at
+        # /api/ws only — the frontend's apiConfig builds that path, and a
+        # root /ws proxied to a path the backend never served.)
 
         # WebSocket endpoint for real-time updates
         location /api/ws {
@@ -203,21 +191,10 @@ http {
             proxy_set_header X-Forwarded-Proto $scheme;
         }
 
-        # DICOM Services
-        location /dicom/ {
-            limit_req zone=api_limit burst=100 nodelay;
-
-            proxy_pass http://backend/dicom/;
-            proxy_http_version 1.1;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_read_timeout 300s;
-            proxy_connect_timeout 300s;
-            proxy_send_timeout 300s;
-            client_max_body_size 100M;
-        }
+        # DICOM flows through the generic /api/ location above — the backend
+        # DICOM router lives at /api/dicom (single prefix convention). Note:
+        # large image downloads inherit /api/'s timeouts; raise them there if
+        # imaging transfers ever need more headroom.
 
         # FHIR Server - Route through FastAPI backend for SMART token validation
         # Backend proxy (api/fhir/proxy.py) forwards validated requests to HAPI FHIR.

@@ -40,7 +40,7 @@ export const downloadDICOMStudy = async (study, onProgress) => {
     // Request DICOM download from backend
     const response = await axios({
       method: 'GET',
-      url: `/dicom/studies/${studyId}/download`,
+      url: `/api/dicom/studies/${studyId}/download`,
       responseType: 'blob',
       onDownloadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {

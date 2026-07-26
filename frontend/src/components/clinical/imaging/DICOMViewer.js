@@ -145,8 +145,9 @@ const DICOMViewer = ({ study, onClose }) => {
 
       const dicomEndpoints = resolveDicomEndpoints();
 
-      // Load study metadata (backend endpoint is at /dicom not /api/dicom)
-      const metadataResponse = await apiClient.get(`/dicom/studies/${studyDir}/metadata`, {
+      // Load study metadata (backend DICOM router is at /api/dicom — the
+      // standard convention; the old bare /dicom needed per-nginx rewrites)
+      const metadataResponse = await apiClient.get(`/api/dicom/studies/${studyDir}/metadata`, {
         headers: {
           'X-DICOM-QIDO-URL': dicomEndpoints.qido,
           'X-DICOM-WADO-URL': dicomEndpoints.wado
@@ -161,7 +162,7 @@ const DICOMViewer = ({ study, onClose }) => {
       setInstances(instancesData);
 
       // Load viewer config
-      const configResponse = await apiClient.get(`/dicom/studies/${studyDir}/viewer-config`, {
+      const configResponse = await apiClient.get(`/api/dicom/studies/${studyDir}/viewer-config`, {
         headers: {
           'X-DICOM-QIDO-URL': dicomEndpoints.qido,
           'X-DICOM-WADO-URL': dicomEndpoints.wado
@@ -220,7 +221,7 @@ const DICOMViewer = ({ study, onClose }) => {
       }
 
       const frameParam = (instance?.numberOfFrames > 1) ? currentFrame : 1;
-      const url = `/dicom/studies/${studyDir}/series/${seriesUid}/instances/${sopUid}/image?window_center=${windowCenter}&window_width=${windowWidth}&frame=${frameParam}`;
+      const url = `/api/dicom/studies/${studyDir}/series/${seriesUid}/instances/${sopUid}/image?window_center=${windowCenter}&window_width=${windowWidth}&frame=${frameParam}`;
       const dicomEndpoints = resolveDicomEndpoints();
 
       const response = await apiClient.get(url, {

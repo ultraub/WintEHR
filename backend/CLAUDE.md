@@ -40,8 +40,10 @@ Deliberate exceptions that live outside `/api`:
 |---|---|---|
 | `api/fhir/proxy.py` | `/fhir/...` | The FHIR base URL is spec-visible; nginx/vite route it separately |
 | `api/smart/router.py` | `/.well-known/...`, `/oauth/...` | SMART/OIDC discovery paths are spec-mandated locations |
-| `api/clinical/documentation/notes_router.py` | `/clinical/notes` | pre-convention escapee — normalizing changes a public URL; pending the proxy-config reconciliation (ARCHITECTURE_DEBT #4) |
-| `api/dicom/router.py` | `/dicom` | same |
+
+Everything else — including DICOM (`/api/dicom`) and clinical notes
+(`/api/clinical/notes`), the former escapees — flows through the single
+generic `/api` proxy route in vite/nginx. Do not add per-path proxy rewrites.
 
 ---
 

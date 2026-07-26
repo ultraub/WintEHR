@@ -19,10 +19,7 @@ are below.
 ## Routers and their real prefixes
 
 **Normalized: every router here carries its full public prefix in its own
-`APIRouter(prefix=...)`; registration adds nothing.** The one escapee is
-`documentation/notes_router.py` at `/clinical/notes` (no `/api`) — a
-public-URL change pending the proxy-config reconciliation
-(docs/ARCHITECTURE_DEBT.md #4).
+`APIRouter(prefix=...)`; registration adds nothing.**
 
 | File | Prefix (= resolved base) |
 |---|---|
@@ -34,7 +31,7 @@ public-URL change pending the proxy-config reconciliation
 | `tasks/router.py` | `/api/clinical/tasks` |
 | `alerts/router.py` | `/api/clinical/alerts` |
 | `inbox/router.py` | `/api/clinical/inbox` |
-| `documentation/notes_router.py` | `/clinical/notes` *(no `/api` — see above)* |
+| `documentation/notes_router.py` | `/api/clinical/notes` |
 | `medication_lists_router.py` | `/api/clinical/medication-lists` |
 | `cds_clinical_data.py` | `/api/clinical` (lab/vital/condition catalogs) |
 | `drug_safety_router.py` | `/api/clinical/drug-safety` |

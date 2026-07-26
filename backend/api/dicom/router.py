@@ -29,7 +29,7 @@ from api.dicom.service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/dicom", tags=["dicom"])
+router = APIRouter(prefix="/api/dicom", tags=["dicom"])
 
 
 def _content_disposition_params(value: str) -> dict:

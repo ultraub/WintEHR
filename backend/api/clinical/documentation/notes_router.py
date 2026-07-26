@@ -12,7 +12,7 @@ from .fhir_converters import (
     update_document_reference_status
 )
 
-router = APIRouter(prefix="/clinical/notes", tags=["clinical-notes"])
+router = APIRouter(prefix="/api/clinical/notes", tags=["clinical-notes"])
 
 # Simple response schema
 class Response(BaseModel):

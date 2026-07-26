@@ -55,10 +55,9 @@ IS the full public prefix — registration passes no prefix.** Read the
 `APIRouter(...)` line and you have the truth; no cross-referencing needed.
 
 Exceptions deliberately outside `/api`: `fhir/proxy.py` (`/fhir/...` —
-spec-visible FHIR base), `smart/router.py` (`/.well-known`, `/oauth` —
-spec-mandated locations), and two pre-convention escapees pending the
-proxy-config reconciliation: `clinical/documentation/notes_router.py`
-(`/clinical/notes`) and `dicom/router.py` (`/dicom`).
+spec-visible FHIR base) and `smart/router.py` (`/.well-known`, `/oauth` —
+spec-mandated locations). Nothing else — DICOM and clinical notes were
+normalized to `/api/dicom` and `/api/clinical/notes`.
 
 ---
 

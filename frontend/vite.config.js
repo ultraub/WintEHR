@@ -172,13 +172,8 @@ export default defineConfig(async ({ mode }) => {
           proxyTimeout: 120000,
           configure: proxyLogger('API'),
         },
-        '/dicom': {
-          target: backendTarget,
-          changeOrigin: true,
-          timeout: 120000,
-          proxyTimeout: 120000,
-          configure: proxyLogger('DICOM'),
-        },
+        // (no '/dicom' entry — the DICOM router lives at /api/dicom and
+        // flows through the '/api' proxy like everything else)
         '/fhir': {
           target: hapiFhirTarget,
           changeOrigin: true,

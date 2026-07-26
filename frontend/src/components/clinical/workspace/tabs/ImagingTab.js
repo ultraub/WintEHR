@@ -982,7 +982,7 @@ const ImagingTab = ({
       }
 
       // Download study as ZIP
-      const response = await api.get(`/dicom/studies/${studyDir}/download`, { responseType: 'blob' });
+      const response = await api.get(`/api/dicom/studies/${studyDir}/download`, { responseType: 'blob' });
       const blob = response.data;
 
       // Create download link
