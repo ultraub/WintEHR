@@ -122,9 +122,13 @@ class UnifiedCatalogService:
 
     async def _dynamic_medications(self, search_term, limit):
         try:
-            meds = await self.dynamic_service.extract_medication_catalog(limit)
+            # Search must scan the FULL catalog, then truncate — extracting
+            # only the top-`limit` most-frequent entries first meant any
+            # medication outside the top N was unfindable (filter-after-
+            # truncate; found live when 'aspirin' returned no options).
+            meds = await self.dynamic_service.extract_medication_catalog(None if search_term else limit)
             if search_term:
-                meds = [m for m in meds if search_term.lower() in m.get('display', '').lower()]
+                meds = [m for m in meds if search_term.lower() in m.get('display', '').lower()][:limit]
             return meds
         except Exception as e:
             logger.warning(f"Dynamic medication catalog failed: {e}")
@@ -200,9 +204,13 @@ class UnifiedCatalogService:
 
     async def _dynamic_lab_tests(self, search_term, limit):
         try:
-            tests = await self.dynamic_service.extract_lab_test_catalog(limit)
+            # Search must scan the FULL catalog, then truncate — extracting
+            # only the top-`limit` most-frequent entries first meant any
+            # lab outside the top N was unfindable (filter-after-
+            # truncate; found live when 'aspirin' returned no options).
+            tests = await self.dynamic_service.extract_lab_test_catalog(None if search_term else limit)
             if search_term:
-                tests = [t for t in tests if search_term.lower() in t.get('display', '').lower()]
+                tests = [t for t in tests if search_term.lower() in t.get('display', '').lower()][:limit]
             return tests
         except Exception as e:
             logger.warning(f"Dynamic lab catalog failed: {e}")
@@ -282,9 +290,13 @@ class UnifiedCatalogService:
 
     async def _dynamic_conditions(self, search_term, limit):
         try:
-            conds = await self.dynamic_service.extract_condition_catalog(limit)
+            # Search must scan the FULL catalog, then truncate — extracting
+            # only the top-`limit` most-frequent entries first meant any
+            # condition outside the top N was unfindable (filter-after-
+            # truncate; found live when 'aspirin' returned no options).
+            conds = await self.dynamic_service.extract_condition_catalog(None if search_term else limit)
             if search_term:
-                conds = [c for c in conds if search_term.lower() in c.get('display', '').lower()]
+                conds = [c for c in conds if search_term.lower() in c.get('display', '').lower()][:limit]
             return conds
         except Exception as e:
             logger.warning(f"Dynamic condition catalog failed: {e}")
