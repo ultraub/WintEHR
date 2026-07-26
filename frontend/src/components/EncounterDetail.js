@@ -143,7 +143,7 @@ const EncounterDetail = ({
         provider: providerResponse.data
       });
     } catch (error) {
-      
+      console.error('Failed to load encounter details:', error);
     } finally {
       setLoading(false);
     }

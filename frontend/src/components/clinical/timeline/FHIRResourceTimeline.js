@@ -341,7 +341,7 @@ const FHIRResourceTimeline = ({ patientId, height = '600px' }) => {
             
             allResources.push(...typedResources);
           } catch (err) {
-            
+            console.warn('Timeline: failed to load one resource type; continuing without it:', err);
           }
         }
 

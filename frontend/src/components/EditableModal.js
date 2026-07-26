@@ -47,7 +47,7 @@ const EditableModal = ({
       const response = await api.get('/api/providers');
       setProviders(response.data);
     } catch (err) {
-      
+      console.warn('Failed to load providers; provider dropdown will be empty:', err);
     }
   };
 

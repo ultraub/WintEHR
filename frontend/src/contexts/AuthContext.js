@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.post('/api/auth/logout');
     } catch (error) {
-      
+      console.warn('Logout request failed; clearing local session anyway:', error);
     } finally {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');

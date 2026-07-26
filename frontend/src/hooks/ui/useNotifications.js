@@ -71,7 +71,7 @@ export const useNotifications = () => {
         return data;
       }
     } catch (error) {
-      
+      console.warn('Failed to fetch notifications:', error);
     }
   }, [user]);
 

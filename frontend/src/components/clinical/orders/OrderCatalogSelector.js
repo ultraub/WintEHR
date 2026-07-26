@@ -99,7 +99,7 @@ const OrderCatalogSelector = ({ orderType, onSelect, value }) => {
       
       setAvailableFilters(filterData);
     } catch (error) {
-      
+      console.warn('Failed to load order catalog filters:', error);
     }
   };
 

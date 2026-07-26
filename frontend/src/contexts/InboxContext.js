@@ -182,7 +182,7 @@ export const InboxProvider = ({ children }) => {
       }));
       setUnreadCount(unreadResult.total || 0);
     } catch (err) {
-      
+      console.warn('Failed to load inbox counts; badge may be stale:', err);
     }
   }, [user]);
 
