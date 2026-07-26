@@ -229,6 +229,11 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
     const name = patient.name?.[0];
     const fullName = name ? `${name.given?.join(' ') || ''} ${name.family || ''}`.trim() : 'Unknown Patient';
     const age = patient.birthDate ? differenceInYears(new Date(), new Date(patient.birthDate)) : null;
+    // A third of MIMIC demo patients are deceased; the record says so and
+    // the UI must too — showing a deceased patient as indistinguishable
+    // from a living one misstates the record.
+    const deceasedDate = patient.deceasedDateTime || null;
+    const isDeceased = Boolean(patient.deceasedDateTime || patient.deceasedBoolean);
     const phone = patient.telecom?.find(t => t.system === 'phone')?.value;
     const email = patient.telecom?.find(t => t.system === 'email')?.value;
     const address = patient.address?.[0];
@@ -241,6 +246,8 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
       age,
       gender: patient.gender || 'unknown',
       birthDate: patient.birthDate,
+      isDeceased,
+      deceasedDate,
       phone,
       email,
       address: address ? `${address.line?.join(' ') || ''}, ${address.city || ''}, ${address.state || ''} ${address.postalCode || ''}`.trim() : null
@@ -457,9 +464,22 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
             </Grid>
             
             <Grid item xs>
-              <Typography variant="h5" sx={{ fontWeight: 600, mb: 0.5 }}>
-                {patientInfo.fullName}
-              </Typography>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
+                <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                  {patientInfo.fullName}
+                </Typography>
+                {patientInfo.isDeceased && (
+                  <Chip
+                    size="small"
+                    color="default"
+                    variant="outlined"
+                    label={patientInfo.deceasedDate
+                      ? `Deceased ${format(new Date(patientInfo.deceasedDate), 'MMM d, yyyy')}`
+                      : 'Deceased'}
+                    sx={{ fontWeight: 600 }}
+                  />
+                )}
+              </Stack>
               <Stack direction="row" spacing={2} flexWrap="wrap">
                 <Typography variant="body2" color="text.secondary">
                   {patientInfo.age ? `${patientInfo.age} years` : 'Age unknown'} • {patientInfo.gender}

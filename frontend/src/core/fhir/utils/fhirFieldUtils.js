@@ -147,10 +147,13 @@ export const getCodeableConceptDisplay = (codeableConcept, defaultValue = 'Unkno
 
   // text is optional in FHIR; display is optional per coding. Fall back to
   // the FIRST coding that has a display (not blindly coding[0] — datasets
-  // like MIMIC-on-FHIR put a bare NDC first), then to the first code:
-  // showing the real code is truthful; "Unknown" when a code exists is not.
+  // like MIMIC-on-FHIR put a bare NDC first), then to a coding from a
+  // name-carrying system (e.g. mimic-medication-name, where the CODE is the
+  // human-readable name), then to the first code: showing the real code is
+  // truthful; "Unknown" when a code exists is not.
   return codeableConcept.text ||
          codeableConcept.coding?.find(c => c.display)?.display ||
+         codeableConcept.coding?.find(c => /-name$/.test(c.system || ''))?.code ||
          codeableConcept.coding?.[0]?.code ||
          defaultValue;
 };
@@ -592,6 +595,32 @@ export const getObservationValueDisplay = (observation) => {
  * @param {string} options.defaultValue - Default if no display found
  * @returns {string} - Human-readable medication description
  */
+/**
+ * Display name for a Medication RESOURCE (not a request).
+ *
+ * Traverses everywhere the name can actually live — found the hard way with
+ * MIMIC-on-FHIR, whose 1,480 Medication resources ALL carry the human name
+ * in identifier[] (system …/mimic-medication-name) while code holds only a
+ * bare NDC. Chain: code text/display → name-system coding → name-system
+ * identifier → any code.
+ */
+export const getMedicationResourceDisplay = (medication, defaultValue = 'Unknown medication') => {
+  if (!medication) return defaultValue;
+
+  const concept = medication.code;
+  const fromConcept = concept?.text ||
+                      concept?.coding?.find(c => c.display)?.display ||
+                      concept?.coding?.find(c => /-name$/.test(c.system || ''))?.code;
+  if (fromConcept) return fromConcept;
+
+  const nameIdentifier = medication.identifier?.find(
+    i => /-name$/.test(i.system || '') && i.value
+  );
+  if (nameIdentifier) return nameIdentifier.value;
+
+  return concept?.coding?.[0]?.code || defaultValue;
+};
+
 export const getMedicationDisplay = (medicationRequest, options = {}) => {
   const { includeDosage = false, defaultValue = 'Unknown Medication', medicationLookup = null } = options;
 
@@ -603,6 +632,12 @@ export const getMedicationDisplay = (medicationRequest, options = {}) => {
   // medicationCodeableConcept
   if (medicationRequest.medicationCodeableConcept) {
     display = getCodeableConceptDisplay(medicationRequest.medicationCodeableConcept, defaultValue);
+  }
+  // Name computed by the fetch layer from the FULL _include'd Medication
+  // (covers names stored in Medication.identifier, which the bare concept
+  // stamp below cannot carry)
+  else if (medicationRequest._resolvedMedicationDisplay) {
+    display = medicationRequest._resolvedMedicationDisplay;
   }
   // Concept stamped onto the request by FHIRResourceContext from the
   // _include'd Medication resource
@@ -620,8 +655,8 @@ export const getMedicationDisplay = (medicationRequest, options = {}) => {
       const medication = Array.isArray(medicationLookup)
         ? medicationLookup.find(m => m.id === medId)
         : medicationLookup[medId];
-      if (medication?.code) {
-        display = getCodeableConceptDisplay(medication.code, defaultValue);
+      if (medication) {
+        display = getMedicationResourceDisplay(medication, defaultValue);
       }
     }
   }

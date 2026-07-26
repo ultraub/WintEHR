@@ -3,7 +3,7 @@
  * Shared functions for consistent medication information display across the application
  */
 
-import { getCodeableConceptDisplay } from './fhirFieldUtils';
+import { getCodeableConceptDisplay, getMedicationResourceDisplay } from './fhirFieldUtils';
 
 /**
  * Gets medication name from either R4 (medicationCodeableConcept) or R5 (medication.concept) format
@@ -25,6 +25,11 @@ export const getMedicationName = (medicationRequest, medicationsLookup = null) =
   if (medicationRequest.medicationCodeableConcept) {
     const concept = medicationRequest.medicationCodeableConcept;
     return getCodeableConceptDisplay(concept, 'Unknown medication');
+  }
+
+  // Name computed by the fetch layer from the full _include'd Medication
+  if (medicationRequest._resolvedMedicationDisplay) {
+    return medicationRequest._resolvedMedicationDisplay;
   }
 
   // Check for resolved medication concept (added by FHIRResourceContext from _include)
@@ -55,8 +60,8 @@ export const getMedicationName = (medicationRequest, medicationsLookup = null) =
         medication = medicationsLookup[medicationId];
       }
 
-      if (medication?.code) {
-        return getCodeableConceptDisplay(medication.code, 'Unknown medication');
+      if (medication) {
+        return getMedicationResourceDisplay(medication, 'Unknown medication');
       }
     }
 

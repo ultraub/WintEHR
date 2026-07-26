@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { fhirClient } from '../core/fhir/services/fhirClient';
+import { getMedicationResourceDisplay } from '../core/fhir/utils/fhirFieldUtils';
 import { intelligentCache } from '../core/fhir/utils/intelligentCache';
 import { useStableCallback } from '../hooks/ui/useStableReferences';
 import performanceMonitor from '../utils/performanceMonitor';
@@ -814,6 +815,9 @@ export function FHIRResourceProvider({ children }) {
                 return {
                   ...medRequest,
                   _resolvedMedicationCodeableConcept: medication.code,
+                  // Full-resource name (Medication.identifier can carry it
+                  // when code is a bare NDC — true for ALL MIMIC medications)
+                  _resolvedMedicationDisplay: getMedicationResourceDisplay(medication),
                   medicationReference: {
                     ...medRequest.medicationReference,
                     display: medication.code.text || medication.code.coding?.[0]?.display
@@ -1015,6 +1019,9 @@ export function FHIRResourceProvider({ children }) {
                   return {
                     ...medRequest,
                     _resolvedMedicationCodeableConcept: medication.code,
+                    // Full-resource name (Medication.identifier can carry it
+                    // when code is a bare NDC — true for ALL MIMIC medications)
+                    _resolvedMedicationDisplay: getMedicationResourceDisplay(medication),
                     medicationReference: {
                       ...medRequest.medicationReference,
                       display: medication.code.text || medication.code.coding?.[0]?.display
@@ -1313,6 +1320,9 @@ export function FHIRResourceProvider({ children }) {
                   return {
                     ...medRequest,
                     _resolvedMedicationCodeableConcept: medication.code,
+                    // Full-resource name (Medication.identifier can carry it
+                    // when code is a bare NDC — true for ALL MIMIC medications)
+                    _resolvedMedicationDisplay: getMedicationResourceDisplay(medication),
                     medicationReference: {
                       ...medRequest.medicationReference,
                       display: medication.code.text || medication.code.coding?.[0]?.display
@@ -1648,6 +1658,9 @@ export function FHIRResourceProvider({ children }) {
                     return {
                       ...medRequest,
                       _resolvedMedicationCodeableConcept: medication.code,
+                    // Full-resource name (Medication.identifier can carry it
+                    // when code is a bare NDC — true for ALL MIMIC medications)
+                    _resolvedMedicationDisplay: getMedicationResourceDisplay(medication),
                       medicationReference: {
                         ...medRequest.medicationReference,
                         display: medication.code.text || medication.code.coding?.[0]?.display
