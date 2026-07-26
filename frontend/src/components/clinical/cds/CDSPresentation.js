@@ -168,23 +168,33 @@ const CDSPresentation = ({
   const [alertToSnooze, setAlertToSnooze] = useState(null);
   const [snoozeDuration, setSnoozeDuration] = useState(60); // Default 60 minutes
 
-  // Re-hydrate dismissed + snoozed sets from localStorage when patientId
-  // resolves. The useState() lazy initializers above only run on the
-  // first render; if patientId was undefined then (the parent hadn't
-  // resolved the current patient yet), the initial empty Set/Map sticks
-  // and previously-acknowledged alerts re-pop on every patient view.
-  // This effect closes that gap and also re-loads correctly when the
-  // user switches between patients.
-  useEffect(() => {
-    if (!patientId) return;
-    setDismissedAlerts(cdsAlertPersistence.getDismissedAlerts(patientId));
-    const persistedSnoozes = cdsAlertPersistence.getSnoozedAlerts(patientId);
-    const snoozedMap = new Map();
-    persistedSnoozes.forEach((snoozeUntil, alertId) => {
-      snoozedMap.set(alertId, new Date(snoozeUntil));
-    });
-    setSnoozedAlerts(snoozedMap);
-  }, [patientId]);
+  // Re-hydrate dismissed + snoozed sets from localStorage whenever
+  // patientId CHANGES — during render, not in an effect. The useState()
+  // lazy initializers above only run on the first render; if patientId was
+  // undefined then (the parent hadn't resolved the current patient yet),
+  // the sets start empty. The previous useEffect version hydrated only
+  // AFTER paint, so already-acknowledged cards rendered for one frame and
+  // then vanished — the "cards appear and immediately disappear" flash.
+  // Setting state during render (React's derived-state-from-props pattern)
+  // re-renders before anything is painted, so a dismissed card is filtered
+  // from the very first visible frame. localStorage reads are synchronous
+  // and cheap; this runs only on actual patientId transitions.
+  const [hydratedForPatient, setHydratedForPatient] = useState(patientId ?? null);
+  if ((patientId ?? null) !== hydratedForPatient) {
+    setHydratedForPatient(patientId ?? null);
+    if (patientId) {
+      setDismissedAlerts(cdsAlertPersistence.getDismissedAlerts(patientId));
+      const persistedSnoozes = cdsAlertPersistence.getSnoozedAlerts(patientId);
+      const snoozedMap = new Map();
+      persistedSnoozes.forEach((snoozeUntil, alertId) => {
+        snoozedMap.set(alertId, new Date(snoozeUntil));
+      });
+      setSnoozedAlerts(snoozedMap);
+    } else {
+      setDismissedAlerts(new Set());
+      setSnoozedAlerts(new Map());
+    }
+  }
 
   // State for tracking acknowledged alerts in modal mode
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState(new Set());
