@@ -3,59 +3,51 @@ Pharmacy Workflow API Router - Pure FHIR Implementation
 Handles medication dispensing, status tracking, and pharmacy queue management using HAPI FHIR
 """
 
-from fastapi import APIRouter, HTTPException, status as http_status, Query
+from fastapi import APIRouter, Depends, HTTPException, status as http_status, Query
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, timezone
 import uuid
 import logging
 
 from services.hapi_fhir_client import HAPIFHIRClient
-from pydantic import BaseModel
 from api.cds_hooks.constants import ExtensionURLs
 from api.websocket.fhir_notifications import notification_service
+
+from .models import (
+    MAREntry,
+    MedicationAdministrationRequest,
+    MedicationDispenseRequest,
+    PharmacyQueueItem,
+    PharmacyStatusUpdate,
+    RefillDecision,
+    RefillRequest,
+    RefillResponse,
+)
+from .service import (
+    PharmacyService,
+    _build_pharmacy_queue_item,
+    _calculate_priority,
+    _extract_pharmacy_notes,
+    _get_pharmacy_status,
+    get_pharmacy_service,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/clinical/pharmacy", tags=["pharmacy"])
 
 
-class MedicationDispenseRequest(BaseModel):
-    """Request model for medication dispensing"""
-    medication_request_id: str
-    quantity: float
-    lot_number: str
-    expiration_date: str
-    pharmacist_notes: Optional[str] = None
-    pharmacist_id: Optional[str] = None
 
 
-class PharmacyStatusUpdate(BaseModel):
-    """Request model for pharmacy status updates"""
-    status: str  # pending, verified, dispensed, ready, completed
-    notes: Optional[str] = None
-    updated_by: Optional[str] = None
 
 
-class PharmacyQueueItem(BaseModel):
-    """Pharmacy queue item model"""
-    medication_request_id: str
-    patient_id: str
-    patient_name: Optional[str] = None
-    medication_name: str
-    quantity: Optional[float] = None
-    unit: Optional[str] = None
-    status: str
-    priority: int
-    prescribed_date: Optional[datetime] = None
-    due_date: Optional[datetime] = None
-    prescriber: Optional[str] = None
-    pharmacy_notes: Optional[str] = None
 
 
 @router.get("/queue", response_model=List[PharmacyQueueItem])
 async def get_pharmacy_queue(
     status: Optional[str] = None,
     patient_id: Optional[str] = None,
-    priority: Optional[int] = None
+    priority: Optional[int] = None,
+    service: PharmacyService = Depends(get_pharmacy_service),
 ):
     """
     Get pharmacy queue with optional filtering using HAPI FHIR
@@ -66,43 +58,7 @@ async def get_pharmacy_queue(
     - Automatically prioritizes based on urgency and age
     """
     try:
-        hapi_client = HAPIFHIRClient()
-
-        # Build search parameters
-        search_params = {
-            "_sort": "-authored",  # Most recent first
-            "_count": 100          # Reasonable limit for pharmacy queue
-        }
-
-        if patient_id:
-            search_params['patient'] = f"Patient/{patient_id}" if not patient_id.startswith("Patient/") else patient_id
-        if status:
-            search_params['status'] = status
-
-        # Query HAPI FHIR for medication requests
-        bundle = await hapi_client.search('MedicationRequest', search_params)
-
-        queue_items = []
-        for entry in bundle.get("entry", []):
-            resource = entry.get("resource", {})
-
-            # Extract pharmacy queue information
-            queue_item = _build_pharmacy_queue_item(resource)
-
-            # Apply additional filters
-            if priority and queue_item.priority != priority:
-                continue
-
-            queue_items.append(queue_item)
-
-        # Sort by priority and date
-        queue_items.sort(key=lambda x: (
-            x.priority,
-            x.prescribed_date or datetime.min.replace(tzinfo=timezone.utc)
-        ))
-
-        return queue_items
-
+        return await service.get_queue(status=status, patient_id=patient_id, priority=priority)
     except Exception as e:
         logger.error(f"Failed to retrieve pharmacy queue: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -530,158 +486,17 @@ async def check_medication_inventory(medication_code: str):
     return mock_inventory
 
 
-def _build_pharmacy_queue_item(medication_request: Dict[str, Any]) -> PharmacyQueueItem:
-    """Build a pharmacy queue item from a MedicationRequest resource"""
-
-    # Extract basic information
-    patient_ref = medication_request.get('subject', {}).get('reference', '')
-    patient_id = patient_ref.replace('Patient/', '') if patient_ref.startswith('Patient/') else ''
-
-    medication_name = (
-        medication_request.get('medicationCodeableConcept', {}).get('text') or
-        medication_request.get('medicationCodeableConcept', {}).get('coding', [{}])[0].get('display') or
-        'Unknown Medication'
-    )
-
-    quantity_info = medication_request.get('dispenseRequest', {}).get('quantity', {})
-    quantity = quantity_info.get('value')
-    unit = quantity_info.get('unit', 'units')
-
-    prescribed_date = None
-    if medication_request.get('authoredOn'):
-        try:
-            prescribed_date = datetime.fromisoformat(medication_request['authoredOn'].replace('Z', '+00:00'))
-        except (ValueError, TypeError):
-            pass
-
-    # Get pharmacy status
-    pharmacy_status = _get_pharmacy_status(medication_request)
-
-    # Determine priority (1 = highest, 5 = lowest)
-    priority = _calculate_priority(medication_request, pharmacy_status)
-
-    # Calculate due date (for pending items)
-    due_date = None
-    if prescribed_date and pharmacy_status in ['pending', 'verified']:
-        due_date = prescribed_date + timedelta(hours=24)  # 24 hour turnaround
-
-    return PharmacyQueueItem(
-        medication_request_id=medication_request['id'],
-        patient_id=patient_id,
-        medication_name=medication_name,
-        quantity=quantity,
-        unit=unit,
-        status=pharmacy_status,
-        priority=priority,
-        prescribed_date=prescribed_date,
-        due_date=due_date,
-        prescriber=medication_request.get('requester', {}).get('display'),
-        pharmacy_notes=_extract_pharmacy_notes(medication_request)
-    )
 
 
-def _get_pharmacy_status(medication_request: Dict[str, Any]) -> str:
-    """Extract pharmacy status from medication request extension"""
-    extensions = medication_request.get('extension', [])
-
-    for ext in extensions:
-        if ext.get('url') == ExtensionURLs.PHARMACY_STATUS:
-            for sub_ext in ext.get('extension', []):
-                if sub_ext.get('url') == 'status':
-                    return sub_ext.get('valueString', 'pending')
-
-    # Default status based on medication request status and timing
-    req_status = medication_request.get('status', 'active')
-    if req_status in ['completed', 'stopped', 'cancelled']:
-        return 'completed'
-
-    # For active requests, determine based on timing
-    authored_on = medication_request.get('authoredOn')
-    if authored_on:
-        try:
-            prescribed_date = datetime.fromisoformat(authored_on.replace('Z', '+00:00'))
-            if datetime.now(timezone.utc) - prescribed_date < timedelta(hours=1):
-                return 'pending'
-            else:
-                return 'verified'
-        except (ValueError, TypeError):
-            pass
-
-    return 'pending'
 
 
-def _calculate_priority(medication_request: Dict[str, Any], pharmacy_status: str) -> int:
-    """Calculate priority for pharmacy queue item"""
-
-    # Start with base priority
-    priority = 3  # Normal priority
-
-    # Urgent/stat orders get highest priority
-    if medication_request.get('priority') == 'urgent':
-        priority = 1
-    elif medication_request.get('priority') == 'stat':
-        priority = 1
-
-    # Pending items get higher priority
-    if pharmacy_status == 'pending':
-        priority = min(priority, 2)
-
-    # Time-based priority adjustment
-    authored_on = medication_request.get('authoredOn')
-    if authored_on:
-        try:
-            prescribed_date = datetime.fromisoformat(authored_on.replace('Z', '+00:00'))
-            hours_old = (datetime.now(timezone.utc) - prescribed_date).total_seconds() / 3600
-
-            if hours_old > 24:  # Over 24 hours old
-                priority = min(priority, 1)  # Highest priority
-            elif hours_old > 12:  # Over 12 hours old
-                priority = min(priority, 2)  # High priority
-        except (ValueError, TypeError):
-            pass
-
-    return priority
 
 
-def _extract_pharmacy_notes(medication_request: Dict[str, Any]) -> Optional[str]:
-    """Extract pharmacy-specific notes from medication request"""
-    notes = medication_request.get('note', [])
-
-    for note in notes:
-        note_text = note.get('text', '')
-        if note_text.startswith('Pharmacy:'):
-            return note_text.replace('Pharmacy:', '').strip()
-
-    return None
 
 
-# =============================================================================
-# Refill Management Endpoints - FHIR-based Implementation
-# =============================================================================
-
-class RefillRequest(BaseModel):
-    """Request model for medication refill"""
-    medication_request_id: str
-    patient_id: str
-    reason: Optional[str] = None
-    requested_quantity: Optional[float] = None
-    notes: Optional[str] = None
 
 
-class RefillDecision(BaseModel):
-    """Request model for refill approval/rejection"""
-    pharmacist_id: str
-    decision_notes: Optional[str] = None
-    modified_quantity: Optional[float] = None
 
-
-class RefillResponse(BaseModel):
-    """Response model for refill operations"""
-    refill_task_id: str
-    medication_request_id: str
-    status: str
-    message: str
-    new_medication_request_id: Optional[str] = None
 
 
 @router.get("/refills", response_model=List[Dict[str, Any]])
@@ -1159,35 +974,8 @@ async def reject_refill(task_id: str, decision: RefillDecision):
 # Medication Administration Record (MAR) - FHIR MedicationAdministration
 # =============================================================================
 
-class MedicationAdministrationRequest(BaseModel):
-    """Request model for recording medication administration"""
-    medication_request_id: str
-    patient_id: str
-    administered_by: str  # Practitioner ID
-    administered_at: Optional[datetime] = None
-    dose_given: float
-    dose_unit: str
-    route: Optional[str] = None
-    site: Optional[str] = None
-    status: str = "completed"  # completed, not-done, entered-in-error
-    reason_not_given: Optional[str] = None  # If status is 'not-done'
-    notes: Optional[str] = None
 
 
-class MAREntry(BaseModel):
-    """Model for a MAR entry"""
-    administration_id: str
-    medication_request_id: str
-    patient_id: str
-    medication_name: str
-    scheduled_time: Optional[datetime]
-    administered_at: Optional[datetime]
-    administered_by: Optional[str]
-    dose_given: Optional[float]
-    dose_unit: Optional[str]
-    route: Optional[str]
-    status: str
-    notes: Optional[str]
 
 
 @router.get("/mar/{patient_id}", response_model=List[MAREntry])
