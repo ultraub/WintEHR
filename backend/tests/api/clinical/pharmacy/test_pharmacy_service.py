@@ -121,3 +121,24 @@ async def test_status_filter_reaches_fhir_and_priority_filters_locally():
 async def test_empty_bundle_yields_empty_queue():
     svc = PharmacyService(hapi_client=FakeHAPI({}))
     assert await svc.get_queue() == []
+
+
+@pytest.mark.asyncio
+async def test_queue_sorts_by_hapis_real_medicationrequest_parameter():
+    """Regression: the queue asked HAPI to sort by '-authored'.
+
+    That is ServiceRequest's parameter name; MedicationRequest's is
+    'authoredon'. HAPI answers 400 ("Unknown _sort parameter value"), the
+    router turned it into a 500, and GET /api/clinical/pharmacy/queue was
+    broken for every caller — invisible to the suite because no test
+    asserted the outgoing search, and invisible in the UI because the
+    Pharmacy tab reads through the FHIR context instead of this endpoint.
+    """
+    hapi = FakeHAPI({"entry": []})
+    svc = PharmacyService(hapi_client=hapi)
+
+    await svc.get_queue()
+
+    _, params = hapi.calls[0]
+    assert params["_sort"] == "-authoredon"
+    assert "authored" not in params["_sort"].replace("authoredon", "")

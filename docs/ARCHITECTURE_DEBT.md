@@ -139,6 +139,8 @@ scratch (the two existing importers share zero code).
 | B10 | ~~Catalog API asserted facts it had no data for: every medication `is_formulary: true` / `is_controlled_substance: false` / `requires_authorization: false`, every lab test `specimen_type: "blood"`~~ **Fixed** — unknown is now `None`; the booleans had zero consumers but would have taught students that (e.g.) a controlled substance is uncontrolled, and that a urinalysis is a blood specimen | `api/catalogs/models.py`, `dynamic_catalog_service.py` |
 | B11 | ~~Medication catalog read five keys the extractor never emits (`brand_name`, `strength`, `form`, `route`, `dosages`) — always null, so strength display and drug-class categorization silently never worked~~ **Fixed** — phantom reads removed and documented; RxNorm display already carries strength/form inline | `api/catalogs/service.py` |
 
+| B12 | ~~`GET /api/clinical/pharmacy/queue` 500'd for every caller since it was written: it sorted MedicationRequest by `-authored` (ServiceRequest's parameter name), so HAPI returned 400~~ **Fixed** — `-authoredon`, with a test asserting the outgoing search. Invisible to the suite (nothing asserted the search params) and to the UI (the Pharmacy tab reads through the FHIR context, not this endpoint); surfaced only by curling the endpoint on the deployed box after the service extraction | `api/clinical/pharmacy/service.py` |
+
 
 Live bugs B1–B7 are small; fold each into whichever slice touches its area,
 or batch as a standalone fix PR.

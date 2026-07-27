@@ -176,7 +176,12 @@ class PharmacyService:
     ) -> List[PharmacyQueueItem]:
         """Pharmacy queue, priority- then date-ordered."""
         search_params: Dict[str, Any] = {
-            "_sort": "-authored",  # Most recent first
+            # HAPI's MedicationRequest sort parameter is "authoredon" —
+            # "authored" is ServiceRequest's name and makes HAPI 400, which
+            # this endpoint had been returning as a 500 since it was written
+            # (the '-authored-on' vs 'authoredon' family, PR #234). The
+            # refills query below sorts Task, where "-authored-on" IS valid.
+            "_sort": "-authoredon",  # Most recent first
             "_count": 100,         # Reasonable limit for pharmacy queue
         }
         if patient_id:
