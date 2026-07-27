@@ -359,3 +359,67 @@ async def test_record_late_given_flags_late_charted_extension(client):
     assert late_ext and late_ext[0]["valueBoolean"] is True
     # Status is still "completed" — late is a derived signal, not a FHIR status
     assert sent["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_stamped_admin_matches_its_cell_regardless_of_charting_time(client):
+    """Regression (found live on wintehrdev): the record endpoint stamps the
+    grid cell's scheduled time onto the admin, but matching only used
+    effective-time proximity (±60 min). A nurse charting the 08:00 dose at
+    03:39 created an admin that matched nothing — it fell into
+    unscheduled_admins (which the UI doesn't render), the cell stayed
+    'due', and the action looked like it did nothing."""
+    stamped = med_admin("adm-early", "rx-1", "2026-05-14T03:39:00+00:00")
+    stamped["extension"] = [{
+        "url": "http://wintehr.local/fhir/StructureDefinition/scheduled-dose-time",
+        "valueDateTime": "2026-05-14T08:00:00+00:00",
+    }]
+    with patch("api.clinical.administration.service.HAPIFHIRClient") as MockHapi:
+        instance = MockHapi.return_value
+        instance.search = AsyncMock(side_effect=[
+            bundle(med_request()),
+            bundle(stamped),
+        ])
+        resp = client.get(
+            "/api/clinical/administration/scheduled-tasks",
+            params={
+                "patient_id": "123",
+                "window_start": "2026-05-14T00:00:00+00:00",
+                "window_end": "2026-05-15T00:00:00+00:00",
+            },
+        )
+    payload = resp.json()
+    by_hour = {s["scheduled_time"][11:13]: s for s in payload["scheduled"]}
+    assert by_hour["08"]["administration"]["id"] == "adm-early"
+    assert by_hour["20"]["administration"] is None
+    assert payload["unscheduled_admins"] == []
+
+
+@pytest.mark.asyncio
+async def test_stamped_admin_cannot_be_stolen_by_a_nearer_cell(client):
+    """An admin stamped for the 08:00 cell but charted at 19:45 (15 min from
+    the 20:00 dose) must still land on 08:00 — the stamp is authoritative,
+    and proximity must not reassign it to the wrong cell."""
+    stamped = med_admin("adm-stamped", "rx-1", "2026-05-14T19:45:00+00:00")
+    stamped["extension"] = [{
+        "url": "http://wintehr.local/fhir/StructureDefinition/scheduled-dose-time",
+        "valueDateTime": "2026-05-14T08:00:00+00:00",
+    }]
+    with patch("api.clinical.administration.service.HAPIFHIRClient") as MockHapi:
+        instance = MockHapi.return_value
+        instance.search = AsyncMock(side_effect=[
+            bundle(med_request()),
+            bundle(stamped),
+        ])
+        resp = client.get(
+            "/api/clinical/administration/scheduled-tasks",
+            params={
+                "patient_id": "123",
+                "window_start": "2026-05-14T00:00:00+00:00",
+                "window_end": "2026-05-15T00:00:00+00:00",
+            },
+        )
+    payload = resp.json()
+    by_hour = {s["scheduled_time"][11:13]: s for s in payload["scheduled"]}
+    assert by_hour["08"]["administration"]["id"] == "adm-stamped"
+    assert by_hour["20"]["administration"] is None

@@ -53,6 +53,17 @@ TASK_CATEGORY_PROCEDURE = frozenset({"387713003", "procedure"})
 # Specimen (`request`) use their native R4 elements — no extension needed.
 IMMUNIZATION_ORDER_EXTENSION = "http://wintehr.local/fhir/StructureDefinition/immunization-order"
 
+# The record endpoint stamps the grid cell's scheduled time onto every
+# administration charted from the MAR. That stamp is the authoritative
+# "this admin belongs to that cell" link — matching on it is exact,
+# independent of WHEN the nurse actually charted. Time proximity is only
+# a fallback for admins created outside the MAR (no stamp).
+SCHEDULED_DOSE_TIME_EXTENSION = "http://wintehr.local/fhir/StructureDefinition/scheduled-dose-time"
+
+# Tolerance for comparing the stamp against a computed dose time — covers
+# ISO-format/precision drift across the round-trip, nothing more.
+_STAMP_TOLERANCE = timedelta(minutes=1)
+
 
 @dataclass(frozen=True)
 class AdminRecord:
@@ -67,6 +78,10 @@ class AdminRecord:
     notes: Optional[str]
     # For 'not-done' admins, the documented reason ("patient refused", etc.)
     status_reason: Optional[str]
+    # The grid cell this admin was charted against, from the
+    # SCHEDULED_DOSE_TIME_EXTENSION stamp. None for admins recorded
+    # outside the MAR.
+    scheduled_time: Optional[datetime] = None
 
 
 @dataclass(frozen=True)
@@ -280,6 +295,17 @@ def _parse_admin(resource: dict[str, Any]) -> Optional[AdminRecord]:
         first = sr[0]
         status_reason = first.get("text") or (first.get("coding") or [{}])[0].get("display")
 
+    scheduled_time = None
+    for ext in resource.get("extension") or []:
+        if ext.get("url") == SCHEDULED_DOSE_TIME_EXTENSION:
+            raw = ext.get("valueDateTime")
+            if raw:
+                try:
+                    scheduled_time = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                except (TypeError, ValueError):
+                    scheduled_time = None
+            break
+
     return AdminRecord(
         id=resource["id"],
         medication_request_id=request_id,
@@ -289,6 +315,7 @@ def _parse_admin(resource: dict[str, Any]) -> Optional[AdminRecord]:
         dose_text=dose_text,
         notes=notes,
         status_reason=status_reason,
+        scheduled_time=scheduled_time,
     )
 
 
@@ -299,24 +326,46 @@ def _match_dose(
     med_request: dict[str, Any],
 ) -> dict[str, Any]:
     """Find the best-matching admin for a scheduled dose, or return an unmatched cell."""
-    # Best match = same MedicationRequest id, status=completed/in-progress,
-    # effective time within ADMIN_MATCH_WINDOW of the scheduled time, and
-    # not already consumed by an earlier scheduled dose. Closest-in-time wins.
+    # Pass 1 — the authoritative link: an admin charted FROM this grid cell
+    # carries the cell's scheduled time on SCHEDULED_DOSE_TIME_EXTENSION.
+    # Matching on the stamp is exact and independent of when the nurse
+    # actually charted (a dose given 5h early still belongs to its cell —
+    # without this, the admin fell into unscheduled_admins, the cell stayed
+    # "due", and the nurse's action looked like it did nothing).
     best: Optional[AdminRecord] = None
-    best_delta: Optional[timedelta] = None
     for admin in admins:
         if admin.id in consumed_admin_ids:
             continue
         if admin.medication_request_id != dose.medication_request_id:
             continue
-        # Held/not-done admins should also match their scheduled dose so the
-        # cell can render the hold/refuse state instead of staying "due".
-        delta = abs(admin.effective_datetime - dose.scheduled_time)
-        if delta > ADMIN_MATCH_WINDOW:
+        if admin.scheduled_time is None:
             continue
-        if best is None or delta < best_delta:
+        if abs(admin.scheduled_time - dose.scheduled_time) <= _STAMP_TOLERANCE:
             best = admin
-            best_delta = delta
+            break
+
+    # Pass 2 — proximity fallback for admins recorded outside the MAR (no
+    # stamp): same MedicationRequest, effective time within
+    # ADMIN_MATCH_WINDOW of the scheduled time, closest-in-time wins.
+    # Stamped admins are excluded here — a stamp naming a DIFFERENT cell
+    # must not let this cell steal the record.
+    if best is None:
+        best_delta: Optional[timedelta] = None
+        for admin in admins:
+            if admin.id in consumed_admin_ids:
+                continue
+            if admin.medication_request_id != dose.medication_request_id:
+                continue
+            if admin.scheduled_time is not None:
+                continue
+            # Held/not-done admins should also match their scheduled dose so
+            # the cell can render the hold/refuse state instead of staying "due".
+            delta = abs(admin.effective_datetime - dose.scheduled_time)
+            if delta > ADMIN_MATCH_WINDOW:
+                continue
+            if best is None or delta < best_delta:
+                best = admin
+                best_delta = delta
 
     if best is not None:
         consumed_admin_ids.add(best.id)

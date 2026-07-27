@@ -39,6 +39,7 @@ from api.websocket.fhir_notifications import notification_service
 from .service import (
     ADMINISTRABLE_STATUSES,
     IMMUNIZATION_ORDER_EXTENSION,
+    SCHEDULED_DOSE_TIME_EXTENSION,
     get_administration_tasks,
     get_scheduled_tasks,
 )
@@ -269,7 +270,7 @@ async def record_administration_endpoint(body: RecordAdministrationRequest) -> R
         if scheduled.tzinfo is None:
             scheduled = scheduled.replace(tzinfo=timezone.utc)
         med_admin["extension"] = [{
-            "url": "http://wintehr.local/fhir/StructureDefinition/scheduled-dose-time",
+            "url": SCHEDULED_DOSE_TIME_EXTENSION,
             "valueDateTime": scheduled.isoformat(),
         }]
         # Late-given is a derived signal — we still write status="completed"

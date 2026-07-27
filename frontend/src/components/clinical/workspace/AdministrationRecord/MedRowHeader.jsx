@@ -48,6 +48,11 @@ const MedRowHeader = ({ row, density = 'comfortable', onClickMedication }) => {
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
+        // The row is a fixed-height lane in a grid; anything the 200px rail
+        // can't fit must clip, not bleed over neighboring rows (long
+        // dose_text like "100 mg · PO (by mouth) · Twice daily" used to
+        // wrap and garble the whole rail).
+        overflow: 'hidden',
         borderRight: `1px solid ${theme.palette.divider}`,
         borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
         bgcolor: 'background.paper',
@@ -80,19 +85,34 @@ const MedRowHeader = ({ row, density = 'comfortable', onClickMedication }) => {
         </Typography>
       </Stack>
       {density !== 'compact' && (
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.25 }}>
+        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.25, minWidth: 0 }}>
           {sample.dose_text && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-              {sample.dose_text}
-            </Typography>
+            <Tooltip title={sample.dose_text} enterDelay={500}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                noWrap
+                sx={{ fontSize: '0.65rem', minWidth: 0, flexShrink: 1 }}
+              >
+                {sample.dose_text}
+              </Typography>
+            </Tooltip>
           )}
           {sample.indication && (
-            <Chip
-              label={sample.indication}
-              size="small"
-              variant="outlined"
-              sx={{ height: 14, fontSize: '0.6rem', '& .MuiChip-label': { px: 0.5 } }}
-            />
+            <Tooltip title={sample.indication} enterDelay={500}>
+              <Chip
+                label={sample.indication}
+                size="small"
+                variant="outlined"
+                sx={{
+                  height: 14,
+                  fontSize: '0.6rem',
+                  flexShrink: 0,
+                  maxWidth: 96,
+                  '& .MuiChip-label': { px: 0.5 },
+                }}
+              />
+            </Tooltip>
           )}
         </Stack>
       )}
