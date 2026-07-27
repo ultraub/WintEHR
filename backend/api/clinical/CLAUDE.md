@@ -63,7 +63,7 @@ Order-creation dialogs land orders as `draft`; the encounter signing dialog
 
 | Action | Gate constant | Allowed `MedicationRequest.status` |
 |---|---|---|
-| Dispense (`pharmacy_router.py:142`) | `DISPENSABLE_STATUSES` | `active`, `on-hold`, `completed` |
+| Dispense (`pharmacy/service.py`) | `DISPENSABLE_STATUSES` | `active`, `on-hold`, `completed` |
 | Record administration (`administration/service.py:32`) | `ADMINISTRABLE_STATUSES` | `active`, `completed` |
 
 Dispensing or administering a `draft` order bypasses the prescriber's
@@ -76,7 +76,7 @@ signature — it is a real safety risk and the endpoints return `409 Conflict`.
 There are **two independent safety paths**. They are not the same engine.
 
 1. **Order-time inline check** — `check_medication_alerts_fhir()` in
-   `orders_router.py`. Runs automatically inside `POST .../orders/medications`.
+   `orders/service.py`. Runs automatically inside `POST .../orders/medications`.
    Queries HAPI for active `AllergyIntolerance` + `MedicationRequest`, does
    substring allergy matching and a small hard-coded `interaction_pairs` dict
    (~5 pairs). A `high`-severity alert blocks the order unless
@@ -139,9 +139,11 @@ For new MAR work use the `administration/` module. Do not add to the pharmacy
 
 ## Start here
 
-- `orders/orders_router.py` — CPOE: `POST /medications` is the canonical
-  example of the safety-check-then-create-FHIR pattern (lines ~194–290).
-- `pharmacy/pharmacy_router.py` — `POST /dispense` (the dispense gate, ~113–150).
+- `orders/service.py` — CPOE: `create_medication_order` is the canonical
+  safety-check-then-create-FHIR pattern (router is thin stubs; #5 split).
+- `pharmacy/service.py` — `dispense_medication` (the dispense gate; router
+  is thin stubs). Both service gates are mutation-proven by tests under
+  `tests/api/clinical/{orders,pharmacy}/`.
 - `administration/service.py` — dose matching, status gate, `_match_dose`.
 - `drug_interactions.py` — `comprehensive_safety_check` + the reference data.
 
@@ -151,7 +153,7 @@ For new MAR work use the `administration/` module. Do not add to the pharmacy
 
 | Symptom | Look at |
 |---|---|
-| Medication order silently not saved | `orders_router.py` — `order_saved: false` is returned (not an error) when a `high` alert fires and `override_alerts` is false |
+| Medication order silently not saved | `orders/service.py` — `order_saved: false` is returned (not an error) when a `high` alert fires and `override_alerts` is false |
 | Dispense returns `409` | `MedicationRequest.status` not in `DISPENSABLE_STATUSES` — order was never signed (still `draft`) |
 | Record-administration returns `409` | Order not in `ADMINISTRABLE_STATUSES` (`active`/`completed`) |
 | Frontend call 404s | Prefix mismatch — re-check the resolved-base table above; `notes_router` notably has **no** `/api` |
