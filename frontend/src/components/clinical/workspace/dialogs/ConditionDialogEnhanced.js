@@ -87,7 +87,7 @@ import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContex
 import { useAuth } from '../../../../contexts/AuthContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
-import { getCatalogCoding, getCodeSystemLabel } from '../../../../core/fhir/utils/fhirFieldUtils';
+import { getCatalogCoding, getCodeSystemLabel, CODE_SYSTEMS } from '../../../../core/fhir/utils/fhirFieldUtils';
 
 // Helper function for searching conditions
 const searchConditions = async (query) => {
@@ -279,18 +279,24 @@ const ConditionDialogEnhanced = ({
     const fetchTrending = async () => {
       try {
         const results = await cdsClinicalDataService.getDynamicConditionCatalog(null, 5);
-        const formatted = results.map(condition => ({
-          code: condition.icd10_code || condition.code || condition.id,
-          display: condition.display_name || condition.display || condition.name,
-          frequency: condition.usage_count || 0
-        }));
+        const formatted = results.map(condition => {
+          // Same coding rule as the search path — a trending row that gets
+          // clicked becomes the saved coding, so it must carry its system.
+          const { code, system } = getCatalogCoding(condition);
+          return {
+            code,
+            system,
+            display: condition.display_name || condition.display || condition.name,
+            frequency: condition.usage_count || 0
+          };
+        });
         setTrendingConditions(formatted);
       } catch (error) {
         console.error('Error fetching trending conditions:', error);
         // Use fallback data
         setTrendingConditions([
-          { code: 'I10', display: 'Essential (primary) hypertension', frequency: 45 },
-          { code: 'E11.9', display: 'Type 2 diabetes mellitus without complications', frequency: 38 }
+          { code: 'I10', system: CODE_SYSTEMS.ICD10CM, display: 'Essential (primary) hypertension', frequency: 45 },
+          { code: 'E11.9', system: CODE_SYSTEMS.ICD10CM, display: 'Type 2 diabetes mellitus without complications', frequency: 38 }
         ]);
       }
     };
