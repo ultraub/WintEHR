@@ -18,7 +18,7 @@ Python `CDSService` classes and student-authored CQL. Don't add a third.
 
 A CDS service is either a **built-in Python class** (registered in-process) or
 a **HAPI `PlanDefinition`** carrying a `service-origin` extension. `cds-services`
-discovery merges both. `cds_hooks_router.py` `execute_service()` routes by that
+discovery merges both. `service.py` `CDSHooksService.execute_service()` routes by that
 extension:
 
 | `service-origin` extension | Provider | Path |
@@ -177,7 +177,8 @@ Actions with neither title nor description are skipped (structural grouping).
 
 ## Start here
 
-- `cds_hooks_router.py` — discovery (`cds-services`), `execute_service()` dispatch.
+- `service.py` — `CDSHooksService`: discovery merge, `execute_service()` dispatch,
+  feedback, service CRUD (#5 split; `cds_hooks_router.py` is thin stubs).
 - `services/base_service.py` — `CDSService` base class; the built-in pattern.
 - `conditions/engine.py` — `ConditionEngine` + condition classes / factories.
 - `orchestrator/service_orchestrator.py` — parallel execution + `execute_hook()`.

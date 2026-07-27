@@ -25,7 +25,7 @@ against `routers/__init__.py` per the backend routing rule.
 | File | Router prefix = resolved base | Purpose |
 |---|---|---|
 | `router.py` | `/api/cds-studio` | Service registry, metrics, versioning, rollback (HAPI-`PlanDefinition`-backed) |
-| `visual_builder_router.py` | `/api/cds-visual-builder` | Visual-service CRUD, test, **deploy**, CQL validate |
+| `visual_builder_router.py` (stubs over `visual_builder_service.py`) | `/api/cds-visual-builder` | Visual-service CRUD, test, **deploy**, CQL validate |
 | `value_set_composer.py` | `/api/cds-studio/value-sets` | Student ValueSet CRUD + `$expand` proxy |
 
 Note the trap: `router.py` and `value_set_composer.py` share the `/api/cds-studio`
@@ -116,7 +116,7 @@ PUTs a FHIR `ValueSet` to HAPI (codes grouped by system under
 - Every write calls `flush_cr_caches()` (`hapi_admin.py`) — editing codes
   in-place doesn't change the canonical URL, so HAPI's CR expansion cache would
   otherwise serve stale codes. See the cache narrative in `cds_hooks/CLAUDE.md`.
-- `visual_builder_router._validate_cql_valueset_urls()` rejects CQL on save
+- `visual_builder_service._validate_cql_valueset_urls()` rejects CQL on save
   whose `valueset` declarations point at canonical URLs with no matching
   composed ValueSet — fails loud instead of a silent runtime `{"cards": []}`.
 
@@ -142,7 +142,7 @@ left without its HAPI artifacts.
   The whole CQL authoring pipeline. Read its module docstring first.
 - `visual_service_config.py` — `VisualServiceConfig` / `VisualValueSet` ORM
   models + `is_cql_service_type()`. The DB schema mapping notes are load-bearing.
-- `visual_builder_router.py` — `create` / `update` / `deploy` show the
+- `visual_builder_service.py` — `create` / `update` / `deploy` show the
   fork-by-`service_type` save flow end-to-end.
 - `visual_service_provider.py` — `VisualServiceProvider.execute()` — how a
   condition-tree (non-CQL) service runs.
