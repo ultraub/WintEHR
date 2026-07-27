@@ -85,3 +85,49 @@ async def test_condition_rows_report_the_system_their_code_belongs_to():
     assert by_code["66383009"].icd10_code is None
     assert by_code["E11.9"].icd10_code == "E11.9"
     assert by_code["E11.9"].snomed_code is None
+
+
+@pytest.mark.asyncio
+async def test_catalog_never_asserts_facts_it_has_no_data_for():
+    """Unknown is None — not a convenient default.
+
+    The catalog previously shipped is_formulary=True,
+    is_controlled_substance=False and requires_authorization=False on every
+    medication, and specimen_type='blood' on every lab test, with nothing
+    behind any of it. In a platform that teaches pharmacy and lab
+    workflows, that taught students falsehoods (a controlled substance
+    reported as uncontrolled; a urinalysis reported as a blood specimen).
+    """
+    svc = UnifiedCatalogService.__new__(UnifiedCatalogService)
+
+    class FakeDynamic:
+        async def extract_medication_catalog(self, limit=None):
+            # The extractor's real output shape — no strength/form/route.
+            return [{"id": "med_1", "code": "1", "display": "Oxycodone 5 MG Oral Tablet",
+                     "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                     "frequency_count": 3, "source": "patient_data"}]
+
+        async def extract_lab_test_catalog(self, limit=None):
+            return [{"id": "lab_1", "code": "5792-7", "display": "Glucose in Urine",
+                     "loinc_code": "5792-7", "category": "laboratory",
+                     "specimen_type": None, "frequency_count": 2}]
+
+    class FakeTerm:
+        async def search_catalog(self, *a, **k):
+            return []
+
+    svc.dynamic_service = FakeDynamic()
+    svc.terminology = FakeTerm()
+
+    med = (await svc.search_medications(None, 10))[0]
+    assert med.is_controlled_substance is None, "asserted a scheduling fact"
+    assert med.is_formulary is None, "asserted formulary status"
+    assert med.requires_authorization is None, "asserted an auth requirement"
+    # Facts the source genuinely carries are still populated.
+    assert med.generic_name == "Oxycodone 5 MG Oral Tablet"
+    assert med.rxnorm_code == "1"
+    assert med.usage_count == 3
+
+    lab = (await svc.search_lab_tests(None, 10))[0]
+    assert lab.specimen_type is None, "claimed a specimen it never observed"
+    assert lab.loinc_code == "5792-7"

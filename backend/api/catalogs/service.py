@@ -90,16 +90,19 @@ class UnifiedCatalogService:
             code = med.get('code', '')
             if code and code not in seen_codes:
                 seen_codes.add(code)
+                # brand_name / strength / dosage_form / route / dosages are
+                # deliberately not set: the extractor emits {code, display,
+                # system, frequency_count} only, so reading those keys always
+                # yielded None and made the API look like it served data it
+                # never had. The RxNorm display already carries strength and
+                # form inline ("… 100 MG Extended Release Oral Tablet"), which
+                # is what the UI shows. Populate these only from a source that
+                # genuinely has them.
                 results.append(MedicationCatalogItem(
                     id=code,
                     generic_name=med.get('display', ''),
-                    brand_name=med.get('brand_name'),
-                    strength=med.get('strength'),
-                    dosage_form=med.get('form'),
-                    route=med.get('route'),
                     rxnorm_code=code,
-                    usage_count=med.get('frequency', med.get('frequency_count', 0)),
-                    common_dosages=med.get('dosages', [])
+                    usage_count=med.get('frequency_count', 0),
                 ))
 
         # Backfill from terminology
@@ -185,7 +188,7 @@ class UnifiedCatalogService:
                     loinc_code=code,
                     reference_range=test.get('reference_range'),
                     usage_count=test.get('frequency_count', 0),
-                    specimen_type=test.get('specimen_type', 'blood')
+                    specimen_type=test.get('specimen_type')
                 ))
 
         for concept in term_tests:
@@ -256,12 +259,12 @@ class UnifiedCatalogService:
                 results.append(ConditionCatalogItem(
                     id=code,
                     display_name=cond.get('display', ''),
-                    icd10_code=code if 'icd' in system and '9' not in system else cond.get('icd10_code'),
-                    snomed_code=code if 'snomed' in system else cond.get('snomed_code'),
-                    category=cond.get('category'),
-                    chronic=cond.get('chronic', False),
-                    usage_count=cond.get('usage_count', 0),
-                    common_medications=cond.get('common_medications', [])
+                    icd10_code=code if 'icd' in system and '9' not in system else None,
+                    snomed_code=code if 'snomed' in system else None,
+                    # category / severity / chronic / common_medications are
+                    # not in the extractor's output — left unknown rather
+                    # than defaulted (see models.py).
+                    usage_count=cond.get('frequency_count', 0),
                 ))
 
         # SNOMED conditions

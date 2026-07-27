@@ -136,6 +136,9 @@ scratch (the two existing importers share zero code).
 | B8 | ~~CPOE sign doesn't attach the authenticated practitioner~~ **Corrected + fixed** — the reference WAS set (my first check read `.display`, not `.reference`); the real gap was a missing `display`, so every order list rendered no ordering provider. Sign now writes reference + display | `OrderComposer.jsx` |
 | B9 | ~~Condition dialogs label SNOMED codes as "ICD-10"~~ **Fixed — was worse than a label bug**: the dialog hardcoded the ICD-10-CM system URI on save, so SNOMED problem-list codes were PERSISTED as ICD-10 (wrong data in a FHIR-teaching platform). Codes now carry their real system end to end via `getCatalogCoding`/`getCodeSystemLabel`; labels derive from it | `ConditionDialogEnhanced.js`, `fhirFieldUtils.js` |
 
+| B10 | ~~Catalog API asserted facts it had no data for: every medication `is_formulary: true` / `is_controlled_substance: false` / `requires_authorization: false`, every lab test `specimen_type: "blood"`~~ **Fixed** — unknown is now `None`; the booleans had zero consumers but would have taught students that (e.g.) a controlled substance is uncontrolled, and that a urinalysis is a blood specimen | `api/catalogs/models.py`, `dynamic_catalog_service.py` |
+| B11 | ~~Medication catalog read five keys the extractor never emits (`brand_name`, `strength`, `form`, `route`, `dosages`) — always null, so strength display and drug-class categorization silently never worked~~ **Fixed** — phantom reads removed and documented; RxNorm display already carries strength/form inline | `api/catalogs/service.py` |
+
 
 Live bugs B1–B7 are small; fold each into whichever slice touches its area,
 or batch as a standalone fix PR.

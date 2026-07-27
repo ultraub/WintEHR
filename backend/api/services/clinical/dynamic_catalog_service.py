@@ -269,7 +269,12 @@ class DynamicCatalogService:
                 "display": data['display'],
                 "loinc_code": data['loinc_code'],
                 "category": "laboratory",
-                "specimen_type": "blood",  # Default, could be enhanced
+                # No specimen type: this extraction reads Observation codes
+                # only (_elements=code), which never state the specimen. It
+                # used to hardcode "blood" for every test — wrong for urine,
+                # CSF, swab, and stool studies, and a training platform must
+                # not teach a specimen it did not observe.
+                "specimen_type": None,
                 "frequency_count": data['frequency_count'],
                 "source": "patient_data"
             })

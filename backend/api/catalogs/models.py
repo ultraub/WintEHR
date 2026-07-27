@@ -8,7 +8,22 @@ from datetime import datetime
 
 
 class MedicationCatalogItem(BaseModel):
-    """Medication catalog item model"""
+    """Medication catalog item.
+
+    Fields are Optional because the catalog is built from the FHIR data
+    actually present, and most of these facts are NOT in it: the dynamic
+    extractor reads MedicationRequest codes (`_elements=code`) and the
+    terminology path returns {system, code, display}. Neither carries
+    strength, form, route, drug class, formulary status, or scheduling.
+
+    They are therefore None = UNKNOWN, never asserted. The booleans below
+    used to default to `is_formulary=True`, `is_controlled_substance=False`,
+    `requires_authorization=False` — claims no data supported, which in a
+    platform that teaches pharmacy workflows would have taught students
+    that (say) oxycodone is not a controlled substance. If a real source
+    for these appears (a formulary file, an RxNorm attribute load), populate
+    them there; do not re-add asserted defaults.
+    """
     id: str
     generic_name: str
     brand_name: Optional[str] = None
@@ -19,22 +34,23 @@ class MedicationCatalogItem(BaseModel):
     frequency_options: Optional[List[str]] = []
     standard_doses: Optional[List[str]] = []
     rxnorm_code: Optional[str] = None
-    is_controlled_substance: bool = False
-    requires_authorization: bool = False
-    is_formulary: bool = True
+    is_controlled_substance: Optional[bool] = None
+    requires_authorization: Optional[bool] = None
+    is_formulary: Optional[bool] = None
     usage_count: Optional[int] = None  # From dynamic extraction
     common_dosages: Optional[List[Dict[str, Any]]] = None  # From dynamic extraction
 
 
 class LabTestCatalogItem(BaseModel):
-    """Lab test catalog item model"""
+    """Lab test catalog item. Unknown facts are None, not asserted —
+    see MedicationCatalogItem for the rationale."""
     id: str
     test_name: str
     test_code: str
     test_description: Optional[str] = None
     specimen_type: Optional[str] = None
     loinc_code: Optional[str] = None
-    fasting_required: bool = False
+    fasting_required: Optional[bool] = None
     special_instructions: Optional[str] = None
     turnaround_time: Optional[str] = None
     reference_range: Optional[Dict[str, Any]] = None  # From dynamic extraction
@@ -42,14 +58,15 @@ class LabTestCatalogItem(BaseModel):
 
 
 class ImagingStudyCatalogItem(BaseModel):
-    """Imaging study catalog item model"""
+    """Imaging study catalog item. Unknown facts are None, not asserted —
+    see MedicationCatalogItem for the rationale."""
     id: str
     study_name: str
     study_code: str
     study_description: Optional[str] = None
     modality: str
     body_site: Optional[str] = None
-    contrast_required: bool = False
+    contrast_required: Optional[bool] = None
     prep_instructions: Optional[str] = None
     duration_minutes: Optional[int] = None
     radiation_dose: Optional[str] = None
@@ -57,14 +74,15 @@ class ImagingStudyCatalogItem(BaseModel):
 
 
 class ConditionCatalogItem(BaseModel):
-    """Condition/diagnosis catalog item model"""
+    """Condition/diagnosis catalog item. Unknown facts are None, not
+    asserted — see MedicationCatalogItem for the rationale."""
     id: str
     display_name: str
     icd10_code: Optional[str] = None
     snomed_code: Optional[str] = None
     category: Optional[str] = None
     severity: Optional[str] = None
-    chronic: bool = False
+    chronic: Optional[bool] = None
     usage_count: Optional[int] = None  # From dynamic extraction
     common_medications: Optional[List[str]] = None  # From dynamic extraction
 
