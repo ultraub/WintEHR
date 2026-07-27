@@ -602,11 +602,17 @@ class OrdersService:
             if priority:
                 search_params["priority"] = priority
 
-            search_params["_sort"] = "-authored"  # Most recent first
             search_params["_count"] = limit
 
             # Query each resource type
             for resource_type in resource_types:
+                # HAPI's sort parameter is per-type: MedicationRequest uses
+                # 'authoredon', ServiceRequest uses 'authored'. One shared
+                # '-authored' 400'd every MedicationRequest search (and with
+                # it this whole endpoint) since inception — B12's twin, B13.
+                search_params["_sort"] = (
+                    "-authoredon" if resource_type == "MedicationRequest" else "-authored"
+                )
                 bundle = await hapi_client.search(resource_type, search_params)
 
                 entries = bundle.get("entry", [])
@@ -691,7 +697,7 @@ class OrdersService:
 
     async def get_active_orders(self, *, patient_id: Optional[str] = None, order_type: Optional[str] = None, current_user: User):
         """Get active orders (status=active) (moved verbatim from the router)."""
-        return await get_orders(
+        return await self.get_orders(
             patient_id=patient_id,
             order_type=order_type,
             status="active",

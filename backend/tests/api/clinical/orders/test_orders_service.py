@@ -258,3 +258,53 @@ def test_determine_order_type_extension_wins_over_code_system():
         "code": [{"coding": [{"system": "http://snomed.info/sct"}]}],
     }
     assert _determine_order_type(action) == "laboratory"
+
+
+# ---------------------------------------------------------------------------
+# get_orders / get_active_orders — pinned after two live-only failures
+# ---------------------------------------------------------------------------
+
+class _RecordingHAPI:
+    """Records every outgoing search; answers with an empty bundle."""
+
+    def __init__(self):
+        self.calls = []
+
+    async def search(self, resource_type, params):
+        # dict(params) — the service mutates one shared params dict per loop
+        self.calls.append((resource_type, dict(params)))
+        return {"entry": []}
+
+
+@pytest.mark.asyncio
+async def test_get_orders_uses_each_types_real_hapi_sort_parameter():
+    """Regression (B13, B12's twin): one shared '_sort=-authored' was sent to
+    both types. ServiceRequest accepts it; MedicationRequest's parameter is
+    'authoredon', so HAPI answered 400 and GET /api/clinical/orders/ was a
+    500 for every caller since inception — surfaced only by curling the
+    deployed endpoint after the #5 extraction."""
+    hapi = _RecordingHAPI()
+    svc = OrdersService(hapi_client=hapi)
+
+    await svc.get_orders(current_user=USER)
+
+    sorts = {rt: params["_sort"] for rt, params in hapi.calls}
+    assert sorts == {
+        "MedicationRequest": "-authoredon",
+        "ServiceRequest": "-authored",
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_active_orders_delegates_through_self():
+    """Regression: after the extraction, get_active_orders still called its
+    old sibling HANDLER by bare name -> NameError -> 500 in production while
+    the suite stayed green (nothing exercised the delegation)."""
+    hapi = _RecordingHAPI()
+    svc = OrdersService(hapi_client=hapi)
+
+    result = await svc.get_active_orders(current_user=USER)
+
+    assert result == []
+    assert all(params["status"] == "active" for _, params in hapi.calls)
+    assert len(hapi.calls) == 2  # both resource types queried
