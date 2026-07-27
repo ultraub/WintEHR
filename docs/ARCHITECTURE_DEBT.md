@@ -133,6 +133,9 @@ scratch (the two existing importers share zero code).
 | **4** | **Backend registration/routing hardening.** Per-router try/except; health endpoint reporting failures; one prefix convention; reconcile the three proxy configs. | **DONE** — flat per-router `ROUTERS` list (one failure = one router down, not twelve), `/api/health` reports `FAILED_ROUTERS` (B3 fixed), dead `api/system/health.py` removed; prefix convention normalized to full-prefix-in-file (OpenAPI-diff-proven neutral), escapees folded in (`/api/dicom` — fixing DICOM viewer calls that were broken per-environment — and `/api/clinical/notes`, zero live callers); proxy configs reconciled: `/dicom` and bare-`/ws` special-cases removed everywhere, `/api/ws` fixed in nginx-default (B6). Deliberate non-`/api` survivors: `/fhir`, SMART spec paths. |
 | **5** | **Service extraction for the four god routers** (pharmacy, orders, cds_hooks, visual_builder — ~6,400 lines of inline logic). After #4, one router at a time, adding tests per extracted service. | pending |
 | **6** | **Importer toolkit.** Extract the shared concerns both existing importers solved independently into `backend/scripts/lib/`. | **deferred** (2026-07-26, per Rob — not needed at this time; revisit when the next dataset import comes up) |
+| B8 | CPOE sign doesn't attach the authenticated practitioner — persisted MedicationRequests have `requester: None` (Add Condition correctly records "Recorded by RN Demo Nurse"; the Order Composer should do the equivalent) | Order Composer sign flow |
+| B9 | Condition dialogs label SNOMED codes as "ICD-10" (e.g. "ICD-10: 66383009" — that's a SNOMED code); the saved card shows "ICD 66383009" too | AddConditionDialog / condition catalog rows |
+
 
 Live bugs B1–B7 are small; fold each into whichever slice touches its area,
 or batch as a standalone fix PR.
