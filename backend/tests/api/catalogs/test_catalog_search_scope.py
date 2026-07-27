@@ -52,3 +52,36 @@ async def test_search_finds_entries_outside_the_top_limit(monkeypatch):
     browse = await svc._dynamic_medications(None, 25)
     assert calls == [25]
     assert len(browse) == 25
+
+
+@pytest.mark.asyncio
+async def test_condition_rows_report_the_system_their_code_belongs_to():
+    """B9: rows must distinguish SNOMED from ICD-10, not report neither.
+
+    The dynamic extractor emits {code, system, display}; the catalog used
+    to read non-existent icd10_code/snomed_code keys, so every row came
+    back with both null and the UI labeled SNOMED codes 'ICD-10'.
+    """
+    svc = UnifiedCatalogService.__new__(UnifiedCatalogService)
+
+    class FakeDynamic:
+        async def extract_condition_catalog(self, limit=None):
+            return [
+                {"code": "66383009", "system": "http://snomed.info/sct", "display": "Gingivitis"},
+                {"code": "E11.9", "system": "http://hl7.org/fhir/sid/icd-10-cm", "display": "T2DM"},
+            ]
+
+    class FakeTerm:
+        async def search_catalog(self, *a, **k):
+            return []
+
+    svc.dynamic_service = FakeDynamic()
+    svc.terminology = FakeTerm()
+
+    rows = await svc.search_conditions(None, 10)
+    by_code = {r.id: r for r in rows}
+
+    assert by_code["66383009"].snomed_code == "66383009"
+    assert by_code["66383009"].icd10_code is None
+    assert by_code["E11.9"].icd10_code == "E11.9"
+    assert by_code["E11.9"].snomed_code is None

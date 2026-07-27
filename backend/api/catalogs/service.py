@@ -247,11 +247,17 @@ class UnifiedCatalogService:
             code = cond.get('code', '')
             if code and code not in seen_codes:
                 seen_codes.add(code)
+                # The dynamic extractor reports {code, system, display} — it
+                # has no icd10_code/snomed_code keys, so reading those
+                # returned None for every row and the UI could not tell a
+                # SNOMED code from an ICD-10 one (B9). Derive the coded
+                # identity from the system the data actually carries.
+                system = (cond.get('system') or '').lower()
                 results.append(ConditionCatalogItem(
                     id=code,
                     display_name=cond.get('display', ''),
-                    icd10_code=cond.get('icd10_code'),
-                    snomed_code=cond.get('snomed_code'),
+                    icd10_code=code if 'icd' in system and '9' not in system else cond.get('icd10_code'),
+                    snomed_code=code if 'snomed' in system else cond.get('snomed_code'),
                     category=cond.get('category'),
                     chronic=cond.get('chronic', False),
                     usage_count=cond.get('usage_count', 0),
