@@ -497,14 +497,16 @@ class CDSStudioService:
             )
 
             # Execute service (using existing CDS hooks infrastructure)
-            from api.cds_hooks.cds_hooks_router import execute_service
+            from api.cds_hooks.service import CDSHooksService
 
             start_time = time.time()
             logs = []
             errors = []
 
             try:
-                response = await execute_service(service_id, hook_request, db)
+                response = await CDSHooksService(db=db).execute_service(
+                    service_id=service_id, request=hook_request
+                )
                 execution_time_ms = int((time.time() - start_time) * 1000)
 
                 # Convert Pydantic model to dict if necessary

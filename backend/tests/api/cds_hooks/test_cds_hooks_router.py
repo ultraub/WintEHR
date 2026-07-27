@@ -409,7 +409,7 @@ class TestPlanDefinitionConversion:
 
     def test_extract_extension_value_string(self, sample_plan_definition):
         """Test extracting string extension value"""
-        from api.cds_hooks.cds_hooks_router import _extract_extension_value
+        from api.cds_hooks.service import _extract_extension_value
 
         value = _extract_extension_value(
             sample_plan_definition,
@@ -420,7 +420,7 @@ class TestPlanDefinitionConversion:
 
     def test_extract_extension_value_code(self, sample_plan_definition):
         """Test extracting code extension value"""
-        from api.cds_hooks.cds_hooks_router import _extract_extension_value
+        from api.cds_hooks.service import _extract_extension_value
 
         value = _extract_extension_value(
             sample_plan_definition,
@@ -431,7 +431,7 @@ class TestPlanDefinitionConversion:
 
     def test_extract_extension_value_default(self, sample_plan_definition):
         """Test extension extraction with default value"""
-        from api.cds_hooks.cds_hooks_router import _extract_extension_value
+        from api.cds_hooks.service import _extract_extension_value
 
         value = _extract_extension_value(
             sample_plan_definition,
@@ -443,7 +443,7 @@ class TestPlanDefinitionConversion:
 
     def test_plan_definition_to_cds_service(self, sample_plan_definition):
         """Test converting PlanDefinition to CDSService"""
-        from api.cds_hooks.cds_hooks_router import _plan_definition_to_cds_service
+        from api.cds_hooks.service import _plan_definition_to_cds_service
 
         service = _plan_definition_to_cds_service(sample_plan_definition)
 
@@ -455,7 +455,7 @@ class TestPlanDefinitionConversion:
 
     def test_build_prefetch_from_plan_definition(self, sample_plan_definition):
         """Test building prefetch template from PlanDefinition"""
-        from api.cds_hooks.cds_hooks_router import _build_prefetch_from_plan_definition
+        from api.cds_hooks.service import _build_prefetch_from_plan_definition
 
         prefetch = _build_prefetch_from_plan_definition(sample_plan_definition)
 
@@ -465,7 +465,7 @@ class TestPlanDefinitionConversion:
 
     def test_build_prefetch_with_custom_extension(self):
         """Test building prefetch from custom extension"""
-        from api.cds_hooks.cds_hooks_router import _build_prefetch_from_plan_definition
+        from api.cds_hooks.service import _build_prefetch_from_plan_definition
 
         plan_def = {
             "resourceType": "PlanDefinition",
@@ -514,7 +514,7 @@ class TestExecutionLogging:
 
         with patch('services.hapi_fhir_client.HAPIFHIRClient') as mock_hapi, \
              patch('api.cds_hooks.providers.LocalServiceProvider') as mock_provider_class, \
-             patch('api.cds_hooks.cds_hooks_router.log_service_execution', new_callable=AsyncMock) as mock_log:
+             patch('api.cds_hooks.service.log_service_execution', new_callable=AsyncMock) as mock_log:
 
             mock_hapi_client = AsyncMock()
             # Direct read resolves the PlanDefinition (the fixture id is not
@@ -554,7 +554,7 @@ class TestExecutionLogging:
 
         with patch('services.hapi_fhir_client.HAPIFHIRClient') as mock_hapi, \
              patch('api.cds_hooks.providers.LocalServiceProvider') as mock_provider_class, \
-             patch('api.cds_hooks.cds_hooks_router.log_service_execution', new_callable=AsyncMock) as mock_log:
+             patch('api.cds_hooks.service.log_service_execution', new_callable=AsyncMock) as mock_log:
 
             mock_hapi_client = AsyncMock()
             # Direct read resolves the PlanDefinition (the fixture id is not

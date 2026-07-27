@@ -10,7 +10,7 @@ import logging
 
 from database import get_db_session as get_db
 from .executor import ActionExecutor, ActionExecutionRequest, ActionExecutionResult
-from ..cds_hooks_router import get_persistence_manager
+from ..hooks import get_persistence_manager
 from ..models import CDSHookRequest
 
 logger = logging.getLogger(__name__)
