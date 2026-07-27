@@ -4,23 +4,24 @@ Tests for the dispense signing-gate (issue #86).
 After Phase 3 of the order-workflow plan:
 - Order-creation dialogs land MedicationRequests as `status='draft'`
 - The signing dialog flips draft → active on explicit Sign
-- The pharmacy dispense endpoint MUST refuse to act on `draft` orders
+- The pharmacy dispense path MUST refuse to act on `draft` orders
   (and on terminal/error states like cancelled, entered-in-error)
 
-These tests pin the dispense_medication gate. They are pure unit tests
-of the route handler with a mocked HAPI client — no DB or container
-dependencies, so they run in any environment.
+These tests pin the dispense gate, which now lives in
+PharmacyService.dispense_medication (extracted from the router in the #5
+service split). The service takes an injected HAPI client, so no patching
+is needed — construct it with a mock and call the method. When the gate
+logic moves again, these tests move WITH it, by design: they import the
+service, not a dotted patch path that can silently dangle.
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import HTTPException
 
-from api.clinical.pharmacy.pharmacy_router import (
-    MedicationDispenseRequest,
-    dispense_medication,
-)
+from api.clinical.pharmacy.models import MedicationDispenseRequest
+from api.clinical.pharmacy.service import PharmacyService
 
 
 def _mk_request(med_id: str = "med-1", pharm_id: str = "pharm-1") -> MedicationDispenseRequest:
@@ -49,6 +50,10 @@ def _mk_med_request(status: str, with_subject: bool = True) -> dict:
     return base
 
 
+def _svc(mock_client: AsyncMock) -> PharmacyService:
+    return PharmacyService(hapi_client=mock_client)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("blocked_status", [
     "draft",  # the central case — order authored but unsigned
@@ -63,17 +68,13 @@ async def test_dispense_rejects_non_dispensable_statuses(blocked_status):
     mock_client = AsyncMock()
     mock_client.read = AsyncMock(return_value=_mk_med_request(blocked_status))
 
-    with patch(
-        "api.clinical.pharmacy.pharmacy_router.HAPIFHIRClient",
-        return_value=mock_client,
-    ):
-        with pytest.raises(HTTPException) as exc_info:
-            await dispense_medication(_mk_request())
+    with pytest.raises(HTTPException) as exc_info:
+        await _svc(mock_client).dispense_medication(_mk_request())
 
     assert exc_info.value.status_code == 409
     assert blocked_status in exc_info.value.detail
     assert "signed" in exc_info.value.detail
-    # No write happened — the route bailed before create
+    # No write happened — the gate bailed before create
     mock_client.create.assert_not_called()
 
 
@@ -81,7 +82,7 @@ async def test_dispense_rejects_non_dispensable_statuses(blocked_status):
 @pytest.mark.parametrize("allowed_status", ["active", "on-hold", "completed"])
 async def test_dispense_allows_dispensable_statuses(allowed_status):
     """Active (and a few neighbor states clinically acceptable to fill)
-    pass the gate. We just need to see the route get PAST the gate and
+    pass the gate. We just need to see the flow get PAST the gate and
     into the create path; the rest of the dispense flow is out of scope
     for this test."""
     mock_client = AsyncMock()
@@ -89,19 +90,15 @@ async def test_dispense_allows_dispensable_statuses(allowed_status):
     mock_client.create = AsyncMock(return_value={"id": "dispense-1"})
     mock_client.update = AsyncMock(return_value={"id": "med-1"})
 
-    with patch(
-        "api.clinical.pharmacy.pharmacy_router.HAPIFHIRClient",
-        return_value=mock_client,
-    ):
-        # Should NOT raise on the status check. We let it run to completion
-        # (or until it hits an unrelated assertion downstream).
-        try:
-            await dispense_medication(_mk_request())
-        except HTTPException as e:
-            # If it raises, it must NOT be the signing-gate 409.
-            assert e.status_code != 409 or "signed" not in (e.detail or "")
+    # Should NOT raise on the status check. We let it run to completion
+    # (or until it hits an unrelated assertion downstream).
+    try:
+        await _svc(mock_client).dispense_medication(_mk_request())
+    except HTTPException as e:
+        # If it raises, it must NOT be the signing-gate 409.
+        assert e.status_code != 409 or "signed" not in (e.detail or "")
 
-    # The gate let it through to at least the create call
+    # The gate let it through to at least the read
     mock_client.read.assert_awaited()
 
 
@@ -112,12 +109,8 @@ async def test_dispense_404_for_missing_med_request():
     mock_client = AsyncMock()
     mock_client.read = AsyncMock(return_value=None)
 
-    with patch(
-        "api.clinical.pharmacy.pharmacy_router.HAPIFHIRClient",
-        return_value=mock_client,
-    ):
-        with pytest.raises(HTTPException) as exc_info:
-            await dispense_medication(_mk_request())
+    with pytest.raises(HTTPException) as exc_info:
+        await _svc(mock_client).dispense_medication(_mk_request())
 
     assert exc_info.value.status_code == 404
     assert "not found" in exc_info.value.detail.lower()
@@ -131,12 +124,8 @@ async def test_dispense_400_for_missing_subject_after_gate_passes():
     mock_client = AsyncMock()
     mock_client.read = AsyncMock(return_value=_mk_med_request("active", with_subject=False))
 
-    with patch(
-        "api.clinical.pharmacy.pharmacy_router.HAPIFHIRClient",
-        return_value=mock_client,
-    ):
-        with pytest.raises(HTTPException) as exc_info:
-            await dispense_medication(_mk_request())
+    with pytest.raises(HTTPException) as exc_info:
+        await _svc(mock_client).dispense_medication(_mk_request())
 
     assert exc_info.value.status_code == 400
     assert "subject" in exc_info.value.detail.lower()

@@ -5,21 +5,20 @@ The MAR module's record endpoint (administration/router.py) has always
 gated on ADMINISTRABLE_STATUSES — but the legacy pharmacy route
 POST /api/clinical/pharmacy/mar/administer had no gate at all, so a draft
 (unsigned) order could be charted from PharmacyTab while the MAR refused
-it. These tests pin the new gate to the same semantics.
+it. These tests pin the gate to the same semantics.
 
-Pure unit tests of the route handler with a mocked HAPI client — no DB or
-container dependencies (same pattern as test_dispense_signing_gate.py).
+The gate now lives in PharmacyService.record_medication_administration
+(extracted from the router in the #5 service split). The service takes an
+injected HAPI client — no patching, no dotted paths that can dangle.
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import HTTPException
 
-from api.clinical.pharmacy.pharmacy_router import (
-    MedicationAdministrationRequest,
-    record_medication_administration,
-)
+from api.clinical.pharmacy.models import MedicationAdministrationRequest
+from api.clinical.pharmacy.service import PharmacyService
 
 
 def _mk_request(med_id: str = "med-1") -> MedicationAdministrationRequest:
@@ -44,6 +43,10 @@ def _mk_med_request(status: str) -> dict:
     }
 
 
+def _svc(mock_client: AsyncMock) -> PharmacyService:
+    return PharmacyService(hapi_client=mock_client)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("blocked_status", [
     "draft",  # the central case — charting against an unsigned order
@@ -59,12 +62,8 @@ async def test_mar_administer_rejects_non_administrable_statuses(blocked_status)
     mock_client = AsyncMock()
     mock_client.read = AsyncMock(return_value=_mk_med_request(blocked_status))
 
-    with patch(
-        "api.clinical.pharmacy.pharmacy_router.HAPIFHIRClient",
-        return_value=mock_client,
-    ):
-        with pytest.raises(HTTPException) as exc_info:
-            await record_medication_administration(_mk_request())
+    with pytest.raises(HTTPException) as exc_info:
+        await _svc(mock_client).record_medication_administration(_mk_request())
 
     assert exc_info.value.status_code == 409
     assert blocked_status in exc_info.value.detail
@@ -81,15 +80,11 @@ async def test_mar_administer_allows_administrable_statuses(allowed_status):
     mock_client.read = AsyncMock(return_value=_mk_med_request(allowed_status))
     mock_client.create = AsyncMock(return_value={"id": "admin-1"})
 
-    with patch(
-        "api.clinical.pharmacy.pharmacy_router.HAPIFHIRClient",
-        return_value=mock_client,
-    ):
-        try:
-            await record_medication_administration(_mk_request())
-        except HTTPException as e:
-            # If something downstream raises, it must not be the gate 409
-            assert e.status_code != 409 or "signed" not in (e.detail or "")
+    try:
+        await _svc(mock_client).record_medication_administration(_mk_request())
+    except HTTPException as e:
+        # If something downstream raises, it must not be the gate 409
+        assert e.status_code != 409 or "signed" not in (e.detail or "")
 
     mock_client.read.assert_awaited()
 
@@ -100,11 +95,7 @@ async def test_mar_administer_404_before_gate():
     mock_client = AsyncMock()
     mock_client.read = AsyncMock(return_value=None)
 
-    with patch(
-        "api.clinical.pharmacy.pharmacy_router.HAPIFHIRClient",
-        return_value=mock_client,
-    ):
-        with pytest.raises(HTTPException) as exc_info:
-            await record_medication_administration(_mk_request())
+    with pytest.raises(HTTPException) as exc_info:
+        await _svc(mock_client).record_medication_administration(_mk_request())
 
     assert exc_info.value.status_code == 404
