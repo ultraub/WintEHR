@@ -7,7 +7,7 @@
  * coding[0].display with no text, and ships Medication resources that are
  * bare NDC codes. "Unknown" when a real code exists is not truthful.
  */
-import { getCodeableConceptDisplay, getMedicationDisplay, getMedicationResourceDisplay, isConditionActive, isMedicationActive, getObservationValueDisplay, isObservationPending, getPatientDisplay } from '../fhirFieldUtils';
+import { getCodeableConceptDisplay, getMedicationDisplay, getMedicationResourceDisplay, isConditionActive, isMedicationActive, getObservationValueDisplay, isObservationPending, getPatientDisplay, getCodeSystemLabel, getCatalogCoding } from '../fhirFieldUtils';
 import { getMedicationName } from '../medicationDisplayUtils';
 
 // Real shapes from mimic-iv-clinical-database-demo-on-fhir-2.1.0
@@ -229,5 +229,38 @@ describe('single-part patient names (breadcrumb regression)', () => {
     const name = getPatientDisplay({ name: [{ family: 'Patient_10019003' }] });
     expect(name).toBe('Patient_10019003');
     expect(name).not.toMatch(/undefined/);
+  });
+});
+
+describe('code systems are carried, not assumed (B9)', () => {
+  it('labels a system by what it actually is', () => {
+    expect(getCodeSystemLabel('http://snomed.info/sct')).toBe('SNOMED CT');
+    expect(getCodeSystemLabel('http://hl7.org/fhir/sid/icd-10-cm')).toBe('ICD-10-CM');
+    expect(getCodeSystemLabel('http://www.nlm.nih.gov/research/umls/rxnorm')).toBe('RxNorm');
+  });
+
+  it('never guesses a system it does not recognize', () => {
+    expect(getCodeSystemLabel(undefined)).toBe('Code');
+    expect(getCodeSystemLabel('http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-diagnosis-icd9'))
+      .toBe('ICD-9-CM');
+    expect(getCodeSystemLabel('http://example.org/private-codes')).toBe('Code');
+  });
+
+  it('catalog rows keep SNOMED codes in the SNOMED system', () => {
+    // The literal shape /api/catalogs/conditions returns for Synthea data:
+    // a SNOMED code with icd10_code null. Saving this as ICD-10-CM (the old
+    // hardcoded system) made 66383009 "an ICD-10 code", which it is not.
+    expect(getCatalogCoding({ snomed_code: '66383009', icd10_code: null }))
+      .toEqual({ code: '66383009', system: 'http://snomed.info/sct' });
+  });
+
+  it('uses ICD-10 when that is what the catalog actually has', () => {
+    expect(getCatalogCoding({ snomed_code: null, icd10_code: 'E11.9' }))
+      .toEqual({ code: 'E11.9', system: 'http://hl7.org/fhir/sid/icd-10-cm' });
+  });
+
+  it('admits an unknown system rather than inventing one', () => {
+    expect(getCatalogCoding({ code: 'X123' })).toEqual({ code: 'X123', system: null });
+    expect(getCatalogCoding(null)).toEqual({ code: null, system: null });
   });
 });

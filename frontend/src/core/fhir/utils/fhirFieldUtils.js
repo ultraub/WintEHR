@@ -801,6 +801,71 @@ export const getPatientDisplay = (patientOrRef, defaultValue = 'Unknown Patient'
 };
 
 /**
+ * Canonical code-system URIs and their human labels.
+ *
+ * Clinical codes are only meaningful WITH their system: 66383009 is
+ * Gingivitis in SNOMED CT and means nothing in ICD-10. Condition dialogs
+ * used to hardcode the ICD-10-CM URI for every code they saved, so
+ * SNOMED-coded problems were persisted (and displayed) as ICD-10 — wrong
+ * data in a platform whose purpose is teaching FHIR coding.
+ */
+export const CODE_SYSTEMS = {
+  SNOMED: 'http://snomed.info/sct',
+  ICD10CM: 'http://hl7.org/fhir/sid/icd-10-cm',
+  ICD9CM: 'http://hl7.org/fhir/sid/icd-9-cm',
+  RXNORM: 'http://www.nlm.nih.gov/research/umls/rxnorm',
+  LOINC: 'http://loinc.org',
+  CVX: 'http://hl7.org/fhir/sid/cvx',
+};
+
+// Patterns, not substrings: MIMIC writes its ICD systems unhyphenated
+// (…/mimic-diagnosis-icd9), so 'icd-9' alone misses the very data this
+// platform imports. ICD-10 is tested before ICD-9 so 'icd10' can't be
+// swallowed by a looser rule.
+const SYSTEM_LABELS = [
+  [/snomed/, 'SNOMED CT'],
+  [/icd-?10/, 'ICD-10-CM'],
+  [/icd-?9/, 'ICD-9-CM'],
+  [/rxnorm/, 'RxNorm'],
+  [/loinc/, 'LOINC'],
+  [/cvx/, 'CVX'],
+];
+
+/**
+ * Human label for a code-system URI ('SNOMED CT', 'ICD-10-CM', …).
+ * Returns defaultValue when the system is absent or unrecognized — never
+ * guess a system, since a wrong label misteaches the code's meaning.
+ *
+ * @param {string} system - FHIR code system URI
+ * @param {string} defaultValue - Returned when unknown
+ * @returns {string}
+ */
+export const getCodeSystemLabel = (system, defaultValue = 'Code') => {
+  if (!system) return defaultValue;
+  const lower = system.toLowerCase();
+  const match = SYSTEM_LABELS.find(([pattern]) => pattern.test(lower));
+  return match ? match[1] : defaultValue;
+};
+
+/**
+ * Pick the coded identity of a catalog entry: its code AND the system that
+ * gives it meaning. Prefers SNOMED (the problem-list standard this platform
+ * teaches), falls back to ICD-10, then to any bare code the entry carries.
+ *
+ * @param {Object} entry - Catalog row (snomed_code / icd10_code / code / id)
+ * @returns {{code: string|null, system: string|null}}
+ */
+export const getCatalogCoding = (entry) => {
+  if (!entry) return { code: null, system: null };
+  if (entry.snomed_code) return { code: entry.snomed_code, system: CODE_SYSTEMS.SNOMED };
+  if (entry.icd10_code) return { code: entry.icd10_code, system: CODE_SYSTEMS.ICD10CM };
+  // A bare code with no declared system: carry the code, admit the system
+  // is unknown rather than inventing one.
+  const bare = entry.code || entry.id || null;
+  return { code: bare, system: entry.system || null };
+};
+
+/**
  * True only when the Observation's own status says the result is not in yet.
  * A missing value on a final-status observation is NOT pending — rendering
  * it as such misstates the record (the exact bug MicroSusc rows exposed).

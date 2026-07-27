@@ -235,7 +235,16 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
   const performSignAll = useCallback(async () => {
     if (drafts.length === 0) return;
     setSigning(true);
+    // Reference AND display: the reference alone resolves server-side, but
+    // every order list reads `requester.display` to render "by <name>" —
+    // without it a signed order showed no ordering provider while Synthea's
+    // seeded orders did (B9 in docs/ARCHITECTURE_DEBT.md). Same shape the
+    // condition dialogs use for `recorder`.
     const userRef = `Practitioner/${user?.id || user?.username || 'unknown'}`;
+    const requester = {
+      reference: userRef,
+      ...(user?.name ? { display: user.name } : {}),
+    };
     const failed = [];
     const created = [];
 
@@ -245,7 +254,7 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
         const toCreate = {
           ...resource,
           status: 'active',
-          requester: { reference: userRef },
+          requester,
           authoredOn: resource.authoredOn || new Date().toISOString(),
         };
         const result = await fhirClient.create(toCreate.resourceType, toCreate);

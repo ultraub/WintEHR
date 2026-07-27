@@ -3,7 +3,7 @@
  * Modern, aesthetic dialog for managing conditions with full FHIR R4 support
  * Features:
  * - Dynamic condition catalog from patient data
- * - Intelligent search with ICD-10 codes
+ * - Intelligent search with SNOMED/ICD codes
  * - Beautiful Material-UI design with smooth animations
  * - Clinical context awareness
  * - Smart defaults and suggestions
@@ -87,6 +87,7 @@ import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContex
 import { useAuth } from '../../../../contexts/AuthContext';
 import { CLINICAL_EVENTS } from '../../../../constants/clinicalEvents';
 import { useDialogSave, useDialogValidation, VALIDATION_RULES } from './utils/dialogHelpers';
+import { getCatalogCoding, getCodeSystemLabel } from '../../../../core/fhir/utils/fhirFieldUtils';
 
 // Helper function for searching conditions
 const searchConditions = async (query) => {
@@ -154,13 +155,21 @@ const useConditionSearch = (searchTerm) => {
       // If no term or very short, load all/popular conditions
       const searchTerm = (!term || term.length < 2) ? null : term;
       const results = await cdsClinicalDataService.getDynamicConditionCatalog(searchTerm, 20);
-      const formattedResults = results.map(condition => ({
-        ...condition,
-        code: condition.icd10_code || condition.code || condition.id,
-        display: condition.display_name || condition.display || condition.name || 'Unknown condition',
-        label: `${condition.display_name || condition.display || condition.name || 'Unknown condition'} (${condition.icd10_code || condition.code || condition.id})`,
-        subLabel: `ICD-10: ${condition.icd10_code || condition.code || condition.id} • ${condition.usage_count ? `Used ${condition.usage_count} times` : 'New'}`
-      }));
+      const formattedResults = results.map(condition => {
+        // Codes are only meaningful with their system — the catalog returns
+        // snomed_code and icd10_code separately, so label what we actually
+        // got instead of calling every code ICD-10 (B9).
+        const { code, system } = getCatalogCoding(condition);
+        const display = condition.display_name || condition.display || condition.name || 'Unknown condition';
+        return {
+          ...condition,
+          code,
+          system,
+          display,
+          label: `${display} (${code})`,
+          subLabel: `${getCodeSystemLabel(system)}: ${code} • ${condition.usage_count ? `Used ${condition.usage_count} times` : 'New'}`
+        };
+      });
       
       cache.set(cacheKey, formattedResults);
       setOptions(formattedResults);
@@ -216,6 +225,9 @@ const ConditionDialogEnhanced = ({
   // Form data
   const [formData, setFormData] = useState({
     code: '',
+    // The system that gives `code` its meaning — carried from the catalog
+    // selection (or the edited resource) instead of being assumed.
+    system: '',
     display: '',
     clinicalStatus: 'active',
     verificationStatus: 'confirmed',
@@ -238,6 +250,7 @@ const ConditionDialogEnhanced = ({
     if (condition && open) {
       setFormData({
         code: condition.code?.coding?.[0]?.code || '',
+        system: condition.code?.coding?.[0]?.system || '',
         display: condition.code?.coding?.[0]?.display || condition.code?.text || '',
         clinicalStatus: condition.clinicalStatus?.coding?.[0]?.code || 'active',
         verificationStatus: condition.verificationStatus?.coding?.[0]?.code || 'confirmed',
@@ -251,6 +264,7 @@ const ConditionDialogEnhanced = ({
       });
       setSelectedCondition({
         code: condition.code?.coding?.[0]?.code,
+        system: condition.code?.coding?.[0]?.system,
         display: condition.code?.coding?.[0]?.display
       });
       setActiveStep(1); // Skip search step in edit mode
@@ -327,6 +341,7 @@ const ConditionDialogEnhanced = ({
       setFormData(prev => ({
         ...prev,
         code: selectedCondition.code,
+        system: selectedCondition.system || '',
         display: selectedCondition.display
       }));
     }
@@ -356,7 +371,10 @@ const ConditionDialogEnhanced = ({
         }),
         code: {
           coding: [{
-            system: 'http://hl7.org/fhir/sid/icd-10-cm',
+            // The selection's real system (SNOMED for Synthea problem-list
+            // codes, ICD-10 where the catalog gives one). Hardcoding
+            // icd-10-cm here persisted SNOMED codes as ICD-10 (B9).
+            ...(formData.system ? { system: formData.system } : {}),
             code: formData.code,
             display: formData.display
           }],
@@ -446,6 +464,7 @@ const ConditionDialogEnhanced = ({
     setSelectedCondition(null);
     setFormData({
       code: '',
+      system: '',
       display: '',
       clinicalStatus: 'active',
       verificationStatus: 'confirmed',
@@ -488,7 +507,7 @@ const ConditionDialogEnhanced = ({
                     <TextField
                       {...params}
                       label="Search Conditions"
-                      placeholder="Type condition name or ICD-10 code..."
+                      placeholder="Type condition name or code..."
                       error={!!errors.condition}
                       helperText={errors.condition}
                       InputProps={{
@@ -574,7 +593,7 @@ const ConditionDialogEnhanced = ({
                                 {condition.display}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                ICD-10: {condition.code}
+                                {getCodeSystemLabel(condition.system)}: {condition.code}
                               </Typography>
                             </Box>
                             <Chip
@@ -616,7 +635,7 @@ const ConditionDialogEnhanced = ({
                           {selectedCondition.display}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          ICD-10: {selectedCondition.code}
+                          {getCodeSystemLabel(selectedCondition.system)}: {selectedCondition.code}
                         </Typography>
                       </Box>
                     </Stack>
@@ -828,7 +847,7 @@ const ConditionDialogEnhanced = ({
                             {formData.display}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            ICD-10: {formData.code}
+                            {getCodeSystemLabel(formData.system)}: {formData.code}
                           </Typography>
                         </Box>
                       </Stack>
