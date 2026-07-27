@@ -126,8 +126,12 @@ Action types and the FHIR statuses they map to:
 
 - "Grid is empty for a patient with active meds" → `dose_scheduler.py`
   log entries (`MedicationRequest/X timing.repeat ... — schedule omitted`)
-- "Cell is past-due but I just gave it" → `service._match_dose`,
-  `ADMIN_MATCH_WINDOW` (currently ±60 min)
+- "Cell is past-due but I just gave it" → `service._match_dose`. Matching is
+  two-pass: the `scheduled-dose-time` extension stamped by the record
+  endpoint is the authoritative cell link (exact, any charting time);
+  `ADMIN_MATCH_WINDOW` (±60 min) proximity is only the fallback for admins
+  recorded outside the MAR (B15 — proximity-only matching silently orphaned
+  early/late-charted doses into the un-rendered `unscheduled_admins`)
 - "I see two cells for the same dose" → bucketing bug in `MARGrid.bucketByColumn`
   (only the first matching column wins; check column step granularity)
 - "Pulse is too aggressive / too calm" → tune `STATE_CONFIG[*].pulse` in `MARCell.jsx`
