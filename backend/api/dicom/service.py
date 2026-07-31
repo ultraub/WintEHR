@@ -30,13 +30,28 @@ logger = logging.getLogger(__name__)
 # DICOM data directory
 DICOM_BASE_DIR = Path(__file__).parent.parent.parent / "data" / "generated_dicoms"
 
-# QIDO-RS and WADO configuration
-# Default values for localhost development
-_DEFAULT_QIDO_URL = "http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs"
-_DEFAULT_WADO_URL = "http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/wado"
+# QIDO-RS and WADO-RS configuration.
+# Both defaults point at dcm4chee's DICOMweb RS root: this service builds
+# WADO-RS paths (studies/{uid}/series/...), which live under /rs — NOT under
+# the legacy WADO-URI endpoint (/wado).
+_DEFAULT_QIDO_URL = "http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/"
+_DEFAULT_WADO_URL = "http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/"
 
-DICOM_QIDO_URL = os.getenv("DICOM_QIDO_URL", _DEFAULT_QIDO_URL)
-DICOM_WADO_URL = os.getenv("DICOM_WADO_URL", _DEFAULT_WADO_URL)
+
+def _as_base_url(url: str) -> str:
+    """Normalize a configured DICOMweb URL into a urljoin-safe BASE.
+
+    urljoin("http://host/a/rs", "studies") REPLACES the last path segment
+    ("/a/studies") — it only appends when the base ends with "/". A missing
+    trailing slash in the env var silently 404'd every study/series/metadata
+    query while the top-level defaults happened to work, so normalize here
+    instead of trusting each deployment's env spelling.
+    """
+    return url.rstrip("/") + "/" if url else url
+
+
+DICOM_QIDO_URL = _as_base_url(os.getenv("DICOM_QIDO_URL", _DEFAULT_QIDO_URL))
+DICOM_WADO_URL = _as_base_url(os.getenv("DICOM_WADO_URL", _DEFAULT_WADO_URL))
 
 # TLS certificate verification for DICOMweb requests. Defaults to disabled
 # because the bundled dcm4chee dev deployment speaks plain HTTP or uses
