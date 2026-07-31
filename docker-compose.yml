@@ -326,6 +326,7 @@ services:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-emr_user}:${POSTGRES_PASSWORD:-emr_password}@postgres:5432/${POSTGRES_DB:-emr_db}
       - JWT_ENABLED=${JWT_ENABLED:-false}
+      - WINTEHR_DISABLED_MODULES=${WINTEHR_DISABLED_MODULES:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-${JWT_SECRET:-dev-secret-key}}
       - REDIS_URL=redis://redis:6379/0
@@ -367,6 +368,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-emr_user}
       - POSTGRES_DB=${POSTGRES_DB:-emr_db}
       - JWT_ENABLED=${JWT_ENABLED:-false}
+      - WINTEHR_DISABLED_MODULES=${WINTEHR_DISABLED_MODULES:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-${JWT_SECRET:-change-this-in-production}}
       - REDIS_URL=redis://redis:6379/0
