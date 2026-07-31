@@ -61,7 +61,11 @@ sub-module docs reference it rather than restating.
   `FHIRStorageEngine` and no custom FHIR ORM — both were removed.
 
 A new router must be registered in `api/routers/__init__.py`; nothing is
-auto-discovered.
+auto-discovered. Pluggable clinical modules register through the
+`MODULE_ROUTERS` dict in the same file and can be switched off per
+deployment via `WINTEHR_DISABLED_MODULES` (reported by `/api/health` as
+`disabled_modules`) — see `docs/MODULES.md` and the pilot,
+`api/clinical/flowsheets/`.
 
 ---
 

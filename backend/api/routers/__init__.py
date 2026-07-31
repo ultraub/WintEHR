@@ -122,12 +122,37 @@ ROUTERS = [
      {"tags": ["Monitoring"]}),
 ]
 
+# -- Pluggable clinical modules (docs/MODULES.md) --------------------------
+#
+# Same entry shape as ROUTERS, grouped under a module key. A key listed in
+# the WINTEHR_DISABLED_MODULES env var (comma-separated) is skipped at
+# registration — the deployment runs without that module, and /api/health
+# reports it under routers.disabled_modules so a missing feature reads as
+# "switched off", never as silent breakage. The frontend loader honors the
+# same module keys via REACT_APP_DISABLED_MODULES.
+MODULE_ROUTERS = {
+    "flowsheets": [
+        ("Flowsheets", "api.clinical.flowsheets.router", "router",
+         {"tags": ["Flowsheets"]}),
+    ],
+}
+
+# Module keys disabled by the current deployment. Reset on each
+# register_all_routers call; surfaced by GET /api/health (main.py).
+DISABLED_MODULES = []
+
+
+def _disabled_module_keys() -> set:
+    raw = os.getenv("WINTEHR_DISABLED_MODULES", "")
+    return {key.strip() for key in raw.split(",") if key.strip()}
+
 
 def register_all_routers(app: FastAPI) -> None:
     """Register every router in ROUTERS, isolating failures per router."""
     FAILED_ROUTERS.clear()
+    DISABLED_MODULES.clear()
 
-    for name, module_path, attr, kwargs in ROUTERS:
+    def _register(name, module_path, attr, kwargs):
         try:
             module = importlib.import_module(module_path)
             router = getattr(module, attr)
@@ -140,6 +165,26 @@ def register_all_routers(app: FastAPI) -> None:
                 "module": module_path,
                 "error": str(e),
             })
+
+    for name, module_path, attr, kwargs in ROUTERS:
+        _register(name, module_path, attr, kwargs)
+
+    disabled = _disabled_module_keys()
+    unknown = disabled - set(MODULE_ROUTERS)
+    if unknown:
+        # A typo'd module key would otherwise disable nothing and look like
+        # it worked — name it loudly instead.
+        logger.warning(
+            "WINTEHR_DISABLED_MODULES names unknown module key(s): %s "
+            "(known: %s)", sorted(unknown), sorted(MODULE_ROUTERS),
+        )
+    for module_key, entries in MODULE_ROUTERS.items():
+        if module_key in disabled:
+            DISABLED_MODULES.append(module_key)
+            logger.info(f"○ Module '{module_key}' disabled by WINTEHR_DISABLED_MODULES")
+            continue
+        for name, module_path, attr, kwargs in entries:
+            _register(name, module_path, attr, kwargs)
 
     # Debug tools — development only, opt-in via DEBUG=true
     if os.getenv("DEBUG", "false").lower() == "true":

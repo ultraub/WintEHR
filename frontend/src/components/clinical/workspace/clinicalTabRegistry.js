@@ -26,6 +26,7 @@
 
 import { lazy } from 'react';
 import { categoricalAccents } from '../../../themes/categoricalAccents';
+import { getModuleTabs } from '../../../modules';
 import {
   Dashboard as SummaryIcon,
   Assignment as ChartReviewIcon,
@@ -57,7 +58,7 @@ import {
  *                 selectors that don't need the component — the sidebar,
  *                 the layout — don't construct it.
  */
-export const CLINICAL_TABS = [
+const CORE_TABS = [
   {
     id: 'summary',
     label: 'Summary',
@@ -155,6 +156,16 @@ export const CLINICAL_TABS = [
     loader: () => import(/* webpackChunkName: "clinical-inbox" */ '../inbox/InboxTab'),
   },
 ];
+
+/**
+ * Core tabs + tabs contributed by enabled modules (src/modules/ —
+ * docs/MODULES.md). Module tabs append after the core set and are ordinary
+ * registry entries from here on: every selector, the keyboard map, and the
+ * coverage tests treat them identically. Disabling a module (via
+ * REACT_APP_DISABLED_MODULES) removes its entries — and its chunks — from
+ * the build.
+ */
+export const CLINICAL_TABS = [...CORE_TABS, ...getModuleTabs()];
 
 // ---------------------------------------------------------------------
 // Derived selectors — each consumer takes only what it needs.

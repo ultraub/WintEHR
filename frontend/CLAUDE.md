@@ -121,6 +121,12 @@ of truth (#150). Before it, five hardcoded lists had to agree and silently
 drifted. Tab components are `React.lazy()`-loaded from the registry. Do not
 re-add a parallel tab list anywhere.
 
+Pluggable modules (`src/modules/` — see `docs/MODULES.md`) contribute tabs
+through their manifests; the registry appends them after the core set and
+every selector treats them identically. Disable per build with
+`REACT_APP_DISABLED_MODULES` (keys match the backend's
+`WINTEHR_DISABLED_MODULES`).
+
 ---
 
 ## Conventions for new clinical components
