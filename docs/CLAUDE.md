@@ -21,6 +21,7 @@ Grouped by topic (verify against the actual directory — file lists drift):
 | CQL authoring | `STUDENT_CQL_PRIMER.md`, `CQL_AUTHORING_PROMPT.md` |
 | Security | `SECURITY.md` |
 | Testing / verification | `TESTING_CHECKLIST.md`, `WORKFLOW_VERIFICATION_REPORT.md` |
+| Extending (modules) | `MODULES.md`, `screenshots/` (live-capture images used by the README) |
 | Change logs | `API_UPDATES_*.md` |
 
 There is no standalone CDS Studio doc set — the visual-builder/CDS reference
@@ -46,6 +47,7 @@ lives in `backend/api/cds_hooks/CLAUDE.md` and the student-facing CQL primer.
 | CQL authoring surface | `STUDENT_CQL_PRIMER.md` (+ `backend/api/cds_hooks/CLAUDE.md`) |
 | Architecture pattern | `SYSTEM_ARCHITECTURE.md` + root & module `CLAUDE.md` |
 | API endpoints | `API_UPDATES_*.md` + nearest `CLAUDE.md` |
+| Module platform / extension contract | `MODULES.md` (+ `backend/CLAUDE.md`, `frontend/CLAUDE.md` registration notes) |
 
 When code changes documented behavior, update the affected doc in the same change —
 a stale reference doc misleads the next reader the same way a stale `CLAUDE.md` does.

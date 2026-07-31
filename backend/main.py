@@ -90,13 +90,20 @@ async def health_check():
 
 @app.get("/api/health")
 async def api_health_check():
-    from api.routers import FAILED_ROUTERS, ROUTERS
+    from api.routers import DISABLED_MODULES, FAILED_ROUTERS, MODULE_ROUTERS, ROUTERS
+    module_router_count = sum(
+        len(entries) for key, entries in MODULE_ROUTERS.items()
+        if key not in DISABLED_MODULES
+    )
     return {
         "status": "degraded" if FAILED_ROUTERS else "healthy",
         "service": "Teaching EMR API",
         "routers": {
-            "registered": len(ROUTERS) - len(FAILED_ROUTERS),
+            "registered": len(ROUTERS) + module_router_count - len(FAILED_ROUTERS),
             "failed": FAILED_ROUTERS,
+            # Module keys switched off via WINTEHR_DISABLED_MODULES — a
+            # deliberately absent feature, distinct from a failed one.
+            "disabled_modules": DISABLED_MODULES,
         },
     }
 

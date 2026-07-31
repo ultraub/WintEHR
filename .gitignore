@@ -312,3 +312,8 @@ test-cds-studio.mjs
 
 # Host-rendered configs (from deploy/nginx-prod.conf.template)
 deploy/rendered/
+
+# Exception: README/docs screenshots are tracked content (the blanket
+# media ignores above are for generated/demo output, not documentation)
+!docs/screenshots/
+!docs/screenshots/*.jpg

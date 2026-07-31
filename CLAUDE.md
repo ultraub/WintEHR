@@ -127,6 +127,10 @@ register in `backend/api/routers/__init__.py`. See `backend/api/CLAUDE.md`.
 **Add a frontend component** — under `frontend/src/components/{area}/`; use the FHIR
 client at `core/fhir/services/fhirClient` and the React contexts. See `frontend/CLAUDE.md`.
 
+**Add a clinical module** (new domain with its own tab + backend) —
+`python3 scripts/new-module.py <key> "<Label>"`, then the three registration
+edits it prints. Contract in `docs/MODULES.md`; pilot: flowsheets.
+
 **Inspect FHIR data**:
 ```bash
 curl 'http://localhost:8888/fhir/Patient?_summary=count'

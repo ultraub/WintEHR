@@ -61,7 +61,11 @@ sub-module docs reference it rather than restating.
   `FHIRStorageEngine` and no custom FHIR ORM — both were removed.
 
 A new router must be registered in `api/routers/__init__.py`; nothing is
-auto-discovered.
+auto-discovered. Pluggable clinical modules register through the
+`MODULE_ROUTERS` dict in the same file and can be switched off per
+deployment via `WINTEHR_DISABLED_MODULES` (reported by `/api/health` as
+`disabled_modules`) — see `docs/MODULES.md` and the pilot,
+`api/clinical/flowsheets/`.
 
 ---
 
@@ -81,7 +85,7 @@ auto-discovered.
 | `api/smart/` | SMART-on-FHIR authorization + token middleware. |
 | `api/imaging/`, `api/dicom/` | Imaging studies / DICOM. |
 | `api/system/` | `monitoring.py`, `debug_router.py` (only registered when `DEBUG=true`). App health endpoints live in `main.py`. |
-| `api/quality/`, `api/analytics/`, `api/scheduling/`, `api/questionnaires/`, `api/ui_composer/` | Self-named feature modules. |
+| `api/quality/`, `api/analytics/`, `api/scheduling/`, `api/questionnaires/`, `api/ui_composer/` | Self-named feature modules — registered as deployment-optional module keys (`quality-analytics`, `scheduling`, `questionnaires`, `ai-tools`) via `MODULE_ROUTERS`; so are `api/dicom/` + `api/imaging/` (`imaging`). See `docs/MODULES.md`. |
 | `clinical_canvas/` | AI-driven UI generation (top-level, not under `api/`). |
 | `scripts/` | Data tooling: `active/`, `data/`, `migrations/`, `synthea/`. |
 
