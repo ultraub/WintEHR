@@ -76,10 +76,6 @@ ROUTERS = [
      {"tags": ["CDS Clinical Data"]}),
     ("Clinical administration (MAR)", "api.clinical.administration.router", "router", {}),
 
-    # -- Clinical Canvas ---------------------------------------------------
-    ("Clinical Canvas", "clinical_canvas.router", "router",
-     {"tags": ["Clinical Canvas"]}),
-
     # -- Integration Services ---------------------------------------------
     ("CDS Hooks", "api.cds_hooks.cds_hooks_router", "router",
      {"tags": ["CDS Hooks"]}),
@@ -87,7 +83,6 @@ ROUTERS = [
      {"tags": ["CDS Visual Builder"]}),
     ("CDS value sets", "api.cds_studio.value_set_composer", "router",
      {"tags": ["CDS Studio — ValueSets"]}),
-    ("UI Composer", "api.ui_composer", "router", {"tags": ["UI Composer"]}),
     ("WebSocket", "api.websocket.websocket_router", "router",
      {"tags": ["WebSocket"]}),
     ("WebSocket monitoring", "api.websocket.monitoring", "router",
@@ -99,19 +94,6 @@ ROUTERS = [
      {"tags": ["External Services"]}),
     ("CDS Studio", "api.cds_studio.router", "router",
      {"tags": ["CDS Management Studio"]}),
-
-    # -- Quality & Analytics ----------------------------------------------
-    ("Quality measures", "api.quality.router", "router", {"tags": ["Quality Measures"]}),
-    ("Analytics", "api.analytics.router", "router", {"tags": ["Analytics"]}),
-
-    # -- Scheduling / Questionnaires ---------------------------------------
-    ("Scheduling", "api.scheduling.router", "router", {"tags": ["Scheduling"]}),
-    ("Questionnaires", "api.questionnaires.router", "router",
-     {"tags": ["Questionnaires"]}),
-
-    # -- Imaging & DICOM ----------------------------------------------------
-    ("DICOM", "api.dicom.router", "router", {"tags": ["DICOM Services"]}),
-    ("Imaging studies", "api.imaging.router", "router", {"tags": ["Imaging Studies"]}),
 
     # -- Provider Directory --------------------------------------------------
     ("Provider directory", "api.clinical.provider_directory_router", "router",
@@ -131,9 +113,41 @@ ROUTERS = [
 # "switched off", never as silent breakage. The frontend loader honors the
 # same module keys via REACT_APP_DISABLED_MODULES.
 MODULE_ROUTERS = {
+    # Workspace modules (frontend manifest in src/modules/<key>/):
     "flowsheets": [
         ("Flowsheets", "api.clinical.flowsheets.router", "router",
          {"tags": ["Flowsheets"]}),
+    ],
+
+    # Deployment-optional domains converted from the core list. Each key
+    # exists because a real deployment can legitimately run without it —
+    # not merely because the code is separable. All prefixes are distinct
+    # from the core list, so the move out of ROUTERS is order-safe.
+    "imaging": [
+        # A box without a dcm4chee VNA (e.g. the eastus2 prod server) can
+        # disable this instead of carrying routers that cannot serve images.
+        ("DICOM", "api.dicom.router", "router", {"tags": ["DICOM Services"]}),
+        ("Imaging studies", "api.imaging.router", "router",
+         {"tags": ["Imaging Studies"]}),
+    ],
+    "ai-tools": [
+        # Both need LLM API keys; deployments without keys currently log
+        # provider-init failures at every startup.
+        ("UI Composer", "api.ui_composer", "router", {"tags": ["UI Composer"]}),
+        ("Clinical Canvas", "clinical_canvas.router", "router",
+         {"tags": ["Clinical Canvas"]}),
+    ],
+    "quality-analytics": [
+        ("Quality measures", "api.quality.router", "router",
+         {"tags": ["Quality Measures"]}),
+        ("Analytics", "api.analytics.router", "router", {"tags": ["Analytics"]}),
+    ],
+    "scheduling": [
+        ("Scheduling", "api.scheduling.router", "router", {"tags": ["Scheduling"]}),
+    ],
+    "questionnaires": [
+        ("Questionnaires", "api.questionnaires.router", "router",
+         {"tags": ["Questionnaires"]}),
     ],
 }
 

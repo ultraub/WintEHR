@@ -107,9 +107,21 @@ A workspace module is not always the right tool. In order of preference:
 
 ## Module inventory
 
-| Key | What it is | Status |
-|---|---|---|
-| `flowsheets` | Nursing vitals flowsheet (time × vital grid over Observations) | pilot — live |
+| Key | What it is | Frontend surface | Status |
+|---|---|---|---|
+| `flowsheets` | Nursing vitals flowsheet (time × vital grid over Observations) | Flowsheet tab | pilot — live |
+| `imaging` | DICOM services + imaging studies (needs a dcm4chee VNA) | Imaging tab (core, for now) | converted from core |
+| `ai-tools` | UI Composer + Clinical Canvas (need LLM API keys) | — | converted from core |
+| `quality-analytics` | Quality measures + analytics reporting | app-level pages | converted from core |
+| `scheduling` | Scheduling | Schedule page | converted from core |
+| `questionnaires` | Questionnaires | — | converted from core |
+
+The converted keys are backend-only for now: their routers moved from
+`ROUTERS` into `MODULE_ROUTERS` (a pure list move — all prefixes are
+distinct, so registration order is unaffected), gaining the per-deployment
+disable without touching any frontend code. Their frontend surfaces stay
+in the core registry until module tab *placement* is solved — pulling the
+Imaging tab into a module today would demote it to the end of the strip.
 
 ## Roadmap seams (grown one concrete module at a time)
 
