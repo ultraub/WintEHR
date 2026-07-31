@@ -1,163 +1,138 @@
-# WintEHR
+# WintEHR 🩺
 
-An educational electronic health record system for learning healthcare IT, FHIR, and clinical informatics.
+**A complete, hackable EHR for learning healthcare IT — FHIR-native, CDS-enabled, and built to be extended.**
 
-**Important**: This is an educational platform designed for learning with synthetic patient data. It should never be used with real patient information.
+> ⚠️ **Educational platform. Synthetic data only.** WintEHR ships with
+> [Synthea](https://synthea.mitre.org/)-generated patients, uses deliberately
+> simple demo auth, and must **never** hold real patient information.
 
-## What is WintEHR?
+![Clinical workspace — patient summary](docs/screenshots/clinical-workspace.jpg)
 
-WintEHR is a complete, working EHR system built specifically for people learning healthcare information technology. Whether you're a clinical informatics student, a developer new to healthcare, or an educator building curriculum, WintEHR provides hands-on experience with the standards, workflows, and architectures that power modern healthcare systems.
+Most healthcare IT education means reading specs. WintEHR is the other way
+around: a fully working EHR where you can place an order and watch the
+`MedicationRequest` land in a real HAPI FHIR server, fire a CDS Hook and see
+the card interrupt a clinician's workflow, or chart a vital and pull it back
+as a LOINC-coded `Observation` — then open the code and see exactly how.
 
-Most healthcare IT education relies on reading specifications or working with simplified examples. WintEHR fills that gap by giving you a fully functional system where you can:
+## What's inside
 
-- See how FHIR resources actually flow through a clinical application
-- Understand how CDS Hooks integrate with clinical workflows
-- Experience realistic EHR interfaces and data patterns
-- Experiment with healthcare APIs without needing access to production systems
+| | Workflow | The standards you'll touch |
+|---|---|---|
+| 📋 | **Chart Review & Summary** — problems, meds, allergies, vitals, notes | FHIR R4: `Condition`, `AllergyIntolerance`, `Observation` |
+| 💊 | **CPOE + Pharmacy + MAR** — order → sign → dispense → administer, with real status gates at every step | `MedicationRequest` → `MedicationDispense` → `MedicationAdministration` |
+| 🔔 | **Clinical Decision Support** — cards that interrupt, suggest, and act | CDS Hooks 2.0, CQL, a visual rule builder |
+| 🧪 | **Results & Flowsheets** — lab trending, results review, nursing vitals grid | LOINC, `DiagnosticReport`, vital-signs panels |
+| 🩻 | **Medical Imaging** — DICOM viewer over a real VNA (dcm4chee) | DICOM, DICOMweb, `ImagingStudy` |
+| 🔌 | **SMART on FHIR** — OAuth2/PKCE app launch | SMART App Launch |
+| 🏗️ | **Pluggable modules** — add whole clinical domains, or switch them off | see [Extending WintEHR](#extending-wintehr-) |
 
-## What You'll Learn
+### A few of the screens
 
-### Healthcare Data Standards
+| Decision support in the workflow | Medication administration (MAR) |
+|---|---|
+| ![CDS cards](docs/screenshots/cds-cards.jpg) | ![MAR grid](docs/screenshots/mar.jpg) |
 
-- **FHIR R4** - The modern healthcare interoperability standard. WintEHR uses HAPI FHIR Server with 38+ resource types, so you can explore how Patient, Observation, MedicationRequest, and other resources work together in practice.
+| Nursing flowsheet (a pluggable module) |
+|---|
+| ![Flowsheet](docs/screenshots/flowsheet.jpg) |
 
-- **Clinical Terminologies** - See ICD-10, SNOMED CT, LOINC, and RxNorm codes in context. The synthetic patient data includes realistic coded diagnoses, lab results, and medications.
+## Quick start 🚀
 
-- **DICOM** - Medical imaging standard. WintEHR generates synthetic DICOM images and includes a viewer, so you can understand how imaging integrates with clinical records.
-
-### Clinical Decision Support
-
-- **CDS Hooks 2.0** - Learn the specification by using it. WintEHR implements patient-view, order-select, and order-sign hooks with working alert cards.
-
-- **CDS Studio** - A visual builder for creating decision support rules. Understand how clinical alerts are structured and triggered.
-
-### Clinical Workflows
-
-Rather than abstract diagrams, you can walk through actual workflows:
-
-- **Chart Review** - How clinicians access problem lists, medications, allergies, vital signs, and notes
-- **Order Entry (CPOE)** - How orders are placed, validated, and tracked
-- **Results Review** - How lab and imaging results are displayed and trended
-- **Medication Management** - Prescribing, dispensing, and drug interaction checking
-
-## Supported Clinical Workflows
-
-| Workflow | What You Can Explore |
-|----------|---------------------|
-| **Patient Lookup** | Demographics, insurance, contact management, patient matching |
-| **Chart Review** | Problem list, medications, allergies, vitals, clinical notes |
-| **Order Entry** | Lab orders, imaging orders, medication orders with CDS alerts |
-| **Results Review** | Lab results with trending, radiology reports, result status tracking |
-| **Pharmacy** | Prescription management, dispensing workflow, medication history |
-| **Medical Imaging** | DICOM viewer, multi-modality support (CT, MR, X-ray, Ultrasound) |
-| **Clinical Alerts** | Real-time CDS cards, drug interactions, preventive care reminders |
-
-## Getting Started
-
-### What You'll Need
-
-- Git
-- Docker and Docker Compose (version 20.10+)
-- Python 3.9+ (for configuration validation)
-- 8GB RAM and 20GB disk space
-
-### Quick Start
+You'll need Git, Docker + Compose (20.10+), 8 GB RAM, and 20 GB disk.
 
 ```bash
-# Clone the repository
 git clone https://github.com/ultraub/WintEHR.git
 cd WintEHR
-
-# Optional: customize settings
-cp config.example.yaml config.yaml
-
-# Deploy (15-25 minutes the first time)
-./deploy.sh
-
-# Verify everything is running
-./deploy.sh status
+./deploy.sh            # first run: 15–25 min (images, DB init, synthetic patients)
+./deploy.sh status     # health check
 ```
 
-The first deployment takes longer because it downloads Docker images, initializes the database, and generates synthetic patient data. Subsequent starts take about 5 minutes.
+| Service | URL | |
+|---|---|---|
+| Clinical portal | http://localhost:3000 | log in below 👇 |
+| FHIR R4 API | http://localhost:8888/fhir | raw HAPI FHIR |
+| Backend API | http://localhost:8000/docs | Swagger |
 
-### Access Points
+**Demo users** (password is `password` for all): `demo` 🧑‍⚕️ physician ·
+`nurse` 💉 nurse · `pharmacist` 💊 pharmacist · `admin` 🔧 administrator
 
-| Service | URL | Purpose |
-|---------|-----|---------|
-| Clinical Portal | http://localhost:3000 | Main EHR interface |
-| FHIR API | http://localhost:8888/fhir | Direct FHIR server access |
-| Backend API | http://localhost:8000/docs | API documentation |
+Patient data is regenerated on deploy — break things freely.
 
-### Demo Users
+## Extending WintEHR 🧩
 
-| Username | Password | Role |
-|----------|----------|------|
-| demo | password | Physician |
-| nurse | password | Nurse |
-| pharmacist | password | Pharmacist |
-| admin | password | Administrator |
+WintEHR is deliberately built to be built upon. Four ways in, from lightest
+to deepest:
 
-## Architecture Overview
+1. **Register an external CDS service** — point WintEHR at any CDS Hooks 2.0
+   endpoint by URL, at runtime, zero code in this repo. Your service gets
+   real hook invocations with prefetched FHIR data.
+2. **Write a SMART on FHIR app** — a separate codebase entirely; WintEHR
+   provides the OAuth2/PKCE launch and the FHIR API.
+3. **Build CDS visually** — CDS Studio composes rules (or CQL) from the UI
+   and deploys them as first-class services.
+4. **Add a clinical module** — a whole new domain (flowsheets, inpatient,
+   oncology…) with its own workspace tab and backend, scaffolded in one
+   command:
 
-WintEHR is built on production-grade technologies so you're learning patterns that transfer to real-world systems:
+   ```bash
+   python3 scripts/new-module.py referrals "Referrals"
+   ```
 
-- **Frontend**: React with Material-UI
-- **Backend**: FastAPI (Python) with async support
-- **FHIR Server**: HAPI FHIR JPA Server (the same server used in production healthcare)
-- **Database**: PostgreSQL
-- **Cache**: Redis
+   A module is one backend directory + one frontend directory sharing a key,
+   wired in by three explicit edits, and switchable off per deployment
+   (`WINTEHR_DISABLED_MODULES` / `REACT_APP_DISABLED_MODULES`) without
+   deleting code. The nursing **Flowsheet** tab in the screenshot above is
+   the pilot module — read it as the template. Full contract:
+   **[docs/MODULES.md](docs/MODULES.md)**.
 
-The system generates realistic patient data using [Synthea](https://synthea.mitre.org/), an open-source synthetic patient generator.
+## Architecture 🏛️
 
-## Documentation
+```
+React 18 + MUI ──► FastAPI backend ──► HAPI FHIR JPA (v8.8) ──► PostgreSQL 15
+   (Vite 7)        (the "smart          all clinical data          + Redis
+                    proxy": CDS,        lives here as FHIR
+                    gates, events)      — no custom tables
+```
 
-Detailed documentation is available in the `docs/` directory:
+Production-grade parts on purpose — HAPI FHIR is the same server running in
+real health systems, so the patterns transfer. Deep dive:
+[docs/SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md).
 
-**Deploying**
-- [Deployment Guide](docs/DEPLOYMENT.md) – Generic setup reference (dev + prod)
-- [Client Deployment Playbook](docs/CLIENT_DEPLOYMENT.md) – Step-by-step for installing into a client VPC, with day-2 ops
-- [Azure Deployment](docs/AZURE_DEPLOYMENT.md) – Azure-specific notes
-- [Configuration Reference](docs/CONFIGURATION.md) – All `.env` options
-- [Terminology Setup](docs/TERMINOLOGY_SETUP.md) – Optional UMLS-based vocabulary load (RxNorm, ICD-10-CM, LOINC, etc.)
+## Documentation 📚
 
-**Operating & securing**
-- [Security Posture](docs/SECURITY.md) – What's hardened by default, what each deployer owns, audit checklist
-- [System Architecture](docs/SYSTEM_ARCHITECTURE.md) – Component layout
+Everything lives in [`docs/`](docs/INDEX.md). The short list:
 
-**Building on top**
-- [CDS Studio Guide](docs/CDS_STUDIO_QUICK_REFERENCE.md) – Visual CDS Hooks builder
-- [External Services Integration](docs/EXTERNAL_SERVICES_INTEGRATION.md) – Plugging in third-party CDS
+| You want to… | Read |
+|---|---|
+| Deploy it (dev, prod, a client VPC, Azure) | [DEPLOYMENT](docs/DEPLOYMENT.md) · [CLIENT_DEPLOYMENT](docs/CLIENT_DEPLOYMENT.md) · [AZURE_DEPLOYMENT](docs/AZURE_DEPLOYMENT.md) |
+| Configure it | [CONFIGURATION](docs/CONFIGURATION.md) |
+| Extend it with a module | [MODULES](docs/MODULES.md) |
+| Author CDS / CQL | [STUDENT_CQL_PRIMER](docs/STUDENT_CQL_PRIMER.md) |
+| Load real terminologies (UMLS) | [TERMINOLOGY_SETUP](docs/TERMINOLOGY_SETUP.md) |
+| Understand the security posture | [SECURITY](docs/SECURITY.md) |
 
-For developer-oriented context (architecture decisions, module ownership), each major directory has a `CLAUDE.md` that describes patterns and constraints local to that area.
+For developer-facing architecture context, each major directory carries a
+`CLAUDE.md` describing its local patterns and constraints — they double as
+excellent orientation for humans and AI coding agents alike.
 
-## For Educators
+## For educators 🎓
 
-WintEHR works well for:
-
-- **Classroom demonstrations** - Show real FHIR queries and clinical workflows
-- **Hands-on labs** - Students can modify CDS rules, explore the API, or build integrations
-- **Capstone projects** - A foundation for building healthcare applications
-- **Self-paced learning** - Comprehensive documentation for independent study
-
-The synthetic data is generated fresh on each deployment, so students can experiment freely without worrying about breaking anything permanent.
+Classroom demos with real FHIR queries, hands-on labs where students modify
+CDS rules or build SMART apps, capstone foundations, self-paced learning.
+Synthetic data regenerates on deploy, so nothing students do is permanent.
 
 ## Contributing
 
-Contributions are welcome, especially those that improve the educational value of the project. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions welcome — especially ones that raise the educational value.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## License
+## License & acknowledgments
 
-Apache License 2.0 - see [LICENSE](LICENSE) for details.
-
-## Acknowledgments
-
-WintEHR builds on excellent open-source projects:
-
-- [HL7 FHIR](http://hl7.org/fhir/) - Healthcare interoperability standard
-- [HAPI FHIR](https://hapifhir.io/) - FHIR server implementation
-- [Synthea](https://synthea.mitre.org/) - Synthetic patient data
-- [CDS Hooks](https://cds-hooks.org/) - Clinical decision support specification
+Apache 2.0 — see [LICENSE](LICENSE). Standing on the shoulders of
+[HL7 FHIR](http://hl7.org/fhir/), [HAPI FHIR](https://hapifhir.io/),
+[Synthea](https://synthea.mitre.org/), [CDS Hooks](https://cds-hooks.org/),
+and [dcm4chee](https://www.dcm4che.org/).
 
 ---
 
-Questions or feedback? Open an issue on [GitHub](https://github.com/ultraub/WintEHR/issues).
+Questions or feedback? [Open an issue](https://github.com/ultraub/WintEHR/issues).

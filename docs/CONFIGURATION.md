@@ -901,3 +901,22 @@ print(template.render(domain='example.com', patients=50))
 - [Main README](../README.md) - Project overview
 - [Deployment Guide](DEPLOYMENT.md) - Deployment procedures
 - [Scripts Guide](../backend/scripts/CLAUDE.md) - Data management scripts
+
+---
+
+## Clinical modules (pluggable domains)
+
+Optional clinical domains register as *modules* (see [MODULES.md](MODULES.md))
+and can be switched off per deployment without code changes:
+
+| Variable | Side | Applies | Example |
+|---|---|---|---|
+| `WINTEHR_DISABLED_MODULES` | backend env | at startup | `WINTEHR_DISABLED_MODULES=imaging,ai-tools` |
+| `REACT_APP_DISABLED_MODULES` | frontend build arg | baked at build time | same keys |
+
+Current module keys: `flowsheets`, `imaging` (DICOM — disable on boxes with
+no dcm4chee VNA), `ai-tools` (UI Composer / Clinical Canvas — need LLM API
+keys), `quality-analytics`, `scheduling`, `questionnaires`.
+
+`GET /api/health` reports disabled modules under `routers.disabled_modules`;
+unknown keys are logged as warnings at startup.
