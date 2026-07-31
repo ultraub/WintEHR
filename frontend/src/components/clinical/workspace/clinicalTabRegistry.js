@@ -162,8 +162,9 @@ const CORE_TABS = [
  * docs/MODULES.md). Module tabs append after the core set and are ordinary
  * registry entries from here on: every selector, the keyboard map, and the
  * coverage tests treat them identically. Disabling a module (via
- * REACT_APP_DISABLED_MODULES) removes its entries — and its chunks — from
- * the build.
+ * REACT_APP_DISABLED_MODULES) removes its registrations — its lazy chunks
+ * are still emitted by the build but are never fetched, since nothing
+ * references them at runtime.
  */
 export const CLINICAL_TABS = [...CORE_TABS, ...getModuleTabs()];
 
