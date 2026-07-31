@@ -20,6 +20,7 @@ import argparse
 import logging
 from pathlib import Path
 from datetime import datetime
+from urllib.parse import urlsplit
 import httpx
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -103,9 +104,17 @@ class HAPIFHIRDicomGenerator:
                     studies = studies[:max_count]
                     break
 
-                # Follow the absolute `next` link; params are already encoded in it.
-                url = next((l['url'] for l in bundle.get('link', [])
-                            if l.get('relation') == 'next'), None)
+                # Follow the `next` link — but REBASE it onto the client's
+                # internal base first. HAPI writes absolute paging links using
+                # its configured PUBLIC base URL (e.g. https://<domain>/fhir/R4),
+                # which from inside the compose network round-trips through
+                # nginx and can 301/fail — silently capping generation at one
+                # page (found live on the eastus2 deploy: 200/533 studies).
+                # The paging endpoint is just the FHIR base root plus the
+                # _getpages query, so the query string is all we need.
+                next_url = next((l['url'] for l in bundle.get('link', [])
+                                 if l.get('relation') == 'next'), None)
+                url = f"?{urlsplit(next_url).query}" if next_url else None
                 params = None
 
             logger.info(f"✅ Found {len(studies)} ImagingStudy resources")
