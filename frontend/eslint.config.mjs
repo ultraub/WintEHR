@@ -100,6 +100,26 @@ export default [
     ignores: ['build/**', 'dev-dist/**', 'node_modules/**', 'coverage/**'],
   },
 
+  // Module SDK boundary (module platform Phase 3, docs/MODULES.md):
+  // manifest-module code imports platform APIs ONLY through src/modules/sdk.js.
+  // This is the contract that lets out-of-repo modules survive core
+  // refactors — deep imports would couple them to internals. Third-party
+  // packages (react, @mui/*, ...) are unaffected. cds-studio and
+  // ui-composer live under src/modules/ for historical reasons and are NOT
+  // manifest modules; they are deliberately not listed here.
+  {
+    files: ['src/modules/{flowsheets,scheduling,quality-analytics,inpatient}/**/*.{js,jsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{
+          group: ['../*', '../../**', '!../sdk'],
+          message:
+            'Module code imports platform APIs from the SDK only (src/modules/sdk.js) — see docs/MODULES.md.',
+        }],
+      }],
+    },
+  },
+
   // Application source (JS/JSX)
   {
     files: ['src/**/*.{js,jsx}'],

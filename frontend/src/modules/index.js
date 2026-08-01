@@ -33,13 +33,17 @@ import flowsheets from './flowsheets';
 import scheduling from './scheduling';
 import qualityAnalytics from './quality-analytics';
 import inpatient from './inpatient';
+// External modules vendored by scripts/sync-modules.py (empty by default).
+import { EXTERNAL_MODULES } from './registry.generated';
 
-const ALL_MODULES = [
+const BUILTIN_MODULES = [
   flowsheets,
   scheduling,
   qualityAnalytics,
   inpatient,
 ];
+
+const ALL_MODULES = [...BUILTIN_MODULES, ...EXTERNAL_MODULES];
 
 const disabledKeys = new Set(
   (import.meta.env.REACT_APP_DISABLED_MODULES || '')

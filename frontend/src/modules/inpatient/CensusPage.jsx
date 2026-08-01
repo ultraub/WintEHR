@@ -27,8 +27,7 @@ import {
 } from '@mui/material';
 import { Hotel as CensusIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 
-import { buildUrl } from '../../config/apiConfig';
-import api from '../../services/api';
+import { api, buildUrl } from '../sdk';
 
 const CensusTable = ({ rows, showDischarge, onOpenChart }) => (
   <Table size="small">

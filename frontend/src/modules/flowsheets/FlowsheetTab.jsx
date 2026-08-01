@@ -30,9 +30,7 @@ import {
 import { Add as AddIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 
-import { buildUrl } from '../../config/apiConfig';
-import api from '../../services/api';
-import { useAuth } from '../../contexts/AuthContext';
+import { api, buildUrl, useAuth } from '../sdk';
 
 const TEMPLATE_ID = 'vitals';
 const ROW_HEADER_WIDTH = 170;

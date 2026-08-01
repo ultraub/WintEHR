@@ -10,7 +10,7 @@
  */
 
 import { MonitorHeart as FlowsheetIcon } from '@mui/icons-material';
-import { categoricalAccents } from '../../themes/categoricalAccents';
+import { categoricalAccents } from '../sdk';
 
 const flowsheetsModule = {
   id: 'flowsheets',

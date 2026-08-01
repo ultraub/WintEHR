@@ -8,7 +8,7 @@
  */
 
 import { Hotel as CensusIcon } from '@mui/icons-material';
-import { categoricalAccents } from '../../themes/categoricalAccents';
+import { categoricalAccents } from '../sdk';
 import BedChip from './BedChip';
 
 const inpatientModule = {

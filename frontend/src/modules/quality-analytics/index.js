@@ -15,7 +15,7 @@ import {
   Assessment as QualityIcon,
   Timeline as CareGapsIcon,
 } from '@mui/icons-material';
-import { categoricalAccents } from '../../themes/categoricalAccents';
+import { categoricalAccents } from '../sdk';
 
 const qualityAnalyticsModule = {
   id: 'quality-analytics',
@@ -28,6 +28,7 @@ const qualityAnalyticsModule = {
       color: categoricalAccents.analytics,
       description: 'Health trends & metrics',
       nav: { section: 'analytics', order: 10 },
+      // eslint-disable-next-line no-restricted-imports -- Phase 1 moved page OWNERSHIP, not the file
       loader: () => import(/* webpackChunkName: "module-qa-analytics" */ '../../pages/Analytics'),
     },
     {
@@ -38,6 +39,7 @@ const qualityAnalyticsModule = {
       color: categoricalAccents.quality,
       description: 'Performance tracking',
       nav: { section: 'analytics', order: 20 },
+      // eslint-disable-next-line no-restricted-imports -- Phase 1 moved page OWNERSHIP, not the file
       loader: () => import(/* webpackChunkName: "module-qa-quality" */ '../../pages/QualityMeasuresPage'),
     },
     {
@@ -48,6 +50,7 @@ const qualityAnalyticsModule = {
       color: categoricalAccents.careGaps,
       description: 'Preventive care tracking',
       nav: { section: 'analytics', order: 30 },
+      // eslint-disable-next-line no-restricted-imports -- Phase 1 moved page OWNERSHIP, not the file
       loader: () => import(/* webpackChunkName: "module-qa-caregaps" */ '../../pages/CareGapsPage'),
     },
   ],

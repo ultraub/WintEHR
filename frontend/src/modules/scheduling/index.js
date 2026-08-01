@@ -13,7 +13,7 @@
  */
 
 import { CalendarMonth as ScheduleIcon } from '@mui/icons-material';
-import { categoricalAccents } from '../../themes/categoricalAccents';
+import { categoricalAccents } from '../sdk';
 
 const schedulingModule = {
   id: 'scheduling',
@@ -26,6 +26,7 @@ const schedulingModule = {
       color: categoricalAccents.schedule,
       description: 'Appointments & scheduling',
       nav: { section: 'clinical', order: 20 },
+      // eslint-disable-next-line no-restricted-imports -- Phase 1 moved page OWNERSHIP, not the file; see docs/MODULES.md
       loader: () => import(/* webpackChunkName: "module-scheduling" */ '../../pages/Schedule'),
     },
   ],
