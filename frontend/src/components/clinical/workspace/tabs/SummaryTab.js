@@ -102,6 +102,7 @@ import {
   ClinicalEmptyState
 } from '../../shared';
 import { extractBundleResources } from '../../../../core/fhir/utils/bundleUtils';
+import SlotOutlet from '../../../SlotOutlet';
 
 // Family relationship codes (v3-RoleCode)
 const RELATIONSHIP_OPTIONS = [
@@ -2171,6 +2172,10 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
               onViewFullTeam={() => onNavigateToTab && onNavigateToTab(TAB_IDS.CARE_PLAN)}
             />
           </Grid>
+          {/* Module-contributed summary cards (slot 'summary.cards' —
+              docs/MODULES.md). Context: { patientId }. Contributions render
+              their own <Grid item> as root so they join this grid's flow. */}
+          <SlotOutlet name="summary.cards" context={{ patientId }} />
         </Grid>
 
         {/* Forms & Questionnaires */}

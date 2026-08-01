@@ -58,6 +58,7 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../contexts/Clinical
 import websocketService from '../../../services/websocket';
 import { useDataQualityLogger } from '../../../core/fhir/utils/dataQualityLogger';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
+import SlotOutlet from '../../SlotOutlet';
 
 // Collapse states for progressive compression
 const COLLAPSE_STATES = {
@@ -830,6 +831,9 @@ const CollapsiblePatientHeaderOptimized = ({
                     variant="outlined"
                   />
                 )}
+                {/* Module-contributed chips (slot 'patient-header.chips' —
+                    docs/MODULES.md). Context contract: { patient }. */}
+                <SlotOutlet name="patient-header.chips" context={{ patient: currentPatient }} />
               </Stack>
             </Box>
           </Stack>

@@ -41,6 +41,7 @@ export const categoricalAccents = {
 
   // --- Pluggable module domains (src/modules/ — docs/MODULES.md) ---
   flowsheet: '#84CC16', // lime
+  inpatient: '#F43F5E', // rose
   fhirExplorer: '#3B82F6', // blue
   cdsStudio: '#A855F7', // purple
   audit: '#EF4444', // red

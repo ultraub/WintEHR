@@ -42,6 +42,18 @@ Manifests may contribute (all optional):
   routed page with no menu presence. Valid `nav.section` keys: `clinical`,
   `analytics`, `tools`, `admin`; a section with no items is dropped from
   the nav entirely.
+- **`slots`** — UI rendered INSIDE core components, at published outlet
+  points only: `slots: { '<slot-name>': [{ id, order, Component }] }`.
+  Published names live in `SLOT_NAMES` (src/modules/index.js), each
+  documenting the context props its outlet passes; currently
+  `patient-header.chips` (context `{ patient }`) and `summary.cards`
+  (context `{ patientId }`; contributions render their own `<Grid item>`).
+  Every contribution renders inside its own error boundary with a VISIBLE
+  labeled fallback — a broken chip degrades to a small error chip, never a
+  blank, never a crashed host. Slot components are the one sanctioned
+  eager import in a manifest, so keep them tiny. A new slot name is added
+  ONLY together with its `<SlotOutlet>` and only when a contribution needs
+  it — never speculatively.
 
 Scaffold a new module with:
 
@@ -124,6 +136,7 @@ A workspace module is not always the right tool. In order of preference:
 | Key | What it is | Frontend surface | Status |
 |---|---|---|---|
 | `flowsheets` | Nursing vitals flowsheet (time × vital grid over Observations) | Flowsheet tab | pilot — live |
+| `inpatient` | Census board (admitted + recent stays over Encounters) | Unit Census page + patient-header bed chip (first slot contribution) | live |
 | `imaging` | DICOM services + imaging studies (needs a dcm4chee VNA) | Imaging tab (core, for now) | converted from core |
 | `ai-tools` | UI Composer + Clinical Canvas (need LLM API keys) | — | converted from core |
 | `quality-analytics` | Quality measures + analytics reporting | Population Health nav section (Analytics / Quality / Care Gaps pages) | full module (backend + pages) |
@@ -145,8 +158,6 @@ Deliberately NOT built yet — each gets extracted when its first real
 consumer arrives, never speculatively (two pre-platform "unifying layers"
 died unadopted; see `ARCHITECTURE_DEBT.md` §F2):
 
-- **Slot registry** (patient-header chips, summary cards) — first needed by
-  bed/unit display.
 - **Order-type registry + safety-rule providers** — first needed by an
   oncology/chemo module; the largest lift, touching CPOE.
 - **Conditional tab visibility** (predicate on patient context) — specialty
