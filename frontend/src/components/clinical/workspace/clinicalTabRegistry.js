@@ -159,14 +159,31 @@ const CORE_TABS = [
 
 /**
  * Core tabs + tabs contributed by enabled modules (src/modules/ —
- * docs/MODULES.md). Module tabs append after the core set and are ordinary
- * registry entries from here on: every selector, the keyboard map, and the
- * coverage tests treat them identically. Disabling a module (via
- * REACT_APP_DISABLED_MODULES) removes its registrations — its lazy chunks
- * are still emitted by the build but are never fetched, since nothing
- * references them at runtime.
+ * docs/MODULES.md). A module tab may carry `insertAfter: '<tab-id>'` to sit
+ * where it clinically belongs in the strip (e.g. Flowsheet beside the MAR);
+ * without it — or if the named tab is absent — the tab appends at the end,
+ * never silently disappears. From here on module tabs are ordinary registry
+ * entries: every selector, the keyboard map, and the coverage tests treat
+ * them identically. Disabling a module (via REACT_APP_DISABLED_MODULES)
+ * removes its registrations — its lazy chunks are still emitted by the
+ * build but are never fetched, since nothing references them at runtime.
  */
-export const CLINICAL_TABS = [...CORE_TABS, ...getModuleTabs()];
+function mergeModuleTabs(coreTabs, moduleTabs) {
+  const merged = [...coreTabs];
+  for (const tab of moduleTabs) {
+    const anchor = tab.insertAfter
+      ? merged.findIndex((t) => t.id === tab.insertAfter)
+      : -1;
+    if (anchor >= 0) {
+      merged.splice(anchor + 1, 0, tab);
+    } else {
+      merged.push(tab);
+    }
+  }
+  return merged;
+}
+
+export const CLINICAL_TABS = mergeModuleTabs(CORE_TABS, getModuleTabs());
 
 // ---------------------------------------------------------------------
 // Derived selectors — each consumer takes only what it needs.

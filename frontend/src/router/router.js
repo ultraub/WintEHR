@@ -1,5 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+
+import { getModulePages } from '../modules';
 import { Box, CircularProgress } from '@mui/material';
 import ProtectedRoute from '../components/ProtectedRoute';
 import LayoutV3 from '../components/LayoutV3';
@@ -13,18 +15,14 @@ import PatientList from '../pages/PatientList';
 const PatientDashboardV2Page = lazy(() => import('../pages/PatientDashboardV2Page'));
 const ClinicalWorkspaceWrapper = lazy(() => import('../components/clinical/ClinicalWorkspaceWrapper'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
-const Analytics = lazy(() => import('../pages/Analytics'));
 const FHIRExplorerApp = lazy(() => import('../components/fhir-explorer-v4/core/FHIRExplorerApp'));
 const QueryStudioEnhanced = lazy(() => import('../components/fhir-explorer-v4/query-building/QueryStudioEnhanced'));
 const Settings = lazy(() => import('../pages/Settings'));
-const Schedule = lazy(() => import('../pages/Schedule'));
 const NotFound = lazy(() => import('../pages/NotFound'));
 const MedicationReconciliationPage = lazy(() => import('../pages/MedicationReconciliationPage'));
 const CDSStudioPage = lazy(() => import('../modules/cds-studio').then(m => ({ default: m.CDSStudioPage })));
 const CDSPresentationModeTester = lazy(() => import('../components/clinical/cds/CDSPresentationModeTester'));
 const EncountersPage = lazy(() => import('../pages/EncountersPage'));
-const QualityMeasuresPage = lazy(() => import('../pages/QualityMeasuresPage'));
-const CareGapsPage = lazy(() => import('../pages/CareGapsPage'));
 const AuditTrailPage = lazy(() => import('../pages/AuditTrailPage'));
 const PharmacyPage = lazy(() => import('../pages/PharmacyPage'));
 const InventoryManagementPage = lazy(() => import('../pages/InventoryManagementPage'));
@@ -48,8 +46,19 @@ const page = (element, { layout = true, protect = true } = {}) => {
   return node;
 };
 
+// Top-level pages contributed by enabled modules (docs/MODULES.md). One
+// manifest entry yields this route AND the nav item (navigationRegistry) —
+// they cannot drift, and disabling the module removes both. Includes the
+// migrated frontend halves of the scheduling and quality-analytics module
+// keys (/schedule, /analytics, /quality, /care-gaps).
+const modulePageRoutes = getModulePages().map((entry) => {
+  const ModulePage = lazy(entry.loader);
+  return { path: entry.path, element: page(<ModulePage />) };
+});
+
 // Create router with future flags enabled
 export const router = createBrowserRouter([
+  ...modulePageRoutes,
   {
     path: '/login',
     element: <Login />
@@ -109,18 +118,6 @@ export const router = createBrowserRouter([
     element: page(<InventoryManagementPage />)
   },
   {
-    path: '/analytics',
-    element: page(<Analytics />)
-  },
-  {
-    path: '/quality',
-    element: page(<QualityMeasuresPage />)
-  },
-  {
-    path: '/care-gaps',
-    element: page(<CareGapsPage />)
-  },
-  {
     // No LayoutV3 (the explorer owns its shell) and no extra AppProviders —
     // App.js already wraps the whole RouterProvider in AppProviders, so the
     // previous nested copy double-mounted every context for this route.
@@ -147,10 +144,6 @@ export const router = createBrowserRouter([
   {
     path: '/cds-presentation-test',
     element: page(<CDSPresentationModeTester />)
-  },
-  {
-    path: '/schedule',
-    element: page(<Schedule />)
   },
   {
     path: '/audit-trail',

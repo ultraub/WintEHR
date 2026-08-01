@@ -21,6 +21,9 @@ const flowsheetsModule = {
       icon: FlowsheetIcon,
       color: categoricalAccents.flowsheet,
       description: 'Vitals flowsheet — time grid of nursing observations',
+      // Nursing surfaces sit together: Flowsheet lands beside the MAR
+      // instead of at the end of the strip (Phase 1 tab placement).
+      insertAfter: 'administration',
       loader: () => import(/* webpackChunkName: "module-flowsheets" */ './FlowsheetTab'),
     },
   ],

@@ -29,6 +29,20 @@ backend/api/<key>/                 frontend/src/modules/<key>/
 One module key names both halves. `flowsheets` in a disable list switches
 off the backend routers **and** the frontend tabs.
 
+Manifests may contribute (all optional):
+
+- **`tabs`** — patient-chart workspace tabs. `insertAfter: '<tab-id>'`
+  places a tab where it clinically belongs (Flowsheet sits beside the MAR);
+  omitted or unknown anchors append at the end — a tab never silently
+  disappears over a placement typo.
+- **`pages`** — top-level routed pages: `{ id, path, label, icon, color,
+  description, nav: { section, order }, loader }`. ONE entry yields the
+  route (router/router.js) and the app-shell menu item
+  (components/navigationRegistry.js) — they cannot drift. Omit `nav` for a
+  routed page with no menu presence. Valid `nav.section` keys: `clinical`,
+  `analytics`, `tools`, `admin`; a section with no items is dropped from
+  the nav entirely.
+
 Scaffold a new module with:
 
 ```bash
@@ -112,16 +126,18 @@ A workspace module is not always the right tool. In order of preference:
 | `flowsheets` | Nursing vitals flowsheet (time × vital grid over Observations) | Flowsheet tab | pilot — live |
 | `imaging` | DICOM services + imaging studies (needs a dcm4chee VNA) | Imaging tab (core, for now) | converted from core |
 | `ai-tools` | UI Composer + Clinical Canvas (need LLM API keys) | — | converted from core |
-| `quality-analytics` | Quality measures + analytics reporting | app-level pages | converted from core |
-| `scheduling` | Scheduling | Schedule page | converted from core |
+| `quality-analytics` | Quality measures + analytics reporting | Population Health nav section (Analytics / Quality / Care Gaps pages) | full module (backend + pages) |
+| `scheduling` | Scheduling | Schedule page + nav item | full module (backend + pages) |
 | `questionnaires` | Questionnaires | — | converted from core |
 
-The converted keys are backend-only for now: their routers moved from
-`ROUTERS` into `MODULE_ROUTERS` (a pure list move — all prefixes are
-distinct, so registration order is unaffected), gaining the per-deployment
-disable without touching any frontend code. Their frontend surfaces stay
-in the core registry until module tab *placement* is solved — pulling the
-Imaging tab into a module today would demote it to the end of the strip.
+`scheduling` and `quality-analytics` are fully coherent since Phase 1 of
+the platform roadmap: one key removes their backend routers, routes, and
+nav items together (page components stay in `src/pages/` — Phase 1 moved
+ownership, not files). `imaging` and `ai-tools` remain backend-only keys:
+ai-tools has no dedicated frontend surface, and the Imaging tab stays core
+until a concrete need moves it (tab placement via `insertAfter` now exists,
+so the old end-of-strip objection is gone — it is simply not yet worth the
+churn).
 
 ## Roadmap seams (grown one concrete module at a time)
 
@@ -129,8 +145,6 @@ Deliberately NOT built yet — each gets extracted when its first real
 consumer arrives, never speculatively (two pre-platform "unifying layers"
 died unadopted; see `ARCHITECTURE_DEBT.md` §F2):
 
-- **Page/route/nav registry** — first needed by an inpatient census module
-  (top-level pages outside the patient chart).
 - **Slot registry** (patient-header chips, summary cards) — first needed by
   bed/unit display.
 - **Order-type registry + safety-rule providers** — first needed by an

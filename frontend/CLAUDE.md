@@ -122,10 +122,14 @@ drifted. Tab components are `React.lazy()`-loaded from the registry. Do not
 re-add a parallel tab list anywhere.
 
 Pluggable modules (`src/modules/` — see `docs/MODULES.md`) contribute tabs
-through their manifests; the registry appends them after the core set and
-every selector treats them identically. Disable per build with
-`REACT_APP_DISABLED_MODULES` (keys match the backend's
-`WINTEHR_DISABLED_MODULES`).
+through their manifests (placed via `insertAfter`, else appended) and
+top-level **pages**: one `pages` entry yields the route in
+`router/router.js` AND the app-shell menu item
+(`components/navigationRegistry.js` — LayoutV3's old hardcoded
+`navigationConfig` is now the derived output of core seed + module
+contributions). Disable per build with `REACT_APP_DISABLED_MODULES`
+(keys match the backend's `WINTEHR_DISABLED_MODULES`); disabling removes
+tabs, routes, and nav items together.
 
 ---
 
