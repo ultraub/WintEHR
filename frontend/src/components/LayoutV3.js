@@ -34,13 +34,7 @@ import {
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  Dashboard as DashboardIcon,
-  People as PeopleIcon,
-  LocalPharmacy as PharmacyIcon,
-  TrendingUp as TrendingUpIcon,
   Api as ApiIcon,
-  Webhook as WebhookIcon,
-  Assessment as AssessmentIcon,
   AccountCircle as AccountCircleIcon,
   Logout as LogoutIcon,
   Security as SecurityIcon,
@@ -49,15 +43,11 @@ import {
   ExpandLess,
   ExpandMore,
   Home as HomeIcon,
-  Timeline as TimelineIcon,
-  MedicalServices as MedicalIcon,
-  Analytics as AnalyticsIcon,
-  CalendarMonth as ScheduleIcon,
   Assignment as EncountersIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { shellPalette, shellGradient } from '../themes/shellPalette';
-import { categoricalAccents } from '../themes/categoricalAccents';
+import { buildNavigationConfig } from './navigationRegistry';
 import { MedicalThemeContext } from '../App';
 import NotificationBell from './NotificationBell';
 import QuickThemeToggle from './theme/QuickThemeToggle';
@@ -66,45 +56,10 @@ import TransitionWrapper from './transitions/TransitionWrapper';
 
 const drawerWidth = 280;
 
-// Enhanced navigation structure with categories and workflows
-const navigationConfig = {
-  clinical: {
-    title: 'Clinical Workflows',
-    icon: <MedicalIcon />,
-    items: [
-      { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions', iconColor: categoricalAccents.summary },
-      { text: 'Schedule', icon: <ScheduleIcon />, path: '/schedule', description: 'Appointments & scheduling', iconColor: categoricalAccents.schedule },
-      { text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management', iconColor: categoricalAccents.patients },
-      { text: 'Encounters', icon: <EncountersIcon />, path: '/encounters', description: 'Visit management', iconColor: categoricalAccents.encounters },
-      { text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing', iconColor: categoricalAccents.pharmacy }
-    ]
-  },
-  analytics: {
-    title: 'Population Health',
-    icon: <AnalyticsIcon />,
-    items: [
-      { text: 'Population Analytics', icon: <TrendingUpIcon />, path: '/analytics', description: 'Health trends & metrics', iconColor: categoricalAccents.analytics },
-      { text: 'Quality Measures', icon: <AssessmentIcon />, path: '/quality', description: 'Performance tracking', iconColor: categoricalAccents.quality },
-      { text: 'Care Gaps', icon: <TimelineIcon />, path: '/care-gaps', description: 'Preventive care tracking', iconColor: categoricalAccents.careGaps }
-    ]
-  },
-  tools: {
-    title: 'Developer Tools',
-    icon: <ApiIcon />,
-    items: [
-      { text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'FHIR resource exploration & queries', iconColor: categoricalAccents.fhirExplorer },
-      { text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', iconColor: categoricalAccents.cdsStudio }
-    ]
-  },
-  admin: {
-    title: 'Administration',
-    icon: <SecurityIcon />,
-    items: [
-      { text: 'Audit Trail', icon: <SecurityIcon />, path: '/audit-trail', description: 'Security & compliance', iconColor: categoricalAccents.audit },
-      { text: 'System Settings', icon: <SettingsIcon />, path: '/settings', description: 'Configuration', iconColor: categoricalAccents.settings }
-    ]
-  }
-};
+// Navigation structure derives from navigationRegistry: core seed + pages
+// contributed by enabled modules (docs/MODULES.md). Do not hardcode nav
+// items here — module items and their routes come from ONE manifest entry.
+const navigationConfig = buildNavigationConfig();
 
 const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath, onNavigate }) => {
   return (

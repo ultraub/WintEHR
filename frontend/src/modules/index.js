@@ -28,9 +28,13 @@
  */
 
 import flowsheets from './flowsheets';
+import scheduling from './scheduling';
+import qualityAnalytics from './quality-analytics';
 
 const ALL_MODULES = [
   flowsheets,
+  scheduling,
+  qualityAnalytics,
 ];
 
 const disabledKeys = new Set(
@@ -50,3 +54,13 @@ export const DISABLED_MODULE_KEYS = ALL_MODULES
 
 /** Workspace tab entries contributed by enabled modules, in module order. */
 export const getModuleTabs = () => ENABLED_MODULES.flatMap((m) => m.tabs || []);
+
+/**
+ * Top-level page entries contributed by enabled modules, in module order.
+ * Each entry: { id, path, label, icon, color, description?, nav?, loader }.
+ * `nav: { section, order }` places the page in the app-shell menu
+ * (navigationRegistry); omit `nav` for a routed page with no menu item.
+ * Consumed by router/router.js (routes) and navigationRegistry (menu) —
+ * one entry drives both, so they cannot drift.
+ */
+export const getModulePages = () => ENABLED_MODULES.flatMap((m) => m.pages || []);
