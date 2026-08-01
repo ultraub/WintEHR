@@ -34,6 +34,7 @@ MODULE_PREFIX = {
     "quality-analytics": "/api/quality/measures",
     "scheduling": "/api/scheduling",
     "questionnaires": "/api/questionnaires",
+    "inpatient": "/api/inpatient",
 }
 
 

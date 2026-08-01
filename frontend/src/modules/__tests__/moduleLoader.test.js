@@ -118,9 +118,10 @@ describe('navigation registry', () => {
   it('module pages land in their target sections, ordered', () => {
     const config = buildNavigationConfig();
     const clinicalPaths = config.clinical.items.map((i) => i.path);
-    // Schedule slots between Dashboard (10) and Patients (30) via order 20.
+    // Schedule slots between Dashboard (10) and Patients (30) via order 20;
+    // the inpatient census (order 60) lands after Pharmacy (50).
     expect(clinicalPaths).toEqual(
-      ['/dashboard', '/schedule', '/patients', '/encounters', '/pharmacy'],
+      ['/dashboard', '/schedule', '/patients', '/encounters', '/pharmacy', '/census'],
     );
     // Population Health exists ONLY because quality-analytics contributes it.
     expect(config.analytics.items.map((i) => i.path)).toEqual(

@@ -149,6 +149,10 @@ MODULE_ROUTERS = {
         ("Questionnaires", "api.questionnaires.router", "router",
          {"tags": ["Questionnaires"]}),
     ],
+    "inpatient": [
+        ("Inpatient census", "api.inpatient.router", "router",
+         {"tags": ["Inpatient"]}),
+    ],
 }
 
 # Module keys disabled by the current deployment. Reset on each
