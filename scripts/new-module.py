@@ -19,6 +19,7 @@ stubs, tab manifest with a lazy chunk. Delete what a given module doesn't
 need — a backend-only module has no frontend dir and vice versa.
 """
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -40,20 +41,47 @@ def write(path: Path, content: str) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) < 3:
+    argv = [a for a in sys.argv[1:] if a != "--standalone"]
+    standalone = "--standalone" in sys.argv
+    if len(argv) < 2:
         print(__doc__)
+        print("\nAdd --standalone to scaffold an EXTERNAL module repo layout")
+        print("(module.json + frontend/ + backend/) in ./wintehr-module-<key>/,")
+        print("composable via wintehr.modules.json + scripts/sync-modules.py.")
         sys.exit(1)
-    key, label = sys.argv[1], sys.argv[2]
+    key, label = argv[0], argv[1]
     if not re.fullmatch(r"[a-z][a-z0-9-]*", key):
         sys.exit(f"module key must be kebab-case, got: {key!r}")
     pkg = key.replace("-", "_")
     cls = pascal(key)
 
-    be = REPO / "backend" / "api" / pkg
-    te = REPO / "backend" / "tests" / "api" / pkg
-    fe = REPO / "frontend" / "src" / "modules" / key
+    if standalone:
+        repo_dir = Path.cwd() / f"wintehr-module-{key}"
+        be = repo_dir / "backend"
+        te = None  # tests ride inside backend/ for standalone modules
+        fe = repo_dir / "frontend"
+        print(f"Scaffolding STANDALONE module repo '{key}' ({label}) at {repo_dir}:")
+        write(repo_dir / "module.json", json.dumps({
+            "key": key,
+            "label": label,
+            "backendTarget": f"api/{pkg}",
+            "routers": [{"name": label, "module": "router",
+                         "attr": "router", "tags": [label]}],
+        }, indent=2) + "\n")
+        write(repo_dir / "README.md", f"""# wintehr-module-{key}
 
-    print(f"Scaffolding module '{key}' ({label}):")
+A WintEHR clinical module ({label}). Compose into a WintEHR deployment by
+adding to its wintehr.modules.json and running scripts/sync-modules.py —
+see docs/MODULES.md in the WintEHR repo.
+
+Frontend code imports platform APIs from '../sdk' ONLY (the module SDK);
+after vendoring, that path resolves to src/modules/sdk.js in the host.
+""")
+    else:
+        be = REPO / "backend" / "api" / pkg
+        te = REPO / "backend" / "tests" / "api" / pkg
+        fe = REPO / "frontend" / "src" / "modules" / key
+        print(f"Scaffolding module '{key}' ({label}):")
 
     write(be / "__init__.py", "")
     write(be / "models.py", f'''"""{label} request/response models."""
@@ -117,6 +145,8 @@ router = APIRouter(prefix="/api/{key}", tags=["{label}"])
 async def example(service: {cls}Service = Depends(get_{pkg}_service)):
     return await service.example()
 ''')
+    if te is None:
+        te = be / "tests"
     write(te / "__init__.py", "")
     write(te / f"test_{pkg}_service.py", f'''"""{cls}Service tests — inject a fake HAPI client, no patch()."""
 
@@ -185,6 +215,21 @@ const {cls}Tab = ({{ patientId, currentPatient }}) => {{
 
 export default {cls}Tab;
 ''')
+
+    if standalone:
+        print(f"""
+Standalone module scaffolded. Develop it as its own repo, then compose it
+into a WintEHR deployment:
+
+    wintehr.modules.json:
+        {{ "key": "{key}", "source": "git+<your-repo-url>@<ref>" }}
+        (or a local path while developing)
+
+    python3 scripts/sync-modules.py   # vendors + regenerates registries
+
+Frontend imports must come from '../sdk' — the lint boundary enforces
+this after vendoring.""")
+        return
 
     print(f"""
 Now wire it in (three explicit edits — see docs/MODULES.md):

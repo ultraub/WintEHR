@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy to wintehr.modules.json, then: python3 scripts/sync-modules.py (docs/MODULES.md). 'builtin' entries are verified only; external sources are standalone module repos (scripts/new-module.py --standalone).",
+  "modules": [
+    { "key": "flowsheets", "source": "builtin" },
+    { "key": "oncology",   "source": "git+https://github.com/your-org/wintehr-module-oncology@v1.0" },
+    { "key": "referrals",  "source": "./local-modules/referrals" }
+  ]
+}

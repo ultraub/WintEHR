@@ -11,7 +11,7 @@ import React, { useEffect, useState } from 'react';
 import { Chip, Tooltip } from '@mui/material';
 import { Hotel as BedIcon } from '@mui/icons-material';
 
-import { fhirClient } from '../../core/fhir/services/fhirClient';
+import { fhirClient } from '../sdk';
 
 const BedChip = ({ patient }) => {
   const [admission, setAdmission] = useState(null);

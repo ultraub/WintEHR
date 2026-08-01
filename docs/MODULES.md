@@ -119,6 +119,51 @@ Modules are not exempt from the platform invariants (root `CLAUDE.md`):
   several shapes (see the flowsheet service's panel-component handling —
   Synthea writes BP as an `85354-9` panel, not standalone observations).
 
+## The module SDK — the import boundary
+
+Module frontend code imports platform APIs from **`src/modules/sdk.js`
+only** (lint-enforced: `no-restricted-imports` rejects deep imports from
+module directories). The SDK re-exports the sanctioned surface —
+`fhirClient`, `extractBundleResources`, the patient-data contexts,
+`useClinicalWorkflow` + `CLINICAL_EVENTS`, `useAuth`, `api`/`buildUrl`,
+`categoricalAccents`, `getSeverityColor`. Third-party packages (react,
+@mui/*, date-fns) are imported directly, versioned by package.json.
+
+This boundary is what makes out-of-repo modules viable: core internals can
+move freely while the SDK holds its contract. Additions to the SDK are API
+decisions; removals are breaking changes for every module ever written.
+The backend equivalent is the documented pattern (injected
+`HAPIFHIRClient`, `get_db_session`) rather than a wrapper.
+
+## External modules — build-time composition
+
+A module can live in its own repository and be composed into a deployment
+at build time:
+
+1. Scaffold it: `python3 scripts/new-module.py <key> "<Label>" --standalone`
+   → a `wintehr-module-<key>/` repo layout: `module.json` (key, label,
+   `backendTarget`, router entries) + `frontend/` + `backend/`.
+2. Compose it: copy `wintehr.modules.example.json` to
+   `wintehr.modules.json`, list the module (`git+<url>@<ref>` or a local
+   path), and run `python3 scripts/sync-modules.py`. The script vendors
+   the module into the tree (`frontend/src/modules/<key>/`,
+   `backend/<backendTarget>/`) and regenerates the two GENERATED
+   registries (`src/modules/registry.generated.js`,
+   `api/routers/modules_generated.py`) that the loaders consume.
+3. Build as normal. Disable keys work identically for external modules.
+
+The reviewable artifact is `wintehr.modules.json`; the generated files
+derive from it deterministically. Commit the vendored tree in a
+deployment fork for permanent composition, or run the sync pre-build for
+ephemeral composition. Key collisions with builtin modules are rejected
+loudly (builtin wins).
+
+**Proven by round-trip**: flowsheets was extracted into a standalone repo
+layout, deleted from every builtin registry, and composed back purely as
+an external module — full backend + frontend suites and the production
+build all passed against the externally-composed tree. The mechanism
+carries a real module, not a toy.
+
 ## Other extension mechanisms (often the better fit)
 
 A workspace module is not always the right tool. In order of preference:

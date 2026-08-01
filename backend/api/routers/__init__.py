@@ -155,6 +155,21 @@ MODULE_ROUTERS = {
     ],
 }
 
+# External modules vendored by scripts/sync-modules.py (empty by default —
+# see api/routers/modules_generated.py). Merged after the builtin dict; a
+# key collision is a configuration error and the builtin wins, loudly.
+from api.routers.modules_generated import EXTERNAL_MODULE_ROUTERS
+
+for _ext_key, _ext_entries in EXTERNAL_MODULE_ROUTERS.items():
+    if _ext_key in MODULE_ROUTERS:
+        logger.error(
+            "External module key %r collides with a builtin module — "
+            "external registration IGNORED (rename the external module).",
+            _ext_key,
+        )
+        continue
+    MODULE_ROUTERS[_ext_key] = _ext_entries
+
 # Module keys disabled by the current deployment. Reset on each
 # register_all_routers call; surfaced by GET /api/health (main.py).
 DISABLED_MODULES = []
