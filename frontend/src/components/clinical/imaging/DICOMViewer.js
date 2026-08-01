@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
+  Button,
   Typography,
   IconButton,
   Slider,
@@ -178,10 +179,13 @@ const DICOMViewer = ({ study, onClose }) => {
       setCurrentInstanceIndex(0);
       
     } catch (err) {
-      const errorMessage = err.response?.status === 404 
+      // Surface the server's own detail when it sent one — on a teaching
+      // platform "DICOM server unavailable: <reason>" is the lesson, not
+      // noise to hide behind a generic message.
+      const errorMessage = err.response?.status === 404
         ? 'DICOM study not found. This study may not have imaging data available.'
-        : err.message || 'Failed to load DICOM study';
-      
+        : err.response?.data?.detail || err.message || 'Failed to load DICOM study';
+
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -422,21 +426,51 @@ const DICOMViewer = ({ study, onClose }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // ALL viewer states render inside the same fixed full-screen overlay.
+  // The loading/error branches used to return bare in-flow elements that
+  // landed somewhere in the Imaging tab's DOM, usually off-viewport — a
+  // metadata failure looked like "the click did nothing" (this is how the
+  // B17 DICOMweb URL bug stayed invisible; see docs/ARCHITECTURE_DEBT.md).
+  const overlaySx = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1300,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.95)' : 'rgba(0, 0, 0, 0.9)',
+  };
+
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-        <CircularProgress size={60} sx={{ mb: 2 }} />
-        <Typography>Loading DICOM images...</Typography>
+      <Box sx={overlaySx}>
+        <Stack alignItems="center" spacing={2}>
+          <CircularProgress size={60} sx={{ color: 'white' }} />
+          <Typography sx={{ color: 'white' }}>Loading DICOM images...</Typography>
+        </Stack>
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Alert severity="error" sx={{ m: 2 }}>
-        <Typography variant="h6">Error Loading DICOM Study</Typography>
-        <Typography>{error}</Typography>
-      </Alert>
+      <Box sx={overlaySx} role="alertdialog" aria-label="DICOM viewer error">
+        <Paper sx={{ p: 3, maxWidth: 520, mx: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              Could not load this study
+            </Typography>
+            <Typography variant="body2">{error}</Typography>
+          </Alert>
+          <Stack direction="row" spacing={1} justifyContent="flex-end">
+            <Button onClick={loadStudyData}>Try again</Button>
+            <Button variant="contained" onClick={onClose}>Close</Button>
+          </Stack>
+        </Paper>
+      </Box>
     );
   }
 
