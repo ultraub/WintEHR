@@ -6,7 +6,7 @@
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@monaco-editor/react": "^4.7.0",
-    "@mui/icons-material": "^5.18.0",
+    "@mui/icons-material": "^9.2.0",
     "@mui/lab": "^5.0.0-alpha.155",
     "@mui/material": "^5.18.0",
     "@mui/x-data-grid": "^6.20.4",
