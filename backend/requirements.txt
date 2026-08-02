@@ -21,7 +21,7 @@ redis[hiredis]>=5.0.0
 
 # HTTP/API
 httpx==0.28.1
-aiofiles==23.2.1
+aiofiles==25.1.0
 aiohttp==3.14.3
 
 # Data processing
