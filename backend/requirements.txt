@@ -56,7 +56,7 @@ GitPython==3.1.57
 
 # Medical imaging
 pydicom==3.0.2
-pillow>=10.3.0
+pillow>=12.3.0
 numpy>=1.26.0
 scipy>=1.18.0  # For realistic DICOM generation
 # For DICOM image processing (basic support)
