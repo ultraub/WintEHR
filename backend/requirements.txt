@@ -1,7 +1,7 @@
 # Core dependencies
 fastapi>=0.140.0
 uvicorn[standard]>=0.51.0
-pydantic>=2.5.0
+pydantic>=2.13.4
 # EmailStr in api/auth/models.py needs this. It used to arrive transitively via
 # fhir.resources, which was an unused shim and has been removed — so the
 # dependency is now declared where it is actually used.
