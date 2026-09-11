@@ -127,6 +127,9 @@ scripts/screenshots/
 !docs/**/*.jpg
 !docs/**/*.jpeg
 !frontend/public/*.png
+!site/assets/*.jpg
+!site/assets/*.gif
+!site/assets/*.png
 
 # Experimental and archived code
 mcp-server/
