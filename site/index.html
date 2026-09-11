@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WintEHR — a working EHR for teaching healthcare IT</title>
+<meta name="description" content="WintEHR is an open-source, FHIR-native electronic health record built for education: classroom demos, hands-on labs, capstones, and learning FHIR R4, CDS Hooks, and real clinical workflows on synthetic data.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩺</text></svg>">
+<meta property="og:title" content="WintEHR — a working EHR for teaching healthcare IT">
+<meta property="og:description" content="Place an order and watch the MedicationRequest land in a real HAPI FHIR server. Open-source, synthetic data only, built to be extended.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0f2f2b;
+  --ink-soft:#3d5a55;
+  --teal:#0e7569;
+  --teal-deep:#0a5a50;
+  --teal-bright:#12a48f;
+  --mint:#e7f3f0;
+  --mint-deep:#d3e8e3;
+  --paper:#fbfaf6;
+  --card:#ffffff;
+  --line:#dbe7e3;
+  --amber:#9a5b07;
+  --amber-bg:#fcf3e2;
+  --amber-line:#ecd9b0;
+  --red:#b3403a;
+  --code-bg:#0d2320;
+  --code-ink:#c9e5df;
+  --shadow-soft:0 1px 2px rgba(15,47,43,.05),0 8px 24px rgba(15,47,43,.07);
+  --shadow-deep:0 2px 6px rgba(15,47,43,.08),0 24px 60px rgba(15,47,43,.14);
+  --serif:"Fraunces",Georgia,serif;
+  --sans:"Public Sans",-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{
+  font-family:var(--sans);color:var(--ink);background:var(--paper);
+  line-height:1.6;font-size:16px;-webkit-font-smoothing:antialiased;
+}
+img{max-width:100%;display:block}
+a{color:var(--teal);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:1140px;margin:0 auto;padding:0 24px}
+
+/* ---------- nav ---------- */
+.nav{
+  position:sticky;top:0;z-index:50;background:rgba(251,250,246,.88);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.nav-inner{display:flex;align-items:center;gap:32px;height:64px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-weight:600;font-size:21px;color:var(--ink)}
+.brand:hover{text-decoration:none}
+.brand svg{flex:none}
+.nav-links{display:flex;gap:26px;margin-left:auto;align-items:center}
+.nav-links a{color:var(--ink-soft);font-size:14.5px;font-weight:500}
+.nav-links a:hover{color:var(--teal-deep);text-decoration:none}
+.nav-gh{
+  display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:8px;
+  background:var(--ink);color:#fff !important;font-weight:600;font-size:14px;
+  transition:background .2s;
+}
+.nav-gh:hover{background:var(--teal-deep);text-decoration:none}
+@media(max-width:800px){.nav-links a:not(.nav-gh){display:none}}
+
+/* ---------- synthetic banner ---------- */
+.specimen{
+  background:var(--amber-bg);border-bottom:1px solid var(--amber-line);
+  color:var(--amber);font-family:var(--mono);font-size:12.5px;letter-spacing:.02em;
+  text-align:center;padding:8px 16px;
+}
+.specimen strong{font-weight:600}
+
+/* ---------- hero ---------- */
+.hero{
+  position:relative;overflow:hidden;
+  background:
+    linear-gradient(180deg,rgba(231,243,240,.55) 0%,rgba(251,250,246,0) 60%),
+    repeating-linear-gradient(0deg,rgba(14,117,105,.045) 0 1px,transparent 1px 28px),
+    repeating-linear-gradient(90deg,rgba(14,117,105,.045) 0 1px,transparent 1px 28px),
+    var(--paper);
+}
+.hero-inner{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:56px;align-items:center;padding:72px 0 88px}
+@media(max-width:960px){.hero-inner{grid-template-columns:1fr;padding:48px 0 64px}}
+.eyebrow{
+  font-family:var(--mono);font-size:12.5px;font-weight:500;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--teal);margin-bottom:18px;display:flex;align-items:center;gap:10px;
+}
+.eyebrow::before{content:"";width:26px;height:1.5px;background:var(--teal)}
+h1{
+  font-family:var(--serif);font-weight:600;font-size:clamp(34px,4.6vw,54px);
+  line-height:1.1;letter-spacing:-.01em;margin-bottom:22px;
+}
+h1 em{font-style:italic;color:var(--teal-deep)}
+.hero-sub{font-size:18px;color:var(--ink-soft);max-width:46ch;margin-bottom:30px}
+.hero-sub code{font-family:var(--mono);font-size:.86em;background:var(--mint);border:1px solid var(--mint-deep);border-radius:5px;padding:1px 6px;color:var(--teal-deep);white-space:nowrap}
+.cta-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:30px}
+.btn{
+  display:inline-flex;align-items:center;gap:9px;padding:13px 24px;border-radius:10px;
+  font-weight:600;font-size:15.5px;transition:transform .15s,box-shadow .15s,background .2s;
+}
+.btn:hover{text-decoration:none;transform:translateY(-1px)}
+.btn-primary{background:var(--teal);color:#fff;box-shadow:0 6px 18px rgba(14,117,105,.28)}
+.btn-primary:hover{background:var(--teal-deep);box-shadow:0 8px 22px rgba(14,117,105,.34)}
+.btn-ghost{background:var(--card);color:var(--ink);border:1.5px solid var(--line)}
+.btn-ghost:hover{border-color:var(--teal);color:var(--teal-deep)}
+.terminal{
+  font-family:var(--mono);font-size:13.5px;background:var(--code-bg);color:var(--code-ink);
+  border-radius:12px;padding:16px 18px;max-width:480px;box-shadow:var(--shadow-soft);
+  position:relative;line-height:1.85;
+}
+.terminal .dots{display:flex;gap:6px;margin-bottom:10px}
+.terminal .dots i{width:10px;height:10px;border-radius:50%;background:#2c4a45}
+.terminal .p{color:#5f8f87;user-select:none}
+.terminal .c{color:#eee9d9}
+.terminal .ok{color:#67c9a4}
+.copy-btn{
+  position:absolute;top:12px;right:12px;font-family:var(--sans);font-size:11.5px;font-weight:600;
+  background:rgba(255,255,255,.08);color:#9dc3bc;border:1px solid rgba(255,255,255,.14);
+  border-radius:6px;padding:4px 10px;cursor:pointer;transition:background .2s;
+}
+.copy-btn:hover{background:rgba(255,255,255,.16)}
+
+/* hero art: layered screenshots */
+.hero-art{position:relative;min-height:380px}
+@media(max-width:960px){.hero-art{min-height:0}}
+.shot{
+  border-radius:12px;overflow:hidden;background:var(--card);
+  border:1px solid var(--line);box-shadow:var(--shadow-deep);
+}
+.shot .bar{display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;background:#f1f5f3;border-bottom:1px solid var(--line)}
+.shot .bar i{width:9px;height:9px;border-radius:50%;background:var(--mint-deep)}
+.shot .bar span{font-family:var(--mono);font-size:11px;color:#87a09a;margin-left:8px;letter-spacing:.02em}
+.hero-shot-main{transform:rotate(.6deg)}
+.hero-shot-float{
+  position:absolute;left:-42px;bottom:-38px;width:56%;transform:rotate(-1.6deg);
+  border-radius:10px;overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow-deep);
+}
+@media(max-width:960px){.hero-shot-float{display:none}}
+
+/* ---------- EKG divider ---------- */
+.ekg{display:block;width:100%;height:46px;color:var(--teal)}
+.ekg polyline{
+  fill:none;stroke:currentColor;stroke-width:1.6;opacity:.55;
+  stroke-dasharray:1400;stroke-dashoffset:1400;
+}
+.in-view .ekg polyline{animation:draw 2.4s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+/* ---------- sections ---------- */
+section{padding:88px 0}
+@media(max-width:800px){section{padding:60px 0}}
+.sec-head{max-width:720px;margin-bottom:52px}
+h2{font-family:var(--serif);font-weight:600;font-size:clamp(27px,3.4vw,38px);line-height:1.16;letter-spacing:-.005em;margin-bottom:16px}
+.sec-head p{color:var(--ink-soft);font-size:17px}
+
+/* reveal on scroll */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s ease}
+.reveal.in-view{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){
+  .reveal{opacity:1;transform:none;transition:none}
+  .ekg polyline{stroke-dashoffset:0;animation:none}
+  html{scroll-behavior:auto}
+}
+
+/* ---------- audience ---------- */
+.aud-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+@media(max-width:860px){.aud-grid{grid-template-columns:1fr}}
+.aud{
+  background:var(--card);border:1px solid var(--line);border-radius:14px;padding:30px 28px;
+  box-shadow:var(--shadow-soft);position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;
+}
+.aud:hover{transform:translateY(-3px);box-shadow:var(--shadow-deep)}
+.aud::after{content:"";position:absolute;inset:auto 0 0 0;height:3px;background:linear-gradient(90deg,var(--teal),var(--teal-bright))}
+.aud .ico{
+  width:44px;height:44px;border-radius:11px;background:var(--mint);display:grid;place-items:center;
+  margin-bottom:18px;color:var(--teal-deep);
+}
+.aud h3{font-family:var(--serif);font-size:21px;font-weight:600;margin-bottom:10px}
+.aud p{color:var(--ink-soft);font-size:15px}
+.aud ul{margin:12px 0 0 0;padding:0;list-style:none}
+.aud li{color:var(--ink-soft);font-size:14.5px;padding-left:20px;position:relative;margin-bottom:6px}
+.aud li::before{content:"→";position:absolute;left:0;color:var(--teal);font-weight:600}
+
+/* ---------- demos ---------- */
+.demo-band{background:linear-gradient(180deg,var(--mint) 0%,rgba(231,243,240,.25) 100%);border-top:1px solid var(--mint-deep);border-bottom:1px solid var(--mint-deep)}
+.demo-row{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:48px;align-items:center;margin-bottom:84px}
+.demo-row:last-child{margin-bottom:0}
+.demo-row.flip{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+.demo-row.flip .demo-media{order:2}
+@media(max-width:920px){
+  .demo-row,.demo-row.flip{grid-template-columns:1fr}
+  .demo-row.flip .demo-media{order:0}
+}
+.demo-media .shot{box-shadow:var(--shadow-deep)}
+.demo-copy .step{font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--teal);text-transform:uppercase;margin-bottom:12px;font-weight:500}
+.demo-copy h3{font-family:var(--serif);font-size:26px;font-weight:600;margin-bottom:13px;line-height:1.2}
+.demo-copy p{color:var(--ink-soft);font-size:15.5px;margin-bottom:12px}
+.demo-copy .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.tag{
+  font-family:var(--mono);font-size:11.5px;font-weight:500;color:var(--teal-deep);
+  background:#fff;border:1px solid var(--mint-deep);border-radius:99px;padding:4px 12px;
+}
+.jsonbox{
+  font-family:var(--mono);font-size:12px;line-height:1.7;background:var(--code-bg);color:var(--code-ink);
+  border-radius:12px;padding:18px 20px;overflow-x:auto;box-shadow:var(--shadow-soft);margin-top:18px;position:relative;
+}
+.jsonbox .k{color:#8fd4c5}.jsonbox .s{color:#eed9a6}.jsonbox .n{color:#d0a6ee}
+.jsonbox .cap{font-family:var(--sans);font-size:11.5px;color:#78a49c;margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+
+/* ---------- cds playground ---------- */
+.play{
+  background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-deep);
+}
+.play-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);background:#f4f8f6;overflow-x:auto}
+.play-tab{
+  font-family:var(--mono);font-size:12.5px;font-weight:500;color:var(--ink-soft);
+  background:none;border:none;border-bottom:2.5px solid transparent;padding:14px 20px;cursor:pointer;white-space:nowrap;
+}
+.play-tab:hover{color:var(--teal-deep)}
+.play-tab.active{color:var(--teal-deep);border-bottom-color:var(--teal);background:var(--card)}
+.play-body{display:grid;grid-template-columns:1fr 1fr;min-height:400px}
+@media(max-width:880px){.play-body{grid-template-columns:1fr}}
+.play-editor{border-right:1px solid var(--line);display:flex;flex-direction:column;background:var(--code-bg)}
+@media(max-width:880px){.play-editor{border-right:none;border-bottom:1px solid var(--line)}}
+.play-editor label{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#78a49c;padding:14px 18px 0;font-weight:600}
+.play-editor textarea{
+  flex:1;font-family:var(--mono);font-size:12.5px;line-height:1.65;color:var(--code-ink);
+  background:transparent;border:none;resize:vertical;min-height:360px;padding:12px 18px 18px;outline:none;
+}
+.play-render{padding:26px;background:repeating-linear-gradient(0deg,rgba(14,117,105,.035) 0 1px,transparent 1px 24px),#fbfdfc;display:flex;flex-direction:column;gap:14px}
+.play-render .rlabel{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#87a09a;font-weight:600}
+.play-err{font-family:var(--mono);font-size:12.5px;color:var(--red);background:#fdf1f0;border:1px solid #f2d4d2;border-radius:8px;padding:10px 14px;display:none}
+.cds-card{
+  background:#fff;border:1px solid var(--line);border-left:4px solid var(--teal);
+  border-radius:10px;padding:18px 20px;box-shadow:var(--shadow-soft);
+}
+.cds-card.warning{border-left-color:#d97706}
+.cds-card.critical{border-left-color:var(--red)}
+.cds-card h4{display:flex;align-items:center;gap:9px;font-size:15.5px;font-weight:700;margin-bottom:7px}
+.cds-card h4 .ind{width:9px;height:9px;border-radius:50%;background:var(--teal);flex:none}
+.cds-card.warning h4 .ind{background:#d97706}
+.cds-card.critical h4 .ind{background:var(--red)}
+.cds-card .detail{font-size:13.5px;color:var(--ink-soft);margin-bottom:12px}
+.cds-card .src{font-family:var(--mono);font-size:11px;color:#87a09a;margin-bottom:12px}
+.cds-card .sugg{display:flex;flex-wrap:wrap;gap:8px}
+.cds-card .sugg button,.cds-card .sugg a{
+  font-family:var(--sans);font-size:12.5px;font-weight:600;border-radius:7px;padding:7px 13px;cursor:pointer;
+  border:1px solid var(--mint-deep);background:var(--mint);color:var(--teal-deep);transition:background .15s;
+}
+.cds-card .sugg button:hover{background:var(--mint-deep)}
+.play-toast{
+  font-family:var(--mono);font-size:12px;color:var(--teal-deep);background:var(--mint);
+  border:1px solid var(--mint-deep);border-radius:8px;padding:9px 14px;opacity:0;transition:opacity .3s;
+}
+.play-toast.show{opacity:1}
+.play-note{font-size:13px;color:var(--ink-soft);margin-top:16px}
+.play-note code{font-family:var(--mono);font-size:.9em;background:var(--mint);border-radius:4px;padding:1px 5px}
+
+/* ---------- feature tour ---------- */
+.tour-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+@media(max-width:960px){.tour-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:620px){.tour-grid{grid-template-columns:1fr}}
+.tour{
+  background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden;
+  box-shadow:var(--shadow-soft);transition:transform .2s,box-shadow .2s;
+}
+.tour:hover{transform:translateY(-3px);box-shadow:var(--shadow-deep)}
+.tour img{aspect-ratio:16/9.2;object-fit:cover;object-position:top;border-bottom:1px solid var(--line)}
+.tour .pad{padding:18px 20px 20px}
+.tour h3{font-family:var(--serif);font-size:17.5px;font-weight:600;margin-bottom:7px}
+.tour p{font-size:13.5px;color:var(--ink-soft);margin-bottom:12px}
+.tour .tags{display:flex;flex-wrap:wrap;gap:6px}
+
+/* ---------- architecture ---------- */
+.arch-band{background:var(--ink);color:#e8f1ee}
+.arch-band h2{color:#fff}
+.arch-band .sec-head p{color:#9dc3bc}
+.arch-svg{width:100%;height:auto;display:block}
+.arch-foot{font-family:var(--mono);font-size:12.5px;color:#78a49c;text-align:center;margin-top:26px}
+.arch-foot a{color:#8fd4c5}
+
+/* ---------- extend ---------- */
+.path{
+  display:grid;grid-template-columns:110px 1fr;gap:28px;padding:34px 0;border-top:1px solid var(--line);
+}
+.path:last-of-type{border-bottom:1px solid var(--line)}
+@media(max-width:640px){.path{grid-template-columns:1fr;gap:10px;padding:26px 0}}
+.path .num{
+  font-family:var(--serif);font-size:46px;font-weight:500;color:var(--mint-deep);line-height:1;
+  font-variant-numeric:tabular-nums;
+}
+.path:hover .num{color:var(--teal-bright)}
+.path h3{font-family:var(--serif);font-size:22px;font-weight:600;margin-bottom:8px}
+.path h3 .lvl{
+  font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--teal);background:var(--mint);border-radius:99px;padding:4px 12px;vertical-align:3px;margin-left:12px;
+}
+.path p{color:var(--ink-soft);font-size:15.5px;max-width:70ch}
+.path code{font-family:var(--mono);font-size:.87em;background:var(--mint);border:1px solid var(--mint-deep);border-radius:5px;padding:1px 6px;color:var(--teal-deep)}
+
+/* ---------- get started ---------- */
+.start-band{background:linear-gradient(180deg,var(--mint) 0%,rgba(231,243,240,.2) 100%);border-top:1px solid var(--mint-deep)}
+.start-grid{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:48px;align-items:start}
+@media(max-width:920px){.start-grid{grid-template-columns:1fr}}
+.start-terminal{font-size:14px;max-width:none}
+.start-facts{display:grid;gap:18px}
+.fact{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;box-shadow:var(--shadow-soft)}
+.fact h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin-bottom:12px;font-weight:600}
+.fact table{width:100%;border-collapse:collapse;font-size:14px}
+.fact td{padding:6px 0;border-bottom:1px dashed var(--line);color:var(--ink-soft)}
+.fact tr:last-child td{border-bottom:none}
+.fact td:first-child{font-weight:600;color:var(--ink);padding-right:16px;white-space:nowrap}
+.fact code{font-family:var(--mono);font-size:.9em;color:var(--teal-deep)}
+.users{display:flex;flex-wrap:wrap;gap:8px}
+.user-chip{
+  font-family:var(--mono);font-size:12.5px;background:var(--mint);border:1px solid var(--mint-deep);
+  border-radius:8px;padding:6px 12px;color:var(--teal-deep);
+}
+.user-chip b{color:var(--ink)}
+
+/* ---------- footer ---------- */
+footer{background:var(--ink);color:#9dc3bc;padding:52px 0 44px;font-size:14px}
+.foot-grid{display:flex;justify-content:space-between;gap:32px;flex-wrap:wrap;align-items:flex-start}
+.foot-brand{font-family:var(--serif);font-size:20px;font-weight:600;color:#fff;margin-bottom:10px}
+footer a{color:#8fd4c5}
+.foot-warn{
+  font-family:var(--mono);font-size:12px;color:#e3b578;border:1px dashed rgba(227,181,120,.4);
+  border-radius:9px;padding:10px 16px;margin-top:26px;display:inline-block;
+}
+.foot-cred{margin-top:30px;padding-top:22px;border-top:1px solid rgba(157,195,188,.18);font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="specimen">⚠ <strong>EDUCATIONAL PLATFORM — SYNTHETIC DATA ONLY.</strong> WintEHR ships with Synthea-generated patients and demo auth. Never use with real patient information.</div>
+
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="WintEHR home">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#0e7569"/><polyline points="4,14 8,14 10,8 13,19 15,11.5 17,14 22,14" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      WintEHR
+    </a>
+    <div class="nav-links">
+      <a href="#demos">Demos</a>
+      <a href="#tour">Features</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#extend">Extend</a>
+      <a href="#start">Get started</a>
+      <a class="nav-gh" href="https://github.com/ultraub/WintEHR" target="_blank" rel="noopener">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap hero-inner">
+    <div>
+      <div class="eyebrow">Open-source teaching EHR · FHIR-native</div>
+      <h1>Teach healthcare IT on a <em>real, working</em> EHR.</h1>
+      <p class="hero-sub">
+        Most healthcare IT education means reading specs. WintEHR is the other way around:
+        place an order and watch the <code>MedicationRequest</code> land in a real HAPI FHIR server,
+        fire a CDS Hook and see the card interrupt the workflow — then open the code and see exactly how.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#start">Deploy it in minutes</a>
+        <a class="btn btn-ghost" href="#demos">Watch it work ↓</a>
+      </div>
+      <div class="terminal" id="hero-term">
+        <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+        <button class="copy-btn" data-copy="git clone https://github.com/ultraub/WintEHR.git && cd WintEHR && ./deploy.sh">copy</button>
+        <div><span class="p">$</span> <span class="c">git clone https://github.com/ultraub/WintEHR.git</span></div>
+        <div><span class="p">$</span> <span class="c">cd WintEHR && ./deploy.sh</span></div>
+        <div><span class="ok">✓</span> hapi-fhir &nbsp;<span class="ok">✓</span> backend &nbsp;<span class="ok">✓</span> frontend &nbsp;<span class="ok">✓</span> 20 synthetic patients</div>
+      </div>
+    </div>
+    <div class="hero-art">
+      <figure class="shot hero-shot-main">
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span>localhost:3000 — clinical workspace</span></div>
+        <img src="assets/workspace-summary.jpg" alt="WintEHR clinical workspace showing a synthetic patient's summary: problems, medications, vitals, and allergies" fetchpriority="high">
+      </figure>
+      <figure class="shot hero-shot-float">
+        <img src="assets/cds-cards.jpg" alt="A Clinical Decision Support card interrupting the workflow with a polypharmacy warning and actionable suggestions">
+      </figure>
+    </div>
+  </div>
+</header>
+
+<!-- ================= audience ================= -->
+<section id="audience">
+  <div class="wrap">
+    <svg class="ekg" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,30 240,30 260,30 272,12 284,42 294,22 306,30 560,30 580,30 592,10 604,44 614,20 626,30 900,30 920,30 932,14 944,40 954,24 966,30 1200,30"/></svg>
+    <div class="sec-head reveal" style="margin-top:36px">
+      <h2>Built for the classroom. Respected by engineers.</h2>
+      <p>Every workflow is real, every resource is standards-conformant, and every patient is synthetic — so students can break things freely and learn how health systems actually move data.</p>
+    </div>
+    <div class="aud-grid">
+      <div class="aud reveal">
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 10 12 5 2 10l10 5 10-5v6"/><path d="M6 12.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-3.5"/></svg></div>
+        <h3>Educators</h3>
+        <p>Run a live EHR for your course without a vendor contract or a compliance office.</p>
+        <ul>
+          <li>Classroom demos with real FHIR queries</li>
+          <li>Labs: modify CDS rules, chart vitals, trace orders</li>
+          <li>Capstone foundation — data regenerates on deploy</li>
+        </ul>
+      </div>
+      <div class="aud reveal" style="transition-delay:.08s">
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+        <h3>Students</h3>
+        <p>See what the spec means. Chart a vital, then pull it back as a LOINC-coded <em>Observation</em>.</p>
+        <ul>
+          <li>Order → dispense → administer, end to end</li>
+          <li>FHIR Explorer: query the live server visually</li>
+          <li>A CQL primer written for first-timers</li>
+        </ul>
+      </div>
+      <div class="aud reveal" style="transition-delay:.16s">
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+        <h3>Developers</h3>
+        <p>A realistic integration target: HAPI FHIR, CDS Hooks 2.0, SMART launch, a DICOM VNA.</p>
+        <ul>
+          <li>Test your SMART app against real OAuth2/PKCE</li>
+          <li>Register an external CDS service by URL</li>
+          <li>Build whole clinical modules against a documented SDK</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= demos ================= -->
+<section class="demo-band" id="demos">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2>Watch the data move.</h2>
+      <p>These are unedited captures from a running WintEHR instance with Synthea-generated patients. What the clinician does in the UI is what lands in the FHIR server.</p>
+    </div>
+
+    <div class="demo-row reveal">
+      <div class="demo-media">
+        <figure class="shot">
+          <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span>orders — CPOE</span></div>
+          <img src="assets/demo-cpoe-order.gif" alt="Animated capture: composing an ibuprofen order in the Order Composer, CDS suggestions appearing, signing it, and the order appearing in the active orders list" loading="lazy">
+        </figure>
+      </div>
+      <div class="demo-copy">
+        <div class="step">Demo 01 · Order to FHIR</div>
+        <h3>Place an order. Get a resource.</h3>
+        <p>Search the RxNorm-coded catalog, compose the sig, and sign. CDS Hooks fire on <em>order-select</em> while you compose; safety gates check allergies before signing.</p>
+        <p>Seconds later this <strong>MedicationRequest</strong> is queryable in HAPI FHIR:</p>
+        <div class="jsonbox"><div class="cap">GET /fhir/R4/MedicationRequest — newest</div><pre style="margin:0">{
+  <span class="k">"resourceType"</span>: <span class="s">"MedicationRequest"</span>,
+  <span class="k">"status"</span>: <span class="s">"active"</span>, <span class="k">"intent"</span>: <span class="s">"order"</span>,
+  <span class="k">"medicationCodeableConcept"</span>: { <span class="k">"coding"</span>: [{
+    <span class="k">"system"</span>: <span class="s">"…umls/rxnorm"</span>, <span class="k">"code"</span>: <span class="s">"206905"</span>,
+    <span class="k">"display"</span>: <span class="s">"Ibuprofen 400 MG Oral Tablet"</span> }]},
+  <span class="k">"reasonCode"</span>: [{ <span class="k">"text"</span>: <span class="s">"Osteoarthritis knee pain"</span> }],
+  <span class="k">"dosageInstruction"</span>: [{ <span class="k">"text"</span>: <span class="s">"400 mg · PO · BID"</span> }]
+}</pre></div>
+        <div class="tags"><span class="tag">FHIR R4</span><span class="tag">RxNorm</span><span class="tag">CDS Hooks 2.0</span><span class="tag">CPOE</span></div>
+      </div>
+    </div>
+
+    <div class="demo-row flip reveal">
+      <div class="demo-media">
+        <figure class="shot">
+          <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span>flowsheet — nursing vitals</span></div>
+          <img src="assets/demo-chart-vitals.gif" alt="Animated capture: charting heart rate, blood pressure, respiratory rate, temperature and SpO2 in the vitals flowsheet, and the values appearing in the grid" loading="lazy">
+        </figure>
+      </div>
+      <div class="demo-copy">
+        <div class="step">Demo 02 · Chart a vital</div>
+        <h3>Every cell is an Observation.</h3>
+        <p>The nursing flowsheet writes each charted value as a LOINC-coded FHIR <em>Observation</em>, timestamped now — no hidden tables, no shortcuts. Query it back through the API a second later.</p>
+        <p>The Flowsheet tab is also WintEHR's <strong>pilot pluggable module</strong>: the template to copy when you build your own clinical domain.</p>
+        <div class="tags"><span class="tag">Observation</span><span class="tag">LOINC</span><span class="tag">vital-signs panel</span><span class="tag">module SDK</span></div>
+      </div>
+    </div>
+
+    <!-- interactive CDS playground -->
+    <div class="reveal" id="cds-playground" style="margin-top:84px">
+      <div class="sec-head" style="margin-bottom:30px">
+        <div class="step" style="font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--teal);text-transform:uppercase;margin-bottom:12px;font-weight:500">Demo 03 · Interactive — runs in your browser</div>
+        <h2 style="font-size:clamp(24px,3vw,32px)">Anatomy of a CDS card.</h2>
+        <p>This is the actual wire format a CDS Hooks 2.0 service returns to WintEHR. Pick a scenario — or edit the JSON — and see how it renders inside the clinician's workflow.</p>
+      </div>
+      <div class="play">
+        <div class="play-tabs" role="tablist">
+          <button class="play-tab active" data-scn="poly" role="tab">patient-view · polypharmacy</button>
+          <button class="play-tab" data-scn="ddi" role="tab">order-sign · drug interaction</button>
+          <button class="play-tab" data-scn="screen" role="tab">patient-view · screening due</button>
+        </div>
+        <div class="play-body">
+          <div class="play-editor">
+            <label for="play-src">CDS service response (editable)</label>
+            <textarea id="play-src" spellcheck="false" aria-label="Editable CDS Hooks card JSON"></textarea>
+          </div>
+          <div class="play-render">
+            <div class="rlabel">Rendered in the EHR</div>
+            <div class="play-err" id="play-err"></div>
+            <div id="play-cards"></div>
+            <div class="play-toast" id="play-toast" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+      <p class="play-note">In a live deployment, WintEHR invokes registered services on <code>patient-view</code>, <code>order-select</code> and <code>order-sign</code> hooks, prefetches the FHIR data each service asks for, and POSTs your accept/override decisions back as CDS Hooks <code>feedback</code>. You can point it at your own service by URL — no code changes.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= feature tour ================= -->
+<section id="tour">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2>A whole hospital's worth of workflows.</h2>
+      <p>Twelve clinical workspace tabs plus pharmacy, imaging, scheduling, analytics — each one an honest implementation of the standard it teaches.</p>
+    </div>
+    <div class="tour-grid">
+      <figure class="tour reveal">
+        <img src="assets/chart-review.jpg" alt="Chart Review tab: SNOMED-coded conditions and RxNorm-coded medications side by side" loading="lazy">
+        <div class="pad"><h3>Chart Review</h3><p>Problems, meds, and allergies with their real codes on the card.</p><div class="tags"><span class="tag">SNOMED CT</span><span class="tag">Condition</span></div></div>
+      </figure>
+      <figure class="tour reveal" style="transition-delay:.05s">
+        <img src="assets/results.jpg" alt="Results tab: LOINC-named lab results with an abnormal hemoglobin A1c flagged high" loading="lazy">
+        <div class="pad"><h3>Results Review</h3><p>Lab trending with reference ranges and abnormal flags.</p><div class="tags"><span class="tag">LOINC</span><span class="tag">DiagnosticReport</span></div></div>
+      </figure>
+      <figure class="tour reveal" style="transition-delay:.1s">
+        <img src="assets/orders.jpg" alt="Orders tab: active and stopped medication orders with prescriber attribution" loading="lazy">
+        <div class="pad"><h3>CPOE Orders</h3><p>Order sets, status gates, allergy checks at signing.</p><div class="tags"><span class="tag">MedicationRequest</span></div></div>
+      </figure>
+      <figure class="tour reveal">
+        <img src="assets/mar.jpg" alt="Medication Administration Record: scheduled dose time grid and PRN medication cards" loading="lazy">
+        <div class="pad"><h3>MAR</h3><p>Scheduled-dose grid, PRN gives, administration signing.</p><div class="tags"><span class="tag">MedicationAdministration</span></div></div>
+      </figure>
+      <figure class="tour reveal" style="transition-delay:.05s">
+        <img src="assets/pharmacy.jpg" alt="Pharmacy tab: prescription verification queue and medication timeline" loading="lazy">
+        <div class="pad"><h3>Pharmacy</h3><p>Verify, dispense, refill — the other half of every order.</p><div class="tags"><span class="tag">MedicationDispense</span></div></div>
+      </figure>
+      <figure class="tour reveal" style="transition-delay:.1s">
+        <img src="assets/fhir-explorer.jpg" alt="FHIR Explorer Query Studio: a live Observation query returning 20 results in 144 milliseconds" loading="lazy">
+        <div class="pad"><h3>FHIR Explorer</h3><p>Build queries visually, run them live, inspect raw resources.</p><div class="tags"><span class="tag">FHIR search</span><span class="tag">_include</span></div></div>
+      </figure>
+      <figure class="tour reveal">
+        <img src="assets/cds-studio.jpg" alt="CDS Management Studio listing built-in CDS Hooks services with hook types and execution metrics" loading="lazy">
+        <div class="pad"><h3>CDS Studio</h3><p>Author rules visually or in CQL; deploy as first-class services.</p><div class="tags"><span class="tag">CDS Hooks 2.0</span><span class="tag">CQL</span></div></div>
+      </figure>
+      <figure class="tour reveal" style="transition-delay:.05s">
+        <img src="assets/flowsheet.jpg" alt="Vital signs flowsheet grid populated with a freshly charted set of vitals" loading="lazy">
+        <div class="pad"><h3>Flowsheets</h3><p>Nursing vitals grid — and the pilot pluggable module.</p><div class="tags"><span class="tag">Observation</span><span class="tag">module</span></div></div>
+      </figure>
+      <figure class="tour reveal" style="transition-delay:.1s">
+        <img src="assets/cds-cards.jpg" alt="Clinical Decision Support dialog showing a polypharmacy risk card with suggestion, acknowledge, snooze, and override actions" loading="lazy">
+        <div class="pad"><h3>Decision Support</h3><p>Cards that interrupt, suggest, and act — with feedback loops.</p><div class="tags"><span class="tag">patient-view</span><span class="tag">order-sign</span></div></div>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ================= architecture ================= -->
+<section class="arch-band" id="architecture">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2>Production-grade parts, on purpose.</h2>
+      <p>HAPI FHIR is the same server running inside real health systems, so the patterns you learn transfer. All clinical data lives in FHIR — there are no custom clinical tables to unlearn.</p>
+    </div>
+    <div class="reveal">
+      <svg class="arch-svg" viewBox="0 0 1080 330" role="img" aria-label="Architecture diagram: React frontend to FastAPI backend to HAPI FHIR JPA server to PostgreSQL, with CDS Hooks and CQL engine, SMART on FHIR, Redis, and a dcm4chee DICOM VNA">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8fd4c5"/></marker>
+        </defs>
+        <style>
+          .bx{fill:rgba(255,255,255,.04);stroke:#2c4a45;stroke-width:1.2;rx:12}
+          .bx-hot{fill:rgba(18,164,143,.12);stroke:#12a48f;stroke-width:1.4}
+          .t1{font:600 16px "Public Sans",sans-serif;fill:#fff}
+          .t2{font:400 11.5px "IBM Plex Mono",monospace;fill:#78a49c}
+          .fl{stroke:#8fd4c5;stroke-width:1.4;fill:none;marker-end:url(#arr);opacity:.75}
+          .fll{font:500 10.5px "IBM Plex Mono",monospace;fill:#8fd4c5}
+        </style>
+        <!-- boxes -->
+        <rect class="bx" x="20"  y="90" width="200" height="110" rx="12"/>
+        <text class="t1" x="120" y="135" text-anchor="middle">React 18 + MUI</text>
+        <text class="t2" x="120" y="158" text-anchor="middle">clinical workspace · Vite</text>
+        <text class="t2" x="120" y="176" text-anchor="middle">12 tabs + modules</text>
+
+        <rect class="bx bx-hot" x="300" y="90" width="210" height="110" rx="12"/>
+        <text class="t1" x="405" y="128" text-anchor="middle">FastAPI backend</text>
+        <text class="t2" x="405" y="151" text-anchor="middle">the “smart proxy”:</text>
+        <text class="t2" x="405" y="169" text-anchor="middle">CDS · safety gates · events</text>
+
+        <rect class="bx bx-hot" x="590" y="90" width="210" height="110" rx="12"/>
+        <text class="t1" x="695" y="128" text-anchor="middle">HAPI FHIR JPA</text>
+        <text class="t2" x="695" y="151" text-anchor="middle">v8.8 · FHIR R4</text>
+        <text class="t2" x="695" y="169" text-anchor="middle">all clinical data lives here</text>
+
+        <rect class="bx" x="880" y="90" width="180" height="110" rx="12"/>
+        <text class="t1" x="970" y="135" text-anchor="middle">PostgreSQL 15</text>
+        <text class="t2" x="970" y="158" text-anchor="middle">+ Redis 7 cache</text>
+
+        <rect class="bx" x="300" y="245" width="210" height="62" rx="12"/>
+        <text class="t1" x="405" y="271" text-anchor="middle" style="font-size:13.5px">CDS Hooks 2.0 + CQL</text>
+        <text class="t2" x="405" y="291" text-anchor="middle">visual builder · $cql · $apply</text>
+
+        <rect class="bx" x="590" y="245" width="210" height="62" rx="12"/>
+        <text class="t1" x="695" y="271" text-anchor="middle" style="font-size:13.5px">dcm4chee VNA</text>
+        <text class="t2" x="695" y="291" text-anchor="middle">DICOMweb · ImagingStudy</text>
+
+        <rect class="bx" x="20" y="245" width="200" height="62" rx="12"/>
+        <text class="t1" x="120" y="271" text-anchor="middle" style="font-size:13.5px">SMART on FHIR</text>
+        <text class="t2" x="120" y="291" text-anchor="middle">OAuth2 / PKCE launch</text>
+
+        <!-- flows -->
+        <line class="fl" x1="220" y1="145" x2="296" y2="145"/>
+        <text class="fll" x="258" y="136" text-anchor="middle">REST</text>
+        <line class="fl" x1="510" y1="145" x2="586" y2="145"/>
+        <text class="fll" x="548" y="136" text-anchor="middle">FHIR R4</text>
+        <line class="fl" x1="800" y1="145" x2="876" y2="145"/>
+        <text class="fll" x="838" y="136" text-anchor="middle">JPA</text>
+        <line class="fl" x1="405" y1="245" x2="405" y2="204"/>
+        <line class="fl" x1="695" y1="245" x2="695" y2="204"/>
+        <line class="fl" x1="120" y1="245" x2="120" y2="204"/>
+        <!-- top label -->
+        <text class="t2" x="540" y="40" text-anchor="middle" style="font-size:12.5px">one docker-compose · dev &amp; prod profiles · deploys to a laptop, a lab server, or any cloud</text>
+        <line x1="330" y1="52" x2="750" y2="52" stroke="#2c4a45" stroke-width="1"/>
+      </svg>
+      <p class="arch-foot">Full component reference, request flows and data pipelines in <a href="https://github.com/ultraub/WintEHR/blob/master/docs/SYSTEM_ARCHITECTURE.md" target="_blank" rel="noopener">docs/SYSTEM_ARCHITECTURE.md</a></p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= extend ================= -->
+<section id="extend">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2>Deliberately built to be built upon.</h2>
+      <p>Four ways in, from lightest to deepest. Each one is a real assignment a student — or a product team — can finish.</p>
+    </div>
+    <div class="path reveal">
+      <div class="num">01</div>
+      <div>
+        <h3>Register an external CDS service <span class="lvl">zero code</span></h3>
+        <p>Point WintEHR at any CDS Hooks 2.0 endpoint by URL, at runtime. Your service receives real hook invocations with prefetched FHIR data, and its cards render inside the clinician's workflow.</p>
+      </div>
+    </div>
+    <div class="path reveal">
+      <div class="num">02</div>
+      <div>
+        <h3>Write a SMART on FHIR app <span class="lvl">separate codebase</span></h3>
+        <p>WintEHR provides the OAuth2/PKCE launch sequence and the FHIR API; your app lives entirely in its own repo. The bundled SMART demo app shows the whole handshake.</p>
+      </div>
+    </div>
+    <div class="path reveal">
+      <div class="num">03</div>
+      <div>
+        <h3>Author CDS visually — or in CQL <span class="lvl">no backend</span></h3>
+        <p>CDS Studio composes rules from the UI and deploys them as first-class services. A student-facing <a href="https://github.com/ultraub/WintEHR/blob/master/docs/STUDENT_CQL_PRIMER.md" target="_blank" rel="noopener">CQL primer</a> takes first-timers from zero to a working quality measure.</p>
+      </div>
+    </div>
+    <div class="path reveal">
+      <div class="num">04</div>
+      <div>
+        <h3>Add a whole clinical module <span class="lvl">full stack</span></h3>
+        <p>A new domain — oncology, referrals, dialysis — with its own workspace tab and backend, scaffolded in one command: <code>python3 scripts/new-module.py referrals "Referrals"</code>. Modules are switchable per deployment and can live in their own repo, composed in at build time. Contract in <a href="https://github.com/ultraub/WintEHR/blob/master/docs/MODULES.md" target="_blank" rel="noopener">docs/MODULES.md</a>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= get started ================= -->
+<section class="start-band" id="start">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2>Running in one command.</h2>
+      <p>You'll need Git, Docker with Compose, 8&nbsp;GB of RAM and 20&nbsp;GB of disk. The first deploy builds images, initializes HAPI, and generates a fresh synthetic population — 15 to 25 minutes; coffee-length, not committee-length.</p>
+    </div>
+    <div class="start-grid">
+      <div class="reveal">
+        <div class="terminal start-terminal">
+          <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+          <button class="copy-btn" data-copy="git clone https://github.com/ultraub/WintEHR.git
+cd WintEHR
+./deploy.sh">copy</button>
+          <div><span class="p">$</span> <span class="c">git clone https://github.com/ultraub/WintEHR.git</span></div>
+          <div><span class="p">$</span> <span class="c">cd WintEHR</span></div>
+          <div><span class="p">$</span> <span class="c">./deploy.sh</span></div>
+          <div>&nbsp;</div>
+          <div><span class="ok">✓</span> <span class="c">postgres · redis · hapi-fhir · backend · frontend</span></div>
+          <div><span class="ok">✓</span> <span class="c">20 Synthea patients loaded (set PATIENT_COUNT for more)</span></div>
+          <div><span class="ok">✓</span> <span class="c">CDS services registered · demo practitioners created</span></div>
+          <div>&nbsp;</div>
+          <div><span class="p">$</span> <span class="c">./deploy.sh status</span>&nbsp;&nbsp;<span class="p"># health check any time</span></div>
+        </div>
+        <p style="font-size:13.5px;color:var(--ink-soft);margin-top:16px">Patient data regenerates on deploy — <strong>break things freely.</strong> Detailed dev, prod, and cloud guides in <a href="https://github.com/ultraub/WintEHR/blob/master/docs/DEPLOYMENT.md" target="_blank" rel="noopener">docs/DEPLOYMENT.md</a>.</p>
+      </div>
+      <div class="start-facts reveal" style="transition-delay:.1s">
+        <div class="fact">
+          <h4>Where everything lands</h4>
+          <table>
+            <tr><td>Clinical portal</td><td><code>localhost:3000</code></td></tr>
+            <tr><td>FHIR R4 API</td><td><code>localhost:8888/fhir</code> — raw HAPI</td></tr>
+            <tr><td>Backend API</td><td><code>localhost:8000/docs</code> — Swagger</td></tr>
+          </table>
+        </div>
+        <div class="fact">
+          <h4>Demo logins — password is <code>password</code></h4>
+          <div class="users">
+            <span class="user-chip"><b>demo</b> · physician</span>
+            <span class="user-chip"><b>nurse</b> · nursing</span>
+            <span class="user-chip"><b>pharmacist</b> · pharmacy</span>
+            <span class="user-chip"><b>admin</b> · admin</span>
+          </div>
+        </div>
+        <div class="fact">
+          <h4>Standards you'll touch</h4>
+          <div class="users">
+            <span class="user-chip">FHIR R4</span><span class="user-chip">CDS Hooks 2.0</span>
+            <span class="user-chip">CQL</span><span class="user-chip">SMART App Launch</span>
+            <span class="user-chip">LOINC</span><span class="user-chip">RxNorm</span>
+            <span class="user-chip">SNOMED CT</span><span class="user-chip">DICOMweb</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div style="max-width:420px">
+        <div class="foot-brand">WintEHR</div>
+        <p>An open-source, FHIR-native EHR for learning healthcare IT. Apache 2.0 licensed.</p>
+        <div class="foot-warn">⚠ SYNTHETIC DATA ONLY · NO PHI · DEMO AUTH · NOT FOR CLINICAL USE</div>
+      </div>
+      <div>
+        <p style="font-weight:600;color:#fff;margin-bottom:10px">Project</p>
+        <p><a href="https://github.com/ultraub/WintEHR" target="_blank" rel="noopener">GitHub repository</a></p>
+        <p><a href="https://github.com/ultraub/WintEHR/blob/master/docs/INDEX.md" target="_blank" rel="noopener">Documentation</a></p>
+        <p><a href="https://github.com/ultraub/WintEHR/issues" target="_blank" rel="noopener">Issues &amp; feedback</a></p>
+        <p><a href="https://github.com/ultraub/WintEHR/blob/master/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a></p>
+      </div>
+      <div>
+        <p style="font-weight:600;color:#fff;margin-bottom:10px">Learn</p>
+        <p><a href="https://github.com/ultraub/WintEHR/blob/master/docs/MODULES.md" target="_blank" rel="noopener">Build a module</a></p>
+        <p><a href="https://github.com/ultraub/WintEHR/blob/master/docs/STUDENT_CQL_PRIMER.md" target="_blank" rel="noopener">Student CQL primer</a></p>
+        <p><a href="https://github.com/ultraub/WintEHR/blob/master/docs/SYSTEM_ARCHITECTURE.md" target="_blank" rel="noopener">System architecture</a></p>
+        <p><a href="https://github.com/ultraub/WintEHR/blob/master/docs/SECURITY.md" target="_blank" rel="noopener">Security posture</a></p>
+      </div>
+    </div>
+    <div class="foot-cred">
+      Standing on the shoulders of <a href="http://hl7.org/fhir/" target="_blank" rel="noopener">HL7 FHIR</a>,
+      <a href="https://hapifhir.io/" target="_blank" rel="noopener">HAPI FHIR</a>,
+      <a href="https://synthea.mitre.org/" target="_blank" rel="noopener">Synthea</a>,
+      <a href="https://cds-hooks.org/" target="_blank" rel="noopener">CDS Hooks</a>, and
+      <a href="https://www.dcm4che.org/" target="_blank" rel="noopener">dcm4chee</a>.
+      · Screenshots show synthetic Synthea-generated patients.
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ---------- scroll reveal ---------- */
+const io = new IntersectionObserver(es => {
+  es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); } });
+}, { threshold: 0.12 });
+document.querySelectorAll('.reveal, section').forEach(el => io.observe(el));
+
+/* ---------- copy buttons ---------- */
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    navigator.clipboard.writeText(btn.dataset.copy).then(() => {
+      const t = btn.textContent; btn.textContent = 'copied ✓';
+      setTimeout(() => btn.textContent = t, 1600);
+    }).catch(() => {});
+  });
+});
+
+/* ---------- CDS playground ---------- */
+const SCENARIOS = {
+  poly: {
+    cards: [{
+      uuid: "c9f0…",
+      summary: "Polypharmacy risk in diabetic patient",
+      detail: "Patient has diabetes and is on 9 medications. Consider a comprehensive medication review to identify opportunities for simplification and reduce interaction risk.",
+      indicator: "warning",
+      source: { label: "Diabetes Care Guidelines" },
+      suggestions: [{ label: "Schedule medication review" }],
+      links: [{ label: "Diabetes medication guidance", url: "#", type: "absolute" }]
+    }]
+  },
+  ddi: {
+    cards: [{
+      uuid: "a41b…",
+      summary: "NSAID + ACE inhibitor interaction",
+      detail: "Ibuprofen may blunt the antihypertensive effect of lisinopril and increase the risk of renal impairment, especially with diuretic co-therapy (the “triple whammy”). Consider acetaminophen or add renal function monitoring.",
+      indicator: "critical",
+      source: { label: "Drug Interaction Checker" },
+      suggestions: [
+        { label: "Switch to acetaminophen 650 mg" },
+        { label: "Order basal metabolic panel" }
+      ],
+      overrideReasons: [{ code: "will-monitor", display: "Will monitor renal function" }]
+    }]
+  },
+  screen: {
+    cards: [{
+      uuid: "77d2…",
+      summary: "Colonoscopy screening due",
+      detail: "Patient is 62 with no colonoscopy on record in the past 10 years. USPSTF recommends colorectal cancer screening for adults 45–75.",
+      indicator: "info",
+      source: { label: "Preventive Care Reminders" },
+      suggestions: [{ label: "Order colonoscopy referral" }]
+    }]
+  }
+};
+
+const srcEl = document.getElementById('play-src');
+const cardsEl = document.getElementById('play-cards');
+const errEl = document.getElementById('play-err');
+const toastEl = document.getElementById('play-toast');
+let toastTimer;
+
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3200);
+}
+
+function renderCards(){
+  let data;
+  try {
+    data = JSON.parse(srcEl.value);
+    errEl.style.display = 'none';
+  } catch (ex) {
+    errEl.textContent = '✗ invalid JSON — ' + ex.message;
+    errEl.style.display = 'block';
+    return;
+  }
+  cardsEl.innerHTML = '';
+  (data.cards || []).forEach(card => {
+    const div = document.createElement('div');
+    div.className = 'cds-card ' + (card.indicator === 'warning' ? 'warning' : card.indicator === 'critical' ? 'critical' : '');
+    const h = document.createElement('h4');
+    h.innerHTML = '<span class="ind"></span>';
+    h.appendChild(document.createTextNode(card.summary || '(no summary)'));
+    div.appendChild(h);
+    if (card.detail) { const p = document.createElement('p'); p.className = 'detail'; p.textContent = card.detail; div.appendChild(p); }
+    if (card.source && card.source.label) { const s = document.createElement('div'); s.className = 'src'; s.textContent = 'source: ' + card.source.label; div.appendChild(s); }
+    const sugg = document.createElement('div'); sugg.className = 'sugg';
+    (card.suggestions || []).forEach(sg => {
+      const b = document.createElement('button');
+      b.textContent = '✓ ' + (sg.label || 'Accept');
+      b.addEventListener('click', () => toast('→ POST /cds-services/…/feedback  { outcome: "accepted", acceptedSuggestions: ["' + (sg.label || '') + '"] }'));
+      sugg.appendChild(b);
+    });
+    (card.links || []).forEach(lk => {
+      const a = document.createElement('a'); a.textContent = '↗ ' + lk.label; a.href = lk.url || '#';
+      a.addEventListener('click', ev => { ev.preventDefault(); toast('opens ' + lk.label + (lk.type === 'smart' ? ' as a SMART app launch' : '')); });
+      sugg.appendChild(a);
+    });
+    if (card.overrideReasons && card.overrideReasons.length) {
+      const b = document.createElement('button');
+      b.style.background = '#fdf1f0'; b.style.borderColor = '#f2d4d2'; b.style.color = 'var(--red)';
+      b.textContent = '⤫ Override — ' + card.overrideReasons[0].display;
+      b.addEventListener('click', () => toast('→ POST feedback  { outcome: "overridden", overrideReason: "' + card.overrideReasons[0].code + '" }'));
+      sugg.appendChild(b);
+    }
+    if (sugg.children.length) div.appendChild(sugg);
+    cardsEl.appendChild(div);
+  });
+  if (!cardsEl.children.length) {
+    cardsEl.innerHTML = '<p style="font-size:13.5px;color:#87a09a">No cards in response — in a real workflow, the clinician just keeps working.</p>';
+  }
+}
+
+function loadScenario(key){
+  srcEl.value = JSON.stringify(SCENARIOS[key], null, 2);
+  renderCards();
+}
+document.querySelectorAll('.play-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.play-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    loadScenario(tab.dataset.scn);
+  });
+});
+let debounce;
+srcEl.addEventListener('input', () => { clearTimeout(debounce); debounce = setTimeout(renderCards, 350); });
+loadScenario('poly');
+</script>
+</body>
+</html>
