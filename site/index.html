@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WintEHR — a working EHR for teaching healthcare IT</title>
 <meta name="description" content="WintEHR is an open-source, FHIR-native electronic health record built for education: classroom demos, hands-on labs, capstones, and learning FHIR R4, CDS Hooks, and real clinical workflows on synthetic data.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩺</text></svg>">
+<link rel="icon" type="image/png" href="assets/favicon-32.png">
 <meta property="og:title" content="WintEHR — a working EHR for teaching healthcare IT">
 <meta property="og:description" content="Place an order and watch the MedicationRequest land in a real HAPI FHIR server. Open-source, synthetic data only, built to be extended.">
 <meta property="og:type" content="website">
@@ -333,7 +333,7 @@ footer a{color:#8fd4c5}
 <nav class="nav">
   <div class="wrap nav-inner">
     <a class="brand" href="#top" aria-label="WintEHR home">
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#0e7569"/><polyline points="4,14 8,14 10,8 13,19 15,11.5 17,14 22,14" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <img src="assets/wintehr-logo-icon.png" alt="" height="34" style="width:auto" aria-hidden="true">
       WintEHR
     </a>
     <div class="nav-links">
@@ -726,7 +726,10 @@ cd WintEHR
   <div class="wrap">
     <div class="foot-grid">
       <div style="max-width:420px">
-        <div class="foot-brand">WintEHR</div>
+        <div class="foot-brand" style="display:flex;align-items:center;gap:11px">
+          <img src="assets/wintehr-logo-icon.png" alt="" height="36" style="width:auto;filter:brightness(0) invert(1);opacity:.9" aria-hidden="true">
+          WintEHR
+        </div>
         <p>An open-source, FHIR-native EHR for learning healthcare IT. Apache 2.0 licensed.</p>
         <div class="foot-warn">⚠ SYNTHETIC DATA ONLY · NO PHI · DEMO AUTH · NOT FOR CLINICAL USE</div>
       </div>
