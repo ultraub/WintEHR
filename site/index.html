@@ -254,6 +254,20 @@ h2{font-family:var(--serif);font-weight:600;font-size:clamp(27px,3.4vw,38px);lin
 .play-note{font-size:13px;color:var(--ink-soft);margin-top:16px}
 .play-note code{font-family:var(--mono);font-size:.9em;background:var(--mint);border-radius:4px;padding:1px 5px}
 
+/* ---------- explorer checklist ---------- */
+.checklist{list-style:none;margin:14px 0 0;padding:0}
+.checklist li{
+  position:relative;padding:7px 0 7px 30px;color:var(--ink-soft);font-size:15px;
+  border-bottom:1px dashed var(--line);
+}
+.checklist li:last-child{border-bottom:none}
+.checklist li::before{
+  content:"✓";position:absolute;left:2px;top:7px;width:19px;height:19px;border-radius:6px;
+  background:var(--mint);color:var(--teal-deep);font-size:12px;font-weight:700;
+  display:grid;place-items:center;
+}
+.checklist code{font-family:var(--mono);font-size:.86em;background:var(--mint);border:1px solid var(--mint-deep);border-radius:5px;padding:0 5px;color:var(--teal-deep)}
+
 /* ---------- feature tour ---------- */
 .tour-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
 @media(max-width:960px){.tour-grid{grid-template-columns:repeat(2,1fr)}}
@@ -507,8 +521,58 @@ footer a{color:#8fd4c5}
   </div>
 </section>
 
+<!-- ================= fhir explorer ================= -->
+<section id="explorer">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="step" style="font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--teal);text-transform:uppercase;margin-bottom:12px;font-weight:500">Developer tools · FHIR Explorer</div>
+      <h2>The Explorer is the textbook.</h2>
+      <p>Every other tab shows a clinical workflow. The FHIR Explorer opens the hood on the data model underneath them — and it teaches search syntax and resource structure while you use it.</p>
+    </div>
+
+    <div class="demo-row reveal">
+      <div class="demo-media">
+        <figure class="shot">
+          <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span>fhir-explorer — query studio</span></div>
+          <img src="assets/fhir-explorer.jpg" alt="Query Studio building an Observation search with suggested parameters, a plain-English query comprehension panel, and 20 live results returned in 144 milliseconds" loading="lazy">
+        </figure>
+      </div>
+      <div class="demo-copy">
+        <h3>A query builder that narrates itself.</h3>
+        <p>Compose real FHIR searches visually and run them against the live server. As you build, the studio explains what you're asking for:</p>
+        <ul class="checklist">
+          <li>Restates your query in plain English as you compose it</li>
+          <li>Checks every parameter against the resource's real search parameters — with "did you mean?" fixes</li>
+          <li>Live preview estimates the result count before you run</li>
+          <li>Autocompletes values from the live database, with usage counts</li>
+          <li>Documents modifiers inline — <code>_has</code> reverse chaining, <code>:above</code>/<code>:below</code> hierarchy walks, <code>:text</code> search</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="demo-row flip reveal" style="margin-bottom:0">
+      <div class="demo-media">
+        <figure class="shot">
+          <div class="bar" aria-hidden="true"><i></i><i></i><i></i><span>fhir-explorer — schema explorer</span></div>
+          <img src="assets/schema-explorer.jpg" alt="Schema Explorer showing the Patient resource's elements with the language element's type, value set binding strength, canonical ValueSet URL, and path" loading="lazy">
+        </figure>
+      </div>
+      <div class="demo-copy">
+        <h3>The spec, next to a real record.</h3>
+        <p>Interactive FHIR R4 documentation, sourced from the standard itself rather than a summary of it:</p>
+        <ul class="checklist">
+          <li>Element-by-element schemas from the official HL7 R4 StructureDefinitions</li>
+          <li>What this server actually supports, read from the live HAPI CapabilityStatement</li>
+          <li>Types, required flags, and value-set bindings with strength and canonical URL</li>
+          <li>Canonical examples beside live values from the synthetic patient data</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ================= feature tour ================= -->
-<section id="tour">
+<section id="tour" style="padding-top:0">
   <div class="wrap">
     <div class="sec-head reveal">
       <h2>A whole hospital's worth of workflows.</h2>
@@ -536,10 +600,6 @@ footer a{color:#8fd4c5}
         <div class="pad"><h3>Pharmacy</h3><p>Verify, dispense, refill — the other half of every order.</p><div class="tags"><span class="tag">MedicationDispense</span></div></div>
       </figure>
       <figure class="tour reveal" style="transition-delay:.1s">
-        <img src="assets/fhir-explorer.jpg" alt="FHIR Explorer Query Studio: a live Observation query returning 20 results in 144 milliseconds" loading="lazy">
-        <div class="pad"><h3>FHIR Explorer</h3><p>Build queries visually, run them live, inspect raw resources.</p><div class="tags"><span class="tag">FHIR search</span><span class="tag">_include</span></div></div>
-      </figure>
-      <figure class="tour reveal">
         <img src="assets/cds-studio.jpg" alt="CDS Management Studio listing built-in CDS Hooks services with hook types and execution metrics" loading="lazy">
         <div class="pad"><h3>CDS Studio</h3><p>Author rules visually or in CQL; deploy as first-class services.</p><div class="tags"><span class="tag">CDS Hooks 2.0</span><span class="tag">CQL</span></div></div>
       </figure>
