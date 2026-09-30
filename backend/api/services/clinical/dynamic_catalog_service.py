@@ -4,6 +4,7 @@ Extracts and builds catalogs from actual patient FHIR data using fhirclient
 """
 
 import asyncio
+import json
 import os
 import time
 from dataclasses import dataclass
@@ -21,20 +22,94 @@ PAGE_SIZE = 500
 # sample rather than the whole store.
 MAX_SCAN_RESOURCES = int(os.getenv("CATALOG_SCAN_MAX_RESOURCES", "100000"))
 CACHE_TTL_SECONDS = 3600
+# A scan holds this lock so the other uvicorn workers don't run the same one.
+SCAN_LOCK_SECONDS = 900
+REDIS_URL = os.getenv("REDIS_URL")
 
 
 @dataclass
 class _CatalogEntry:
     items: List[Dict[str, Any]]
     complete: bool  # False = built from the first page only; a scan is filling it in
-    built_at: float
+    built_at: float  # wall clock, so it compares across processes
+
+    @property
+    def fresh(self) -> bool:
+        return (time.time() - self.built_at) < CACHE_TTL_SECONDS
 
 
 # Process-wide, not per-instance: a DynamicCatalogService is constructed per
 # request, so an instance-level cache was never hit and every catalog request
-# re-read (only) the first page from HAPI.
+# re-read (only) the first page from HAPI. The backend runs several uvicorn
+# workers, so completed scans are also published to Redis (when REDIS_URL is
+# set and reachable) and one worker's scan serves all of them.
 _CACHE: Dict[str, _CatalogEntry] = {}
 _SCANS: Dict[str, Tuple[asyncio.AbstractEventLoop, asyncio.Task]] = {}
+_redis_client = None
+_redis_failed = False
+
+
+def _redis():
+    """Shared Redis client, or None when Redis is not configured/reachable."""
+    global _redis_client, _redis_failed
+    if _redis_client is None and REDIS_URL and not _redis_failed:
+        try:
+            import redis.asyncio as aioredis
+            _redis_client = aioredis.from_url(REDIS_URL, socket_timeout=2, socket_connect_timeout=2)
+        except Exception as e:
+            logger.warning(f"Catalog cache: Redis unavailable, using per-process cache only ({e})")
+            _redis_failed = True
+    return _redis_client
+
+
+async def _redis_get(name: str) -> Optional[_CatalogEntry]:
+    r = _redis()
+    if r is None:
+        return None
+    try:
+        raw = await r.get(f"catalog:{name}")
+    except Exception as e:
+        logger.warning(f"Catalog cache: Redis read failed ({e})")
+        return None
+    if not raw:
+        return None
+    data = json.loads(raw)
+    return _CatalogEntry(data["items"], True, data["built_at"])
+
+
+async def _redis_put(name: str, entry: _CatalogEntry) -> None:
+    r = _redis()
+    if r is None:
+        return
+    try:
+        # Kept twice the TTL so an expired catalog is still served stale
+        # while the rescan runs.
+        await r.set(f"catalog:{name}", json.dumps({"items": entry.items, "built_at": entry.built_at}),
+                    ex=CACHE_TTL_SECONDS * 2)
+    except Exception as e:
+        logger.warning(f"Catalog cache: Redis write failed ({e})")
+
+
+async def _redis_lock(name: str) -> bool:
+    """True if this worker should scan; False if another worker already is."""
+    r = _redis()
+    if r is None:
+        return True
+    try:
+        return bool(await r.set(f"catalog:scan:{name}", "1", nx=True, ex=SCAN_LOCK_SECONDS))
+    except Exception as e:
+        logger.warning(f"Catalog cache: Redis lock failed ({e})")
+        return True
+
+
+async def _redis_unlock(name: str) -> None:
+    r = _redis()
+    if r is None:
+        return
+    try:
+        await r.delete(f"catalog:scan:{name}")
+    except Exception:
+        pass
 
 
 def _count_codings(
@@ -250,8 +325,9 @@ class DynamicCatalogService:
     Catalogs are built from ALL matching resources, not the first search
     page. The first request after startup answers from page one and starts
     a background scan; once that lands, every request gets the full catalog
-    from the process-wide cache until it expires (then it is served stale
-    while a rescan runs).
+    from the cache until it expires (then it is served stale while a rescan
+    runs). The cache is per process, mirrored in Redis when available so
+    the uvicorn workers share one scan.
     """
 
     def __init__(self):
@@ -284,7 +360,8 @@ class DynamicCatalogService:
                 "(CATALOG_SCAN_MAX_RESOURCES); catalog is a sample"
             )
         items = _SOURCES[name][2](entries)
-        _CACHE[name] = _CatalogEntry(items, True, time.monotonic())
+        entry = _CACHE[name] = _CatalogEntry(items, True, time.time())
+        await _redis_put(name, entry)
         logger.info(f"{name} catalog: {len(items)} entries from {len(entries)} resources")
         return items
 
@@ -295,17 +372,25 @@ class DynamicCatalogService:
             return
 
         async def run():
+            if not await _redis_lock(name):
+                return  # another worker's scan will land in Redis
             try:
                 await self._scan(name)
             except Exception as e:
                 # Keep serving whatever is cached; the next request retries.
                 logger.error(f"{name} catalog scan failed: {e}")
+            finally:
+                await _redis_unlock(name)
 
         _SCANS[name] = (loop, loop.create_task(run()))
 
     async def _catalog(self, name: str, limit: Optional[int]) -> List[Dict[str, Any]]:
         entry = _CACHE.get(name)
-        fresh = entry and (time.monotonic() - entry.built_at) < CACHE_TTL_SECONDS
+        if entry is None or not (entry.complete and entry.fresh):
+            # Another worker may have finished a scan since we last looked.
+            shared = await _redis_get(name)
+            if shared and (entry is None or shared.built_at > entry.built_at):
+                entry = _CACHE[name] = shared
         if entry is None:
             try:
                 page = await self._fetch_page(name, 0)
@@ -313,9 +398,8 @@ class DynamicCatalogService:
                 logger.error(f"Error extracting {name} catalog: {e}")
                 return []
             complete = len(page) < PAGE_SIZE
-            entry = _CACHE[name] = _CatalogEntry(_SOURCES[name][2](page), complete, time.monotonic())
-            fresh = True
-        if not (entry.complete and fresh):
+            entry = _CACHE[name] = _CatalogEntry(_SOURCES[name][2](page), complete, time.time())
+        if not (entry.complete and entry.fresh):
             self._ensure_scan(name)
         return entry.items[:limit] if limit else list(entry.items)
 
@@ -419,7 +503,13 @@ class DynamicCatalogService:
         logger.info(f"Catalog refresh complete: {summary['catalog_counts']}")
         return summary
 
-    def clear_cache(self) -> None:
-        """Clear all cached results."""
+    async def clear_cache(self) -> None:
+        """Clear cached results in this process and in Redis."""
         _CACHE.clear()
+        r = _redis()
+        if r is not None:
+            try:
+                await r.delete(*[f"catalog:{name}" for name in _SOURCES])
+            except Exception as e:
+                logger.warning(f"Catalog cache: Redis clear failed ({e})")
         logger.info("Dynamic catalog cache cleared")

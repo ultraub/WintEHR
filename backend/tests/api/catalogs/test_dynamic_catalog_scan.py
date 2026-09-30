@@ -19,8 +19,32 @@ from api.services.clinical.dynamic_catalog_service import DynamicCatalogService
 from services.hapi_fhir_client import HAPIFHIRClient
 
 
+class FakeRedis:
+    """Just enough of redis.asyncio for the catalog cache: get/set(nx, ex)/delete."""
+
+    def __init__(self):
+        self.store = {}
+        self.sets = 0
+
+    async def get(self, key):
+        return self.store.get(key)
+
+    async def set(self, key, value, nx=False, ex=None):
+        if nx and key in self.store:
+            return False
+        self.store[key] = value
+        self.sets += 1
+        return True
+
+    async def delete(self, *keys):
+        for k in keys:
+            self.store.pop(k, None)
+
+
 @pytest.fixture(autouse=True)
-def _clean_cache():
+def _isolated(monkeypatch):
+    """No Redis unless a test installs the fake; empty caches before and after."""
+    monkeypatch.setattr(dcs, "_redis", lambda: None)
     dcs._CACHE.clear()
     dcs._SCANS.clear()
     yield
@@ -121,3 +145,34 @@ async def test_imaging_catalog_reads_synthea_shaped_studies(monkeypatch):
         ("40701008", "Echocardiography (procedure)", "US", "Heart structure (body structure)", 1),
         ("CT Head", "CT Head", "CT", None, 1),
     ]
+
+
+@pytest.mark.asyncio
+async def test_workers_share_one_scan_through_redis(monkeypatch):
+    redis = FakeRedis()
+    monkeypatch.setattr(dcs, "_redis", lambda: redis)
+    resources = [_procedure("common")] * 600 + [_procedure("rare")]
+    calls = _fake_hapi(monkeypatch, resources)
+
+    # Worker A: page-one answer, then its scan publishes the full catalog.
+    await DynamicCatalogService().extract_procedure_catalog()
+    await _scans_finished()
+    assert "catalog:procedures" in redis.store
+    assert "catalog:scan:procedures" not in redis.store, "scan lock not released"
+    hapi_calls_after_scan = len(calls)
+
+    # Worker B (fresh process): reads A's result, never touches HAPI.
+    dcs._CACHE.clear()
+    dcs._SCANS.clear()
+    full = await DynamicCatalogService().extract_procedure_catalog()
+    assert [p["code"] for p in full] == ["common", "rare"]
+    assert len(calls) == hapi_calls_after_scan
+
+    # While a scan lock is held, another worker's scan does nothing.
+    dcs._CACHE.clear()
+    dcs._SCANS.clear()
+    redis.store.clear()
+    await redis.set("catalog:scan:procedures", "1")
+    await DynamicCatalogService().extract_procedure_catalog()
+    await _scans_finished()
+    assert "catalog:procedures" not in redis.store
