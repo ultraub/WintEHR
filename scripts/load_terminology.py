@@ -446,7 +446,9 @@ def load_concept_maps(client: httpx.Client, vocab_dir: Path, timeout: float,
     """Load ConceptMap resources from mappings/ directory."""
     map_dir = vocab_dir / "mappings"
     if not map_dir.exists():
-        print("  ERROR: mappings/ directory not found")
+        # Expected: extract_vocabularies.py emits no mappings, and nothing in
+        # WintEHR reads ConceptMaps.
+        print("  No mappings/ directory — nothing to load (expected)")
         return
 
     files = sorted(map_dir.glob("*.json"))
@@ -648,6 +650,12 @@ def main():
     print(f"\n{'=' * 60}")
     print(f"Terminology loading complete in {total_time:.1f}s")
     print(f"{'=' * 60}")
+    # The HAPI load alone doesn't change what the UI shows; deploy.sh builds
+    # the index, a hand-run of this script does not.
+    print("NOTE: catalog search in the UI reads the local index "
+          "(data/terminology.db), not HAPI.")
+    print("      If you ran this loader by hand, build the index next — "
+          "docs/TERMINOLOGY_SETUP.md, step 5.")
 
     client.close()
 

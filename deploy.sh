@@ -632,70 +632,12 @@ else
 fi
 
 # ============================================================================
-# Terminology loading (optional)
+# Terminology (optional): local search index, then HAPI load
 # ============================================================================
-# If HAPI has no CodeSystems yet, try to populate it from one of three sources,
-# in order of preference. All paths run in background — the load itself takes
-# 1-4 hours and we don't want deploy.sh to block. Progress is in ./terminology_load.log.
-#
-#   1. Pre-extracted JSON at ~/fhir_vocabularies/terminology/*.json exists
-#      → load directly (fastest, no download)
-#   2. UMLS_API_KEY is set in .env
-#      → download UMLS MRCONSO → extract → load
-#   3. Neither → skip silently; operator runs manually when ready
-echo -e "${BLUE}📚 Checking terminology state...${NC}"
-HAPI_CS_COUNT=$(docker exec emr-backend curl -sf \
-    "http://hapi-fhir:8080/fhir/CodeSystem?url=http://www.nlm.nih.gov/research/umls/rxnorm&_summary=count" \
-    2>/dev/null | python3 -c "import json,sys
-try:
-    print(json.load(sys.stdin).get('total', 0))
-except Exception:
-    print(0)" 2>/dev/null || echo 0)
-
-if [ "$HAPI_CS_COUNT" != "0" ]; then
-    echo -e "${GREEN}✓ Terminology already loaded (RxNorm CodeSystem present in HAPI)${NC}"
-elif [ -d "$HOME/fhir_vocabularies/terminology" ] && \
-     [ -n "$(ls -A $HOME/fhir_vocabularies/terminology/*.json 2>/dev/null)" ]; then
-    echo -e "${BLUE}   Found pre-extracted JSON at ~/fhir_vocabularies/terminology/${NC}"
-    echo -e "${BLUE}   Loading in background — tail ./data/terminology_load.log for progress${NC}"
-    # HAPI's port 8080 is NOT exposed on the host (security hardening).
-    # Load must run inside the backend container where hapi-fhir:8080 resolves.
-    # Copy scripts + JSONs into the container, then exec load detached.
-    docker cp scripts/load_terminology.py emr-backend:/tmp/load_terminology.py
-    docker cp scripts/ucum.json emr-backend:/tmp/ucum.json
-    docker exec emr-backend mkdir -p /tmp/fhir_vocabularies
-    docker cp "$HOME/fhir_vocabularies/terminology" emr-backend:/tmp/fhir_vocabularies/
-    docker exec -d emr-backend bash -c "
-        python3 /tmp/load_terminology.py /tmp/fhir_vocabularies \
-            --hapi-url http://hapi-fhir:8080/fhir \
-            --timeout 600 \
-            > /app/data/terminology_load.log 2>&1
-    "
-    echo "   Running in backend container; log at ./data/terminology_load.log"
-elif [ -n "$UMLS_API_KEY" ]; then
-    echo -e "${BLUE}   Found UMLS_API_KEY — downloading, extracting, loading in background${NC}"
-    echo -e "${BLUE}   Full pipeline (~1-3 hours); progress in ./data/terminology_load.log${NC}"
-    # Download + extract on host (need outbound internet + local Python + httpx).
-    # Then copy + load inside container. Entire chain in one detached nohup.
-    nohup bash -c "
-        set -e
-        source ~/terminology_venv/bin/activate 2>/dev/null || true
-        python3 scripts/download_umls.py \$HOME/umls_source
-        python3 scripts/extract_vocabularies.py \$HOME/umls_source \$HOME/fhir_vocabularies
-        docker cp scripts/load_terminology.py emr-backend:/tmp/load_terminology.py
-        docker cp scripts/ucum.json emr-backend:/tmp/ucum.json
-        docker exec emr-backend mkdir -p /tmp/fhir_vocabularies
-        docker cp \$HOME/fhir_vocabularies/terminology emr-backend:/tmp/fhir_vocabularies/
-        docker exec emr-backend python3 /tmp/load_terminology.py /tmp/fhir_vocabularies \
-            --hapi-url http://hapi-fhir:8080/fhir --timeout 600
-    " > terminology_load.log 2>&1 &
-    LOAD_PID=$!
-    echo "   PID $LOAD_PID, logging to ./terminology_load.log (host) and /app/data/terminology_load.log (container)"
-else
-    echo -e "${YELLOW}   No pre-extracted JSON and no UMLS_API_KEY set — skipping terminology load${NC}"
-    echo "   To enable: set UMLS_API_KEY in .env (see docs/TERMINOLOGY_SETUP.md)"
-fi
-echo ""
+# Ordering rule: the index build (which restarts emr-backend) always runs
+# BEFORE the HAPI load. The load runs inside emr-backend, so a restart after
+# it starts would kill it mid-run — and the index doesn't need HAPI anyway,
+# so building it first also gets full catalog search up hours earlier.
 
 # Build the local terminology index for catalog search.
 # Background: HAPI's $expand against the loaded CodeSystems is broken
@@ -707,7 +649,7 @@ echo ""
 # auto-detects the index file and uses it; no env var or feature flag.
 #
 # Copy the JSON into the container ourselves rather than relying on the
-# load-to-HAPI step above — when HAPI already has terminology loaded, that
+# load-to-HAPI step below — when HAPI already has terminology loaded, that
 # step short-circuits and never populates /tmp/fhir_vocabularies, so the
 # build would fail with `--json-dir does not exist`.
 if [ -d "$HOME/fhir_vocabularies/terminology" ] && \
@@ -745,6 +687,87 @@ if [ -d "$HOME/fhir_vocabularies/terminology" ] && \
     fi
     echo ""
 fi
+
+# Load terminology into HAPI.
+# If HAPI has no CodeSystems yet, try to populate it from one of three sources,
+# in order of preference. All paths run in background — the load itself takes
+# 1-4 hours and we don't want deploy.sh to block.
+#
+#   1. Pre-extracted JSON at ~/fhir_vocabularies/terminology/*.json exists
+#      → load directly (fastest, no download); log in ./data/terminology_load.log
+#   2. UMLS_API_KEY is set in .env
+#      → download UMLS MRCONSO → extract → build index → load;
+#        log in ./terminology_load.log
+#   3. Neither → skip silently; operator runs manually when ready
+echo -e "${BLUE}📚 Checking terminology state...${NC}"
+HAPI_CS_COUNT=$(docker exec emr-backend curl -sf \
+    "http://hapi-fhir:8080/fhir/CodeSystem?url=http://www.nlm.nih.gov/research/umls/rxnorm&_summary=count" \
+    2>/dev/null | python3 -c "import json,sys
+try:
+    print(json.load(sys.stdin).get('total', 0))
+except Exception:
+    print(0)" 2>/dev/null || echo 0)
+
+if [ "$HAPI_CS_COUNT" != "0" ]; then
+    echo -e "${GREEN}✓ Terminology already loaded (RxNorm CodeSystem present in HAPI)${NC}"
+elif [ -d "$HOME/fhir_vocabularies/terminology" ] && \
+     [ -n "$(ls -A $HOME/fhir_vocabularies/terminology/*.json 2>/dev/null)" ]; then
+    echo -e "${BLUE}   Found pre-extracted JSON at ~/fhir_vocabularies/terminology/${NC}"
+    echo -e "${BLUE}   Loading in background — tail ./data/terminology_load.log for progress${NC}"
+    # HAPI's port 8080 is NOT exposed on the host (security hardening).
+    # Load must run inside the backend container where hapi-fhir:8080 resolves.
+    # Copy scripts + JSONs into the container, then exec load detached.
+    docker cp scripts/load_terminology.py emr-backend:/tmp/load_terminology.py
+    docker cp scripts/ucum.json emr-backend:/tmp/ucum.json
+    docker exec emr-backend mkdir -p /tmp/fhir_vocabularies
+    docker cp "$HOME/fhir_vocabularies/terminology" emr-backend:/tmp/fhir_vocabularies/
+    docker exec -d emr-backend bash -c "
+        python3 /tmp/load_terminology.py /tmp/fhir_vocabularies \
+            --hapi-url http://hapi-fhir:8080/fhir \
+            --timeout 600 \
+            > /app/data/terminology_load.log 2>&1
+    "
+    echo "   Running in backend container; log at ./data/terminology_load.log"
+elif [ -n "$UMLS_API_KEY" ]; then
+    echo -e "${BLUE}   Found UMLS_API_KEY — downloading, extracting, indexing, loading in background${NC}"
+    echo -e "${BLUE}   Full pipeline (~1-3 hours); progress in ./terminology_load.log${NC}"
+    echo -e "${YELLOW}   emr-backend will restart once, unattended, when the search index is built${NC}"
+    # Download + extract on host (need outbound internet + local Python + httpx).
+    # Then copy, index, and load inside container. Entire chain in one detached
+    # nohup. The JSON doesn't exist until the extract finishes, so the index
+    # block above was skipped on this run — build it here, before the load
+    # (same ordering rule: restart first, then load).
+    nohup bash -c "
+        set -e
+        if [ -f ~/terminology_venv/bin/activate ]; then source ~/terminology_venv/bin/activate; fi
+        python3 scripts/download_umls.py \$HOME/umls_source
+        python3 scripts/extract_vocabularies.py \$HOME/umls_source \$HOME/fhir_vocabularies
+        docker cp scripts/load_terminology.py emr-backend:/tmp/load_terminology.py
+        docker cp scripts/ucum.json emr-backend:/tmp/ucum.json
+        docker exec emr-backend mkdir -p /app/data /tmp/fhir_vocabularies
+        docker cp \$HOME/fhir_vocabularies/terminology emr-backend:/tmp/fhir_vocabularies/
+        if docker exec emr-backend python3 /app/scripts/active/build_terminology_index.py \
+            --json-dir /tmp/fhir_vocabularies/terminology \
+            --ucum-json /tmp/ucum.json \
+            --output /app/data/terminology.db; then
+            docker restart emr-backend > /dev/null
+            if docker inspect emr-nginx >/dev/null 2>&1; then
+                docker restart emr-nginx > /dev/null
+            fi
+            echo 'Local terminology index built; emr-backend restarted'
+        else
+            echo 'WARNING: index build failed - catalog search stays dynamic-only; continuing with HAPI load'
+        fi
+        docker exec emr-backend python3 /tmp/load_terminology.py /tmp/fhir_vocabularies \
+            --hapi-url http://hapi-fhir:8080/fhir --timeout 600
+    " > terminology_load.log 2>&1 &
+    LOAD_PID=$!
+    echo "   PID $LOAD_PID, logging to ./terminology_load.log"
+else
+    echo -e "${YELLOW}   No pre-extracted JSON and no UMLS_API_KEY set — skipping terminology load${NC}"
+    echo "   To enable: set UMLS_API_KEY in .env (see docs/TERMINOLOGY_SETUP.md)"
+fi
+echo ""
 
 # Step 5: Configure Azure NSG (if Azure deployment and prod profile)
 AZURE_RESOURCE_GROUP="${WINTEHR_AZURE_RESOURCE_GROUP:-${AZURE_RESOURCE_GROUP:-}}"
