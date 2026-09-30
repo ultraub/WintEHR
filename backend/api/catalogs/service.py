@@ -400,11 +400,12 @@ class UnifiedCatalogService:
 
     async def _dynamic_procedures(self, search_term, limit):
         try:
-            procs = await self.dynamic_service.extract_procedure_catalog(limit)
+            # Full-catalog scan when searching — see _dynamic_medications.
+            procs = await self.dynamic_service.extract_procedure_catalog(None if search_term else limit)
             if search_term:
                 procs = [p for p in procs
                          if search_term.lower() in p.get('display', '').lower()
-                         or search_term.lower() in p.get('code', '').lower()]
+                         or search_term.lower() in p.get('code', '').lower()][:limit]
             return procs
         except Exception as e:
             logger.warning(f"Dynamic procedure catalog failed: {e}")
@@ -483,11 +484,12 @@ class UnifiedCatalogService:
 
     async def _dynamic_vaccines(self, search_term, limit):
         try:
-            vax = await self.dynamic_service.extract_vaccine_catalog(limit)
+            # Full-catalog scan when searching — see _dynamic_medications.
+            vax = await self.dynamic_service.extract_vaccine_catalog(None if search_term else limit)
             if search_term:
                 vax = [v for v in vax
                        if search_term.lower() in v.get('vaccine_name', '').lower()
-                       or search_term.lower() in v.get('cvx_code', '').lower()]
+                       or search_term.lower() in v.get('cvx_code', '').lower()][:limit]
             return vax
         except Exception as e:
             logger.warning(f"Dynamic vaccine catalog failed: {e}")
@@ -569,12 +571,14 @@ class UnifiedCatalogService:
 
     async def _dynamic_allergies(self, search_term, allergen_type, limit):
         try:
-            allergies = await self.dynamic_service.extract_allergy_catalog(limit)
+            # Full-catalog scan when filtering — see _dynamic_medications.
+            filtering = bool(search_term or allergen_type)
+            allergies = await self.dynamic_service.extract_allergy_catalog(None if filtering else limit)
             if search_term:
                 allergies = [a for a in allergies if search_term.lower() in a.get('allergen_name', '').lower()]
             if allergen_type:
                 allergies = [a for a in allergies if allergen_type.lower() == a.get('allergen_type', '').lower()]
-            return allergies
+            return allergies[:limit]
         except Exception as e:
             logger.warning(f"Dynamic allergy catalog failed: {e}")
             return []
@@ -612,7 +616,8 @@ class UnifiedCatalogService:
         results = []
 
         try:
-            imaging_studies = await self.dynamic_service.extract_imaging_catalog(limit)
+            # Full-catalog scan when searching — see _dynamic_medications.
+            imaging_studies = await self.dynamic_service.extract_imaging_catalog(None if search_term else limit)
             if search_term:
                 imaging_studies = [
                     s for s in imaging_studies
@@ -679,7 +684,10 @@ class UnifiedCatalogService:
         results = []
 
         try:
-            order_sets = await self.dynamic_service.extract_order_set_catalog(limit)
+            # Full-catalog scan when filtering — see _dynamic_medications.
+            order_sets = await self.dynamic_service.extract_order_set_catalog(
+                None if (search_term or category) else limit
+            )
             if search_term:
                 order_sets = [
                     os for os in order_sets

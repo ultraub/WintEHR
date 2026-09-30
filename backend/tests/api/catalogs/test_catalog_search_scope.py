@@ -54,6 +54,90 @@ async def test_search_finds_entries_outside_the_top_limit(monkeypatch):
     assert len(browse) == 25
 
 
+class _RankedDynamic:
+    """Frequency-ranked extractors whose one matching entry sits below the limit."""
+
+    def __init__(self):
+        self.calls = []
+
+    def _ranked(self, limit, common, target):
+        self.calls.append(limit)
+        full = [common(i) for i in range(50)] + [target]
+        return full[:limit] if limit else full
+
+    async def extract_procedure_catalog(self, limit=None):
+        return self._ranked(
+            limit,
+            lambda i: {"code": f"p{i}", "display": f"Common Procedure {i}"},
+            {"code": "bx", "display": "Biopsy of skin"},
+        )
+
+    async def extract_vaccine_catalog(self, limit=None):
+        return self._ranked(
+            limit,
+            lambda i: {"cvx_code": f"v{i}", "vaccine_name": f"Common Vaccine {i}"},
+            {"cvx_code": "37", "vaccine_name": "Yellow fever vaccine"},
+        )
+
+    async def extract_allergy_catalog(self, limit=None):
+        return self._ranked(
+            limit,
+            lambda i: {"id": f"a{i}", "allergen_name": f"Common Allergen {i}", "allergen_type": "food"},
+            {"id": "lx", "allergen_name": "Latex", "allergen_type": "environment"},
+        )
+
+    async def extract_imaging_catalog(self, limit=None):
+        return self._ranked(
+            limit,
+            lambda i: {"code": f"i{i}", "display": f"Common Study {i}", "modality": "CR"},
+            {"code": "pet", "display": "PET scan whole body", "modality": "PT"},
+        )
+
+    async def extract_order_set_catalog(self, limit=None):
+        return self._ranked(
+            limit,
+            lambda i: {"id": f"os{i}", "title": f"Common Order Set {i}", "category": "Admission"},
+            {"id": "sepsis", "title": "Sepsis Bundle", "category": "Emergency"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_remaining_catalogs_search_outside_the_top_limit():
+    """Same filter-after-truncate bug, in the catalogs the first fix missed."""
+    svc = UnifiedCatalogService.__new__(UnifiedCatalogService)
+    dyn = svc.dynamic_service = _RankedDynamic()
+
+    procs = await svc._dynamic_procedures("biopsy", 25)
+    assert [p["display"] for p in procs] == ["Biopsy of skin"]
+
+    vax = await svc._dynamic_vaccines("yellow", 25)
+    assert [v["vaccine_name"] for v in vax] == ["Yellow fever vaccine"]
+
+    by_name = await svc._dynamic_allergies("latex", None, 25)
+    assert [a["allergen_name"] for a in by_name] == ["Latex"]
+    by_type = await svc._dynamic_allergies(None, "environment", 25)
+    assert [a["allergen_name"] for a in by_type] == ["Latex"]
+
+    imaging = await svc.search_imaging_studies("PET scan", 25)
+    assert [s.study_name for s in imaging] == ["PET scan whole body"]
+
+    by_term = await svc.search_order_sets("sepsis", None, 25)
+    assert [o.name for o in by_term] == ["Sepsis Bundle"]
+    by_category = await svc.search_order_sets(None, "Emergency", 25)
+    assert "Sepsis Bundle" in [o.name for o in by_category]
+
+    assert dyn.calls == [None] * 7, "a filtered search extracted a truncated slice"
+
+    # Browse (no filter) still passes the limit straight through.
+    dyn.calls.clear()
+    assert len(await svc._dynamic_procedures(None, 25)) == 25
+    assert len(await svc._dynamic_vaccines(None, 25)) == 25
+    assert len(await svc._dynamic_allergies(None, None, 25)) == 25
+    assert len(await svc.search_imaging_studies(None, 25)) == 25
+    assert len(await svc.search_order_sets(None, None, 25)) == 25
+    assert dyn.calls == [25] * 5
+
+
 @pytest.mark.asyncio
 async def test_condition_rows_report_the_system_their_code_belongs_to():
     """B9: rows must distinguish SNOMED from ICD-10, not report neither.
