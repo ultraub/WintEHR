@@ -3,14 +3,234 @@ Dynamic Catalog Service - HAPI FHIR Migration
 Extracts and builds catalogs from actual patient FHIR data using fhirclient
 """
 
-import json
-from typing import Dict, List, Any, Optional, Set
+import asyncio
+import os
+import time
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Any, Optional, Tuple
 from datetime import datetime
-from collections import defaultdict, Counter
 import logging
 from services.hapi_fhir_client import HAPIFHIRClient
 
 logger = logging.getLogger(__name__)
+
+# HAPI caps a search page at 500 entries whatever _count asks for.
+PAGE_SIZE = 500
+# Upper bound on resources read per catalog scan. A scan is sequential
+# offset paging sorted by _id, so past this the catalog is a deterministic
+# sample rather than the whole store.
+MAX_SCAN_RESOURCES = int(os.getenv("CATALOG_SCAN_MAX_RESOURCES", "100000"))
+CACHE_TTL_SECONDS = 3600
+
+
+@dataclass
+class _CatalogEntry:
+    items: List[Dict[str, Any]]
+    complete: bool  # False = built from the first page only; a scan is filling it in
+    built_at: float
+
+
+# Process-wide, not per-instance: a DynamicCatalogService is constructed per
+# request, so an instance-level cache was never hit and every catalog request
+# re-read (only) the first page from HAPI.
+_CACHE: Dict[str, _CatalogEntry] = {}
+_SCANS: Dict[str, Tuple[asyncio.AbstractEventLoop, asyncio.Task]] = {}
+
+
+def _count_codings(
+    entries: List[Dict[str, Any]], field: str, unknown: str
+) -> List[Tuple[str, Dict[str, Any]]]:
+    """Aggregate `resource[field].coding[0]` across bundle entries.
+
+    Returns (code, {display, system, count}) in first-seen order.
+    """
+    codes: Dict[str, Dict[str, Any]] = {}
+    for entry in entries:
+        concept = entry.get('resource', {}).get(field) or {}
+        codings = concept.get('coding') or []
+        if not codings:
+            continue
+        coding = codings[0]
+        code = coding.get('code')
+        if not code:
+            continue
+        data = codes.setdefault(code, {'display': None, 'system': None, 'count': 0})
+        data['display'] = coding.get('display') or concept.get('text') or unknown
+        data['system'] = coding.get('system')
+        data['count'] += 1
+    return list(codes.items())
+
+
+def _build_medications(entries):
+    medications = [{
+        "id": f"med_{code}",
+        "code": code,
+        "display": data['display'],
+        "system": data['system'] or "http://www.nlm.nih.gov/research/umls/rxnorm",
+        "frequency_count": data['count'],
+        "source": "patient_data"
+    } for code, data in _count_codings(entries, 'medicationCodeableConcept', "Unknown medication")]
+    medications.sort(key=lambda x: x['frequency_count'], reverse=True)
+    return medications
+
+
+def _build_conditions(entries):
+    conditions = [{
+        "id": f"cond_{code}",
+        "code": code,
+        "display": data['display'],
+        "system": data['system'] or "http://snomed.info/sct",
+        "frequency_count": data['count'],
+        "source": "patient_data"
+    } for code, data in _count_codings(entries, 'code', "Unknown condition")]
+    conditions.sort(key=lambda x: x['frequency_count'], reverse=True)
+    return conditions
+
+
+def _build_lab_tests(entries):
+    lab_tests = [{
+        "id": f"lab_{code}",
+        "name": code,
+        "display": data['display'],
+        "loinc_code": code,
+        "category": "laboratory",
+        # No specimen type: this extraction reads Observation codes
+        # only (_elements=code), which never state the specimen. It
+        # used to hardcode "blood" for every test — wrong for urine,
+        # CSF, swab, and stool studies, and a training platform must
+        # not teach a specimen it did not observe.
+        "specimen_type": None,
+        "frequency_count": data['count'],
+        "source": "patient_data"
+    } for code, data in _count_codings(entries, 'code', "Unknown lab test")]
+    lab_tests.sort(key=lambda x: x['frequency_count'], reverse=True)
+    return lab_tests
+
+
+def _build_procedures(entries):
+    procedures = [{
+        "id": f"proc_{code}",
+        "code": code,
+        "display": data['display'],
+        "system": data['system'] or "http://snomed.info/sct",
+        "frequency_count": data['count'],
+        "source": "patient_data"
+    } for code, data in _count_codings(entries, 'code', "Unknown procedure")]
+    procedures.sort(key=lambda x: x['frequency_count'], reverse=True)
+    return procedures
+
+
+def _build_vaccines(entries):
+    vaccines = [{
+        "id": f"vax_{code}",
+        "vaccine_code": code,
+        "vaccine_name": data['display'],
+        "cvx_code": code,
+        "usage_count": data['count'],
+        "source": "patient_data"
+    } for code, data in _count_codings(entries, 'vaccineCode', "Unknown vaccine")]
+    vaccines.sort(key=lambda x: x['usage_count'], reverse=True)
+    return vaccines
+
+
+def _build_allergies(entries):
+    allergies = []
+    for code, data in _count_codings(entries, 'code', "Unknown allergen"):
+        # Determine allergen type from system
+        system = data['system'] or ""
+        is_medication = "rxnorm" in system.lower()
+        allergy = {
+            "id": f"allergy_{code}",
+            "allergen_code": code,
+            "allergen_name": data['display'],
+            "allergen_type": "medication" if is_medication else "other",
+            "system": data['system'],
+            "usage_count": data['count'],
+            "source": "patient_data"
+        }
+        if is_medication:
+            allergy["rxnorm_code"] = code
+        allergies.append(allergy)
+    allergies.sort(key=lambda x: x['usage_count'], reverse=True)
+    return allergies
+
+
+def _build_imaging(entries):
+    """One catalog row per study type.
+
+    Synthea ImagingStudy resources carry no top-level `description` or
+    `modality`; what they have is `procedureCode` plus `series[].modality`
+    and `series[].bodySite`. Reading only the top-level fields collapsed
+    every study into a single "Unknown Study" row. Top-level fields still
+    win when a server does populate them.
+    """
+    studies: Dict[str, Dict[str, Any]] = {}
+    for entry in entries:
+        resource = entry.get('resource', {})
+        procedure = (resource.get('procedureCode') or [{}])[0]
+        coding = (procedure.get('coding') or [{}])[0]
+        series = (resource.get('series') or [{}])[0]
+
+        modality = (
+            ((resource.get('modality') or [{}])[0]).get('code')
+            or (series.get('modality') or {}).get('code')
+            or 'Unknown'
+        )
+        display = (
+            resource.get('description')
+            or coding.get('display')
+            or procedure.get('text')
+            or f"{modality} Study"
+        )
+        key = coding.get('code') or display
+
+        data = studies.setdefault(key, {
+            'display': display,
+            'modality': modality,
+            'body_site': (series.get('bodySite') or {}).get('display'),
+            'count': 0,
+        })
+        data['count'] += 1
+
+    imaging_studies = [{
+        "id": f"img_{i}",
+        "code": key,
+        "display": data['display'],
+        "modality": data['modality'],
+        "body_site": data['body_site'],
+        "frequency_count": data['count'],
+        "source": "patient_data"
+    } for i, (key, data) in enumerate(studies.items())]
+    imaging_studies.sort(key=lambda x: x['frequency_count'], reverse=True)
+    return imaging_studies
+
+
+def _build_order_sets(entries):
+    order_sets = []
+    for entry in entries:
+        resource = entry.get('resource', {})
+        order_sets.append({
+            "id": resource.get('id', f"os_{len(order_sets)}"),
+            "title": resource.get('title', 'Unnamed Order Set'),
+            "description": resource.get('description', ''),
+            "status": resource.get('status', 'unknown'),
+            "source": "patient_data"
+        })
+    return order_sets
+
+
+# catalog name -> (resource type, search params, builder). `_elements` keeps
+# the payload to the fields the builder reads.
+_SOURCES: Dict[str, Tuple[str, Dict[str, str], Callable]] = {
+    "medications": ("MedicationRequest", {"_elements": "medicationCodeableConcept"}, _build_medications),
+    "conditions": ("Condition", {"_elements": "code"}, _build_conditions),
+    "lab_tests": ("Observation", {"category": "laboratory", "_elements": "code"}, _build_lab_tests),
+    "procedures": ("Procedure", {"_elements": "code"}, _build_procedures),
+    "vaccines": ("Immunization", {"_elements": "vaccineCode"}, _build_vaccines),
+    "allergies": ("AllergyIntolerance", {"_elements": "code"}, _build_allergies),
+    "imaging": ("ImagingStudy", {"_elements": "procedureCode,series,modality,description"}, _build_imaging),
+    "order_sets": ("PlanDefinition", {"type": "order-set", "_elements": "title,description,status"}, _build_order_sets),
+}
 
 
 class DynamicCatalogService:
@@ -26,640 +246,110 @@ class DynamicCatalogService:
     - Vaccines (from Immunization resources)
     - Allergies (from AllergyIntolerance resources)
     - Order Sets (from CarePlan and PlanDefinition)
+
+    Catalogs are built from ALL matching resources, not the first search
+    page. The first request after startup answers from page one and starts
+    a background scan; once that lands, every request gets the full catalog
+    from the process-wide cache until it expires (then it is served stale
+    while a rescan runs).
     """
 
     def __init__(self):
-        self.cache = {}
-        self.cache_timeout = 3600  # 1 hour cache
         self.last_refresh = None
 
+    async def _fetch_page(self, name: str, offset: int) -> List[Dict[str, Any]]:
+        resource_type, params, _ = _SOURCES[name]
+        bundle = await HAPIFHIRClient().search(resource_type, {
+            **params,
+            "_count": str(PAGE_SIZE),
+            # Offset paging needs a stable order; HAPI's default is not one.
+            "_sort": "_id",
+            "_offset": str(offset),
+        })
+        return bundle.get('entry', [])
+
+    async def _scan(self, name: str) -> List[Dict[str, Any]]:
+        """Read every page for a catalog and replace its cache entry."""
+        entries: List[Dict[str, Any]] = []
+        offset = 0
+        while offset < MAX_SCAN_RESOURCES:
+            page = await self._fetch_page(name, offset)
+            entries.extend(page)
+            if len(page) < PAGE_SIZE:
+                break
+            offset += PAGE_SIZE
+        else:
+            logger.warning(
+                f"{name} catalog scan stopped at {MAX_SCAN_RESOURCES} resources "
+                "(CATALOG_SCAN_MAX_RESOURCES); catalog is a sample"
+            )
+        items = _SOURCES[name][2](entries)
+        _CACHE[name] = _CatalogEntry(items, True, time.monotonic())
+        logger.info(f"{name} catalog: {len(items)} entries from {len(entries)} resources")
+        return items
+
+    def _ensure_scan(self, name: str) -> None:
+        loop = asyncio.get_running_loop()
+        running = _SCANS.get(name)
+        if running and running[0] is loop and not running[1].done():
+            return
+
+        async def run():
+            try:
+                await self._scan(name)
+            except Exception as e:
+                # Keep serving whatever is cached; the next request retries.
+                logger.error(f"{name} catalog scan failed: {e}")
+
+        _SCANS[name] = (loop, loop.create_task(run()))
+
+    async def _catalog(self, name: str, limit: Optional[int]) -> List[Dict[str, Any]]:
+        entry = _CACHE.get(name)
+        fresh = entry and (time.monotonic() - entry.built_at) < CACHE_TTL_SECONDS
+        if entry is None:
+            try:
+                page = await self._fetch_page(name, 0)
+            except Exception as e:
+                logger.error(f"Error extracting {name} catalog: {e}")
+                return []
+            complete = len(page) < PAGE_SIZE
+            entry = _CACHE[name] = _CatalogEntry(_SOURCES[name][2](page), complete, time.monotonic())
+            fresh = True
+        if not (entry.complete and fresh):
+            self._ensure_scan(name)
+        return entry.items[:limit] if limit else list(entry.items)
+
     async def extract_medication_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Extract medication catalog from MedicationRequest resources.
-
-        Uses FHIR-standard _elements parameter for efficient minimal-payload retrieval.
-        Works with ANY FHIR R4 compliant server (HAPI, Azure FHIR, AWS HealthLake, etc.)
-        """
-        cache_key = f"medications_{limit}"
-        if self._is_cached(cache_key):
-            return self.cache[cache_key]
-
-        logger.info("Extracting medication catalog using FHIR-standard _elements parameter")
-
-        hapi_client = HAPIFHIRClient()
-
-        try:
-            # FHIR-standard approach: Fetch only medicationCodeableConcept field (85-90% payload reduction)
-            # Works on ANY FHIR R4 server, not HAPI-specific
-            bundle = await hapi_client.search("MedicationRequest", {
-                "_elements": "medicationCodeableConcept",
-                "_count": "1000"
-            })
-
-            total_found = len(bundle.get('entry', []))
-            logger.info(f"Found {total_found} medication requests (minimal payload)")
-
-            # Aggregate codes from minimal payload (fast in-memory processing)
-            code_map = defaultdict(lambda: {
-                'code': None,
-                'display': None,
-                'system': None,
-                'frequency_count': 0
-            })
-
-            for entry in bundle.get('entry', []):
-                resource = entry['resource']
-                if 'medicationCodeableConcept' not in resource:
-                    continue
-
-                med_concept = resource['medicationCodeableConcept']
-                if 'coding' not in med_concept or not med_concept['coding']:
-                    continue
-
-                coding = med_concept['coding'][0]
-                code = coding.get('code')
-
-                if code:
-                    code_data = code_map[code]
-                    code_data['code'] = code
-                    code_data['display'] = coding.get('display') or med_concept.get('text') or "Unknown medication"
-                    code_data['system'] = coding.get('system') or "http://www.nlm.nih.gov/research/umls/rxnorm"
-                    code_data['frequency_count'] += 1
-
-            logger.info(f"Aggregated {len(code_map)} distinct medication codes from {total_found} requests")
-
-        except Exception as e:
-            logger.error(f"Error extracting medication catalog: {e}")
-            code_map = {}
-
-        # Convert to list format
-        medications = []
-        for code, data in code_map.items():
-            medications.append({
-                "id": f"med_{code}" if code else f"med_{len(medications)}",
-                "code": data['code'],
-                "display": data['display'],
-                "system": data['system'],
-                "frequency_count": data['frequency_count'],
-                "source": "patient_data"
-            })
-
-        # Sort by usage frequency
-        medications.sort(key=lambda x: x['frequency_count'], reverse=True)
-
-        # Apply limit if specified
-        if limit:
-            medications = medications[:limit]
-
-        self._cache_result(cache_key, medications)
-        logger.info(f"Extracted {len(medications)} unique medications using FHIR-standard approach")
-        return medications
+        """Medication catalog from MedicationRequest resources, most used first."""
+        return await self._catalog("medications", limit)
 
     async def extract_condition_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Extract condition catalog from Condition resources.
-
-        Uses FHIR-standard _elements parameter for efficient minimal-payload retrieval.
-        Works with ANY FHIR R4 compliant server (HAPI, Azure FHIR, AWS HealthLake, etc.)
-        """
-        cache_key = f"conditions_{limit}"
-        if self._is_cached(cache_key):
-            return self.cache[cache_key]
-
-        logger.info("Extracting condition catalog using FHIR-standard _elements parameter")
-
-        hapi_client = HAPIFHIRClient()
-
-        try:
-            # FHIR-standard approach: Fetch only code field (85-90% payload reduction)
-            bundle = await hapi_client.search("Condition", {
-                "_elements": "code",
-                "_count": "1000"
-            })
-
-            total_found = len(bundle.get('entry', []))
-            logger.info(f"Found {total_found} conditions (minimal payload)")
-
-            # Aggregate codes from minimal payload
-            code_map = defaultdict(lambda: {
-                'code': None,
-                'display': None,
-                'system': None,
-                'frequency_count': 0
-            })
-
-            for entry in bundle.get('entry', []):
-                resource = entry['resource']
-                if 'code' not in resource:
-                    continue
-
-                code_element = resource['code']
-                if 'coding' not in code_element or not code_element['coding']:
-                    continue
-
-                coding = code_element['coding'][0]
-                code = coding.get('code')
-
-                if code:
-                    code_data = code_map[code]
-                    code_data['code'] = code
-                    code_data['display'] = coding.get('display') or code_element.get('text') or "Unknown condition"
-                    code_data['system'] = coding.get('system') or "http://snomed.info/sct"
-                    code_data['frequency_count'] += 1
-
-            logger.info(f"Aggregated {len(code_map)} distinct condition codes from {total_found} resources")
-
-        except Exception as e:
-            logger.error(f"Error extracting condition catalog: {e}")
-            code_map = {}
-
-        # Convert to list format
-        conditions = []
-        for code, data in code_map.items():
-            conditions.append({
-                "id": f"cond_{code}" if code else f"cond_{len(conditions)}",
-                "code": data['code'],
-                "display": data['display'],
-                "system": data['system'],
-                "frequency_count": data['frequency_count'],
-                "source": "patient_data"
-            })
-
-        # Sort by usage frequency
-        conditions.sort(key=lambda x: x['frequency_count'], reverse=True)
-
-        # Apply limit if specified
-        if limit:
-            conditions = conditions[:limit]
-
-        self._cache_result(cache_key, conditions)
-        logger.info(f"Extracted {len(conditions)} unique conditions using FHIR-standard approach")
-        return conditions
+        """Condition catalog from Condition resources, most used first."""
+        return await self._catalog("conditions", limit)
 
     async def extract_lab_test_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Extract lab test catalog from Observation resources with category=laboratory.
-
-        Uses FHIR-standard _elements parameter for efficient minimal-payload retrieval.
-        Works with ANY FHIR R4 compliant server (HAPI, Azure FHIR, AWS HealthLake, etc.)
-        """
-        cache_key = f"lab_tests_{limit}"
-        if self._is_cached(cache_key):
-            return self.cache[cache_key]
-
-        logger.info("Extracting lab test catalog using FHIR-standard _elements parameter")
-
-        hapi_client = HAPIFHIRClient()
-
-        try:
-            # FHIR-standard approach: Fetch only code field (85-90% payload reduction)
-            # Works on ANY FHIR R4 server, not HAPI-specific
-            bundle = await hapi_client.search("Observation", {
-                "category": "laboratory",
-                "_elements": "code",
-                "_count": "1000"
-            })
-
-            total_found = len(bundle.get('entry', []))
-            logger.info(f"Found {total_found} laboratory observations (minimal payload)")
-
-            # Aggregate codes from minimal payload (fast in-memory processing)
-            code_map = defaultdict(lambda: {
-                'loinc_code': None,
-                'display': None,
-                'system': None,
-                'frequency_count': 0
-            })
-
-            for entry in bundle.get('entry', []):
-                resource = entry['resource']
-                if 'code' not in resource:
-                    logger.warning(f"Resource {resource.get('id')} missing code field")
-                    continue
-
-                # Extract code from minimal resource
-                code_element = resource['code']
-                if 'coding' not in code_element or not code_element['coding']:
-                    logger.warning(f"Resource {resource.get('id')} code missing coding")
-                    continue
-
-                coding = code_element['coding'][0]
-                code = coding.get('code')
-
-                if code:
-                    code_data = code_map[code]
-                    code_data['loinc_code'] = code
-                    code_data['display'] = coding.get('display') or code_element.get('text') or "Unknown lab test"
-                    code_data['system'] = coding.get('system')
-                    code_data['frequency_count'] += 1
-                    logger.debug(f"Aggregated {code}: {code_data['display']} (count: {code_data['frequency_count']})")
-
-            logger.info(f"Aggregated {len(code_map)} distinct lab test codes from {total_found} observations")
-
-        except Exception as e:
-            logger.error(f"Error extracting lab catalog: {e}")
-            code_map = {}
-
-        # Convert to list format
-        lab_tests = []
-        for code, data in code_map.items():
-            lab_tests.append({
-                "id": f"lab_{code}" if code else f"lab_{len(lab_tests)}",
-                "name": code,
-                "display": data['display'],
-                "loinc_code": data['loinc_code'],
-                "category": "laboratory",
-                # No specimen type: this extraction reads Observation codes
-                # only (_elements=code), which never state the specimen. It
-                # used to hardcode "blood" for every test — wrong for urine,
-                # CSF, swab, and stool studies, and a training platform must
-                # not teach a specimen it did not observe.
-                "specimen_type": None,
-                "frequency_count": data['frequency_count'],
-                "source": "patient_data"
-            })
-
-        # Sort by usage frequency
-        lab_tests.sort(key=lambda x: x['frequency_count'], reverse=True)
-
-        # Apply limit if specified
-        if limit:
-            lab_tests = lab_tests[:limit]
-
-        self._cache_result(cache_key, lab_tests)
-        logger.info(f"Extracted {len(lab_tests)} unique lab tests using FHIR-standard approach")
-        return lab_tests
+        """Lab test catalog from Observation resources with category=laboratory."""
+        return await self._catalog("lab_tests", limit)
 
     async def extract_procedure_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Extract procedure catalog from Procedure resources.
-
-        Uses FHIR-standard _elements parameter for efficient minimal-payload retrieval.
-        Works with ANY FHIR R4 compliant server (HAPI, Azure FHIR, AWS HealthLake, etc.)
-        """
-        cache_key = f"procedures_{limit}"
-        if self._is_cached(cache_key):
-            return self.cache[cache_key]
-
-        logger.info("Extracting procedure catalog using FHIR-standard _elements parameter")
-
-        hapi_client = HAPIFHIRClient()
-
-        try:
-            # FHIR-standard approach: Fetch only code field (85-90% payload reduction)
-            bundle = await hapi_client.search("Procedure", {
-                "_elements": "code",
-                "_count": "1000"
-            })
-
-            total_found = len(bundle.get('entry', []))
-            logger.info(f"Found {total_found} procedures (minimal payload)")
-
-            # Aggregate codes from minimal payload
-            code_map = defaultdict(lambda: {
-                'code': None,
-                'display': None,
-                'system': None,
-                'frequency_count': 0
-            })
-
-            for entry in bundle.get('entry', []):
-                resource = entry['resource']
-                if 'code' not in resource:
-                    continue
-
-                code_element = resource['code']
-                if 'coding' not in code_element or not code_element['coding']:
-                    continue
-
-                coding = code_element['coding'][0]
-                code = coding.get('code')
-
-                if code:
-                    code_data = code_map[code]
-                    code_data['code'] = code
-                    code_data['display'] = coding.get('display') or code_element.get('text') or "Unknown procedure"
-                    code_data['system'] = coding.get('system') or "http://snomed.info/sct"
-                    code_data['frequency_count'] += 1
-
-            logger.info(f"Aggregated {len(code_map)} distinct procedure codes from {total_found} resources")
-
-        except Exception as e:
-            logger.error(f"Error extracting procedure catalog: {e}")
-            code_map = {}
-
-        # Convert to list format
-        procedures = []
-        for code, data in code_map.items():
-            procedures.append({
-                "id": f"proc_{code}" if code else f"proc_{len(procedures)}",
-                "code": data['code'],
-                "display": data['display'],
-                "system": data['system'],
-                "frequency_count": data['frequency_count'],
-                "source": "patient_data"
-            })
-
-        # Sort by usage frequency
-        procedures.sort(key=lambda x: x['frequency_count'], reverse=True)
-
-        # Apply limit if specified
-        if limit:
-            procedures = procedures[:limit]
-
-        self._cache_result(cache_key, procedures)
-        logger.info(f"Extracted {len(procedures)} unique procedures using FHIR-standard approach")
-        return procedures
+        """Procedure catalog from Procedure resources, most used first."""
+        return await self._catalog("procedures", limit)
 
     async def extract_vaccine_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Extract vaccine catalog from Immunization resources.
-
-        Uses FHIR-standard _elements parameter for efficient minimal-payload retrieval.
-        Works with ANY FHIR R4 compliant server (HAPI, Azure FHIR, AWS HealthLake, etc.)
-        """
-        cache_key = f"vaccines_{limit}"
-        if self._is_cached(cache_key):
-            return self.cache[cache_key]
-
-        logger.info("Extracting vaccine catalog using FHIR-standard _elements parameter")
-
-        hapi_client = HAPIFHIRClient()
-
-        try:
-            # FHIR-standard approach: Fetch only vaccineCode field (85-90% payload reduction)
-            bundle = await hapi_client.search("Immunization", {
-                "_elements": "vaccineCode",
-                "_count": "1000"
-            })
-
-            total_found = len(bundle.get('entry', []))
-            logger.info(f"Found {total_found} immunizations (minimal payload)")
-
-            # Aggregate codes from minimal payload
-            code_map = defaultdict(lambda: {
-                'cvx_code': None,
-                'display': None,
-                'frequency_count': 0
-            })
-
-            for entry in bundle.get('entry', []):
-                resource = entry['resource']
-                if 'vaccineCode' not in resource:
-                    continue
-
-                vaccine_code = resource['vaccineCode']
-                if 'coding' not in vaccine_code or not vaccine_code['coding']:
-                    continue
-
-                coding = vaccine_code['coding'][0]
-                code = coding.get('code')
-
-                if code:
-                    code_data = code_map[code]
-                    code_data['cvx_code'] = code
-                    code_data['display'] = coding.get('display') or vaccine_code.get('text') or "Unknown vaccine"
-                    code_data['frequency_count'] += 1
-
-            logger.info(f"Aggregated {len(code_map)} distinct vaccine codes from {total_found} immunizations")
-
-        except Exception as e:
-            logger.error(f"Error extracting vaccine catalog: {e}")
-            code_map = {}
-
-        # Convert to list format
-        vaccines = []
-        for code, data in code_map.items():
-            vaccines.append({
-                "id": f"vax_{code}" if code else f"vax_{len(vaccines)}",
-                "vaccine_code": data['cvx_code'],
-                "vaccine_name": data['display'],
-                "cvx_code": data['cvx_code'],
-                "usage_count": data['frequency_count'],
-                "source": "patient_data"
-            })
-
-        # Sort by usage frequency
-        vaccines.sort(key=lambda x: x['usage_count'], reverse=True)
-
-        # Apply limit if specified
-        if limit:
-            vaccines = vaccines[:limit]
-
-        self._cache_result(cache_key, vaccines)
-        logger.info(f"Extracted {len(vaccines)} unique vaccines using FHIR-standard approach")
-        return vaccines
+        """Vaccine catalog from Immunization resources, most used first."""
+        return await self._catalog("vaccines", limit)
 
     async def extract_allergy_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Extract allergy catalog from AllergyIntolerance resources.
-
-        Uses FHIR-standard _elements parameter for efficient minimal-payload retrieval.
-        Works with ANY FHIR R4 compliant server (HAPI, Azure FHIR, AWS HealthLake, etc.)
-        """
-        cache_key = f"allergies_{limit}"
-        if self._is_cached(cache_key):
-            return self.cache[cache_key]
-
-        logger.info("Extracting allergy catalog using FHIR-standard _elements parameter")
-
-        hapi_client = HAPIFHIRClient()
-
-        try:
-            # FHIR-standard approach: Fetch only code field (85-90% payload reduction)
-            bundle = await hapi_client.search("AllergyIntolerance", {
-                "_elements": "code",
-                "_count": "1000"
-            })
-
-            total_found = len(bundle.get('entry', []))
-            logger.info(f"Found {total_found} allergy intolerances (minimal payload)")
-
-            # Aggregate codes from minimal payload
-            code_map = defaultdict(lambda: {
-                'code': None,
-                'display': None,
-                'system': None,
-                'frequency_count': 0
-            })
-
-            for entry in bundle.get('entry', []):
-                resource = entry['resource']
-                if 'code' not in resource:
-                    continue
-
-                code_element = resource['code']
-                if 'coding' not in code_element or not code_element['coding']:
-                    continue
-
-                coding = code_element['coding'][0]
-                code = coding.get('code')
-
-                if code:
-                    code_data = code_map[code]
-                    code_data['code'] = code
-                    code_data['display'] = coding.get('display') or code_element.get('text') or "Unknown allergen"
-                    code_data['system'] = coding.get('system')
-                    code_data['frequency_count'] += 1
-
-            logger.info(f"Aggregated {len(code_map)} distinct allergy codes from {total_found} resources")
-
-        except Exception as e:
-            logger.error(f"Error extracting allergy catalog: {e}")
-            code_map = {}
-
-        # Convert to list format
-        allergies = []
-        for code, data in code_map.items():
-            # Determine allergen type from system
-            allergen_type = "other"
-            system = data['system'] or ""
-            if "rxnorm" in system.lower():
-                allergen_type = "medication"
-
-            allergy_dict = {
-                "id": f"allergy_{code}" if code else f"allergy_{len(allergies)}",
-                "allergen_code": data['code'],
-                "allergen_name": data['display'],
-                "allergen_type": allergen_type,
-                "system": data['system'],
-                "usage_count": data['frequency_count'],
-                "source": "patient_data"
-            }
-
-            # Add RxNorm code for medication allergies
-            if allergen_type == "medication" and "rxnorm" in system.lower():
-                allergy_dict["rxnorm_code"] = code
-
-            allergies.append(allergy_dict)
-
-        # Sort by usage frequency
-        allergies.sort(key=lambda x: x['usage_count'], reverse=True)
-
-        # Apply limit if specified
-        if limit:
-            allergies = allergies[:limit]
-
-        self._cache_result(cache_key, allergies)
-        logger.info(f"Extracted {len(allergies)} unique allergies from HAPI FHIR")
-        return allergies
+        """Allergen catalog from AllergyIntolerance resources, most used first."""
+        return await self._catalog("allergies", limit)
 
     async def extract_imaging_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Extract imaging catalog from ImagingStudy resources.
-
-        Uses FHIR-standard _elements parameter for efficient minimal-payload retrieval.
-        Works with ANY FHIR R4 compliant server (HAPI, Azure FHIR, AWS HealthLake, etc.)
-        """
-        cache_key = f"imaging_{limit}"
-        if self._is_cached(cache_key):
-            return self.cache[cache_key]
-
-        logger.info("Extracting imaging catalog using FHIR-standard _elements parameter")
-
-        hapi_client = HAPIFHIRClient()
-
-        try:
-            bundle = await hapi_client.search("ImagingStudy", {
-                "_elements": "modality,description",
-                "_count": "500"
-            })
-
-            total_found = len(bundle.get('entry', []))
-            logger.info(f"Found {total_found} imaging studies (minimal payload)")
-
-            code_map = defaultdict(lambda: {
-                'modality': None,
-                'display': None,
-                'body_site': None,
-                'frequency_count': 0
-            })
-
-            for entry in bundle.get('entry', []):
-                resource = entry['resource']
-                description = resource.get('description', '')
-                modality_list = resource.get('modality', [])
-                modality_code = modality_list[0].get('code', 'Unknown') if modality_list else 'Unknown'
-
-                key = description or modality_code
-                if key:
-                    code_data = code_map[key]
-                    code_data['modality'] = modality_code
-                    code_data['display'] = description or f"{modality_code} Study"
-                    code_data['frequency_count'] += 1
-
-            logger.info(f"Aggregated {len(code_map)} distinct imaging study types from {total_found} resources")
-
-        except Exception as e:
-            logger.error(f"Error extracting imaging catalog: {e}")
-            code_map = {}
-
-        imaging_studies = []
-        for key, data in code_map.items():
-            imaging_studies.append({
-                "id": f"img_{len(imaging_studies)}",
-                "code": key,
-                "display": data['display'],
-                "modality": data['modality'],
-                "body_site": data.get('body_site'),
-                "frequency_count": data['frequency_count'],
-                "source": "patient_data"
-            })
-
-        imaging_studies.sort(key=lambda x: x['frequency_count'], reverse=True)
-
-        if limit:
-            imaging_studies = imaging_studies[:limit]
-
-        self._cache_result(cache_key, imaging_studies)
-        logger.info(f"Extracted {len(imaging_studies)} unique imaging studies using FHIR-standard approach")
-        return imaging_studies
+        """Imaging study-type catalog from ImagingStudy resources, most used first."""
+        return await self._catalog("imaging", limit)
 
     async def extract_order_set_catalog(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Extract order set catalog from PlanDefinition resources.
-
-        Looks for PlanDefinition resources that represent order sets.
-        """
-        cache_key = f"order_sets_{limit}"
-        if self._is_cached(cache_key):
-            return self.cache[cache_key]
-
-        logger.info("Extracting order set catalog from PlanDefinition resources")
-
-        hapi_client = HAPIFHIRClient()
-
-        try:
-            bundle = await hapi_client.search("PlanDefinition", {
-                "type": "order-set",
-                "_elements": "title,description,status",
-                "_count": "200"
-            })
-
-            total_found = len(bundle.get('entry', []))
-            logger.info(f"Found {total_found} order set PlanDefinitions")
-
-        except Exception as e:
-            logger.error(f"Error extracting order set catalog: {e}")
-            bundle = {"entry": []}
-
-        order_sets = []
-        for entry in bundle.get('entry', []):
-            resource = entry['resource']
-            order_sets.append({
-                "id": resource.get('id', f"os_{len(order_sets)}"),
-                "title": resource.get('title', 'Unnamed Order Set'),
-                "description": resource.get('description', ''),
-                "status": resource.get('status', 'unknown'),
-                "source": "patient_data"
-            })
-
-        if limit:
-            order_sets = order_sets[:limit]
-
-        self._cache_result(cache_key, order_sets)
-        logger.info(f"Extracted {len(order_sets)} order sets")
-        return order_sets
+        """Order set catalog from PlanDefinition resources of type order-set."""
+        return await self._catalog("order_sets", limit)
 
     async def get_catalog_statistics(self) -> Dict[str, Any]:
         """Get statistics about the extracted catalogs using HAPIFHIRClient."""
@@ -697,67 +387,39 @@ class DynamicCatalogService:
             "laboratory_observations": lab_count,
             "last_refresh": self.last_refresh,
             "cache_status": {
-                "cached_catalogs": list(self.cache.keys()),
-                "cache_timeout": self.cache_timeout
+                "cached_catalogs": sorted(_CACHE.keys()),
+                "complete_catalogs": sorted(k for k, v in _CACHE.items() if v.complete),
+                "cache_timeout": CACHE_TTL_SECONDS
             }
         }
 
         return statistics
 
     async def refresh_all_catalogs(self, limit: Optional[int] = None) -> Dict[str, Any]:
-        """Refresh all catalogs and return summary."""
+        """Rescan every catalog in full and return a summary."""
         logger.info("Refreshing all dynamic catalogs from HAPI FHIR")
 
-        self.cache.clear()  # Clear existing cache
-
-        # Extract all catalogs
-        medications = await self.extract_medication_catalog(limit)
-        conditions = await self.extract_condition_catalog(limit)
-        lab_tests = await self.extract_lab_test_catalog(limit)
-        procedures = await self.extract_procedure_catalog(limit)
-        vaccines = await self.extract_vaccine_catalog(limit)
-        allergies = await self.extract_allergy_catalog(limit)
-        imaging = await self.extract_imaging_catalog(limit)
-        order_sets = await self.extract_order_set_catalog(limit)
+        counts = {}
+        for name in _SOURCES:
+            try:
+                counts[name] = len(await self._scan(name))
+            except Exception as e:
+                logger.error(f"Error refreshing {name} catalog: {e}")
+                counts[name] = len(_CACHE[name].items) if name in _CACHE else 0
         statistics = await self.get_catalog_statistics()
 
         self.last_refresh = datetime.now()
 
         summary = {
             "refresh_time": self.last_refresh.isoformat(),
-            "catalog_counts": {
-                "medications": len(medications),
-                "conditions": len(conditions),
-                "lab_tests": len(lab_tests),
-                "procedures": len(procedures),
-                "vaccines": len(vaccines),
-                "allergies": len(allergies),
-                "imaging": len(imaging),
-                "order_sets": len(order_sets)
-            },
+            "catalog_counts": counts,
             "statistics": statistics
         }
 
         logger.info(f"Catalog refresh complete: {summary['catalog_counts']}")
         return summary
 
-    def _is_cached(self, key: str) -> bool:
-        """Check if result is cached and not expired."""
-        if key not in self.cache:
-            return False
-
-        cache_time = self.cache.get(f"{key}_time")
-        if not cache_time:
-            return False
-
-        return (datetime.now() - cache_time).seconds < self.cache_timeout
-
-    def _cache_result(self, key: str, result: Any) -> None:
-        """Cache a result with timestamp."""
-        self.cache[key] = result
-        self.cache[f"{key}_time"] = datetime.now()
-
     def clear_cache(self) -> None:
         """Clear all cached results."""
-        self.cache.clear()
+        _CACHE.clear()
         logger.info("Dynamic catalog cache cleared")
