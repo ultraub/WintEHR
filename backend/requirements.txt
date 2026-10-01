@@ -37,7 +37,7 @@ python-multipart==0.0.32
 # Used directly (api/auth/jwt_handler.py) — passlib was dropped: unmaintained
 # since 2020 and permanently incompatible with bcrypt >= 5.
 bcrypt==5.0.0
-PyJWT==2.13.0
+PyJWT==2.15.0
 
 # Development tools
 # pytest 9 + pytest-asyncio 1.x move TOGETHER: asyncio 0.21 pins pytest<8 and
