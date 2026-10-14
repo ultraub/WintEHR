@@ -19,6 +19,7 @@ import json
 from typing import Optional, List, Dict, Any
 
 from api.websocket.fhir_notifications import notification_service
+from services.hapi_fhir_client import HAPI_FHIR_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +212,7 @@ async def proxy_to_hapi_fhir(path: str, request: Request):
     headers.pop("host", None)
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=HAPI_FHIR_TIMEOUT) as client:
             # Forward request to HAPI FHIR
             response = await client.request(
                 method=request.method,
@@ -242,12 +243,15 @@ async def proxy_to_hapi_fhir(path: str, request: Request):
             )
 
     except httpx.TimeoutException as e:
-        logger.error(f"Timeout proxying request to HAPI FHIR: {e}")
+        logger.error(
+            f"Timeout proxying {request.method} /fhir/{path} to HAPI FHIR after "
+            f"{HAPI_FHIR_TIMEOUT:.0f}s (HAPI_FHIR_TIMEOUT): {e}"
+        )
         return create_error_response(
             status_code=504,
             severity="error",
             code="timeout",
-            diagnostics="Request to FHIR server timed out",
+            diagnostics=f"Request to FHIR server timed out after {HAPI_FHIR_TIMEOUT:.0f}s",
             details_text=str(e)
         )
     except httpx.ConnectError as e:

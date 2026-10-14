@@ -127,7 +127,8 @@ pytest tests/ -m "not integration"    # skip service-dependent tests
 Test markers: `asyncio`, `integration`, `unit`, `slow`. Swagger at
 `/docs`, health at `/health`.
 
-Key env vars: `DATABASE_URL`, `HAPI_FHIR_URL`, `REDIS_URL`, `JWT_ENABLED`,
+Key env vars: `DATABASE_URL`, `HAPI_FHIR_URL`, `HAPI_FHIR_TIMEOUT` (seconds per
+HAPI request, client + `/fhir` proxy; default 30), `REDIS_URL`, `JWT_ENABLED`,
 `CORS_ORIGINS`, `ENVIRONMENT`, `DEBUG`.
 
 ---

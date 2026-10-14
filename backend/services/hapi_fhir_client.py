@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 
 # HAPI FHIR server configuration
 HAPI_FHIR_BASE_URL = os.getenv('HAPI_FHIR_URL', 'http://hapi-fhir:8080/fhir')
+# Per-request timeout for every call into HAPI (client and /fhir proxy). HAPI
+# has no request timeout of its own; this is the limit a slow search or a big
+# bundle hits. Raise it on small hosts where HAPI is slow rather than stuck.
+HAPI_FHIR_TIMEOUT = float(os.getenv('HAPI_FHIR_TIMEOUT', '30'))
 
 
 
@@ -72,7 +76,7 @@ class HAPIFHIRClient:
             base_url: Optional override for HAPI FHIR base URL
         """
         self.base_url = base_url or HAPI_FHIR_BASE_URL
-        self.timeout = 30.0
+        self.timeout = HAPI_FHIR_TIMEOUT
 
     async def search(
         self,
