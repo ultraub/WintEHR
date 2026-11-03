@@ -195,7 +195,7 @@ WintEHR is a complete, FHIR-native Electronic Health Record system built on a mo
 - React 18.2 with functional components and hooks, built by Vite 7 (Vitest for tests)
 - Material-UI (MUI) 5.18 for UI components
 - TypeScript 4.9 for type safety
-- Axios 1.18 for HTTP requests
+- Axios 1.20 for HTTP requests
 - React Router 7
 - Cornerstone.js for DICOM medical imaging viewer (DICOMweb from dcm4chee)
 - Recharts for data visualization
@@ -257,7 +257,7 @@ frontend/src/
 - FastAPI 0.140+ (async Python web framework)
 - Python 3.12 with async/await
 - SQLAlchemy 2.0+ (async ORM)
-- Pydantic 2.5+ (data validation)
+- Pydantic 2.14+ (data validation)
 - websockets 16 (real-time connections)
 - HTTPX 0.28 (the only HTTP client — `requests` was removed)
 
@@ -988,21 +988,21 @@ cp .env.example .env    # set POSTGRES_PASSWORD, JWT_SECRET_KEY, HAPI_ADMIN_TOKE
 | UI Components | Material-UI | 5.18 | Design system |
 | Language | TypeScript | 4.9 | Type safety |
 | State Management | React Context | - | Global state |
-| HTTP Client | Axios | 1.18 | API requests |
+| HTTP Client | Axios | 1.20 | API requests |
 | Routing | React Router | 7.18 | Client routing |
 | DICOM Viewer | Cornerstone.js | 2.6 | Medical imaging |
 | Charts | Recharts | 3.10 | Data viz |
-| Build Tool | Vite / Vitest | 7.3 / 3.2 | Build, dev server, tests |
+| Build Tool | Vite / Vitest | 7.3 / 5.0 | Build, dev server, tests |
 | Lint | ESLint | 9 (flat config) | `--max-warnings 0` gate |
 | **Backend** |
 | Framework | FastAPI | 0.140+ | Web framework |
 | Language | Python | 3.12 | Backend language |
-| ASGI Server | Uvicorn | 0.51+ | Async server |
+| ASGI Server | Uvicorn | 0.52+ | Async server |
 | ORM | SQLAlchemy | 2.0+ (asyncio) | Database ORM |
-| Validation | Pydantic | 2.5+ | Data validation |
+| Validation | Pydantic | 2.14+ | Data validation |
 | HTTP Client | HTTPX | 0.28 | Async HTTP (only client) |
 | WebSocket | websockets | 16.1 | Real-time |
-| Auth | python-jose 3.5, PyJWT 2.13, bcrypt 5 | — | JWT / SMART tokens |
+| Auth | python-jose 3.5, PyJWT 2.15, bcrypt 5 | — | JWT / SMART tokens |
 | DICOM | PyDICOM | 3.0 | Medical imaging |
 | Testing | Pytest | 9.1 + pytest-asyncio 1.4 | Test framework |
 | **FHIR Server** |

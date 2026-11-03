@@ -4,7 +4,7 @@
 operators responsible for hardening their installation. Distinguishes what
 the project hardens by default from what each deployment must do for itself.
 
-**Last verified against code**: 2026-11-03 (master `a99ec81a`). Every claim
+**Last verified against code**: 2026-11-03 (master `7de84674`). Every claim
 below was checked against the file named in its row; if a path moves, treat
 the row as suspect and re-verify.
 
@@ -84,9 +84,9 @@ deployment using the prod profile (`./deploy.sh --environment prod`).
 | Mitigation | Implementation | Why |
 |------------|----------------|-----|
 | `python-jose[cryptography]` 3.5.0 | `backend/requirements.txt` | Patches ECDSA algorithm-confusion CVE (CRITICAL) |
-| `PyJWT` 2.13.0 | requirements.txt | Patches `crit` header bypass |
+| `PyJWT` 2.15.1 | requirements.txt | Patches `crit` header bypass |
 | `python-multipart` 0.0.32 | requirements.txt | Patches arbitrary-file-write (CVSS 8.6) |
-| `aiohttp` 3.14.3 | requirements.txt | Patches UNC SSRF + a long tail of lower-severity issues |
+| `aiohttp` 3.14.4 | requirements.txt | Patches UNC SSRF + a long tail of lower-severity issues |
 | `pydicom` 3.0.2 | requirements.txt | Patches path traversal via DICOM ReferencedFileID |
 | `requests` removed | PR #203 — all HTTP is `httpx` 0.28 | One async client; the `verify=False` contagion class of bug is gone with the library |
 | `bcrypt` 5.0 used directly | PR #267 dropped `passlib` | Unblocked the bcrypt 5 security line |
