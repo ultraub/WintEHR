@@ -144,14 +144,15 @@ ANTHROPIC_API_KEY=<anthropic-api-key>
 | `HAPI_ADMIN_TOKEN` | empty (admin endpoints refuse all calls) | yes |
 | `WINTEHR_DISABLED_MODULES` | empty | yes |
 | `ANTHROPIC_API_KEY` | empty | yes |
-| `CORS_ORIGINS` | `*` | **no** — add via `docker-compose.override.yml` |
-| `EXTERNAL_SERVICES_URL_ALLOWLIST` | empty (accept all + warning) | **no** |
-| `SMART_ENABLED` | same as `JWT_ENABLED` | **no** |
-| `SMART_ALLOW_UNPROTECTED` | `true` (unauthenticated FHIR reads) | **no** |
+| `CORS_ORIGINS` | empty → `*` | yes |
+| `EXTERNAL_SERVICES_URL_ALLOWLIST` | empty (accept all + warning) | yes |
+| `SMART_ENABLED` | same as `JWT_ENABLED` | yes (compose mirrors the derivation) |
+| `SMART_ALLOW_UNPROTECTED` | `true` (unauthenticated FHIR reads) | yes |
 
 "Forwarded" means listed in the backend service's `environment:` block in
 `docker-compose.yml`; there is no `env_file:`, so anything else in `.env`
-stays on the host.
+stays on the host. When you add a backend setting, add it to both
+`backend-dev` and `backend-prod`.
 
 ### config.{environment}.yaml
 
@@ -485,8 +486,7 @@ security:
 
 **Description**: CORS (Cross-Origin Resource Sharing) allowed origins.
 `deploy/validate_config.py` warns when it is `*` in `production`; the value
-that actually reaches the backend is the `CORS_ORIGINS` env var (see the
-`.env` section above for how to forward it).
+that actually reaches the backend is the `CORS_ORIGINS` env var in `.env`.
 
 **Development**: Use `["*"]` to allow all origins.
 

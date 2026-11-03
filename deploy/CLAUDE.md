@@ -64,10 +64,12 @@ HAPI_ADMIN_TOKEN=                # bearer token for HAPI overlay admin endpoints
 WINTEHR_SSL_DOMAIN_NAME=         # set to localhost to skip Let's Encrypt
 ```
 
-`CORS_ORIGINS`, `EXTERNAL_SERVICES_URL_ALLOWLIST`, `SMART_ENABLED` and
-`SMART_ALLOW_UNPROTECTED` are read by the backend but are **not** in the
-compose `environment:` list — forward them via `docker-compose.override.yml`.
-See `docs/SECURITY.md`.
+The backend gets only what the compose `environment:` list names (no
+`env_file:`). `CORS_ORIGINS`, `EXTERNAL_SERVICES_URL_ALLOWLIST`,
+`SMART_ENABLED` and `SMART_ALLOW_UNPROTECTED` are forwarded with defaults
+that mirror the backend's; the SMART ones must never be forwarded as empty
+strings (the backend reads "" as false). New backend settings go in both
+`backend-dev` and `backend-prod`. See `docs/SECURITY.md`.
 
 All external URLs must stay env-driven — see root rule 4. Do not hardcode a
 deployment host anywhere in this directory or in compose files.

@@ -116,7 +116,7 @@ target environment.
    any deployment beyond a closed dev environment, set `JWT_ENABLED=true`.
    This also turns on the SMART write gate. Decide separately whether
    unauthenticated FHIR *reads* are acceptable (`SMART_ALLOW_UNPROTECTED`,
-   default `true`) — see the compose note under "Known limitations".
+   default `true`; set `false` in `.env` to require a token for reads).
    See [CLIENT_DEPLOYMENT.md § Post-Deployment Hardening](CLIENT_DEPLOYMENT.md#post-deployment-hardening).
 
 4. **TLS certificate.** Either Let's Encrypt via the bundled certbot
@@ -217,19 +217,16 @@ The DB-backed `SecureAuthService` referenced by older docs was **removed in
 PR #158** (it queried tables that never existed). There is no partial
 "Phase 2" path to finish — production use needs a real identity provider.
 
-### Security env vars that compose does not forward
+### Compose forwards an explicit env list
 
 `docker-compose.yml` passes an explicit `environment:` list to the backend
-containers; there is no `env_file:`. The following are read by the backend
-but are **not** in that list, so setting them in `.env` has no effect until
-you add them (a `docker-compose.override.yml` is the clean way):
-
-| Variable | Read by | Effect when missing |
-|---|---|---|
-| `CORS_ORIGINS` | `CORSSecurityMiddleware` | CORS stays `*` |
-| `EXTERNAL_SERVICES_URL_ALLOWLIST` | `url_policy.py` | SSRF guard stays open |
-| `SMART_ENABLED`, `SMART_ALLOW_UNPROTECTED` | `smart/middleware.py` | Defaults apply (derive from `JWT_ENABLED`; reads open) |
-| `FORCE_HTTPS`, `DISABLE_SECURITY_MIDDLEWARE` | `security_middleware.py`, `main.py` | Defaults apply |
+containers; there is no `env_file:`. `CORS_ORIGINS`,
+`EXTERNAL_SERVICES_URL_ALLOWLIST`, `SMART_ENABLED` and
+`SMART_ALLOW_UNPROTECTED` are forwarded (since 2026-11-03, with defaults
+that mirror the backend's). `FORCE_HTTPS` and `DISABLE_SECURITY_MIDDLEWARE`
+are not; if you add a new security-relevant variable to the backend, add it
+to both `backend-dev` and `backend-prod` in compose or it never reaches the
+container.
 
 ### `ENVIRONMENT=prod` is not `production`
 
@@ -244,8 +241,8 @@ suppression is unaffected (it checks for `development`).
 
 With `JWT_ENABLED=true` the SMART middleware gates writes only.
 `SMART_ALLOW_UNPROTECTED=true` (the default) lets any client read every
-FHIR resource through `/fhir/R4/*` without a token. Set it to `false` for
-any instance that is not a public demo (and forward it — see above).
+FHIR resource through `/fhir/R4/*` without a token. Set it to `false` in
+`.env` for any instance that is not a public demo.
 
 ### No data encryption at rest
 
@@ -310,8 +307,8 @@ For an InfoSec review of a specific deployment, walk through:
 - [ ] `sudo ss -tlnp | grep -E ':(389|5433|8443|9990)'` — dcm4chee ports bound to `127.0.0.1` only (or absent with `--skip-dicom`)
 - [ ] `curl -sI https://<domain>/` — HSTS, X-Frame-Options, X-Content-Type-Options, Content-Security-Policy present?
 - [ ] `curl -sI http://<domain>/` — returns 301 redirect to HTTPS?
-- [ ] `curl -s https://<domain>/fhir/R4/Patient?_count=1` with no token — do you *want* that to succeed? If not, `SMART_ALLOW_UNPROTECTED=false` and forwarded into the container
-- [ ] `docker exec emr-backend env | grep -E "CORS_ORIGINS|EXTERNAL_SERVICES_URL_ALLOWLIST|SMART_"` — are the hardening vars actually inside the container?
+- [ ] `curl -s https://<domain>/fhir/R4/Patient?_count=1` with no token — do you *want* that to succeed? If not, `SMART_ALLOW_UNPROTECTED=false`
+- [ ] `docker exec emr-backend env | grep -E "CORS_ORIGINS|EXTERNAL_SERVICES_URL_ALLOWLIST|SMART_"` — do the values inside the container match `.env`?
 - [ ] `docker compose --profile prod logs backend-prod | grep -i "EXTERNAL_SERVICES_URL_ALLOWLIST is not set"` — should be absent on an exposed host
 - [ ] Open Dependabot alerts in GitHub: how many, what severity?
 - [ ] Open CodeQL alerts: how many, all triaged?
@@ -330,6 +327,7 @@ Kept so an auditor can see what landed after their last review.
 
 | Date | PR | Change |
 |---|---|---|
+| 2026-11-03 | — | `CORS_ORIGINS`, `EXTERNAL_SERVICES_URL_ALLOWLIST`, `SMART_ENABLED`, `SMART_ALLOW_UNPROTECTED` forwarded into the backend containers by compose (previously silently ignored from `.env`) |
 | 2026-07-10 | #215 | dcm4chee behind `dicom` profile with loopback-only ports and named volumes; nginx config → template; `JWT_SECRET_KEY` canonical with `JWT_SECRET` fallback; `EXTERNAL_SERVICES_URL_ALLOWLIST` SSRF guard; minimal CI |
 | 2026-07-07 | #203 | `requests` removed; DICOM service on async `httpx` |
 | 2026-07-25 | — | CI `GITHUB_TOKEN` restricted to `contents: read` (CodeQL finding) |

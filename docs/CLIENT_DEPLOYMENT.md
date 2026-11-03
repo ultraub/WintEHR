@@ -231,8 +231,9 @@ categories:
 - **Redis** (`REDIS_*`) — defaults are fine
 - **HAPI FHIR** — defaults are fine
 - **Authentication** (`JWT_ENABLED`, `JWT_SECRET_KEY`) — must set both for prod
-- **CORS origins** (`CORS_ORIGINS`) — restrict to your actual domains (see the
-  compose caveat under Hardening § 3)
+- **CORS origins** (`CORS_ORIGINS`) — restrict to your actual domains
+- **External-service allow-list** (`EXTERNAL_SERVICES_URL_ALLOWLIST`) — set on
+  any internet-exposed host
 - **HAPI admin** (`HAPI_ADMIN_TOKEN`) — needed for CDS Studio cache flushes
 - **Modules** (`WINTEHR_DISABLED_MODULES`) — e.g. `imaging` on a box with no
   VNA, `ai-tools` without an LLM key; see [MODULES.md](MODULES.md)
@@ -298,9 +299,7 @@ docker compose --profile prod up -d backend-prod
 
 Enabling JWT also enables the SMART middleware, which requires a bearer
 token for FHIR **writes**. FHIR **reads** stay open unless you also set
-`SMART_ALLOW_UNPROTECTED=false` — and that variable is not in the compose
-`environment:` list, so add it through a `docker-compose.override.yml`
-(see § 3 for the pattern).
+`SMART_ALLOW_UNPROTECTED=false` in `.env`.
 
 **Important caveat**: the current auth system, even with JWT enabled, uses
 hardcoded demo users (demo/password, nurse/password, etc.) and the
@@ -322,20 +321,12 @@ The demo users (`demo`, `nurse`, `pharmacist`, `admin`) all share password
 
 Both the backend's CORS middleware and HAPI's CORS default to `*` for
 educational ease, and external CDS-service registration accepts any URL.
+In `.env`:
 
-`docker-compose.yml` passes an explicit `environment:` list to the backend
-and does not use `env_file:`, so `CORS_ORIGINS` and
-`EXTERNAL_SERVICES_URL_ALLOWLIST` in `.env` reach the container only if you
-forward them. Create `docker-compose.override.yml` (untracked) next to the
-compose file:
-
-```yaml
-services:
-  backend-prod:
-    environment:
-      - CORS_ORIGINS=https://your-deployment-domain.example.com,https://your-smart-app.example.com
-      - EXTERNAL_SERVICES_URL_ALLOWLIST=cds.example.com,.trusted.org
-      - SMART_ALLOW_UNPROTECTED=false
+```bash
+CORS_ORIGINS=https://your-deployment-domain.example.com,https://your-smart-app.example.com
+EXTERNAL_SERVICES_URL_ALLOWLIST=cds.example.com,.trusted.org
+SMART_ALLOW_UNPROTECTED=false
 ```
 
 Then `docker compose --profile prod up -d backend-prod`. Verify with
