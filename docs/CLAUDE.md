@@ -17,9 +17,9 @@ Grouped by topic (verify against the actual directory — file lists drift):
 |---|---|
 | Entry / index | `INDEX.md` |
 | Deployment & config | `DEPLOYMENT.md`, `CLIENT_DEPLOYMENT.md`, `AZURE_DEPLOYMENT.md`, `CONFIGURATION.md`, `TERMINOLOGY_SETUP.md` |
-| Architecture | `SYSTEM_ARCHITECTURE.md`, `architecture.png`, `generate_architecture.py`, `figures/` |
+| Architecture | `SYSTEM_ARCHITECTURE.md`, `ARCHITECTURE_DEBT.md`, `architecture.png`, `generate_architecture.py`, `figures/` |
 | CQL authoring | `STUDENT_CQL_PRIMER.md`, `CQL_AUTHORING_PROMPT.md` |
-| Security | `SECURITY.md` |
+| Security | `SECURITY.md` — carries a "Last verified against code" date and a PR-numbered change log; bump both when a security-relevant change lands |
 | Testing / verification | `TESTING_CHECKLIST.md`, `WORKFLOW_VERIFICATION_REPORT.md` |
 | Extending (modules) | `MODULES.md`, `screenshots/` (live-capture images used by the README) |
 | Change logs | `API_UPDATES_*.md` |
@@ -43,6 +43,7 @@ lives in `backend/api/cds_hooks/CLAUDE.md` and the student-facing CQL primer.
 | Change | Update |
 |---|---|
 | Deployment / config behavior | `DEPLOYMENT.md`, `CONFIGURATION.md` (+ `deploy/CLAUDE.md`) |
+| Anything auth, network exposure, secrets, dependency CVEs | `SECURITY.md` (tables + change log) and `CLIENT_DEPLOYMENT.md` § Hardening |
 | CDS Studio / visual builder | `backend/api/cds_hooks/CLAUDE.md` |
 | CQL authoring surface | `STUDENT_CQL_PRIMER.md` (+ `backend/api/cds_hooks/CLAUDE.md`) |
 | Architecture pattern | `SYSTEM_ARCHITECTURE.md` + root & module `CLAUDE.md` |

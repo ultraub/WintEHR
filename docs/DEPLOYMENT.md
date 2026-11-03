@@ -1,7 +1,6 @@
 # WintEHR Deployment Guide
 
-**Version**: 1.2.1
-**Last Updated**: December 14, 2025
+**Last Updated**: 2026-11-03
 
 This guide covers all deployment options for WintEHR, from local development to production deployment.
 
@@ -112,8 +111,8 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 cd frontend
 npm install
 
-# Run dev server
-npm start
+# Run dev server (Vite on :3000; `npm start` is an alias)
+npm run dev
 ```
 
 **HAPI FHIR (containerized):**
@@ -154,8 +153,8 @@ The `--domain` flag automatically configures all production settings:
 This automatically:
 - Sets `DOMAIN` in `.env`
 - Configures all `REACT_APP_*` URLs for HTTPS
-- Updates `nginx-prod.conf` with SSL certificate paths
-- Obtains Let's Encrypt SSL certificates
+- Renders `deploy/nginx-prod.conf.template` → `deploy/rendered/nginx.conf` (gitignored)
+- Obtains Let's Encrypt SSL certificates (`deploy/init-ssl.sh`)
 - Generates 100 synthetic patients
 
 **Option 2: Manual Configuration**
@@ -178,7 +177,8 @@ DOMAIN=wintehr.yourdomain.com
 # Strong passwords (generate new values!)
 POSTGRES_PASSWORD=<strong-password>
 SECRET_KEY=<generate-with-secrets.token_urlsafe(50)>
-JWT_SECRET=<generate-with-secrets.token_urlsafe(50)>
+JWT_SECRET_KEY=<generate-with-secrets.token_urlsafe(50)>   # JWT_SECRET is accepted as a fallback
+HAPI_ADMIN_TOKEN=<generate-with-secrets.token_urlsafe(50)>
 
 # Production URLs (auto-configured if using --domain flag)
 REACT_APP_API_URL=https://wintehr.yourdomain.com
@@ -204,7 +204,8 @@ REACT_APP_WS_URL=wss://wintehr.yourdomain.com/ws
 
 **Step 3: Start Services** (~1 minute)
 - Infrastructure: PostgreSQL, Redis
-- FHIR Server: HAPI FHIR (pinned v8.6.0)
+- FHIR Server: HAPI FHIR (local overlay on `hapiproject/hapi:v8.8.0-1`)
+- Imaging: dcm4chee VNA (`dicom` profile, on by default; `--skip-dicom` to omit)
 - Application: Backend, Frontend
 - Proxy: Nginx (production only)
 
@@ -216,8 +217,10 @@ REACT_APP_WS_URL=wss://wintehr.yourdomain.com/ws
 **Step 5: Data Generation** (~5-8 minutes)
 - Synthea patient generation (100 patients for prod)
 - FHIR bundle loading to HAPI server
-- DICOM file generation
+- CDS services loaded as `PlanDefinition`s
+- DICOM file generation, STOW-RS upload into dcm4chee, `Endpoint` linking
 - Demo practitioner creation
+- Terminology index + HAPI load, only if vocabularies or `UMLS_API_KEY` are present ([TERMINOLOGY_SETUP.md](TERMINOLOGY_SETUP.md))
 
 **Step 6: SSL Setup** (production only, ~2 minutes)
 - Let's Encrypt certificate via Certbot
@@ -316,16 +319,15 @@ WintEHR provides multiple Dockerfile variants for different use cases:
 
 | File | Purpose | Use Case |
 |------|---------|----------|
-| `Dockerfile` (root) | All-in-one container | Single-container deployment |
-| `backend/Dockerfile` | Main backend image | Docker Compose dev/prod |
-| `backend/Dockerfile.dev` | Development backend | Hot-reload, debugging |
-| `backend/Dockerfile.production` | Optimized backend | Production deployment |
-| `frontend/Dockerfile` | Main frontend image | Docker Compose dev/prod |
-| `frontend/Dockerfile.dev` | Development frontend | Hot-reload, debugging |
-| `frontend/Dockerfile.production` | Optimized frontend | Production deployment |
-| `frontend/Dockerfile.build` | Build-only | CI/CD pipelines |
+| `Dockerfile` (root) | All-in-one container | Single-container experiments; not used by compose |
+| `backend/Dockerfile` | Production backend image (non-root `emruser`, Synthea SHA256 check) | `backend-prod` |
+| `backend/Dockerfile.dev` | Development backend | `backend-dev` (hot reload) |
+| `frontend/Dockerfile` | Vite build served by nginx | `frontend-prod` |
+| `frontend/Dockerfile.dev` | Vite dev server | `frontend-dev` (HMR) |
+| `frontend/Dockerfile.production`, `frontend/Dockerfile.build` | Alternative/CI builds | Not referenced by compose |
+| `deploy/hapi-overlay/Dockerfile` | HAPI FHIR + CR cache-flush admin controller | `hapi-fhir-dev|prod` |
 
-**Note**: Docker Compose automatically selects the appropriate Dockerfile based on the profile (dev/prod).
+**Note**: `docker-compose.yml` picks the Dockerfile per profile (dev/prod).
 
 ### Manual Build Process
 
@@ -498,6 +500,9 @@ WintEHR uses Docker Compose profiles for environment-specific configurations:
 | SSL | ❌ HTTP only | ✅ HTTPS with Certbot |
 | Patient count | 20 | 100 |
 | Restart policy | no | unless-stopped |
+| Published ports | 3000/8000/8888/5432/6379 | 80/443 only (dcm4chee on `127.0.0.1`) |
+
+Both profiles add the `dicom` profile (dcm4chee VNA) unless you pass `--skip-dicom`.
 
 ### Custom Configuration
 
@@ -546,7 +551,7 @@ services:
 docker compose --profile prod up -d --scale backend-prod=3
 ```
 
-**Load balancing**: Configure nginx upstream in `nginx-prod.conf`:
+**Load balancing**: Configure the nginx upstream in `deploy/nginx-prod.conf.template` (then re-run `deploy.sh` to re-render):
 
 ```nginx
 upstream backend {
@@ -562,10 +567,10 @@ upstream backend {
 
 ### Pre-Deployment
 
-- [ ] Azure VM created and accessible
+- [ ] Host created and accessible (Azure: see [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md))
 - [ ] SSH key configured
 - [ ] DNS/domain configured
-- [ ] Ports 80, 443 open in NSG
+- [ ] Ports 80, 443 open in the firewall / NSG (80 must be open to the whole internet for Let's Encrypt)
 - [ ] Configuration files validated
 - [ ] Sufficient disk space (100GB+)
 
@@ -598,5 +603,4 @@ For deployment issues:
 
 ---
 
-**Last Updated**: November 26, 2025
-**WintEHR Version**: 1.2.0
+**Last Updated**: 2026-11-03

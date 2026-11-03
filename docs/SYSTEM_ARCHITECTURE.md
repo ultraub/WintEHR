@@ -1,8 +1,7 @@
 # WintEHR System Architecture
 
 **Educational Healthcare IT Platform**
-**Last Updated**: November 2025
-**Version**: 1.1.0
+**Last Updated**: 2026-11-03
 
 ---
 
@@ -81,7 +80,7 @@ WintEHR is a complete, FHIR-native Electronic Health Record system built on a mo
 │  │ Port 3000 │        │ Port 8000   │      │  Port 8888   │         │
 │  │           │        │             │      │              │         │
 │  │ • React 18│        │ • FastAPI   │      │ • FHIR R4    │         │
-│  │ • MUI 5   │        │ • Python 3.9│      │ • Search     │         │
+│  │ • MUI 5   │        │ • Python 3.12      │ • Search     │         │
 │  │ • TypeScript       │ • Async/Await      │ • Validation │         │
 │  │ • WebSocket│        │ • WebSocket │      │ • Versioning │         │
 │  │ • DICOM    │        │ • CDS Hooks │      │              │         │
@@ -193,15 +192,16 @@ WintEHR is a complete, FHIR-native Electronic Health Record system built on a mo
 **Purpose**: User interface for all clinical workflows and FHIR interactions
 
 **Technology Stack**:
-- React 18.2 with functional components and hooks
+- React 18.2 with functional components and hooks, built by Vite 7 (Vitest for tests)
 - Material-UI (MUI) 5.18 for UI components
 - TypeScript 4.9 for type safety
-- Axios 1.4 for HTTP requests
-- Cornerstone.js for DICOM medical imaging viewer
-- Chart.js and Recharts for data visualization
+- Axios 1.18 for HTTP requests
+- React Router 7
+- Cornerstone.js for DICOM medical imaging viewer (DICOMweb from dcm4chee)
+- Recharts for data visualization
 
 **Container**: `emr-frontend`
-**Port**: 3000
+**Port**: 3000 (dev: Vite dev server with proxy; prod: nginx serving the Vite build, internal only)
 **Build**: Multi-stage Docker build with nginx serving static files
 
 **Key Features**:
@@ -254,12 +254,12 @@ frontend/src/
 **Purpose**: Business logic layer, FHIR proxy, and clinical workflow orchestration
 
 **Technology Stack**:
-- FastAPI 0.104+ (async Python web framework)
-- Python 3.9+ with async/await
+- FastAPI 0.140+ (async Python web framework)
+- Python 3.12 with async/await
 - SQLAlchemy 2.0+ (async ORM)
 - Pydantic 2.5+ (data validation)
-- WebSockets 12.0 (real-time connections)
-- HTTPX 0.25 (async HTTP client)
+- websockets 16 (real-time connections)
+- HTTPX 0.28 (the only HTTP client — `requests` was removed)
 
 **Container**: `emr-backend`
 **Port**: 8000
@@ -556,42 +556,44 @@ await redis.srem("ws:connected", connection_id)
 
 **Development vs Production**:
 
-**Development** (`nginx.conf`):
-- HTTP only (port 80)
-- No SSL
-- Direct container access
-- Minimal security headers
+**Development**: no nginx. The Vite dev server (`frontend/vite.config.js`)
+proxies `/api`, `/fhir` and `/ws` to the backend, and every port is
+published on localhost.
 
-**Production** (`nginx-prod.conf`):
+**Production** (`deploy/nginx-prod.conf.template`, rendered by `deploy.sh`
+to `deploy/rendered/nginx.conf` with `${DOMAIN}` substituted):
 - HTTPS with Let's Encrypt SSL
-- HTTP → HTTPS redirect
+- HTTP → HTTPS redirect (ACME challenge path excepted)
 - Rate limiting
-- Full security headers
+- Security headers
 - Gzip compression
+- No CORS headers — the backend sets them once
 
-**Routing Rules**:
+**Routing Rules** (abridged):
 ```nginx
-# Frontend (React app)
+# Frontend (static Vite build)
 location / {
-    proxy_pass http://frontend:80;
+    proxy_pass http://frontend;
+    limit_req zone=general_limit burst=100 nodelay;
 }
 
 # Backend API
 location /api/ {
-    proxy_pass http://backend:8000;
-    limit_req zone=api_limit burst=20;
+    proxy_pass http://backend;
+    limit_req zone=api_limit burst=200 nodelay;
 }
 
-# HAPI FHIR Server
-location /fhir/ {
-    proxy_pass http://hapi-fhir:8080/fhir/;
-    limit_req zone=api_limit burst=30;
-}
+# FHIR — through the backend (api/fhir/proxy.py) so the SMART middleware
+# can validate tokens; the backend forwards to HAPI. Exact-match blocks for
+# /fhir and /fhir/R4 keep POST [base] from being 301'd into a GET.
+location /fhir/R4/ { proxy_pass http://backend; }
+location = /fhir    { proxy_pass http://backend; }
+location = /fhir/R4 { proxy_pass http://backend; }
+location /fhir/     { proxy_pass http://backend; }
 
-# API Documentation
-location /docs {
-    proxy_pass http://backend:8000;
-}
+# API Documentation (exposed — see docs/SECURITY.md)
+location /docs         { proxy_pass http://backend; }
+location /openapi.json { proxy_pass http://backend; }
 ```
 
 **Security Headers** (Production):
@@ -604,17 +606,15 @@ add_header X-XSS-Protection "1; mode=block" always;
 
 **Rate Limiting**:
 ```nginx
-# API endpoints: 10 requests/second
-limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
-
-# General traffic: 100 requests/second
-limit_req_zone $binary_remote_addr zone=general_limit:10m rate=100r/s;
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/s;
+limit_req_zone $binary_remote_addr zone=general_limit:10m rate=200r/s;
+limit_req_zone $binary_remote_addr zone=cds_limit:10m rate=100r/s;
 ```
 
 **SSL Configuration** (Production with Let's Encrypt):
 ```nginx
-ssl_certificate /etc/letsencrypt/live/wintehr.example.com/fullchain.pem;
-ssl_certificate_key /etc/letsencrypt/live/wintehr.example.com/privkey.pem;
+ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
 ssl_protocols TLSv1.2 TLSv1.3;
 ssl_ciphers HIGH:!aNULL:!MD5;
 ssl_prefer_server_ciphers on;
@@ -796,11 +796,12 @@ Clinician prescribes medication
 **Container Communication**:
 ```
 All containers connected to emr-network:
-├─ emr-frontend (frontend:80)
+├─ emr-frontend (frontend:80 prod / :3000 dev)
 ├─ emr-backend (backend:8000)
 ├─ emr-hapi-fhir (hapi-fhir:8080)
 ├─ emr-postgres (postgres:5432)
 ├─ emr-redis (redis:6379)
+├─ vna-ldap / vna-db / vna-arc (arc:8080) [dicom profile, on by default]
 └─ emr-nginx (nginx:80/443) [Production only]
 ```
 
@@ -818,14 +819,18 @@ REDIS_URL = "redis://redis:6379/0"
 
 ### Port Mapping
 
-**External Access** (from host machine):
+**External Access** (from host machine, **dev profile**):
 ```
-http://localhost:3000  → Frontend React app
+http://localhost:3000  → Frontend (Vite dev server)
 http://localhost:8000  → Backend API
 http://localhost:8888  → HAPI FHIR server
-http://localhost:5432  → PostgreSQL (database clients)
-http://localhost:6379  → Redis (redis-cli)
+localhost:5432         → PostgreSQL (database clients)
+localhost:6379         → Redis (redis-cli)
+127.0.0.1:8080/8443/9990/389/5433 → dcm4chee (loopback only, both profiles)
 ```
+
+**Prod profile** publishes only nginx `80`/`443` (plus the loopback dcm4chee
+ports). Everything else is reachable solely inside `emr-network`.
 
 **Internal Communication** (within Docker network):
 ```
@@ -880,14 +885,15 @@ healthcheck:
 
 ### Development Mode
 
-**Configuration**: `config.yaml` with `environment: dev`
+**Configuration**: `.env` with `ENVIRONMENT=dev` (default; `config.yaml`
+`environment:` is also honoured if present)
 
 **Characteristics**:
 - HTTP only (no SSL)
-- JWT authentication disabled
+- JWT authentication disabled (training mode)
 - Demo users enabled (demo/password, nurse/password)
 - Hot reload enabled for backend and frontend
-- 20 synthetic patients with basic DICOM
+- 20 synthetic patients with basic DICOM in dcm4chee
 - Direct container port access (no nginx)
 - Detailed logging and debugging
 
@@ -897,14 +903,14 @@ healthcheck:
 ✓ emr-redis (Redis 7)
 ✓ emr-hapi-fhir (HAPI FHIR)
 ✓ emr-backend (FastAPI with reload)
-✓ emr-frontend (React dev server)
+✓ emr-frontend (Vite dev server)
+✓ vna-ldap, vna-db, vna-arc (dcm4chee; omit with --skip-dicom)
 ✗ emr-nginx (not used in dev)
 ```
 
 **Deployment**:
 ```bash
-cp config.example.yaml config.yaml
-# Edit: environment: dev, enable_ssl: false, patient_count: 20
+cp .env.example .env     # defaults are fine for dev
 ./deploy.sh
 ```
 
@@ -917,18 +923,19 @@ cp config.example.yaml config.yaml
 
 ---
 
-### Production Mode (Azure)
+### Production Mode
 
-**Configuration**: `config.azure-prod.yaml`
+**Configuration**: `.env` with `ENVIRONMENT=prod` and `DOMAIN` (both written
+by `./deploy.sh -e prod --domain <host>`)
 
 **Characteristics**:
 - HTTPS with Let's Encrypt SSL certificates
-- JWT authentication required
-- 100+ synthetic patients with comprehensive DICOM
+- JWT authentication **available** — `JWT_ENABLED=true` must be set by the
+  operator; the profile alone does not enable it
+- 100 synthetic patients with DICOM in dcm4chee
 - Nginx reverse proxy for all traffic
 - Rate limiting and security headers
-- Production logging and monitoring
-- Automated deployment with server wipe
+- Only 80/443 published on the host
 
 **Services Running**:
 ```
@@ -937,21 +944,21 @@ cp config.example.yaml config.yaml
 ✓ emr-hapi-fhir (HAPI FHIR)
 ✓ emr-backend (FastAPI production)
 ✓ emr-frontend (Nginx serving static build)
+✓ vna-ldap, vna-db, vna-arc (dcm4chee, loopback ports)
 ✓ emr-nginx (Reverse proxy with SSL)
+✓ emr-certbot (renewal loop)
 ```
 
-**Infrastructure**:
-- **Cloud**: Azure VM (Standard_D4s_v3 recommended)
-- **OS**: Ubuntu 22.04 LTS
-- **Domain**: Azure CloudApp DNS (e.g., wintehr.eastus2.cloudapp.azure.com)
-- **SSL**: Let's Encrypt automatic certificate
-- **Firewall**: Azure NSG with ports 80, 443, 22 open
+**Infrastructure** (any Linux VM; Azure specifics in `docs/AZURE_DEPLOYMENT.md`):
+- **OS**: Ubuntu 24.04 LTS
+- **Domain**: public DNS name (e.g. an Azure `cloudapp.azure.com` label)
+- **SSL**: Let's Encrypt automatic certificate (HTTP-01 — port 80 open to Any)
+- **Firewall**: ports 80, 443, 22 open
 
-**Deployment** (on the VM — see `docs/AZURE_DEPLOYMENT.md` for full setup):
+**Deployment**:
 ```bash
-# Configure, then deploy the prod profile
-cp .env.example .env    # set DOMAIN, passwords, PATIENT_COUNT, RESTART_POLICY
-./deploy.sh --environment prod
+cp .env.example .env    # set POSTGRES_PASSWORD, JWT_SECRET_KEY, HAPI_ADMIN_TOKEN
+./deploy.sh --environment prod --domain your.domain
 
 # What this does:
 # 1. Builds Docker images (backend + frontend + HAPI overlay)
@@ -981,24 +988,26 @@ cp .env.example .env    # set DOMAIN, passwords, PATIENT_COUNT, RESTART_POLICY
 | UI Components | Material-UI | 5.18 | Design system |
 | Language | TypeScript | 4.9 | Type safety |
 | State Management | React Context | - | Global state |
-| HTTP Client | Axios | 1.4 | API requests |
-| Routing | React Router | 6.11 | Client routing |
+| HTTP Client | Axios | 1.18 | API requests |
+| Routing | React Router | 7.18 | Client routing |
 | DICOM Viewer | Cornerstone.js | 2.6 | Medical imaging |
-| Charts | Chart.js, Recharts | - | Data viz |
-| Build Tool | CRACO | 7.1 | CRA config |
+| Charts | Recharts | 3.10 | Data viz |
+| Build Tool | Vite / Vitest | 7.3 / 3.2 | Build, dev server, tests |
+| Lint | ESLint | 9 (flat config) | `--max-warnings 0` gate |
 | **Backend** |
-| Framework | FastAPI | 0.104+ | Web framework |
-| Language | Python | 3.9+ | Backend language |
-| ASGI Server | Uvicorn | 0.24+ | Async server |
-| ORM | SQLAlchemy | 2.0+ | Database ORM |
+| Framework | FastAPI | 0.140+ | Web framework |
+| Language | Python | 3.12 | Backend language |
+| ASGI Server | Uvicorn | 0.51+ | Async server |
+| ORM | SQLAlchemy | 2.0+ (asyncio) | Database ORM |
 | Validation | Pydantic | 2.5+ | Data validation |
-| HTTP Client | HTTPX | 0.25 | Async HTTP |
-| WebSocket | websockets | 12.0 | Real-time |
-| FHIR | fhir.resources | 7.1 | FHIR validation |
-| DICOM | PyDICOM | 2.4 | Medical imaging |
-| Testing | Pytest | 7.4 | Test framework |
+| HTTP Client | HTTPX | 0.28 | Async HTTP (only client) |
+| WebSocket | websockets | 16.1 | Real-time |
+| Auth | python-jose 3.5, PyJWT 2.13, bcrypt 5 | — | JWT / SMART tokens |
+| DICOM | PyDICOM | 3.0 | Medical imaging |
+| Testing | Pytest | 9.1 + pytest-asyncio 1.4 | Test framework |
 | **FHIR Server** |
-| FHIR Server | HAPI FHIR | Latest | FHIR R4 server |
+| FHIR Server | HAPI FHIR JPA starter | v8.8.0-1 (local overlay) | FHIR R4 server |
+| Imaging | dcm4chee-arc | 5.34.2 | DICOMweb VNA |
 | Language | Java | 17+ | JVM runtime |
 | Framework | Spring Boot | - | Application framework |
 | ORM | Hibernate JPA | - | Persistence |

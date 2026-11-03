@@ -68,7 +68,7 @@ sudo apt-get install -y python3-venv python3-pip
 
 | Port | Purpose | Exposed by | Required? |
 |------|---------|-----------|-----------|
-| 80/tcp | HTTP → auto-redirects to HTTPS; Let's Encrypt challenge | nginx container | Yes |
+| 80/tcp | HTTP → auto-redirects to HTTPS; Let's Encrypt challenge | nginx container | Yes (Let's Encrypt needs it open to the whole internet, not just your users) |
 | 443/tcp | HTTPS — all user traffic | nginx container | Yes |
 | 22/tcp | SSH administration | host sshd | Yes (admin only, consider restricting source IPs) |
 
@@ -76,6 +76,11 @@ No other ports need to be exposed. Internal services (PostgreSQL 5432,
 Redis 6379, HAPI FHIR 8080) run inside the Docker network only and are NOT
 published to the host in the `prod` profile. This is deliberate — the prod
 compose file was written to keep these internal.
+
+The optional dcm4chee imaging stack (`dicom` compose profile, on by default)
+publishes `389`, `5433`, `8080`, `8443` and `9990` **bound to `127.0.0.1`
+only** — reachable from a shell on the host, never from the network. Omit the
+stack with `./deploy.sh --skip-dicom` on hosts that don't need imaging.
 
 ### Outbound access from the WintEHR host
 
@@ -133,7 +138,8 @@ Edit `.env` — the settings that **must change** for a real deployment:
 ENVIRONMENT=prod
 DOMAIN=your-deployment-domain.example.com
 POSTGRES_PASSWORD=<generate a strong password: openssl rand -base64 32>
-JWT_SECRET=<generate: openssl rand -hex 32>
+JWT_SECRET_KEY=<generate: openssl rand -hex 32>   # JWT_SECRET is accepted as a fallback name
+HAPI_ADMIN_TOKEN=<generate: openssl rand -hex 32>
 RESTART_POLICY=unless-stopped
 
 # Recommended changes for production auth (see "Post-Deployment Hardening")
@@ -162,30 +168,38 @@ Place your cert and key:
 ./certbot/conf/live/<domain>/fullchain.pem  (cert chain)
 ./certbot/conf/live/<domain>/privkey.pem    (private key)
 ```
-Update `nginx-prod.conf` if your domain doesn't match the hardcoded reference.
+No nginx edit is needed: `deploy.sh` renders `deploy/nginx-prod.conf.template`
+with your `DOMAIN` into `deploy/rendered/nginx.conf` (gitignored), and the
+certificate paths in the template already point at
+`/etc/letsencrypt/live/<DOMAIN>/`.
 
 ### 4. Run the deployment script
 
 ```bash
-./deploy.sh --environment prod
+./deploy.sh --environment prod --domain your-domain.example.com
 ```
+
+`--domain` writes `DOMAIN`, `ENVIRONMENT=prod` and the HTTPS `REACT_APP_*`
+URLs into `.env` and renders the nginx config. Without it, prod deploys
+prompt for a domain (interactive) or abort (non-interactive).
 
 What happens:
 
 | Phase | Duration | What happens |
 |-------|----------|--------------|
-| 1. Build images | 5–10 min (first time) | Pulls base images, builds backend + frontend |
-| 2. Start services | 1 min | Postgres, Redis, HAPI, backend, frontend, nginx |
+| 1. Build images | 5–10 min (first time) | Pulls base images, builds backend, frontend and the HAPI overlay |
+| 2. Start services | 1 min | Postgres, Redis, HAPI, backend, frontend, nginx (+ dcm4chee unless `--skip-dicom`) |
 | 3. Wait for HAPI | 5–6 min first boot | HAPI initializes JPA schema |
 | 4. Load patient data | 3–5 min | 100 Synthea patients + related FHIR resources |
-| 5. Generate DICOM files | 2–3 min | Synthetic imaging for studies |
-| 6. Create DICOM endpoints | 30 sec | Link ImagingStudy → DICOM URL |
-| 7. Load CDS services | 30 sec | Pre-built decision support rules |
-| 8. Create demo practitioners | 10 sec | demo/nurse/pharmacist/admin users |
-| 9. Terminology load (optional) | 1–3 hours | Only if UMLS_API_KEY is set |
+| 5. Load CDS services | 30 sec | Pre-built decision support rules as `PlanDefinition`s |
+| 6. Generate DICOM files | 2–3 min | Synthetic imaging for studies |
+| 7. STOW DICOM into dcm4chee | 1–2 min | The viewer reads from the VNA over DICOMweb |
+| 8. Create DICOM endpoints | 30 sec | Link ImagingStudy → DICOMweb URL (`--base-url` or `https://$DOMAIN`) |
+| 9. Create demo practitioners | 10 sec | demo/nurse/pharmacist/admin users |
+| 10. Terminology index + load (optional) | minutes to hours | Only if `~/fhir_vocabularies/terminology/*.json` exists or `UMLS_API_KEY` is set — see [TERMINOLOGY_SETUP.md](TERMINOLOGY_SETUP.md) |
+| 11. Let's Encrypt certificate | 1–2 min | `deploy/init-ssl.sh` (skipped when `WINTEHR_SSL_DOMAIN_NAME=localhost`) |
 
-**Total**: ~20 minutes to a functional system. If terminology load triggers,
-it runs in the background — `deploy.sh` returns at step 8.
+**Total**: ~20 minutes to a functional system without terminology.
 
 ### 5. Verify
 
@@ -216,22 +230,30 @@ categories:
 - **Database credentials** (`POSTGRES_*`) — must change from defaults
 - **Redis** (`REDIS_*`) — defaults are fine
 - **HAPI FHIR** — defaults are fine
-- **Authentication** (`JWT_ENABLED`, `JWT_SECRET`) — must set both for prod
-- **CORS origins** (`CORS_ORIGINS`) — restrict to your actual domains
+- **Authentication** (`JWT_ENABLED`, `JWT_SECRET_KEY`) — must set both for prod
+- **CORS origins** (`CORS_ORIGINS`) — restrict to your actual domains (see the
+  compose caveat under Hardening § 3)
+- **HAPI admin** (`HAPI_ADMIN_TOKEN`) — needed for CDS Studio cache flushes
+- **Modules** (`WINTEHR_DISABLED_MODULES`) — e.g. `imaging` on a box with no
+  VNA, `ai-tools` without an LLM key; see [MODULES.md](MODULES.md)
 - **Data paths** — leave defaults unless you have a specific reason
 
 ### Profile selection
 
 ```bash
 ./deploy.sh                     # dev profile (training auth, hot reload, ports published)
-./deploy.sh --environment prod  # prod profile (JWT, nginx, internal ports)
+./deploy.sh --environment prod  # prod profile (nginx + TLS, internal ports)
+./deploy.sh -e prod --skip-dicom  # prod without the dcm4chee imaging stack
 ```
 
 The prod profile:
-- Publishes only nginx 80/443; all backend services are internal
-- Uses non-root containers (UID 1000 emruser for backend)
+- Publishes only nginx 80/443 (plus dcm4chee on `127.0.0.1` unless skipped);
+  all backend services are internal
+- Uses a non-root backend container (UID 1000 `emruser`)
 - Runs with `restart: unless-stopped`
 - Routes all traffic through nginx with TLS termination
+- Does **not** turn on JWT by itself — `JWT_ENABLED` is still `false` until
+  you set it (next section)
 
 ---
 
@@ -265,7 +287,7 @@ hardcoded with password `password`. Before any real deployment:
 ```bash
 # Edit .env
 JWT_ENABLED=true
-JWT_SECRET=<strong random string; generate with: openssl rand -hex 32>
+JWT_SECRET_KEY=<strong random string; generate with: openssl rand -hex 32>
 ```
 
 Restart the backend:
@@ -274,11 +296,18 @@ Restart the backend:
 docker compose --profile prod up -d backend-prod
 ```
 
+Enabling JWT also enables the SMART middleware, which requires a bearer
+token for FHIR **writes**. FHIR **reads** stay open unless you also set
+`SMART_ALLOW_UNPROTECTED=false` — and that variable is not in the compose
+`environment:` list, so add it through a `docker-compose.override.yml`
+(see § 3 for the pattern).
+
 **Important caveat**: the current auth system, even with JWT enabled, uses
-hardcoded demo users (demo/password, nurse/password, etc.). Real user
-provisioning with hashed credentials is documented as "Phase 2" in
-`backend/api/auth/CLAUDE.md` but not yet implemented. Do not put WintEHR
-in front of real users without completing that work.
+hardcoded demo users (demo/password, nurse/password, etc.) and the
+practitioner login path checks no password at all. There is no partial
+"secure auth" implementation to finish — the DB-backed service was removed
+in PR #158. Do not put WintEHR in front of real users; it needs a real
+identity provider first. See [SECURITY.md](SECURITY.md#known-limitations).
 
 ### 2. Change demo user credentials
 
@@ -286,20 +315,34 @@ The demo users (`demo`, `nurse`, `pharmacist`, `admin`) all share password
 `password`. For a non-public deployment:
 
 - Edit `backend/api/auth/config.py`, replace `TRAINING_PASSWORD`, and rebuild
-  the backend image, OR
-- Implement the secure auth path (see `backend/api/auth/secure_auth_service.py`)
-  and set `USE_SECURE_AUTH=true` in `.env`.
+  the backend image. That is the only lever; there is no runtime credential
+  store.
 
-### 3. Restrict CORS
+### 3. Restrict CORS and external-service URLs
 
-By default HAPI FHIR's CORS is `*` for educational ease. In `.env`:
+Both the backend's CORS middleware and HAPI's CORS default to `*` for
+educational ease, and external CDS-service registration accepts any URL.
 
-```bash
-CORS_ORIGINS=https://your-deployment-domain.example.com,https://your-smart-app.example.com
+`docker-compose.yml` passes an explicit `environment:` list to the backend
+and does not use `env_file:`, so `CORS_ORIGINS` and
+`EXTERNAL_SERVICES_URL_ALLOWLIST` in `.env` reach the container only if you
+forward them. Create `docker-compose.override.yml` (untracked) next to the
+compose file:
+
+```yaml
+services:
+  backend-prod:
+    environment:
+      - CORS_ORIGINS=https://your-deployment-domain.example.com,https://your-smart-app.example.com
+      - EXTERNAL_SERVICES_URL_ALLOWLIST=cds.example.com,.trusted.org
+      - SMART_ALLOW_UNPROTECTED=false
 ```
 
-And review `hapi.fhir.cors.allowed_origin` in `docker-compose.yml` if you
-host external SMART apps.
+Then `docker compose --profile prod up -d backend-prod`. Verify with
+`docker exec emr-backend env | grep -E "CORS|ALLOWLIST|SMART"`.
+
+HAPI's own `hapi.fhir.cors.allowed_origin: "*"` only matters if you publish
+HAPI directly, which the prod profile does not.
 
 ### 4. Rotate secrets
 
@@ -307,7 +350,8 @@ Create a calendar recurrence to rotate these at least annually:
 
 | Secret | Where | How to rotate |
 |--------|-------|---------------|
-| `JWT_SECRET` | `.env` | Generate new, update `.env`, restart backend; all existing tokens invalidate |
+| `JWT_SECRET_KEY` | `.env` | Generate new, update `.env`, restart backend; all existing tokens invalidate |
+| `HAPI_ADMIN_TOKEN` | `.env` | Generate new, update `.env`, restart HAPI and backend |
 | `POSTGRES_PASSWORD` | `.env` | Update `.env`, `docker compose exec postgres psql -c "ALTER USER emr_user PASSWORD '...';"`, restart services |
 | `UMLS_API_KEY` | `.env` | Regenerate at NLM UTS, update `.env` |
 | `ANTHROPIC_API_KEY` | `.env` | Regenerate at Anthropic console, update `.env`, restart backend |
@@ -316,12 +360,13 @@ Create a calendar recurrence to rotate these at least annually:
 ### 5. Review exposed ports on the host
 
 ```bash
-sudo ss -tlnp | grep -E "(:80|:443|:5432|:6379|:8080|:8888|:3000|:8000)"
+sudo ss -tlnp | grep -E "(:80|:443|:389|:5432|:5433|:6379|:8080|:8443|:8888|:3000|:8000|:9990)"
 ```
 
-Prod should show **only** 80 and 443. If you see 5432/6379/8080/8888, check
-your docker-compose file and ensure you're running the `prod` profile —
-those ports come from the `dev` profile.
+Prod should show **only** 80 and 443 on `0.0.0.0`/`*`. The dcm4chee ports
+(389, 5433, 8080, 8443, 9990) may appear bound to `127.0.0.1` — that is
+expected. If you see 5432/6379/8888/3000/8000 on `0.0.0.0`, you are running
+the `dev` profile.
 
 See [SECURITY.md](SECURITY.md) for the full security posture.
 
@@ -424,6 +469,17 @@ git reset --hard origin/master              # Or a specific tag
 Review the commit log and associated `CLAUDE.md` updates for anything
 marked breaking. Recent notable changes:
 
+- **nginx config is now rendered** (PR #215, 2026-07): `nginx-prod.conf` became
+  `deploy/nginx-prod.conf.template`; `deploy.sh` writes
+  `deploy/rendered/nginx.conf`. A container still bind-mounting the old
+  path cannot restart — recreate `emr-nginx` once after upgrading.
+- **dcm4chee behind the `dicom` profile with named volumes** (PR #215): the
+  old `/var/local/dcm4chee-arc/*` host binds are gone; migrate the data or
+  pin the binds in a compose override before recreating the VNA containers.
+- **`JWT_SECRET_KEY` is canonical** (PR #215): `JWT_SECRET` still works as a
+  fallback, but update `.env` to avoid confusion.
+- **Frontend moved from CRA to Vite 7** (PR #243): dev server is
+  `npm run dev`; tests are Vitest (`npm test`).
 - **Python 3.9 → 3.12** (commit `aaf3b24`): requires a full image rebuild
 - **Non-root backend container** (commit `a81a4c0`): requires host
   `./data`, `./logs`, and `./backend/data/generated_dicoms` to be owned by
@@ -474,9 +530,9 @@ docker exec emr-nginx curl -sf http://backend:8000/api/health
 
 ### "Bearer token required" on FHIR writes
 
-The SMART middleware gates `/fhir/R4/*` writes when `JWT_ENABLED=true`. For
-training-mode deploys, `SMART_ENABLED` defaults to the opposite of
-`JWT_ENABLED`. If writes fail in training mode, check `.env`:
+The SMART middleware gates `/fhir/R4/*` writes when `JWT_ENABLED=true`
+(`SMART_ENABLED` defaults to the same value as `JWT_ENABLED`). If writes
+fail in training mode, check `.env`:
 ```bash
 grep -E "JWT_ENABLED|SMART_ENABLED" .env
 ```

@@ -1,7 +1,6 @@
 # WintEHR Configuration Guide
 
-**Version**: 1.1.0
-**Last Updated**: December 14, 2025
+**Last Updated**: 2026-11-03
 
 Complete reference for configuring and deploying WintEHR with the configuration management system.
 
@@ -125,7 +124,8 @@ POSTGRES_DB=emr_db
 
 # Application Secrets
 SECRET_KEY=<random-secret-key>
-JWT_SECRET=<random-jwt-secret>
+JWT_SECRET_KEY=<random-jwt-secret>      # JWT_SECRET is accepted as a fallback name
+HAPI_ADMIN_TOKEN=<random-token>         # guards the HAPI overlay's /admin/cr/* endpoints
 ```
 
 **Optional Variables**:
@@ -134,6 +134,24 @@ JWT_SECRET=<random-jwt-secret>
 TAVILY_API_KEY=<tavily-api-key>
 ANTHROPIC_API_KEY=<anthropic-api-key>
 ```
+
+**Security-related backend variables** (see [SECURITY.md](SECURITY.md)):
+
+| Variable | Default | Forwarded by compose? |
+|---|---|---|
+| `JWT_ENABLED` | `false` | yes |
+| `JWT_SECRET_KEY` (fallback `JWT_SECRET`) | `change-this-in-production` (prod) | yes — note `deploy/validate_config.py` only checks the `JWT_SECRET` name, so `.env.example` keeps that one |
+| `HAPI_ADMIN_TOKEN` | empty (admin endpoints refuse all calls) | yes |
+| `WINTEHR_DISABLED_MODULES` | empty | yes |
+| `ANTHROPIC_API_KEY` | empty | yes |
+| `CORS_ORIGINS` | `*` | **no** — add via `docker-compose.override.yml` |
+| `EXTERNAL_SERVICES_URL_ALLOWLIST` | empty (accept all + warning) | **no** |
+| `SMART_ENABLED` | same as `JWT_ENABLED` | **no** |
+| `SMART_ALLOW_UNPROTECTED` | `true` (unauthenticated FHIR reads) | **no** |
+
+"Forwarded" means listed in the backend service's `environment:` block in
+`docker-compose.yml`; there is no `env_file:`, so anything else in `.env`
+stays on the host.
 
 ### config.{environment}.yaml
 
@@ -457,7 +475,8 @@ security:
     - "198.51.100.0/24"         # Subnet
 ```
 
-**Note**: Applied to Azure NSG rules if using Azure deployment.
+**Note**: Applied to Azure NSG rules by `deploy/configure-azure-nsg.sh`
+(as `WINTEHR_SECURITY_ALLOWED_IPS`). Nothing else reads it.
 
 #### security.cors_origins
 
@@ -465,6 +484,9 @@ security:
 **Default**: `["*"]`
 
 **Description**: CORS (Cross-Origin Resource Sharing) allowed origins.
+`deploy/validate_config.py` warns when it is `*` in `production`; the value
+that actually reaches the backend is the `CORS_ORIGINS` env var (see the
+`.env` section above for how to forward it).
 
 **Development**: Use `["*"]` to allow all origins.
 
@@ -578,7 +600,8 @@ POSTGRES_DB=emr_db
 **Application Secrets**:
 ```bash
 SECRET_KEY=<random-secret-key>
-JWT_SECRET=<random-jwt-secret>
+JWT_SECRET_KEY=<random-jwt-secret>
+HAPI_ADMIN_TOKEN=<random-token>
 ```
 
 ### Generating Secure Secrets
@@ -834,8 +857,8 @@ bash deploy/configure-azure-nsg.sh
 
 **Manual fix**:
 ```bash
-# Run SSL setup separately
-bash deploy/setup-ssl.sh
+# Run SSL setup separately (uses DOMAIN from .env if omitted)
+bash deploy/init-ssl.sh your-domain.com
 ```
 
 ## Advanced Topics
