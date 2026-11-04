@@ -44,7 +44,8 @@ tables; custom Postgres schemas come from `postgres-init/*.sql` on first boot.
 |---|---|
 | `hapi-overlay/` | Docker build context for HAPI FHIR — a custom overlay on the base `hapiproject/hapi` image (adds the CR cache-flush admin controller; see `backend/api/cds_hooks/CLAUDE.md`). Referenced by `docker-compose.yml` `build.context`. |
 | `config_loader.py` | Loads / resolves deployment config |
-| `validate_config.py` | Validates a config before deploy |
+| `validate_config.py` | Pre-deploy gate run by `deploy.sh`: `config.yaml` shape + the secret checks below. Exit 1 aborts a **prod** deploy (`--skip-validation` to override); dev only warns |
+| `secrets_policy.py` | The secret/security-switch checks (no third-party imports; tested in `backend/tests/deploy/`). Example values (`emr_password`, example JWT keys) are errors in prod; `JWT_SECRET_KEY` or `JWT_SECRET` both accepted |
 | `export_config.py` | Exports resolved config |
 | `load_config.sh` | Shell entry to config loading |
 | `nginx-prod.conf.template` | Tracked nginx config with `${DOMAIN}` placeholders; `rendered/` holds the output and is gitignored |
@@ -83,6 +84,7 @@ deployment host anywhere in this directory or in compose files.
 | A service won't come up | `docker-compose ps`; `docker-compose logs <service>` |
 | HAPI image changes not taking effect | rebuild — `hapi-overlay/` is a build context, not a pulled image; `./deploy.sh` without `--skip-build` |
 | Wrong profile deployed | root `config.yaml` `environment:` key overrides the default |
+| Prod deploy exits at "Validating configuration" | `.env` still has example secrets — fix them; `secrets_policy.py` lists the blocked values |
 | CDS cache-flush admin calls failing | `HAPI_ADMIN_TOKEN` unset, or the `hapi-overlay/` controller not built in |
 | Patient data missing after deploy | `PATIENT_COUNT`; the `synthea_to_hapi_pipeline.py` step in `deploy.sh` logs |
 | SSL / cert errors in prod | `init-ssl.sh`; nginx logs; port 80 must be open to Any for HTTP-01 |

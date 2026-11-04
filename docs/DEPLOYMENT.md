@@ -504,6 +504,11 @@ WintEHR uses Docker Compose profiles for environment-specific configurations:
 
 Both profiles add the `dicom` profile (dcm4chee VNA) unless you pass `--skip-dicom`.
 
+A prod deploy aborts if `.env` still carries example secrets
+(`POSTGRES_PASSWORD=emr_password`, the example JWT key); see
+[CONFIGURATION.md § Validation](CONFIGURATION.md#validation). `--skip-validation`
+overrides, `--validate-only` just reports.
+
 ### Custom Configuration
 
 Override settings via `.env` file:

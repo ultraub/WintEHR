@@ -110,7 +110,9 @@ target environment.
 
 2. **Strong JWT secret.** Compose defaults to `change-this-in-production`.
    Set `JWT_SECRET_KEY` in `.env` to `openssl rand -hex 32` (`JWT_SECRET`
-   still works as a fallback name). Rotate annually.
+   still works as a fallback name). Rotate annually. `deploy.sh -e prod`
+   refuses to run while this or `POSTGRES_PASSWORD` is an example value
+   (`deploy/secrets_policy.py`).
 
 3. **JWT enabled.** Default is `JWT_ENABLED=false` (training mode). For
    any deployment beyond a closed dev environment, set `JWT_ENABLED=true`.
@@ -327,6 +329,7 @@ Kept so an auditor can see what landed after their last review.
 
 | Date | PR | Change |
 |---|---|---|
+| 2026-11-04 | — | Pre-deploy validator actually runs for prod (it rejected `--environment prod` before) and now aborts a prod deploy on example/default `POSTGRES_PASSWORD` or JWT secret; accepts `JWT_SECRET_KEY`; warns on `HAPI_ADMIN_TOKEN`, CORS, SSRF allow-list and open SMART reads |
 | 2026-11-03 | — | `CORS_ORIGINS`, `EXTERNAL_SERVICES_URL_ALLOWLIST`, `SMART_ENABLED`, `SMART_ALLOW_UNPROTECTED` forwarded into the backend containers by compose (previously silently ignored from `.env`) |
 | 2026-07-10 | #215 | dcm4chee behind `dicom` profile with loopback-only ports and named volumes; nginx config → template; `JWT_SECRET_KEY` canonical with `JWT_SECRET` fallback; `EXTERNAL_SERVICES_URL_ALLOWLIST` SSRF guard; minimal CI |
 | 2026-07-07 | #203 | `requests` removed; DICOM service on async `httpx` |

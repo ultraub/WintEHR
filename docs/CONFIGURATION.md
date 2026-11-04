@@ -140,7 +140,7 @@ ANTHROPIC_API_KEY=<anthropic-api-key>
 | Variable | Default | Forwarded by compose? |
 |---|---|---|
 | `JWT_ENABLED` | `false` | yes |
-| `JWT_SECRET_KEY` (fallback `JWT_SECRET`) | `change-this-in-production` (prod) | yes — note `deploy/validate_config.py` only checks the `JWT_SECRET` name, so `.env.example` keeps that one |
+| `JWT_SECRET_KEY` (fallback `JWT_SECRET`) | `change-this-in-production` (prod) | yes |
 | `HAPI_ADMIN_TOKEN` | empty (admin endpoints refuse all calls) | yes |
 | `WINTEHR_DISABLED_MODULES` | empty | yes |
 | `ANTHROPIC_API_KEY` | empty | yes |
@@ -689,43 +689,64 @@ vim config.yaml
 ### Multi-Environment
 
 ```bash
-# Development
+# Development (default)
 ./deploy.sh --environment dev
 
-# Staging
-./deploy.sh --environment staging
-
 # Production
-./deploy.sh --environment production
+./deploy.sh --environment prod --domain your-domain.com
 ```
+
+`deploy.sh` accepts only `dev` and `prod` (they are compose profiles).
+`config.staging.yaml` / `config.production.yaml` overrides still merge if
+you call the loader or validator with those names directly.
 
 ## Validation
 
 ### Manual Validation
 
 ```bash
-python3 deploy/validate_config.py
+set -a; source .env; set +a          # the validator reads secrets from the environment
+python3 deploy/validate_config.py --environment prod
 ```
 
 **Options**:
 ```bash
-# Specific environment
-python3 deploy/validate_config.py --environment staging
+# Specific environment (dev | prod | staging | production)
+python3 deploy/validate_config.py --environment dev
 
 # With configuration summary
 python3 deploy/validate_config.py --summary
 
 # Verbose output
 python3 deploy/validate_config.py --verbose
+
+# Same thing via deploy.sh (sources .env for you; exits non-zero on errors)
+./deploy.sh --environment prod --validate-only
 ```
 
 ### Automatic Validation
 
-Validation runs automatically during `./deploy.sh`:
-- Checks required fields
-- Validates field formats
-- Verifies secret strength
-- Checks for conflicts
+`./deploy.sh` runs the validator on every deploy, after `--domain` has
+updated `.env`, and **aborts a prod deploy on errors**. Dev deploys print
+the findings and continue. `--skip-validation` bypasses the abort.
+
+What it checks (`deploy/validate_config.py` + `deploy/secrets_policy.py`):
+
+| Check | dev | prod |
+|---|---|---|
+| `POSTGRES_PASSWORD` unset | error | error |
+| `POSTGRES_PASSWORD` is the example value (`emr_password`) | warning | **error** |
+| `JWT_SECRET_KEY` / `JWT_SECRET` unset or an example value | warning | **error** |
+| Secret shorter than 16 / 32 chars | warning | warning |
+| `HAPI_ADMIN_TOKEN` unset | warning | warning |
+| `JWT_ENABLED` not `true` | — | warning |
+| `CORS_ORIGINS` / `EXTERNAL_SERVICES_URL_ALLOWLIST` empty | — | warning |
+| `SMART_ALLOW_UNPROTECTED` not `false` while JWT is on | — | warning |
+| `config.yaml` required fields, port ranges, SSL email/domain, CIDR format | error | error |
+| `config.yaml` `security.cors_origins` contains `*` | — | warning |
+
+Warnings never block. `SECRET_KEY` in `.env` is not read by anything and is
+no longer checked.
 
 ### Validation Errors
 
@@ -748,6 +769,12 @@ Invalid domain_name format: bad domain
 POSTGRES_PASSWORD is weak (length: 8, recommended: 16+)
 ```
 **Solution**: Generate stronger password
+
+**Example value in prod** (fatal):
+```
+JWT_SECRET_KEY is the example value ('dev-jwt-secret-change-for-production') — generate one with: openssl rand -hex 32
+```
+**Solution**: `openssl rand -hex 32` into `.env`, then redeploy. `--skip-validation` only if you really mean it.
 
 ## Troubleshooting
 
