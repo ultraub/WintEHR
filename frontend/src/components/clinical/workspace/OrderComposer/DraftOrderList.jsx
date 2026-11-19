@@ -172,6 +172,7 @@ const DraftOrderList = () => {
                   </Stack>
                 }
                 secondary={
+                  <>
                   <Stack direction="row" spacing={1} alignItems="center">
                     {code && (
                       <Typography variant="caption" fontFamily="monospace">
@@ -188,6 +189,13 @@ const DraftOrderList = () => {
                       </Typography>
                     )}
                   </Stack>
+                  {/* Detail line for orders whose structured details live in note or dosageInstruction text */}
+                  {(resource?.extension || []).some((x) => (x.url || '').endsWith('/order-details')) && (resource?.note?.[0]?.text || resource?.dosageInstruction?.[0]?.text) && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      {'\u2014 '}{resource?.note?.[0]?.text || resource?.dosageInstruction?.[0]?.text}
+                    </Typography>
+                  )}
+                  </>
                 }
                 secondaryTypographyProps={{ component: 'div' }}
               />
