@@ -210,6 +210,7 @@ const CodeStatusOrderTab = () => {
       <Box>
         <Button
           variant="contained"
+          aria-label="Add code status order to draft list"
           startIcon={<AddIcon />}
           onClick={handleAdd}
           disabled={!canAdd}

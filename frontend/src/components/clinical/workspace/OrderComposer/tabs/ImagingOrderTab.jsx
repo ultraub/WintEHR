@@ -455,6 +455,7 @@ const ImagingOrderTab = () => {
       <Box>
         <Button
           variant="contained"
+          aria-label="Add imaging order to draft list"
           startIcon={<AddIcon />}
           onClick={handleAdd}
           disabled={!canAdd}

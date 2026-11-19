@@ -439,6 +439,7 @@ const MedicationOrderTab = () => {
       <Box>
         <Button
           variant="contained"
+          aria-label="Add medication order to draft list"
           startIcon={<AddIcon />}
           onClick={handleAdd}
           disabled={!canAdd}

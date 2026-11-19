@@ -201,6 +201,7 @@ const ReferralOrderTab = () => {
       <Box>
         <Button
           variant="contained"
+          aria-label="Add referral order to draft list"
           startIcon={<AddIcon />}
           onClick={handleAdd}
           disabled={!canAdd}

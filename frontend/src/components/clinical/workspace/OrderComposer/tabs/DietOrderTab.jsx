@@ -241,6 +241,7 @@ const DietOrderTab = () => {
       <Box>
         <Button
           variant="contained"
+          aria-label="Add diet order to draft list"
           startIcon={<AddIcon />}
           onClick={handleAdd}
           disabled={!canAdd}
