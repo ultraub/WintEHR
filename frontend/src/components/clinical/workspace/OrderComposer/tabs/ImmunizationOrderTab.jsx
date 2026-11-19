@@ -224,6 +224,7 @@ const ImmunizationOrderTab = () => {
       <Box>
         <Button
           variant="contained"
+          aria-label="Add immunization order to draft list"
           startIcon={<AddIcon />}
           onClick={handleAdd}
           disabled={!canAdd}

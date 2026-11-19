@@ -488,6 +488,7 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
             startIcon={signing ? <CircularProgress size={16} color="inherit" /> : <SignIcon />}
             onClick={handleSignAll}
             disabled={drafts.length === 0 || signing}
+            aria-label={`Sign all ${drafts.length} draft order${drafts.length === 1 ? '' : 's'}`}
           >
             {signing
               ? 'Signing...'

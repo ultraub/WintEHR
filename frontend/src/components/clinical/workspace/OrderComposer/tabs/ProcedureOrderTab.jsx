@@ -365,6 +365,7 @@ const ProcedureOrderTab = () => {
       <Box>
         <Button
           variant="contained"
+          aria-label="Add procedure order to draft list"
           startIcon={<AddIcon />}
           onClick={handleAdd}
           disabled={!canAdd}
