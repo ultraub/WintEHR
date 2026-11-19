@@ -62,6 +62,7 @@ import {
   Restaurant as DietIcon,
   ForwardToInbox as ReferralIcon,
   Gavel as CodeStatusTabIcon,
+  Bloodtype as BloodIcon,
   ReportProblemOutlined as WarningIcon,
   WarningAmberOutlined as CriticalIcon,
 } from '@mui/icons-material';
@@ -84,6 +85,7 @@ import NursingOrderTab from './tabs/NursingOrderTab';
 import DietOrderTab from './tabs/DietOrderTab';
 import ReferralOrderTab from './tabs/ReferralOrderTab';
 import CodeStatusOrderTab from './tabs/CodeStatusOrderTab';
+import BloodOrderTab from './tabs/BloodOrderTab';
 
 // Tab order is intentional: most common ordering use cases first.
 // Medications and labs lead because they're the high-volume tabs in
@@ -96,6 +98,7 @@ import CodeStatusOrderTab from './tabs/CodeStatusOrderTab';
 const TABS = [
   { id: 'med', label: 'Medications', icon: <MedicationIcon fontSize="small" />, Comp: MedicationOrderTab },
   { id: 'lab', label: 'Labs', icon: <LabIcon fontSize="small" />, Comp: LabOrderTab },
+  { id: 'blood', label: 'Blood bank', icon: <BloodIcon fontSize="small" />, Comp: BloodOrderTab },
   { id: 'imaging', label: 'Imaging', icon: <ImagingIcon fontSize="small" />, Comp: ImagingOrderTab },
   { id: 'procedure', label: 'Procedure', icon: <ProcedureIcon fontSize="small" />, Comp: ProcedureOrderTab },
   { id: 'immunization', label: 'Immunizations', icon: <ImmunizationIcon fontSize="small" />, Comp: ImmunizationOrderTab },
