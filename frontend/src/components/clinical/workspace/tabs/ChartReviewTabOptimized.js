@@ -92,6 +92,7 @@ import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 import ResourceDataGrid from '../../../common/ResourceDataGrid';
 import ConditionDialogEnhanced from '../dialogs/ConditionDialogEnhanced';
 import MedicationDialogEnhanced from '../dialogs/MedicationDialogEnhanced';
+import StopMedicationButton from '../dialogs/StopMedicationButton';
 import AllergyDialogEnhanced from '../dialogs/AllergyDialogEnhanced';
 import ImmunizationAdminDialog from '../AdministrationRecord/dialogs/ImmunizationAdminDialog';
 import ProcedureDialogEnhanced from '../dialogs/ProcedureDialogEnhanced';
@@ -1978,6 +1979,7 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNav
           <IconButton size="small" onClick={onEdit}>
             <EditIcon fontSize="small" />
           </IconButton>
+          {isActive && <StopMedicationButton medication={medication} />}
           {onNavigateToTab && (
             <Tooltip title="View in Pharmacy">
               <IconButton
