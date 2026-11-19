@@ -62,6 +62,7 @@ import {
   Restaurant as DietIcon,
   ForwardToInbox as ReferralIcon,
   Gavel as CodeStatusTabIcon,
+  PauseCircleOutline as PendIcon,
   ReportProblemOutlined as WarningIcon,
   WarningAmberOutlined as CriticalIcon,
 } from '@mui/icons-material';
@@ -231,6 +232,51 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
   ) || {};
 
   const ActiveTabComp = TABS.find((t) => t.id === activeTab)?.Comp || LabOrderTab;
+
+  // Pend: write every draft to the record with status 'draft' (not active) for another prescriber to sign.
+  const [pending, setPending] = useState(false);
+  const performPend = useCallback(async () => {
+    if (drafts.length === 0) return;
+    setPending(true);
+    const userRef = `Practitioner/${user?.id || user?.username || 'unknown'}`;
+    const requester = { reference: userRef, ...(user?.name ? { display: user.name } : {}) };
+    const failed = [];
+    let n = 0;
+    for (const draft of drafts) {
+      try {
+        const result = await fhirClient.create(draft.resource.resourceType, {
+          ...draft.resource,
+          status: 'draft',
+          requester,
+          authoredOn: draft.resource.authoredOn || new Date().toISOString(),
+        });
+        n += 1;
+        removeDraft(draft.localId);
+        try {
+          await fhirClient.create('Provenance', {
+            resourceType: 'Provenance',
+            target: [{ reference: `${result.resourceType}/${result.id}` }],
+            recorded: new Date().toISOString(),
+            agent: [{ type: { coding: [{ system: 'http://terminology.hl7.org/CodeSystem/provenance-participant-type', code: 'author', display: 'Author' }] }, who: { reference: userRef } }],
+          });
+        } catch (provErr) {
+          console.warn('OrderComposer: Provenance create failed for pended order', provErr);
+        }
+      } catch (err) {
+        console.error('OrderComposer: pend failed for one draft', err);
+        failed.push(err?.message || String(err));
+      }
+    }
+    setPending(false);
+    if (failed.length === 0) {
+      setSnackbar({ open: true, message: `Pended ${n} order${n === 1 ? '' : 's'} for signature (draft, not active).`, severity: 'success' });
+      clearDrafts();
+      onSigned?.([]);
+      onClose?.();
+    } else {
+      setSnackbar({ open: true, message: `Pended ${n}; ${failed.length} failed - see browser console.`, severity: 'error' });
+    }
+  }, [drafts, user, removeDraft, clearDrafts, onSigned, onClose]);
 
   const performSignAll = useCallback(async () => {
     if (drafts.length === 0) return;
@@ -483,11 +529,20 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
             Cancel
           </Button>
           <Button
+            variant="outlined"
+            startIcon={pending ? <CircularProgress size={16} color="inherit" /> : <PendIcon />}
+            onClick={performPend}
+            disabled={drafts.length === 0 || signing || pending}
+            aria-label="Pend for signature"
+          >
+            {pending ? 'Saving...' : `Pend for signature (${drafts.length})`}
+          </Button>
+          <Button
             variant="contained"
             color="primary"
             startIcon={signing ? <CircularProgress size={16} color="inherit" /> : <SignIcon />}
             onClick={handleSignAll}
-            disabled={drafts.length === 0 || signing}
+            disabled={drafts.length === 0 || signing || pending}
           >
             {signing
               ? 'Signing...'
