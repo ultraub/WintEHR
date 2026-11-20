@@ -21,6 +21,8 @@ from .models import (
     JobLogChunk,
     JobStartRequest,
     JobView,
+    RoleView,
+    RolesResponse,
     SettingUpdate,
     SettingView,
     StatusReport,
@@ -28,9 +30,11 @@ from .models import (
 )
 from .service import CommandCenterService, get_command_center_service
 from .settings_service import SettingsError, SettingsService, default_settings_service
+from .roles import KNOWN_PERMISSIONS, LOCKED, default_roles, effective_permissions
 from .tab_policy import ALWAYS_VISIBLE, EMPTY_POLICY, known_roles
 
 TAB_POLICY_SETTING = "ui.tabs.policy"
+ROLES_SETTING = "auth.roles"
 
 router = APIRouter(prefix="/api/command-center", tags=["Command Center"])
 
@@ -107,6 +111,34 @@ async def reset_setting(
         return await settings.reset(key, user.id)
     except SettingsError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+
+
+# --- roles ----------------------------------------------------------------------------
+
+
+@router.get("/roles", response_model=RolesResponse)
+async def get_roles(
+    _user: User = Depends(require_admin),
+    settings: SettingsService = Depends(get_settings_service),
+):
+    """Every role with its default and effective permissions, plus the permission vocabulary."""
+    view = next((v for v in await settings.list() if v.key == ROLES_SETTING), None)
+    overrides = view.value if view and isinstance(view.value, dict) else {}
+    defaults = default_roles()
+    names = sorted(set(defaults) | set(overrides))
+    roles = []
+    for name in names:
+        base = defaults.get(name, {"permissions": [], "users": []})
+        effective = effective_permissions(name, base["permissions"], overrides)
+        roles.append(RoleView(
+            role=name, permissions=effective, default_permissions=base["permissions"],
+            overridden=name in overrides, locked=LOCKED.get(name, []), users=base["users"],
+        ))
+    return RolesResponse(
+        roles=roles, permissions=KNOWN_PERMISSIONS,
+        source=view.source if view else "default",
+        updated_by=view.updated_by if view else None, updated_at=view.updated_at if view else None,
+    )
 
 
 # --- tab policy (public read) ------------------------------------------------------

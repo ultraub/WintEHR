@@ -145,6 +145,7 @@ class SettingsService:
 
         row = await self.repository.upsert(definition.key, stored, definition.is_secret, user_id)
         _cache_invalidate(definition.key)
+        await bump_settings_version()
         await self._audit(
             "system.setting.updated", user_id, definition,
             {"key": definition.key, "tier": definition.tier, "action": "update",
@@ -159,6 +160,7 @@ class SettingsService:
             raise SettingsError(404, str(exc)) from None
         removed = await self.repository.delete(definition.key)
         _cache_invalidate(definition.key)
+        await bump_settings_version()
         if removed:
             await self._audit(
                 "system.setting.reset", user_id, definition,
@@ -185,8 +187,80 @@ class SettingsService:
 # --- process-wide default service + live-tier helper -------------------------
 
 _default_service: Optional[SettingsService] = None
-_cache: Dict[str, tuple[Any, float]] = {}
+_cache: Dict[str, tuple[Any, float, Optional[str]]] = {}  # key → (value, expires_at, version seen)
 _clock: Callable[[], float] = time.monotonic
+
+# Cross-worker invalidation. Every write bumps `settings:version` in Redis; a
+# reader re-checks that counter at most once per VERSION_CHECK_SECONDS and
+# drops its cache when it moved. Without Redis the TTL alone applies (one
+# worker, dev), so the worst case is SETTING_CACHE_SECONDS of staleness.
+VERSION_KEY = "settings:version"
+VERSION_CHECK_SECONDS = 1.0
+_version_client: Any = None       # redis.asyncio client, or False once given up
+_version_client_factory: Optional[Callable[[], Any]] = None  # tests inject a FakeRedis
+_version_seen: Optional[str] = None
+_version_checked_at: float = -1.0
+
+
+def use_version_client(factory: Optional[Callable[[], Any]]) -> None:
+    """Test hook: supply a Redis-like client (get/incr) instead of REDIS_URL."""
+    global _version_client, _version_client_factory, _version_seen, _version_checked_at
+    _version_client_factory = factory
+    _version_client = None
+    _version_seen = None
+    _version_checked_at = -1.0
+
+
+async def _version_redis() -> Any:
+    global _version_client
+    if _version_client is None:
+        try:
+            if _version_client_factory is not None:
+                _version_client = _version_client_factory()
+            else:
+                url = os.getenv("REDIS_URL")
+                if not url:
+                    _version_client = False
+                else:
+                    import redis.asyncio as aioredis
+
+                    _version_client = aioredis.from_url(url, socket_connect_timeout=2)
+                    await _version_client.ping()
+        except Exception as exc:  # noqa: BLE001 — no shared invalidation; TTL still bounds staleness
+            logger.warning("Settings version counter unavailable (%s); relying on the %gs cache TTL", exc, SETTING_CACHE_SECONDS)
+            _version_client = False
+    return _version_client or None
+
+
+async def _current_version() -> Optional[str]:
+    """The shared write counter, re-read at most once per VERSION_CHECK_SECONDS."""
+    global _version_seen, _version_checked_at
+    now = _clock()
+    if now - _version_checked_at < VERSION_CHECK_SECONDS:
+        return _version_seen
+    client = await _version_redis()
+    if client is None:
+        return None
+    try:
+        raw = await client.get(VERSION_KEY)
+        _version_seen = raw.decode() if isinstance(raw, (bytes, bytearray)) else (str(raw) if raw is not None else "0")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Settings version read failed (%s)", exc)
+    _version_checked_at = now
+    return _version_seen
+
+
+async def bump_settings_version() -> None:
+    """Called after every write so other workers drop their cached values."""
+    global _version_checked_at
+    client = await _version_redis()
+    if client is None:
+        return
+    try:
+        await client.incr(VERSION_KEY)
+        _version_checked_at = -1.0  # this worker re-reads on its next get
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Settings version bump failed (%s)", exc)
 
 
 def default_settings_service() -> SettingsService:
@@ -203,6 +277,7 @@ def use_settings_service(service: Optional[SettingsService]) -> None:
     global _default_service
     _default_service = service
     _cache.clear()
+    use_version_client(None)
 
 
 def _cache_invalidate(key: str) -> None:
@@ -212,13 +287,16 @@ def _cache_invalidate(key: str) -> None:
 async def get_setting(key: str) -> Any:
     """Effective value of a live-tier setting, cached briefly per process.
 
-    Falls back to env/default if the store is unreachable, so a Postgres
-    hiccup degrades to "as configured at deploy" rather than an exception
-    in whatever request happened to read a setting.
+    A write anywhere (any worker) bumps the shared version counter, so a
+    cached value is reused only while the counter is unchanged and the TTL
+    has not passed. Falls back to env/default if the store is unreachable,
+    so a Postgres hiccup degrades to "as configured at deploy" rather than
+    an exception in whatever request happened to read a setting.
     """
     now = _clock()
+    version = await _current_version()
     hit = _cache.get(key)
-    if hit is not None and hit[1] > now:
+    if hit is not None and hit[1] > now and hit[2] == version:
         return hit[0]
     definition = get_definition(key)
     try:
@@ -227,5 +305,5 @@ async def get_setting(key: str) -> Any:
         logger.warning("Settings store unavailable for %s (%s); using env/default", key, exc)
         fallback = SettingsService(MemorySettingsRepository(), secret_box=SecretBox(None))
         value, _, _ = fallback._resolve(definition, {})
-    _cache[key] = (value, now + SETTING_CACHE_SECONDS)
+    _cache[key] = (value, now + SETTING_CACHE_SECONDS, version)
     return value

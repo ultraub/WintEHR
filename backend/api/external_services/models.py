@@ -79,6 +79,13 @@ class ExternalServiceResponse(ExternalServiceBase):
     """Model for external service response"""
     id: str
     fhir_resource_type: Optional[str]
+
+    @field_validator("id", "owner_user_id", "fhir_resource_id", mode="before")
+    @classmethod
+    def _uuid_to_str(cls, value):
+        # asyncpg hands UUID columns back as uuid.UUID; the API contract is str.
+        # Without this every register/get/list response failed validation (500).
+        return str(value) if value is not None and not isinstance(value, str) else value
     fhir_resource_id: Optional[str]
     status: ServiceStatus
     health_status: HealthStatus
@@ -289,7 +296,9 @@ class HealthCheckResult(BaseModel):
     """Health check result"""
     service_id: str
     status: HealthStatus
-    response_time_ms: Optional[int]
+    # Optional WITH a default: Pydantic v2 treats a bare Optional[...] as
+    # required, which made every timeout / unreachable / no-URL result a 500.
+    response_time_ms: Optional[int] = None
     timestamp: datetime
     error_message: Optional[str] = None
     details: Optional[Dict[str, Any]] = None

@@ -189,8 +189,15 @@ class ExternalServiceRegistry:
         service_data: CDSHooksServiceCreate
     ) -> Optional[str]:
         """Create PlanDefinition resource in HAPI FHIR for CDS Hooks service"""
+        cds_config = getattr(service_data, "cds_config", None)
+        if cds_config is None:
+            # A generic /register of a cds_hooks service carries no hook
+            # config (the Command Center's Apps tab does this); there is
+            # nothing to turn into a PlanDefinition yet. Hooks can be added
+            # later via /{service_id}/hooks.
+            logger.info("Service %s registered without CDS hook config; no PlanDefinition created", service_id)
+            return None
         try:
-            cds_config = service_data.cds_config
 
             plan_definition = {
                 "resourceType": "PlanDefinition",

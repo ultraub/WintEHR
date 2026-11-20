@@ -63,6 +63,7 @@ deployment using the prod profile (`./deploy.sh --environment prod`).
 | Sessions shared across workers, with a TTL | `backend/api/auth/session_store.py`: training and practitioner session tokens are Redis keys with a 24 h TTL when `REDIS_URL` is set (in-process fallback otherwise) (PR #353) | Before, sessions were per-process dicts: with `--workers 4` a valid token failed ~3 of 4 requests, and sessions never expired. Logout now revokes on every worker |
 | Auth events audited | `AuditEventService` writes FHIR `AuditEvent` resources to HAPI | Login success/failure is queryable |
 | HAPI admin surface token-guarded | `deploy/hapi-overlay` `CrCacheAdminController` requires `Authorization: Bearer $HAPI_ADMIN_TOKEN`; HAPI itself is not published | Cache-flush endpoint can't be hit anonymously |
+| Role permissions editable at runtime, with guard rails | `backend/api/command_center/roles.py` + `api/auth/service.apply_role_overrides`: the `auth.roles` setting (`system` permission to change, audited) overrides a role's permission list on every request; unknown permission keys are rejected and the `admin` role always keeps `admin` and `system` (PR #365) | Narrow roles without a redeploy, without locking the Command Center out of itself |
 | Secret settings encrypted at rest | `backend/api/command_center/secrets.py`: Command Center secrets (UMLS API key, later client secrets) are Fernet-encrypted with `WINTEHR_SETTINGS_KEY` before they reach `system.settings`; no key → the API refuses to store a secret (409) rather than fall back to plaintext; values never leave through the API (PR #357) | Keeps API credentials out of plain SQL dumps and backups. Not a PHI control — the platform holds none |
 
 ### Secrets & input handling
@@ -333,6 +334,10 @@ Kept so an auditor can see what landed after their last review.
 
 | Date | PR | Change |
 |---|---|---|
+| 2026-11-20 | #365 | Role permissions editable at runtime via the Command Center (`auth.roles`), applied per request; `admin` cannot lose `admin`/`system` |
+| 2026-11-20 | #361 | Terminology scripts moved into the image; job runner redacts secret values from job output; httpx URL logging silenced in `download_umls.py` |
+| 2026-11-20 | #357 | Command Center secret settings Fernet-encrypted at rest (`WINTEHR_SETTINGS_KEY`); every setting write is a FHIR `AuditEvent` |
+| 2026-11-20 | #353 | Training and practitioner sessions moved to a Redis-backed store with a 24 h TTL; logout revokes on every worker |
 | 2026-11-04 | — | Pre-deploy validator actually runs for prod (it rejected `--environment prod` before) and now aborts a prod deploy on example/default `POSTGRES_PASSWORD` or JWT secret; accepts `JWT_SECRET_KEY`; warns on `HAPI_ADMIN_TOKEN`, CORS, SSRF allow-list and open SMART reads |
 | 2026-11-03 | — | `CORS_ORIGINS`, `EXTERNAL_SERVICES_URL_ALLOWLIST`, `SMART_ENABLED`, `SMART_ALLOW_UNPROTECTED` forwarded into the backend containers by compose (previously silently ignored from `.env`) |
 | 2026-07-10 | #215 | dcm4chee behind `dicom` profile with loopback-only ports and named volumes; nginx config → template; `JWT_SECRET_KEY` canonical with `JWT_SECRET` fallback; `EXTERNAL_SERVICES_URL_ALLOWLIST` SSRF guard; minimal CI |

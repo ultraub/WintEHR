@@ -88,6 +88,23 @@ class SettingUpdate(BaseModel):
     value: Any
 
 
+class RoleView(BaseModel):
+    role: str
+    permissions: List[str]
+    default_permissions: List[str]
+    overridden: bool = False
+    locked: List[str] = Field(default_factory=list)
+    users: List[str] = Field(default_factory=list)
+
+
+class RolesResponse(BaseModel):
+    roles: List[RoleView]
+    permissions: List[Dict[str, str]]
+    source: SettingSource = "default"
+    updated_by: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+
 class TabPolicyResponse(BaseModel):
     """Public read model of `ui.tabs.policy` (see tab_policy.py)."""
 
