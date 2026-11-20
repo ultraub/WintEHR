@@ -138,13 +138,17 @@ DEFINITIONS: Dict[str, SettingDefinition] = {
             minimum=500,
         ),
         SettingDefinition(
-            key="system.console_logging",
-            type="bool",
-            default=False,
-            tier="live",
-            label="Browser console logging",
-            description="When on, the frontend logger writes debug output to the browser console for every user.",
-            used_by="Command Center settings UI (slice 5) → frontend logger",
+            key="system.hapi_timeout_seconds",
+            type="float",
+            default=30.0,
+            tier="restart",
+            label="HAPI FHIR request timeout",
+            description="Seconds the backend waits for any single HAPI FHIR request, for the /fhir proxy and its own calls. "
+                        "Raise it if large searches fail with 'Request to FHIR server timed out'.",
+            used_by="services/hapi_fhir_client.py and api/fhir/proxy.py (read at startup)",
+            env_var="HAPI_FHIR_TIMEOUT",
+            minimum=5,
+            maximum=600,
         ),
     ]
 }

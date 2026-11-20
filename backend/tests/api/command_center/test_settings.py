@@ -73,10 +73,18 @@ def test_parse_coerces_and_bounds():
     with pytest.raises(SettingValueError):
         cap.parse(True)
 
-    flag = get_definition("system.console_logging")
+    from api.command_center.settings_registry import SettingDefinition
+
+    flag = SettingDefinition(key="system.flag", type="bool", default=False, tier="live", label="f", description="", used_by="test")
     assert flag.parse("yes") is True and flag.parse("off") is False and flag.parse(True) is True
     with pytest.raises(SettingValueError):
         flag.parse("maybe")
+
+    timeout = get_definition("system.hapi_timeout_seconds")
+    assert timeout.tier == "restart" and timeout.env_var == "HAPI_FHIR_TIMEOUT"
+    assert timeout.parse("45") == 45.0
+    with pytest.raises(SettingValueError):
+        timeout.parse(1)
 
     with pytest.raises(SettingValueError):
         get_definition("system.umls_api_key").parse("   ")

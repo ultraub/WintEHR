@@ -13,6 +13,8 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import StreamingResponse
 import asyncio
 import httpx
+
+from services.hapi_fhir_client import HAPI_FHIR_TIMEOUT
 import logging
 import os
 import json
@@ -211,7 +213,7 @@ async def proxy_to_hapi_fhir(path: str, request: Request):
     headers.pop("host", None)
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=HAPI_FHIR_TIMEOUT) as client:
             # Forward request to HAPI FHIR
             response = await client.request(
                 method=request.method,
@@ -242,12 +244,12 @@ async def proxy_to_hapi_fhir(path: str, request: Request):
             )
 
     except httpx.TimeoutException as e:
-        logger.error(f"Timeout proxying request to HAPI FHIR: {e}")
+        logger.error(f"Timeout proxying {request.method} /fhir/{path} to HAPI FHIR after {HAPI_FHIR_TIMEOUT:g}s (HAPI_FHIR_TIMEOUT): {e}")
         return create_error_response(
             status_code=504,
             severity="error",
             code="timeout",
-            diagnostics="Request to FHIR server timed out",
+            diagnostics=f"Request to FHIR server timed out after {HAPI_FHIR_TIMEOUT:g}s",
             details_text=str(e)
         )
     except httpx.ConnectError as e:

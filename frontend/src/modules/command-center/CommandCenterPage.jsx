@@ -30,6 +30,7 @@ import {
 } from '@mui/material';
 import { api, useAuth } from '../sdk';
 import JobsPanel from './JobsPanel';
+import SettingsPanel from './SettingsPanel';
 
 const STATUS_COLOR = {
   ok: 'success',
@@ -199,7 +200,7 @@ const CommandCenterPage = () => {
             Command Center
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {tab === 'status' ? 'Deployment status' : 'Jobs'}
+            {{ status: 'Deployment status', jobs: 'Jobs', settings: 'Settings' }[tab]}
             {tab === 'status' && report?.checked_at && ` · checked ${new Date(report.checked_at).toLocaleString()}`}
             {report?.build?.version && ` · v${report.build.version}`}
             {report?.build?.git_commit && ` (${String(report.build.git_commit).slice(0, 8)})`}
@@ -218,9 +219,11 @@ const CommandCenterPage = () => {
       <Tabs value={tab} onChange={(_e, value) => setTab(value)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Tab value="status" label="Status" />
         <Tab value="jobs" label="Jobs" />
+        <Tab value="settings" label="Settings" />
       </Tabs>
 
       {tab === 'jobs' && <JobsPanel />}
+      {tab === 'settings' && <SettingsPanel />}
 
       {tab === 'status' && loading && !report && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 4 }}>
@@ -253,6 +256,26 @@ const CommandCenterPage = () => {
                 FHIR resources
               </Typography>
               <ResourceCountsTable counts={database?.data?.resource_counts} />
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: 1 }}>
+              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+                About this deployment
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                WintEHR, an educational EHR for learning FHIR R4, clinical workflows, and CDS Hooks.
+                React 18 + MUI on the front, FastAPI over HAPI FHIR JPA and PostgreSQL behind it.
+              </Typography>
+              <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+                Environment: <strong>{report.build?.environment || 'unknown'}</strong>
+                {report.build?.version && <> · version <strong>{report.build.version}</strong></>}
+                {report.build?.git_commit && <> · commit <strong>{String(report.build.git_commit).slice(0, 8)}</strong></>}
+              </Typography>
+              <Alert severity="warning" variant="outlined" sx={{ mt: 1.5 }}>
+                Educational use only. Never load real Protected Health Information; all patient data is
+                synthetic (Synthea).
+              </Alert>
             </Paper>
           </Grid>
         </Grid>

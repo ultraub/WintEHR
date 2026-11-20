@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect, useCallback } from 'react';
+import React, { useState, useContext, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -21,7 +21,6 @@ import {
   Chip,
   Alert,
   Divider,
-  CircularProgress,
   useTheme,
   alpha
 } from '@mui/material';
@@ -32,7 +31,6 @@ import {
   LightMode as LightModeIcon,
   Check as CheckIcon,
   Person as PersonIcon,
-  Info as InfoIcon,
   ViewCompact as DisplayIcon,
   DensitySmall as CompactIcon,
   DensityMedium as ComfortableIcon,
@@ -42,14 +40,10 @@ import {
   ChildCare as PediatricsIcon,
   Science as OncologyIcon,
   MedicalServices as GeneralIcon,
-  School as SchoolIcon,
-  CheckCircle as HealthyIcon,
-  Error as ErrorIcon
 } from '@mui/icons-material';
 import { themePresets } from '../themes/medicalTheme';
 import { MedicalThemeContext } from '../App';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../services/api';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -483,162 +477,6 @@ function ProfileTab() {
 }
 
 // ---------------------------------------------------------------------------
-// About Tab
-// ---------------------------------------------------------------------------
-
-function AboutTab() {
-  const [healthStatus, setHealthStatus] = useState(null);
-  const [healthLoading, setHealthLoading] = useState(false);
-  const [healthError, setHealthError] = useState(null);
-
-  const checkHealth = useCallback(async () => {
-    setHealthLoading(true);
-    setHealthError(null);
-    try {
-      const response = await api.get('/api/health');
-      setHealthStatus(response.data);
-    } catch (err) {
-      try {
-        const fallback = await api.get('/health');
-        setHealthStatus(fallback.data);
-      } catch (err2) {
-        setHealthError('Unable to reach backend. Is the server running?');
-      }
-    } finally {
-      setHealthLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    checkHealth();
-  }, [checkHealth]);
-
-  return (
-    <Stack spacing={3}>
-      {/* Application Info */}
-      <Paper variant="outlined" sx={{ p: 3 }}>
-        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-          <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48 }}>
-            <MedicalIcon />
-          </Avatar>
-          <Box>
-            <Typography variant="h6">WintEHR</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Educational Electronic Health Records Platform
-            </Typography>
-          </Box>
-        </Stack>
-
-        <Divider sx={{ mb: 2 }} />
-
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={6}>
-            <Typography variant="caption" color="text.secondary">
-              Version
-            </Typography>
-            <Typography variant="body2">6.1 (Educational)</Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Typography variant="caption" color="text.secondary">
-              FHIR Standard
-            </Typography>
-            <Typography variant="body2">R4 (4.0.1)</Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Typography variant="caption" color="text.secondary">
-              Frontend
-            </Typography>
-            <Typography variant="body2">React 18 + Material-UI 5</Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Typography variant="caption" color="text.secondary">
-              Backend
-            </Typography>
-            <Typography variant="body2">FastAPI + HAPI FHIR</Typography>
-          </Grid>
-        </Grid>
-      </Paper>
-
-      {/* System Health */}
-      <Paper variant="outlined" sx={{ p: 3 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-          <Typography variant="h6">System Health</Typography>
-          <Button size="small" onClick={checkHealth} disabled={healthLoading}>
-            {healthLoading ? 'Checking...' : 'Refresh'}
-          </Button>
-        </Stack>
-
-        {healthLoading && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 2 }}>
-            <CircularProgress size={20} />
-            <Typography variant="body2" color="text.secondary">
-              Checking system health...
-            </Typography>
-          </Box>
-        )}
-
-        {healthError && (
-          <Alert severity="error" variant="outlined">
-            {healthError}
-          </Alert>
-        )}
-
-        {healthStatus && !healthLoading && (
-          <Stack spacing={1}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              {healthStatus.status === 'healthy' || healthStatus.status === 'ok' ? (
-                <HealthyIcon color="success" fontSize="small" />
-              ) : (
-                <ErrorIcon color="error" fontSize="small" />
-              )}
-              <Typography variant="body2">
-                Backend: <strong>{healthStatus.status || 'unknown'}</strong>
-              </Typography>
-            </Stack>
-            {healthStatus.fhir_server && (
-              <Stack direction="row" spacing={1} alignItems="center">
-                {healthStatus.fhir_server === 'connected' ? (
-                  <HealthyIcon color="success" fontSize="small" />
-                ) : (
-                  <ErrorIcon color="warning" fontSize="small" />
-                )}
-                <Typography variant="body2">
-                  FHIR Server: <strong>{healthStatus.fhir_server}</strong>
-                </Typography>
-              </Stack>
-            )}
-            {healthStatus.database && (
-              <Stack direction="row" spacing={1} alignItems="center">
-                {healthStatus.database === 'connected' ? (
-                  <HealthyIcon color="success" fontSize="small" />
-                ) : (
-                  <ErrorIcon color="warning" fontSize="small" />
-                )}
-                <Typography variant="body2">
-                  Database: <strong>{healthStatus.database}</strong>
-                </Typography>
-              </Stack>
-            )}
-          </Stack>
-        )}
-      </Paper>
-
-      {/* Educational Disclaimer */}
-      <Alert severity="warning" variant="outlined" icon={<SchoolIcon />}>
-        <Typography variant="subtitle2" gutterBottom>
-          Educational Use Only
-        </Typography>
-        <Typography variant="body2">
-          WintEHR is designed for learning healthcare IT concepts including FHIR R4, EHR
-          workflows, and CDS Hooks. It must never be used with real Protected Health
-          Information (PHI). All patient data is synthetic, generated by Synthea.
-        </Typography>
-      </Alert>
-    </Stack>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Settings Page
 // ---------------------------------------------------------------------------
 
@@ -656,7 +494,7 @@ const Settings = () => {
             Settings
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Customize your WintEHR experience
+            Customize your WintEHR experience. System status and administration live in the Command Center.
           </Typography>
         </Box>
       </Stack>
@@ -677,7 +515,6 @@ const Settings = () => {
           <Tab icon={<PaletteIcon />} iconPosition="start" label="Appearance" {...a11yProps(0)} />
           <Tab icon={<DisplayIcon />} iconPosition="start" label="Display" {...a11yProps(1)} />
           <Tab icon={<PersonIcon />} iconPosition="start" label="Profile" {...a11yProps(2)} />
-          <Tab icon={<InfoIcon />} iconPosition="start" label="About" {...a11yProps(3)} />
         </Tabs>
 
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
@@ -689,9 +526,6 @@ const Settings = () => {
           </TabPanel>
           <TabPanel value={tab} index={2}>
             <ProfileTab />
-          </TabPanel>
-          <TabPanel value={tab} index={3}>
-            <AboutTab />
           </TabPanel>
         </Box>
       </Paper>
