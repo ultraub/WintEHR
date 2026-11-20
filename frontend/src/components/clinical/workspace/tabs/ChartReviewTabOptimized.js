@@ -85,6 +85,8 @@ import { useSnackbar } from 'notistack';
 import useChartReviewResources from '../../../../hooks/useChartReviewResources';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
+import { useEffectiveSections } from '../useEffectiveSections';
+import HostedSectionPanel from '../HostedSectionPanel';
 import { useClinicalWorkflow } from '../../../../contexts/ClinicalWorkflowContext';
 import { useMedicationResolver } from '../../../../core/fhir/hooks/useMedicationResolver';
 import { getMedicationName } from '../../../../core/fhir/utils/medicationDisplayUtils';
@@ -513,6 +515,9 @@ const ChartReviewTabOptimized = ({
     }
   }, []);
 
+  // Sections for this tab per the Command Center tab policy (slice 7b).
+  const { sections: chartSections } = useEffectiveSections('chart-review');
+
   const toggleSection = useCallback((section) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -538,6 +543,771 @@ const ChartReviewTabOptimized = ({
     );
   }
   
+  // Chart Review's own panels, keyed by section id (workspace/sectionRegistry.js).
+  // Which of them render, in what order, and which hosted sections join them
+  // is decided by the tab policy (useEffectiveSections) — see below.
+  const panels = {
+    'conditions': (
+                <Grid item xs={12} lg={6}>
+                  <Card sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.error.main,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Conditions</Typography>
+                          {stats.conditions.active > 0 && (
+                            <Chip 
+                              label={`${stats.conditions.active} Active`} 
+                              size="small" 
+                              color="error"
+                              sx={{
+                                fontWeight: 600
+                              }}
+                            />
+                          )}
+                          {stats.conditions.resolved > 0 && (
+                            <Chip 
+                              label={`${stats.conditions.resolved} Resolved`} 
+                              size="small" 
+                              color="success"
+                              sx={{
+                                fontWeight: 600
+                              }}
+                            />
+                          )}
+                        </Stack>
+                        <InteractiveButton
+                          startIcon={<AddIcon />}
+                          size="small"
+                          onClick={() => handleOpenDialog('condition')}
+                          hoverEffect="scale"
+                          tooltip="Add new condition"
+                        >
+                          Add
+                        </InteractiveButton>
+                      </Stack>
+                      
+                      {/* Gate must count the same date-filtered set the rows
+                          render — the raw array made a narrow date range show
+                          neither rows nor the empty message */}
+                      {(showInactive
+                        ? processedData.activeConditions.length + processedData.inactiveConditions.length
+                        : processedData.activeConditions.length) === 0 ? (
+                        <ClinicalEmptyState
+                          title="No Active Conditions"
+                          message="This patient currently has no documented active conditions. Add a condition to start building their clinical profile."
+                          icon={<HospitalIcon />}
+                          iconColor="success"
+                          severity="success"
+                          actions={[{ label: 'Add Condition', icon: <AddIcon />, onClick: () => handleOpenDialog('condition') }]}
+                        />
+                      ) : (
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <ClinicalLoadingState.StaggeredFadeIn staggerDelay={30}>
+                            {(showInactive 
+                              ? [...processedData.activeConditions, ...processedData.inactiveConditions]
+                              : processedData.activeConditions
+                            ).slice(0, visibleItems.conditions).map((condition, index) => (
+                              <EnhancedConditionCard
+                                key={condition.id}
+                                condition={condition}
+                                onEdit={() => handleOpenDialog('condition', condition)}
+                                isAlternate={index % 2 === 1}  // For alternating rows
+                              />
+                            ))}
+                          </ClinicalLoadingState.StaggeredFadeIn>
+                          {(showInactive 
+                            ? processedData.activeConditions.length + processedData.inactiveConditions.length
+                            : processedData.activeConditions.length
+                          ) > visibleItems.conditions && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                size="small"
+                                onClick={() => setVisibleItems(prev => ({ ...prev, conditions: prev.conditions + 10 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({(showInactive 
+                                  ? processedData.activeConditions.length + processedData.inactiveConditions.length
+                                  : processedData.activeConditions.length
+                                ) - visibleItems.conditions} more)
+                              </Button>
+                            </Box>
+                          )}
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+    ),
+    'medications': (
+                <Grid item xs={12} lg={6}>
+                  <Card sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.primary.main,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Medications</Typography>
+                          <Chip 
+                            label={`${processedData.activeMedications.length} Active`} 
+                            size="small" 
+                            color="primary"
+                            sx={{
+                                        fontWeight: 600
+                            }}
+                          />
+                        </Stack>
+                        <InteractiveButton
+                          startIcon={<AddIcon />}
+                          size="small"
+                          onClick={() => handleOpenDialog('medication')}
+                          hoverEffect="scale"
+                          tooltip="Prescribe new medication"
+                        >
+                          Add
+                        </InteractiveButton>
+                      </Stack>
+                      
+                      {(showInactive
+                        ? processedData.activeMedications.length + processedData.inactiveMedications.length
+                        : processedData.activeMedications.length) === 0 ? (
+                        <ClinicalEmptyState
+                          title="No Active Medications"
+                          message="No medications are currently prescribed for this patient. Start building their medication profile by adding prescriptions."
+                          icon={<MedicationIcon />}
+                          iconColor="info"
+                          severity="info"
+                          actions={[{ label: 'Prescribe Medication', icon: <AddIcon />, onClick: () => handleOpenDialog('medication') }]}
+                        />
+                      ) : (
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <ClinicalLoadingState.StaggeredFadeIn staggerDelay={30}>
+                            {(showInactive 
+                              ? [...processedData.activeMedications, ...processedData.inactiveMedications]
+                              : processedData.activeMedications
+                            ).slice(0, visibleItems.medications).map((medication, index) => (
+                              <EnhancedMedicationCard
+                                key={medication.id}
+                                medication={medication}
+                                onEdit={() => handleOpenDialog('medication', medication)}
+                                isAlternate={index % 2 === 1}  // For alternating rows
+                                onNavigateToTab={onNavigateToTab}
+                                resolvedName={getMedicationDisplay(medication)}
+                              />
+                            ))}
+                          </ClinicalLoadingState.StaggeredFadeIn>
+                          {(showInactive 
+                            ? processedData.activeMedications.length + processedData.inactiveMedications.length
+                            : processedData.activeMedications.length
+                          ) > visibleItems.medications && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                size="small"
+                                onClick={() => setVisibleItems(prev => ({ ...prev, medications: prev.medications + 10 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({(showInactive 
+                                  ? processedData.activeMedications.length + processedData.inactiveMedications.length
+                                  : processedData.activeMedications.length
+                                ) - visibleItems.medications} more)
+                              </Button>
+                            </Box>
+                          )}
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+    ),
+    'allergies': (
+                <Grid item xs={12} md={6}>
+                  <Card sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.warning.main,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Allergies</Typography>
+                          {processedData.criticalAllergies.length > 0 && (
+                            <Chip 
+                              icon={<WarningIcon />}
+                              label={`${processedData.criticalAllergies.length} Critical`} 
+                              size="small" 
+                              color="error"
+                              sx={{
+                                            fontWeight: 600,
+                                animation: 'pulse 2s infinite'
+                              }}
+                            />
+                          )}
+                        </Stack>
+                        <InteractiveButton
+                          startIcon={<AddIcon />}
+                          size="small"
+                          onClick={() => handleOpenDialog('allergy')}
+                          hoverEffect="scale"
+                          tooltip="Document new allergy"
+                        >
+                          Add
+                        </InteractiveButton>
+                      </Stack>
+                      
+                      {(processedData.criticalAllergies.length + processedData.nonCriticalAllergies.length) === 0 ? (
+                        <ClinicalEmptyState
+                          title="No Known Allergies"
+                          message="Great news! This patient has no documented allergies. You can add any allergies discovered during care."
+                          icon={<CheckCircleIcon />}
+                          iconColor="success"
+                          severity="success"
+                          actions={[{ label: 'Document Allergy', icon: <AddIcon />, variant: 'outlined', onClick: () => handleOpenDialog('allergy') }]}
+                        />
+                      ) : (
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <ClinicalLoadingState.StaggeredFadeIn staggerDelay={50}>
+                            {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies]
+                              .slice(0, visibleItems.allergies)
+                              .map((allergy, index) => (
+                                <EnhancedAllergyCard
+                                  key={allergy.id}
+                                  allergy={allergy}
+                                  onEdit={() => handleOpenDialog('allergy', allergy)}
+                                  isAlternate={index % 2 === 1}  // For alternating rows
+                                />
+                              ))}
+                          </ClinicalLoadingState.StaggeredFadeIn>
+                          {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies].length > visibleItems.allergies && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                onClick={() => setVisibleItems(prev => ({ ...prev, allergies: prev.allergies + 10 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies].length - visibleItems.allergies} more)
+                              </Button>
+                            </Box>
+                          )}
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+    ),
+    'immunizations': (
+                <Grid item xs={12} md={6}>
+                  <Card sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.success.main,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Immunizations</Typography>
+                          <Chip 
+                            label={`${processedData.immunizations.length}`} 
+                            size="small"
+                            sx={{
+                                        fontWeight: 600,
+                              backgroundColor: alpha(theme.palette.success.main, 0.1),
+                              color: theme.palette.success.main
+                            }}
+                          />
+                        </Stack>
+                        <Button
+                          startIcon={<AddIcon />}
+                          size="small"
+                          onClick={() => handleOpenDialog('immunization')}
+                          sx={{
+                            borderRadius: getBorderRadius('md'),
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ...getHoverEffect('scale', theme)
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </Stack>
+                      
+                      {processedData.immunizations.length === 0 ? (
+                        <Alert severity="info">No immunization records</Alert>
+                      ) : (
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <Stack spacing={0.5}>
+                            {processedData.immunizations.slice(0, visibleItems.immunizations).map((immunization, index) => (
+                              <EnhancedImmunizationCard
+                                key={immunization.id}
+                                immunization={immunization}
+                                onEdit={() => handleOpenDialog('immunization', immunization)}
+                                isAlternate={index % 2 === 1}  // For alternating rows
+                              />
+                            ))}
+                          </Stack>
+                          {processedData.immunizations.length > visibleItems.immunizations && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                onClick={() => setVisibleItems(prev => ({ ...prev, immunizations: prev.immunizations + 10 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({processedData.immunizations.length - visibleItems.immunizations} more)
+                              </Button>
+                            </Box>
+                          )}
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+    ),
+    'procedures': (
+                <Grid item xs={12} md={6}>
+                  <Card sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.secondary.main,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Procedures</Typography>
+                          <Chip 
+                            label={`${processedData.procedures.length}`} 
+                            size="small"
+                            sx={{
+                                        fontWeight: 600,
+                              backgroundColor: alpha(theme.palette.secondary.main, 0.1),
+                              color: theme.palette.secondary.main
+                            }}
+                          />
+                        </Stack>
+                        <Button
+                          startIcon={<AddIcon />}
+                          size="small"
+                          onClick={() => handleOpenDialog('procedure')}
+                          sx={{
+                            borderRadius: getBorderRadius('md'),
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ...getHoverEffect('scale', theme)
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </Stack>
+                      
+                      {processedData.procedures.length === 0 ? (
+                        <Alert severity="info">No procedure records</Alert>
+                      ) : (
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <Stack spacing={0.5}>
+                            {processedData.procedures.slice(0, visibleItems.procedures).map((procedure, index) => (
+                              <EnhancedProcedureCard
+                                key={procedure.id}
+                                procedure={procedure}
+                                onEdit={() => handleOpenDialog('procedure', procedure)}
+                                isAlternate={procedure.id.charCodeAt(procedure.id.length - 1) % 2 === 1}  // Stable alternating based on ID
+                              />
+                            ))}
+                          </Stack>
+                          {processedData.procedures.length > visibleItems.procedures && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                onClick={() => setVisibleItems(prev => ({ ...prev, procedures: prev.procedures + 10 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({processedData.procedures.length - visibleItems.procedures} more)
+                              </Button>
+                            </Box>
+                          )}
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+    ),
+    'care-plans': (
+                <Grid item xs={12} md={6}>
+                  <Card sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.indigo?.[500] || theme.palette.primary.dark,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Care Plans</Typography>
+                          <Chip 
+                            label={`${processedData.carePlans.length}`} 
+                            size="small"
+                            sx={{
+                                        fontWeight: 600,
+                              backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                              color: theme.palette.primary.main
+                            }}
+                          />
+                        </Stack>
+                        <Button
+                          startIcon={<AddIcon />}
+                          size="small"
+                          onClick={() => handleOpenDialog('carePlan')}
+                          sx={{
+                            borderRadius: getBorderRadius('md'),
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ...getHoverEffect('scale', theme)
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </Stack>
+                      
+                      {processedData.carePlans.length === 0 ? (
+                        <Alert severity="info">No care plans</Alert>
+                      ) : (
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <Stack spacing={0.5}>
+                            {processedData.carePlans.slice(0, visibleItems.carePlans).map((carePlan, index) => (
+                              <EnhancedCarePlanCard
+                                key={carePlan.id}
+                                carePlan={carePlan}
+                                onEdit={() => handleOpenDialog('carePlan', carePlan)}
+                                isAlternate={carePlan.id.charCodeAt(carePlan.id.length - 1) % 2 === 1}  // Stable alternating based on ID
+                              />
+                            ))}
+                          </Stack>
+                          {processedData.carePlans.length > visibleItems.carePlans && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                onClick={() => setVisibleItems(prev => ({ ...prev, carePlans: prev.carePlans + 5 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({processedData.carePlans.length - visibleItems.carePlans} more)
+                              </Button>
+                            </Box>
+                          )}
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+    ),
+    'documents': (
+                <Grid item xs={12} md={6}>
+                  <Card sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.grey[600],
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Clinical Documents</Typography>
+                          <Chip 
+                            label={`${processedData.documentReferences.length}`} 
+                            size="small"
+                            sx={{
+                                        fontWeight: 600,
+                              backgroundColor: alpha(theme.palette.grey[600], 0.1),
+                              color: theme.palette.grey[600]
+                            }}
+                          />
+                        </Stack>
+                        <Button
+                          startIcon={<AddIcon />}
+                          size="small"
+                          onClick={() => handleOpenDialog('document')}
+                          sx={{
+                            borderRadius: getBorderRadius('md'),
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ...getHoverEffect('scale', theme)
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </Stack>
+                      
+                      {processedData.documentReferences.length === 0 ? (
+                        <Alert severity="info">No clinical documents</Alert>
+                      ) : (
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <Stack spacing={0.5}>
+                            {processedData.documentReferences.slice(0, visibleItems.documents).map((document, index) => (
+                              <EnhancedDocumentCard
+                                key={document.id}
+                                document={document}
+                                onEdit={() => handleOpenDialog('document', document)}
+                                isAlternate={index % 2 === 1}  // For alternating rows
+                              />
+                            ))}
+                          </Stack>
+                          {processedData.documentReferences.length > visibleItems.documents && (
+                            <Box sx={{ textAlign: 'center', mt: 2 }}>
+                              <Button
+                                onClick={() => setVisibleItems(prev => ({ ...prev, documents: prev.documents + 5 }))}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Show More ({processedData.documentReferences.length - visibleItems.documents} more)
+                              </Button>
+                            </Box>
+                          )}
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+    ),
+    'encounters': (
+                <Grid item xs={12} md={6}>
+                  <Card sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid',
+                    borderLeftColor: theme.palette.info.main,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow: 'none',
+                    transition: 'box-shadow 0.2s ease'
+                  }}>
+                    <CardContent>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Typography variant="h6" sx={{ fontWeight: 600 }}>Recent Encounters</Typography>
+                        <Chip 
+                          label={`${processedData.recentEncounters.length}`} 
+                          size="small"
+                          sx={{
+                                    fontWeight: 600,
+                            backgroundColor: alpha(theme.palette.info.main, 0.1),
+                            color: theme.palette.info.main
+                          }}
+                        />
+                      </Stack>
+                      
+                      {processedData.recentEncounters.length === 0 ? (
+                        <Alert severity="info">No recent encounters</Alert>
+                      ) : (
+                        <Box sx={{ 
+                          maxHeight: 400, 
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
+                          pr: 0.5,
+                          '&::-webkit-scrollbar': {
+                            width: '8px',
+                          },
+                          '&::-webkit-scrollbar-track': {
+                            background: 'transparent',
+                          },
+                          '&::-webkit-scrollbar-thumb': {
+                            background: theme.palette.divider,
+                            borderRadius: '4px',
+                            '&:hover': {
+                              background: theme.palette.action.disabled,
+                            },
+                          },
+                        }}>
+                          <Stack spacing={0.5}>
+                            {processedData.recentEncounters.map((encounter, index) => (
+                              <Paper
+                                key={encounter.id}
+                                elevation={0}
+                                sx={{ 
+                                  p: 2, 
+                                                border: '1px solid',
+                                  borderColor: 'divider',
+                                  borderLeft: '4px solid',
+                                  borderLeftColor: theme.palette.info.main,
+                                  backgroundColor: index % 2 === 1 ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
+                                  '&:hover': {
+                                    backgroundColor: alpha(theme.palette.action.hover, 0.08),
+                                    transform: 'translateX(2px)'
+                                  },
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                  <Box>
+                                    <Typography variant="body2" fontWeight={500}>
+                                      {encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Encounter'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {formatClinicalDate(encounter.period?.start)}
+                                    </Typography>
+                                  </Box>
+                                  <Chip 
+                                    label={encounter.status} 
+                                    size="small"
+                                    color={encounter.status === 'in-progress' ? 'primary' : 'default'}
+                                  />
+                                </Stack>
+                              </Paper>
+                            ))}
+                          </Stack>
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+    ),
+  };
+
   return (
     <Box sx={{ backgroundColor: theme.palette.mode === 'dark' ? 'background.default' : 'background.paper' }}>
       {/* Load failure — without this, a failed load renders as an empty patient */}
@@ -822,764 +1592,20 @@ const ChartReviewTabOptimized = ({
               
               {/* Main Content Grid */}
               <Grid container spacing={3}>
-                {/* Conditions Panel */}
-                <Grid item xs={12} lg={6}>
-                  <Card sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.error.main,
-                    backgroundColor: theme.palette.background.paper,
-                    boxShadow: 'none',
-                    transition: 'box-shadow 0.2s ease'
-                  }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Conditions</Typography>
-                          {stats.conditions.active > 0 && (
-                            <Chip 
-                              label={`${stats.conditions.active} Active`} 
-                              size="small" 
-                              color="error"
-                              sx={{
-                                fontWeight: 600
-                              }}
-                            />
-                          )}
-                          {stats.conditions.resolved > 0 && (
-                            <Chip 
-                              label={`${stats.conditions.resolved} Resolved`} 
-                              size="small" 
-                              color="success"
-                              sx={{
-                                fontWeight: 600
-                              }}
-                            />
-                          )}
-                        </Stack>
-                        <InteractiveButton
-                          startIcon={<AddIcon />}
-                          size="small"
-                          onClick={() => handleOpenDialog('condition')}
-                          hoverEffect="scale"
-                          tooltip="Add new condition"
-                        >
-                          Add
-                        </InteractiveButton>
-                      </Stack>
-                      
-                      {/* Gate must count the same date-filtered set the rows
-                          render — the raw array made a narrow date range show
-                          neither rows nor the empty message */}
-                      {(showInactive
-                        ? processedData.activeConditions.length + processedData.inactiveConditions.length
-                        : processedData.activeConditions.length) === 0 ? (
-                        <ClinicalEmptyState
-                          title="No Active Conditions"
-                          message="This patient currently has no documented active conditions. Add a condition to start building their clinical profile."
-                          icon={<HospitalIcon />}
-                          iconColor="success"
-                          severity="success"
-                          actions={[{ label: 'Add Condition', icon: <AddIcon />, onClick: () => handleOpenDialog('condition') }]}
+                {chartSections.map((section) => (
+                  <React.Fragment key={section.id}>
+                    {section.builtin
+                      ? panels[section.id] || null
+                      : (
+                        <HostedSectionPanel
+                          section={section}
+                          patientId={patientId}
+                          currentPatient={currentPatient}
+                          onNavigateToTab={onNavigateToTab}
                         />
-                      ) : (
-                        <Box sx={{ 
-                          maxHeight: 400, 
-                          overflowY: 'auto',
-                          overflowX: 'hidden',
-                          pr: 0.5,
-                          '&::-webkit-scrollbar': {
-                            width: '8px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            background: 'transparent',
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            background: theme.palette.divider,
-                            borderRadius: '4px',
-                            '&:hover': {
-                              background: theme.palette.action.disabled,
-                            },
-                          },
-                        }}>
-                          <ClinicalLoadingState.StaggeredFadeIn staggerDelay={30}>
-                            {(showInactive 
-                              ? [...processedData.activeConditions, ...processedData.inactiveConditions]
-                              : processedData.activeConditions
-                            ).slice(0, visibleItems.conditions).map((condition, index) => (
-                              <EnhancedConditionCard
-                                key={condition.id}
-                                condition={condition}
-                                onEdit={() => handleOpenDialog('condition', condition)}
-                                isAlternate={index % 2 === 1}  // For alternating rows
-                              />
-                            ))}
-                          </ClinicalLoadingState.StaggeredFadeIn>
-                          {(showInactive 
-                            ? processedData.activeConditions.length + processedData.inactiveConditions.length
-                            : processedData.activeConditions.length
-                          ) > visibleItems.conditions && (
-                            <Box sx={{ textAlign: 'center', mt: 2 }}>
-                              <Button
-                                size="small"
-                                onClick={() => setVisibleItems(prev => ({ ...prev, conditions: prev.conditions + 10 }))}
-                                sx={{ textTransform: 'none' }}
-                              >
-                                Show More ({(showInactive 
-                                  ? processedData.activeConditions.length + processedData.inactiveConditions.length
-                                  : processedData.activeConditions.length
-                                ) - visibleItems.conditions} more)
-                              </Button>
-                            </Box>
-                          )}
-                        </Box>
                       )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                {/* Medications Panel */}
-                <Grid item xs={12} lg={6}>
-                  <Card sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.primary.main,
-                    backgroundColor: theme.palette.background.paper,
-                    boxShadow: 'none',
-                    transition: 'box-shadow 0.2s ease'
-                  }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Medications</Typography>
-                          <Chip 
-                            label={`${processedData.activeMedications.length} Active`} 
-                            size="small" 
-                            color="primary"
-                            sx={{
-                                        fontWeight: 600
-                            }}
-                          />
-                        </Stack>
-                        <InteractiveButton
-                          startIcon={<AddIcon />}
-                          size="small"
-                          onClick={() => handleOpenDialog('medication')}
-                          hoverEffect="scale"
-                          tooltip="Prescribe new medication"
-                        >
-                          Add
-                        </InteractiveButton>
-                      </Stack>
-                      
-                      {(showInactive
-                        ? processedData.activeMedications.length + processedData.inactiveMedications.length
-                        : processedData.activeMedications.length) === 0 ? (
-                        <ClinicalEmptyState
-                          title="No Active Medications"
-                          message="No medications are currently prescribed for this patient. Start building their medication profile by adding prescriptions."
-                          icon={<MedicationIcon />}
-                          iconColor="info"
-                          severity="info"
-                          actions={[{ label: 'Prescribe Medication', icon: <AddIcon />, onClick: () => handleOpenDialog('medication') }]}
-                        />
-                      ) : (
-                        <Box sx={{ 
-                          maxHeight: 400, 
-                          overflowY: 'auto',
-                          overflowX: 'hidden',
-                          pr: 0.5,
-                          '&::-webkit-scrollbar': {
-                            width: '8px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            background: 'transparent',
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            background: theme.palette.divider,
-                            borderRadius: '4px',
-                            '&:hover': {
-                              background: theme.palette.action.disabled,
-                            },
-                          },
-                        }}>
-                          <ClinicalLoadingState.StaggeredFadeIn staggerDelay={30}>
-                            {(showInactive 
-                              ? [...processedData.activeMedications, ...processedData.inactiveMedications]
-                              : processedData.activeMedications
-                            ).slice(0, visibleItems.medications).map((medication, index) => (
-                              <EnhancedMedicationCard
-                                key={medication.id}
-                                medication={medication}
-                                onEdit={() => handleOpenDialog('medication', medication)}
-                                isAlternate={index % 2 === 1}  // For alternating rows
-                                onNavigateToTab={onNavigateToTab}
-                                resolvedName={getMedicationDisplay(medication)}
-                              />
-                            ))}
-                          </ClinicalLoadingState.StaggeredFadeIn>
-                          {(showInactive 
-                            ? processedData.activeMedications.length + processedData.inactiveMedications.length
-                            : processedData.activeMedications.length
-                          ) > visibleItems.medications && (
-                            <Box sx={{ textAlign: 'center', mt: 2 }}>
-                              <Button
-                                size="small"
-                                onClick={() => setVisibleItems(prev => ({ ...prev, medications: prev.medications + 10 }))}
-                                sx={{ textTransform: 'none' }}
-                              >
-                                Show More ({(showInactive 
-                                  ? processedData.activeMedications.length + processedData.inactiveMedications.length
-                                  : processedData.activeMedications.length
-                                ) - visibleItems.medications} more)
-                              </Button>
-                            </Box>
-                          )}
-                        </Box>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                {/* Allergies Panel */}
-                <Grid item xs={12} md={6}>
-                  <Card sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.warning.main,
-                    backgroundColor: theme.palette.background.paper,
-                    boxShadow: 'none',
-                    transition: 'box-shadow 0.2s ease'
-                  }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Allergies</Typography>
-                          {processedData.criticalAllergies.length > 0 && (
-                            <Chip 
-                              icon={<WarningIcon />}
-                              label={`${processedData.criticalAllergies.length} Critical`} 
-                              size="small" 
-                              color="error"
-                              sx={{
-                                            fontWeight: 600,
-                                animation: 'pulse 2s infinite'
-                              }}
-                            />
-                          )}
-                        </Stack>
-                        <InteractiveButton
-                          startIcon={<AddIcon />}
-                          size="small"
-                          onClick={() => handleOpenDialog('allergy')}
-                          hoverEffect="scale"
-                          tooltip="Document new allergy"
-                        >
-                          Add
-                        </InteractiveButton>
-                      </Stack>
-                      
-                      {(processedData.criticalAllergies.length + processedData.nonCriticalAllergies.length) === 0 ? (
-                        <ClinicalEmptyState
-                          title="No Known Allergies"
-                          message="Great news! This patient has no documented allergies. You can add any allergies discovered during care."
-                          icon={<CheckCircleIcon />}
-                          iconColor="success"
-                          severity="success"
-                          actions={[{ label: 'Document Allergy', icon: <AddIcon />, variant: 'outlined', onClick: () => handleOpenDialog('allergy') }]}
-                        />
-                      ) : (
-                        <Box sx={{ 
-                          maxHeight: 400, 
-                          overflowY: 'auto',
-                          overflowX: 'hidden',
-                          pr: 0.5,
-                          '&::-webkit-scrollbar': {
-                            width: '8px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            background: 'transparent',
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            background: theme.palette.divider,
-                            borderRadius: '4px',
-                            '&:hover': {
-                              background: theme.palette.action.disabled,
-                            },
-                          },
-                        }}>
-                          <ClinicalLoadingState.StaggeredFadeIn staggerDelay={50}>
-                            {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies]
-                              .slice(0, visibleItems.allergies)
-                              .map((allergy, index) => (
-                                <EnhancedAllergyCard
-                                  key={allergy.id}
-                                  allergy={allergy}
-                                  onEdit={() => handleOpenDialog('allergy', allergy)}
-                                  isAlternate={index % 2 === 1}  // For alternating rows
-                                />
-                              ))}
-                          </ClinicalLoadingState.StaggeredFadeIn>
-                          {[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies].length > visibleItems.allergies && (
-                            <Box sx={{ textAlign: 'center', mt: 2 }}>
-                              <Button
-                                onClick={() => setVisibleItems(prev => ({ ...prev, allergies: prev.allergies + 10 }))}
-                                sx={{ textTransform: 'none' }}
-                              >
-                                Show More ({[...processedData.criticalAllergies, ...processedData.nonCriticalAllergies].length - visibleItems.allergies} more)
-                              </Button>
-                            </Box>
-                          )}
-                        </Box>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                {/* Immunizations Panel */}
-                <Grid item xs={12} md={6}>
-                  <Card sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.success.main,
-                    backgroundColor: theme.palette.background.paper,
-                    boxShadow: 'none',
-                    transition: 'box-shadow 0.2s ease'
-                  }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Immunizations</Typography>
-                          <Chip 
-                            label={`${processedData.immunizations.length}`} 
-                            size="small"
-                            sx={{
-                                        fontWeight: 600,
-                              backgroundColor: alpha(theme.palette.success.main, 0.1),
-                              color: theme.palette.success.main
-                            }}
-                          />
-                        </Stack>
-                        <Button
-                          startIcon={<AddIcon />}
-                          size="small"
-                          onClick={() => handleOpenDialog('immunization')}
-                          sx={{
-                            borderRadius: getBorderRadius('md'),
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            ...getHoverEffect('scale', theme)
-                          }}
-                        >
-                          Add
-                        </Button>
-                      </Stack>
-                      
-                      {processedData.immunizations.length === 0 ? (
-                        <Alert severity="info">No immunization records</Alert>
-                      ) : (
-                        <Box sx={{ 
-                          maxHeight: 400, 
-                          overflowY: 'auto',
-                          overflowX: 'hidden',
-                          pr: 0.5,
-                          '&::-webkit-scrollbar': {
-                            width: '8px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            background: 'transparent',
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            background: theme.palette.divider,
-                            borderRadius: '4px',
-                            '&:hover': {
-                              background: theme.palette.action.disabled,
-                            },
-                          },
-                        }}>
-                          <Stack spacing={0.5}>
-                            {processedData.immunizations.slice(0, visibleItems.immunizations).map((immunization, index) => (
-                              <EnhancedImmunizationCard
-                                key={immunization.id}
-                                immunization={immunization}
-                                onEdit={() => handleOpenDialog('immunization', immunization)}
-                                isAlternate={index % 2 === 1}  // For alternating rows
-                              />
-                            ))}
-                          </Stack>
-                          {processedData.immunizations.length > visibleItems.immunizations && (
-                            <Box sx={{ textAlign: 'center', mt: 2 }}>
-                              <Button
-                                onClick={() => setVisibleItems(prev => ({ ...prev, immunizations: prev.immunizations + 10 }))}
-                                sx={{ textTransform: 'none' }}
-                              >
-                                Show More ({processedData.immunizations.length - visibleItems.immunizations} more)
-                              </Button>
-                            </Box>
-                          )}
-                        </Box>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                {/* Procedures Panel */}
-                <Grid item xs={12} md={6}>
-                  <Card sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.secondary.main,
-                    backgroundColor: theme.palette.background.paper,
-                    boxShadow: 'none',
-                    transition: 'box-shadow 0.2s ease'
-                  }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Procedures</Typography>
-                          <Chip 
-                            label={`${processedData.procedures.length}`} 
-                            size="small"
-                            sx={{
-                                        fontWeight: 600,
-                              backgroundColor: alpha(theme.palette.secondary.main, 0.1),
-                              color: theme.palette.secondary.main
-                            }}
-                          />
-                        </Stack>
-                        <Button
-                          startIcon={<AddIcon />}
-                          size="small"
-                          onClick={() => handleOpenDialog('procedure')}
-                          sx={{
-                            borderRadius: getBorderRadius('md'),
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            ...getHoverEffect('scale', theme)
-                          }}
-                        >
-                          Add
-                        </Button>
-                      </Stack>
-                      
-                      {processedData.procedures.length === 0 ? (
-                        <Alert severity="info">No procedure records</Alert>
-                      ) : (
-                        <Box sx={{ 
-                          maxHeight: 400, 
-                          overflowY: 'auto',
-                          overflowX: 'hidden',
-                          pr: 0.5,
-                          '&::-webkit-scrollbar': {
-                            width: '8px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            background: 'transparent',
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            background: theme.palette.divider,
-                            borderRadius: '4px',
-                            '&:hover': {
-                              background: theme.palette.action.disabled,
-                            },
-                          },
-                        }}>
-                          <Stack spacing={0.5}>
-                            {processedData.procedures.slice(0, visibleItems.procedures).map((procedure, index) => (
-                              <EnhancedProcedureCard
-                                key={procedure.id}
-                                procedure={procedure}
-                                onEdit={() => handleOpenDialog('procedure', procedure)}
-                                isAlternate={procedure.id.charCodeAt(procedure.id.length - 1) % 2 === 1}  // Stable alternating based on ID
-                              />
-                            ))}
-                          </Stack>
-                          {processedData.procedures.length > visibleItems.procedures && (
-                            <Box sx={{ textAlign: 'center', mt: 2 }}>
-                              <Button
-                                onClick={() => setVisibleItems(prev => ({ ...prev, procedures: prev.procedures + 10 }))}
-                                sx={{ textTransform: 'none' }}
-                              >
-                                Show More ({processedData.procedures.length - visibleItems.procedures} more)
-                              </Button>
-                            </Box>
-                          )}
-                        </Box>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                {/* Care Plans Panel */}
-                <Grid item xs={12} md={6}>
-                  <Card sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.indigo?.[500] || theme.palette.primary.dark,
-                    backgroundColor: theme.palette.background.paper,
-                    boxShadow: 'none',
-                    transition: 'box-shadow 0.2s ease'
-                  }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Care Plans</Typography>
-                          <Chip 
-                            label={`${processedData.carePlans.length}`} 
-                            size="small"
-                            sx={{
-                                        fontWeight: 600,
-                              backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                              color: theme.palette.primary.main
-                            }}
-                          />
-                        </Stack>
-                        <Button
-                          startIcon={<AddIcon />}
-                          size="small"
-                          onClick={() => handleOpenDialog('carePlan')}
-                          sx={{
-                            borderRadius: getBorderRadius('md'),
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            ...getHoverEffect('scale', theme)
-                          }}
-                        >
-                          Add
-                        </Button>
-                      </Stack>
-                      
-                      {processedData.carePlans.length === 0 ? (
-                        <Alert severity="info">No care plans</Alert>
-                      ) : (
-                        <Box sx={{ 
-                          maxHeight: 400, 
-                          overflowY: 'auto',
-                          overflowX: 'hidden',
-                          pr: 0.5,
-                          '&::-webkit-scrollbar': {
-                            width: '8px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            background: 'transparent',
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            background: theme.palette.divider,
-                            borderRadius: '4px',
-                            '&:hover': {
-                              background: theme.palette.action.disabled,
-                            },
-                          },
-                        }}>
-                          <Stack spacing={0.5}>
-                            {processedData.carePlans.slice(0, visibleItems.carePlans).map((carePlan, index) => (
-                              <EnhancedCarePlanCard
-                                key={carePlan.id}
-                                carePlan={carePlan}
-                                onEdit={() => handleOpenDialog('carePlan', carePlan)}
-                                isAlternate={carePlan.id.charCodeAt(carePlan.id.length - 1) % 2 === 1}  // Stable alternating based on ID
-                              />
-                            ))}
-                          </Stack>
-                          {processedData.carePlans.length > visibleItems.carePlans && (
-                            <Box sx={{ textAlign: 'center', mt: 2 }}>
-                              <Button
-                                onClick={() => setVisibleItems(prev => ({ ...prev, carePlans: prev.carePlans + 5 }))}
-                                sx={{ textTransform: 'none' }}
-                              >
-                                Show More ({processedData.carePlans.length - visibleItems.carePlans} more)
-                              </Button>
-                            </Box>
-                          )}
-                        </Box>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                {/* Clinical Documents Panel */}
-                <Grid item xs={12} md={6}>
-                  <Card sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.grey[600],
-                    backgroundColor: theme.palette.background.paper,
-                    boxShadow: 'none',
-                    transition: 'box-shadow 0.2s ease'
-                  }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Clinical Documents</Typography>
-                          <Chip 
-                            label={`${processedData.documentReferences.length}`} 
-                            size="small"
-                            sx={{
-                                        fontWeight: 600,
-                              backgroundColor: alpha(theme.palette.grey[600], 0.1),
-                              color: theme.palette.grey[600]
-                            }}
-                          />
-                        </Stack>
-                        <Button
-                          startIcon={<AddIcon />}
-                          size="small"
-                          onClick={() => handleOpenDialog('document')}
-                          sx={{
-                            borderRadius: getBorderRadius('md'),
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            ...getHoverEffect('scale', theme)
-                          }}
-                        >
-                          Add
-                        </Button>
-                      </Stack>
-                      
-                      {processedData.documentReferences.length === 0 ? (
-                        <Alert severity="info">No clinical documents</Alert>
-                      ) : (
-                        <Box sx={{ 
-                          maxHeight: 400, 
-                          overflowY: 'auto',
-                          overflowX: 'hidden',
-                          pr: 0.5,
-                          '&::-webkit-scrollbar': {
-                            width: '8px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            background: 'transparent',
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            background: theme.palette.divider,
-                            borderRadius: '4px',
-                            '&:hover': {
-                              background: theme.palette.action.disabled,
-                            },
-                          },
-                        }}>
-                          <Stack spacing={0.5}>
-                            {processedData.documentReferences.slice(0, visibleItems.documents).map((document, index) => (
-                              <EnhancedDocumentCard
-                                key={document.id}
-                                document={document}
-                                onEdit={() => handleOpenDialog('document', document)}
-                                isAlternate={index % 2 === 1}  // For alternating rows
-                              />
-                            ))}
-                          </Stack>
-                          {processedData.documentReferences.length > visibleItems.documents && (
-                            <Box sx={{ textAlign: 'center', mt: 2 }}>
-                              <Button
-                                onClick={() => setVisibleItems(prev => ({ ...prev, documents: prev.documents + 5 }))}
-                                sx={{ textTransform: 'none' }}
-                              >
-                                Show More ({processedData.documentReferences.length - visibleItems.documents} more)
-                              </Button>
-                            </Box>
-                          )}
-                        </Box>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                {/* Recent Encounters Panel */}
-                <Grid item xs={12} md={6}>
-                  <Card sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.info.main,
-                    backgroundColor: theme.palette.background.paper,
-                    boxShadow: 'none',
-                    transition: 'box-shadow 0.2s ease'
-                  }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Typography variant="h6" sx={{ fontWeight: 600 }}>Recent Encounters</Typography>
-                        <Chip 
-                          label={`${processedData.recentEncounters.length}`} 
-                          size="small"
-                          sx={{
-                                    fontWeight: 600,
-                            backgroundColor: alpha(theme.palette.info.main, 0.1),
-                            color: theme.palette.info.main
-                          }}
-                        />
-                      </Stack>
-                      
-                      {processedData.recentEncounters.length === 0 ? (
-                        <Alert severity="info">No recent encounters</Alert>
-                      ) : (
-                        <Box sx={{ 
-                          maxHeight: 400, 
-                          overflowY: 'auto',
-                          overflowX: 'hidden',
-                          pr: 0.5,
-                          '&::-webkit-scrollbar': {
-                            width: '8px',
-                          },
-                          '&::-webkit-scrollbar-track': {
-                            background: 'transparent',
-                          },
-                          '&::-webkit-scrollbar-thumb': {
-                            background: theme.palette.divider,
-                            borderRadius: '4px',
-                            '&:hover': {
-                              background: theme.palette.action.disabled,
-                            },
-                          },
-                        }}>
-                          <Stack spacing={0.5}>
-                            {processedData.recentEncounters.map((encounter, index) => (
-                              <Paper
-                                key={encounter.id}
-                                elevation={0}
-                                sx={{ 
-                                  p: 2, 
-                                                border: '1px solid',
-                                  borderColor: 'divider',
-                                  borderLeft: '4px solid',
-                                  borderLeftColor: theme.palette.info.main,
-                                  backgroundColor: index % 2 === 1 ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
-                                  '&:hover': {
-                                    backgroundColor: alpha(theme.palette.action.hover, 0.08),
-                                    transform: 'translateX(2px)'
-                                  },
-                                  transition: 'all 0.2s ease'
-                                }}
-                              >
-                                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                  <Box>
-                                    <Typography variant="body2" fontWeight={500}>
-                                      {encounter.type?.[0]?.text || encounter.type?.[0]?.coding?.[0]?.display || 'Encounter'}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {formatClinicalDate(encounter.period?.start)}
-                                    </Typography>
-                                  </Box>
-                                  <Chip 
-                                    label={encounter.status} 
-                                    size="small"
-                                    color={encounter.status === 'in-progress' ? 'primary' : 'default'}
-                                  />
-                                </Stack>
-                              </Paper>
-                            ))}
-                          </Stack>
-                        </Box>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
+                  </React.Fragment>
+                ))}
               </Grid>
             </Box>
           </ClinicalLoadingState.FadeIn>

@@ -35,6 +35,17 @@ Manifests may contribute (all optional):
   places a tab where it clinically belongs (Flowsheet sits beside the MAR);
   omitted or unknown anchors append at the end — a tab never silently
   disappears over a placement typo.
+- **`sections`** — panels that live INSIDE a chart tab:
+  `{ id, label, icon, color, host, hostable, defaultCollapsed, loader }`.
+  `host` is the tab the section belongs to by default (a module's own
+  tab, usually); `hostable: true` lets the Command Center tab policy
+  place it on another tab for a role (Flowsheet inside Chart Review for
+  nurses). The component takes `{ patientId }` and loads its own data —
+  it shares nothing with the host tab. Registry:
+  `src/components/clinical/workspace/sectionRegistry.js`; what a user
+  sees on a tab is `useEffectiveSections(tabId)`. Chart Review is the
+  first host; its own eight panels are builtin sections of the same
+  registry.
 - **`pages`** — top-level routed pages: `{ id, path, label, icon, color,
   description, nav: { section, order }, loader }`. ONE entry yields the
   route (router/router.js) and the app-shell menu item

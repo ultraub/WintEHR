@@ -48,12 +48,19 @@ export { buildUrl } from '../config/apiConfig';
 // The pure resolver and the policy store are importable (no registry
 // dependency); the tab CATALOG is a lazy import so a module can read it
 // without creating a static cycle (registry → modules → sdk → registry).
-export { resolveEffectiveTabs, ALWAYS_VISIBLE as ALWAYS_VISIBLE_TABS, EMPTY_TAB_POLICY } from '../components/clinical/workspace/tabPolicy';
+export {
+  resolveEffectiveTabs,
+  resolveEffectiveSections,
+  ALWAYS_VISIBLE as ALWAYS_VISIBLE_TABS,
+  EMPTY_TAB_POLICY,
+} from '../components/clinical/workspace/tabPolicy';
 export { refreshTabPolicy } from '../components/clinical/workspace/tabPolicyStore';
 export const loadClinicalTabCatalog = () =>
   import('../components/clinical/workspace/clinicalTabRegistry').then((m) =>
     m.CLINICAL_TABS.map((t) => ({ id: t.id, label: t.label, color: t.color })),
   );
+export const loadClinicalSectionCatalog = () =>
+  import('../components/clinical/workspace/sectionRegistry').then((m) => m.sectionCatalog());
 
 // --- Theming ------------------------------------------------------------
 // One hue per clinical domain; module accents are registered here too.

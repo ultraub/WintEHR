@@ -34,6 +34,7 @@ const layerOf = (value) => ({
   hidden: Array.isArray(value?.hidden) ? value.hidden : [],
   order: Array.isArray(value?.order) ? value.order : [],
   default: typeof value?.default === 'string' && value.default ? value.default : null,
+  sections: value?.sections && typeof value.sections === 'object' ? value.sections : {},
 });
 
 /** The layers that apply to {role, context}, least to most specific. */
@@ -84,4 +85,53 @@ export function resolveEffectiveTabs(tabs, policy, { role, context } = {}) {
   }
 
   return { tabs: ordered, hiddenIds: [...hidden], defaultTab, warnings };
+}
+
+/**
+ * The sections shown on ONE tab for {role, context}: the tab's own
+ * sections plus any hostable sections a layer `added`, minus `hidden`,
+ * in the most specific non-empty `order`. Layer shape per tab:
+ *   policy.<layer>.sections[tabId] = { hidden: [], order: [], added: [] }
+ *
+ * `catalog` is the section catalog (sectionRegistry.sectionCatalog() or
+ * the full registry); entries need { id, host, hostable }.
+ */
+export function resolveEffectiveSections(tabId, catalog, policy, { role, context } = {}) {
+  const all = Array.isArray(catalog) ? catalog : [];
+  const byId = new Map(all.map((s) => [s.id, s]));
+  const warnings = [];
+  const hidden = new Set();
+  const added = [];
+  let order = [];
+
+  for (const layer of applicableLayers(policy, { role, context })) {
+    const spec = layer.sections?.[tabId];
+    if (!spec) continue;
+    for (const id of spec.added || []) {
+      const s = byId.get(id);
+      if (!s) warnings.push(`unknown section id in added: ${id}`);
+      else if (!s.hostable && s.host !== tabId) warnings.push(`section ${id} is not hostable; ignored`);
+      else if (!added.includes(id)) added.push(id);
+    }
+    for (const id of spec.hidden || []) {
+      if (!byId.has(id)) warnings.push(`unknown section id in hidden: ${id}`);
+      else hidden.add(id);
+    }
+    const knownOrder = (spec.order || []).filter((id) => {
+      if (byId.has(id)) return true;
+      warnings.push(`unknown section id in order: ${id}`);
+      return false;
+    });
+    if (knownOrder.length) order = knownOrder;
+  }
+
+  const own = all.filter((s) => s.host === tabId);
+  const candidates = [...own, ...added.filter((id) => !own.some((s) => s.id === id)).map((id) => byId.get(id))];
+  const visible = candidates.filter((s) => !hidden.has(s.id));
+  const visibleById = new Map(visible.map((s) => [s.id, s]));
+  const ordered = [
+    ...order.filter((id) => visibleById.has(id)).map((id) => visibleById.get(id)),
+    ...visible.filter((s) => !order.includes(s.id)),
+  ];
+  return { sections: ordered, hiddenIds: [...hidden], addedIds: added, warnings };
 }

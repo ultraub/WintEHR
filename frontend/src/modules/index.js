@@ -66,6 +66,23 @@ export const DISABLED_MODULE_KEYS = ALL_MODULES
 export const getModuleTabs = () => ENABLED_MODULES.flatMap((m) => m.tabs || []);
 
 /**
+ * Section entries contributed by enabled modules (panels that can live
+ * inside a tab; see workspace/sectionRegistry.js and docs/MODULES.md).
+ * Each entry: { id, label, icon?, color?, loader, host?, hostable?,
+ * defaultCollapsed? }. `host` defaults to the module's first tab id.
+ */
+export const getModuleSections = () =>
+  ENABLED_MODULES.flatMap((m) =>
+    (m.sections || []).map((s) => ({
+      host: m.tabs?.[0]?.id ?? m.id,
+      hostable: true,
+      hostedFrom: m.tabs?.[0]?.label,
+      ...s,
+      moduleId: m.id,
+    })),
+  );
+
+/**
  * Top-level page entries contributed by enabled modules, in module order.
  * Each entry: { id, path, label, icon, color, description?, nav?, loader }.
  * `nav: { section, order }` places the page in the app-shell menu

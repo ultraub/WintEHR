@@ -18,8 +18,8 @@ from api.command_center.tab_policy import EMPTY_POLICY, known_roles, normalize_t
 def test_normalize_fills_every_layer_and_dedupes():
     doc = {"org": {"hidden": ["inbox", "inbox", "pharmacy"]}, "roles": {"nurse": {"default": "administration", "order": ["summary", "administration"]}}}
     out = normalize_tab_policy(doc)
-    assert out["org"] == {"hidden": ["inbox", "pharmacy"], "order": [], "default": None}
-    assert out["roles"]["nurse"] == {"hidden": [], "order": ["summary", "administration"], "default": "administration"}
+    assert out["org"] == {"hidden": ["inbox", "pharmacy"], "order": [], "default": None, "sections": {}}
+    assert out["roles"]["nurse"] == {"hidden": [], "order": ["summary", "administration"], "default": "administration", "sections": {}}
     assert out["contexts"] == {}
     assert normalize_tab_policy(None) == EMPTY_POLICY
 
@@ -77,6 +77,19 @@ async def test_policy_round_trips_through_the_settings_store_and_public_endpoint
 
     await svc.reset("ui.tabs.policy", "demo-admin")
     assert (await get_ui_policy(settings=svc)).policy == EMPTY_POLICY
+
+
+def test_sections_per_tab_are_validated_and_empty_specs_dropped():
+    out = normalize_tab_policy({"org": {"sections": {"chart-review": {"hidden": ["documents"], "added": ["flowsheet", "flowsheet"]}, "results": {}}}})
+    assert out["org"]["sections"] == {"chart-review": {"hidden": ["documents"], "order": [], "added": ["flowsheet"]}}
+    for bad in (
+        {"org": {"sections": []}},
+        {"org": {"sections": {"chart-review": {"hidden": "documents"}}}},
+        {"org": {"sections": {"chart-review": {"bogus": []}}}},
+        {"org": {"sections": {"": {}}}},
+    ):
+        with pytest.raises(SettingValueError):
+            normalize_tab_policy(bad)
 
 
 def test_known_roles_covers_training_users():

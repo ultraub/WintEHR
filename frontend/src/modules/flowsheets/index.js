@@ -27,6 +27,19 @@ const flowsheetsModule = {
       loader: () => import(/* webpackChunkName: "module-flowsheets" */ './FlowsheetTab'),
     },
   ],
+  // The same grid as a hostable SECTION: the tab policy can place it inside
+  // another tab (e.g. Chart Review for nurses) — docs/MODULES.md, sections.
+  sections: [
+    {
+      id: 'flowsheet',
+      label: 'Flowsheet',
+      icon: FlowsheetIcon,
+      color: categoricalAccents.flowsheet,
+      host: 'flowsheet',
+      hostable: true,
+      loader: () => import(/* webpackChunkName: "module-flowsheets" */ './FlowsheetTab'),
+    },
+  ],
 };
 
 export default flowsheetsModule;

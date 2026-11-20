@@ -77,3 +77,50 @@ it('tolerates malformed layers and a missing catalog', () => {
   expect(resolveEffectiveTabs(undefined, { org: { hidden: 'inbox' } }, {}).tabs).toEqual([]);
   expect(ids(resolveEffectiveTabs(TABS, { org: null, roles: null }, { role: 'nurse' }))).toHaveLength(TABS.length);
 });
+
+// --- sections (slice 7b) ----------------------------------------------------------
+
+import { resolveEffectiveSections } from '../tabPolicy';
+
+const SECTIONS = [
+  { id: 'conditions', label: 'Conditions', host: 'chart-review', builtin: true, hostable: false },
+  { id: 'medications', label: 'Medications', host: 'chart-review', builtin: true, hostable: false },
+  { id: 'documents', label: 'Documents', host: 'chart-review', builtin: true, hostable: false },
+  { id: 'imaging-studies', label: 'Imaging studies', host: 'imaging', builtin: false, hostable: true },
+  { id: 'flowsheet', label: 'Flowsheet', host: 'flowsheet', builtin: false, hostable: true },
+];
+const sids = (r) => r.sections.map((s) => s.id);
+
+it("a tab's own sections show in registry order with no policy", () => {
+  const r = resolveEffectiveSections('chart-review', SECTIONS, EMPTY_TAB_POLICY, { role: 'nurse' });
+  expect(sids(r)).toEqual(['conditions', 'medications', 'documents']);
+  expect(r.addedIds).toEqual([]);
+});
+
+it('a layer can hide own sections, add hostable ones, and order the result', () => {
+  const policy = {
+    org: { sections: { 'chart-review': { hidden: ['documents'], added: ['flowsheet'] } } },
+    roles: { nurse: { sections: { 'chart-review': { order: ['flowsheet', 'conditions'] } } } },
+  };
+  expect(sids(resolveEffectiveSections('chart-review', SECTIONS, policy, {}))).toEqual(['conditions', 'medications', 'flowsheet']);
+  const nurse = resolveEffectiveSections('chart-review', SECTIONS, policy, { role: 'nurse' });
+  expect(sids(nurse)).toEqual(['flowsheet', 'conditions', 'medications']);
+  expect(nurse.addedIds).toEqual(['flowsheet']);
+});
+
+it('a role can hide a section the organization added, and non-hostable sections cannot be added', () => {
+  const policy = {
+    org: { sections: { 'chart-review': { added: ['imaging-studies', 'conditions'] } } },
+    roles: { nurse: { sections: { 'chart-review': { hidden: ['imaging-studies'] } } } },
+  };
+  expect(sids(resolveEffectiveSections('chart-review', SECTIONS, policy, {}))).toContain('imaging-studies');
+  expect(sids(resolveEffectiveSections('chart-review', SECTIONS, policy, { role: 'nurse' }))).not.toContain('imaging-studies');
+  const r = resolveEffectiveSections('results', SECTIONS, { org: { sections: { results: { added: ['conditions', 'nope'] } } } }, {});
+  expect(sids(r)).toEqual([]);
+  expect(r.warnings).toEqual(expect.arrayContaining(['section conditions is not hostable; ignored', 'unknown section id in added: nope']));
+});
+
+it('sections on other tabs are untouched by a tab\'s spec', () => {
+  const policy = { org: { sections: { 'chart-review': { hidden: ['conditions'] } } } };
+  expect(sids(resolveEffectiveSections('imaging', SECTIONS, policy, {}))).toEqual(['imaging-studies']);
+});
