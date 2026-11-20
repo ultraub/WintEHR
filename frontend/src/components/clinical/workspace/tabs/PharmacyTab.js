@@ -86,6 +86,12 @@ import api from '../../../../services/api';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { derivePharmacyStatus, PHARMACY_WORKFLOW_STATUSES } from '../../../../core/pharmacy/pharmacyStatus';
 import { medicationListManagementService } from '../../../../services/medicationListManagementService';
+import { useSectionStrip } from '../useSectionStrip';
+import { HostedSectionBody } from '../HostedSectionPanel';
+
+// Sub-tab strip, as section ids (workspace/sectionRegistry.js, host 'pharmacy').
+// Index order is what the tabValue switches below key on.
+const PHARMACY_VIEWS = ['all-medications', 'pending-review', 'ready-to-dispense', 'dispensed', 'refills'];
 import { prescriptionRefillService } from '../../../../services/prescriptionRefillService';
 import { medicationDispenseService } from '../../../../services/medicationDispenseService';
 import { medicationAdministrationService } from '../../../../services/medicationAdministrationService';
@@ -331,7 +337,10 @@ const PharmacyTab = ({
   const [administrationMode, setAdministrationMode] = useState('administer');
   
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline', 'cards', 'table'
-  const [tabValue, setTabValue] = useState(0);
+  // Which sub-tabs exist, in what order, is the tab policy's call (Command
+  // Center → Tabs). tabValue is -1 while a hosted section is selected.
+  const strip = useSectionStrip('pharmacy', PHARMACY_VIEWS[0]);
+  const tabValue = PHARMACY_VIEWS.indexOf(strip.activeId);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPharmacyStatus, setFilterPharmacyStatus] = useState('all');
   const [filterPeriod, setFilterPeriod] = useState('6m'); // all, 1m, 3m, 6m, 1y
@@ -823,14 +832,15 @@ const PharmacyTab = ({
   }, []);
 
   const getCurrentTabRequests = () => {
+    // Same mapping as the cards / table views below (the print queue used
+    // to be off by one against the strip).
     switch (tabValue) {
-      case 0: return categorizedRequests.pending;
-      case 1: return categorizedRequests.verified;
-      case 2: return categorizedRequests.dispensed;
-      case 3: return categorizedRequests.completed;
-      case 4: return pendingRefills; // Refill requests tab
-      case 5: return []; // MAR tab - handled separately
-      default: return filteredRequests;
+      case 0: return filteredRequests;
+      case 1: return categorizedRequests.pending;
+      case 2: return categorizedRequests.verified;
+      case 3: return categorizedRequests.dispensed;
+      case 4: return pendingRefills;
+      default: return [];
     }
   };
 
@@ -838,8 +848,7 @@ const PharmacyTab = ({
   
   // Handle print queue
   const handlePrintQueue = useCallback(() => {
-    const tabNames = ['Pending Review', 'Verified', 'Ready for Pickup', 'Completed', 'Refill Requests'];
-    const currentTabName = tabNames[tabValue] || 'All';
+    const currentTabName = strip.active?.label || 'All';
     
     const content = `
       <h2>Pharmacy Queue - ${currentTabName}</h2>
@@ -899,11 +908,20 @@ const PharmacyTab = ({
       content,
       footer: 'Generated from WintEHR Pharmacy Management System'
     });
-  }, [tabValue, currentRequests, patientFilter, currentPatient]);
+  }, [strip.active, currentRequests, patientFilter, currentPatient]);
 
   if (isLoading) {
     return <ClinicalLoadingState type="pharmacy" />;
   }
+
+  // Icon + badge per builtin sub-tab; a hosted section gets a plain label.
+  const stripMeta = {
+    'all-medications': { icon: <PharmacyIcon /> },
+    'pending-review': { icon: <PendingIcon />, badge: categorizedRequests.pending.length, color: 'warning' },
+    'ready-to-dispense': { icon: <FilledIcon />, badge: categorizedRequests.verified.length, color: 'info' },
+    'dispensed': { icon: <DispenseIcon />, badge: categorizedRequests.dispensed.length, color: 'primary' },
+    'refills': { icon: <RefreshIcon />, badge: pendingRefills.length, color: 'error' },
+  };
 
   return (
     <Box>
@@ -1057,59 +1075,40 @@ const PharmacyTab = ({
       <Box>
         {/* Workflow Tabs */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs 
-            value={tabValue} 
-            onChange={(e, newValue) => setTabValue(newValue)}
+          <Tabs
+            value={strip.activeId ?? false}
+            onChange={(e, id) => strip.select(id)}
             variant="scrollable"
             scrollButtons="auto"
           >
-            <Tab 
-              label="All Medications" 
-              icon={<PharmacyIcon />}
-              iconPosition="start"
-            />
-            <Tab 
-              label="Pending Review" 
-              icon={
-                <Badge badgeContent={categorizedRequests.pending.length} color="warning">
-                  <PendingIcon />
-                </Badge>
-              }
-              iconPosition="start"
-            />
-            <Tab 
-              label="Ready to Dispense" 
-              icon={
-                <Badge badgeContent={categorizedRequests.verified.length} color="info">
-                  <FilledIcon />
-                </Badge>
-              }
-              iconPosition="start"
-            />
-            <Tab 
-              label="Dispensed" 
-              icon={
-                <Badge badgeContent={categorizedRequests.dispensed.length} color="primary">
-                  <DispenseIcon />
-                </Badge>
-              }
-              iconPosition="start"
-            />
-            <Tab
-              label="Refills"
-              icon={
-                <Badge badgeContent={pendingRefills.length} color="error">
-                  <RefreshIcon />
-                </Badge>
-              }
-              iconPosition="start"
-            />
+            {strip.sections.map((section) => {
+              const meta = stripMeta[section.id];
+              const icon = meta?.badge !== undefined
+                ? <Badge badgeContent={meta.badge} color={meta.color}>{meta.icon}</Badge>
+                : meta?.icon;
+              return (
+                <Tab
+                  key={section.id}
+                  value={section.id}
+                  label={section.label}
+                  icon={icon}
+                  iconPosition={icon ? 'start' : undefined}
+                />
+              );
+            })}
           </Tabs>
         </Box>
 
         {/* Content */}
         <Box sx={{ p: 2 }}>
-          {viewMode === 'timeline' ? (
+          {strip.active && !strip.active.builtin ? (
+            <HostedSectionBody
+              section={strip.active}
+              patientId={patientId}
+              currentPatient={currentPatient}
+              onNavigateToTab={onNavigateToTab}
+            />
+          ) : viewMode === 'timeline' ? (
             // Timeline view - simplified without ResourceTimeline component
             <Box>
               <Typography variant="h6" gutterBottom sx={{ p: 2 }}>

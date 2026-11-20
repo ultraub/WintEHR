@@ -91,6 +91,11 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import VitalsOverview from '../../charts/VitalsOverview';
 import LabTrendsChart from '../../charts/LabTrendsChart';
+import { useSectionStrip } from '../useSectionStrip';
+import { HostedSectionBody } from '../HostedSectionPanel';
+
+// Sub-tab strip, as section ids (workspace/sectionRegistry.js, host 'results').
+const RESULT_VIEWS = ['lab-results', 'vital-signs', 'diagnostic-reports'];
 import { printDocument, formatLabResultsForPrint } from '../../../../core/export/printUtils';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import websocketService from '../../../../services/websocket';
@@ -306,7 +311,11 @@ const ResultsTabOptimized = ({
   const { currentPatient, searchResources } = useFHIRResource();
   const { publish, subscribe } = useClinicalWorkflow();
   
-  const [tabValue, setTabValue] = useState(0);
+  // Sub-tabs per the Command Center tab policy; tabValue is -1 while a
+  // hosted section is selected.
+  const strip = useSectionStrip('results', RESULT_VIEWS[0]);
+  const tabValue = RESULT_VIEWS.indexOf(strip.activeId);
+  const isObservationView = tabValue === 0 || tabValue === 1;
   const [viewMode, setViewMode] = useState('table'); // 'table', 'cards', or 'trends'
   const [filterPeriod, setFilterPeriod] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -648,7 +657,7 @@ const ResultsTabOptimized = ({
     }
 
     // Apply status filter
-    if (filterStatus !== 'all' && tabValue < 2) { // Only for observations
+    if (filterStatus !== 'all' && isObservationView) { // Only for observations
       data = data.filter(obs => {
         const status = getResultStatus(obs);
         switch (filterStatus) {
@@ -684,8 +693,8 @@ const ResultsTabOptimized = ({
   }, [filteredData, page, rowsPerPage]);
 
   // Handlers
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue);
+  const handleTabChange = (event, sectionId) => {
+    strip.select(sectionId);
     setPage(0);
   };
 
@@ -722,8 +731,6 @@ const ResultsTabOptimized = ({
 
   // Print the currently filtered results via the shared print pipeline
   const handlePrint = () => {
-    const tabTitles = ['Lab Results', 'Vital Signs', 'Diagnostic Reports'];
-
     const patientInfo = {
       name: currentPatient?.name?.[0] ?
         `${currentPatient.name[0].given?.join(' ') || ''} ${currentPatient.name[0].family || ''}`.trim() :
@@ -735,7 +742,7 @@ const ResultsTabOptimized = ({
     };
 
     printDocument({
-      title: tabTitles[tabValue] || 'Results',
+      title: strip.active?.label || 'Results',
       patient: patientInfo,
       content: formatLabResultsForPrint(filteredData)
     });
@@ -743,6 +750,19 @@ const ResultsTabOptimized = ({
 
   // Render content based on view mode
   const renderContent = () => {
+    if (strip.active && !strip.active.builtin) {
+      return (
+        <Box sx={{ p: 2 }}>
+          <HostedSectionBody
+            section={strip.active}
+            patientId={patientId}
+            currentPatient={currentPatient}
+            onNavigateToTab={onNavigateToTab}
+          />
+        </Box>
+      );
+    }
+
     if (allData.loading) {
       return (
         <Box sx={{ p: 2 }}>
@@ -774,7 +794,7 @@ const ResultsTabOptimized = ({
       );
     }
 
-    if (viewMode === 'trends' && tabValue < 2) {
+    if (viewMode === 'trends' && isObservationView) {
       // Show trends view for observations
       const observations = tabValue === 0 ? allData.labObservations : allData.vitalObservations;
       return (
@@ -1085,7 +1105,7 @@ const ResultsTabOptimized = ({
           compact
         >
           {/* Additional custom filter for Status when showing observations */}
-          {tabValue < 2 && (
+          {isObservationView && (
             <FormControl size="small" sx={{ minWidth: 120 }}>
               <InputLabel>Status</InputLabel>
               <Select
@@ -1103,28 +1123,23 @@ const ResultsTabOptimized = ({
       </Box>
       
       {/* Tabs */}
-      <Tabs value={tabValue} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tab 
-          label={
-            <Badge badgeContent={allData.labObservations.length} color="primary">
-              Lab Results
-            </Badge>
-          } 
-        />
-        <Tab 
-          label={
-            <Badge badgeContent={allData.vitalObservations.length} color="primary">
-              Vital Signs
-            </Badge>
-          } 
-        />
-        <Tab 
-          label={
-            <Badge badgeContent={allData.diagnosticReports.length} color="primary">
-              Diagnostic Reports
-            </Badge>
-          } 
-        />
+      <Tabs value={strip.activeId ?? false} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        {strip.sections.map((section) => {
+          const count = {
+            'lab-results': allData.labObservations.length,
+            'vital-signs': allData.vitalObservations.length,
+            'diagnostic-reports': allData.diagnosticReports.length,
+          }[section.id];
+          return (
+            <Tab
+              key={section.id}
+              value={section.id}
+              label={count === undefined
+                ? section.label
+                : <Badge badgeContent={count} color="primary">{section.label}</Badge>}
+            />
+          );
+        })}
       </Tabs>
       
       {/* Content */}

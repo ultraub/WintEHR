@@ -98,6 +98,11 @@ import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import { printDocument } from '../../../../core/export/printUtils';
+import { useSectionStrip } from '../useSectionStrip';
+import { HostedSectionBody } from '../HostedSectionPanel';
+
+// Sub-tab strip, as section ids (workspace/sectionRegistry.js, host 'care-plan').
+const CARE_PLAN_VIEWS = ['care-plan-list', 'care-team', 'goals', 'care-timeline'];
 import { fhirClient } from '../../../../core/fhir/services/fhirClient';
 // Removed framer-motion for consistency
 
@@ -400,7 +405,10 @@ const CarePlanTabEnhanced = ({
   const { publish } = useClinicalWorkflow();
   
   // State
-  const [activeTab, setActiveTab] = useState(0);
+  // Sub-tabs per the Command Center tab policy; activeTab is -1 while a
+  // hosted section is selected.
+  const strip = useSectionStrip('care-plan', CARE_PLAN_VIEWS[0]);
+  const activeTab = CARE_PLAN_VIEWS.indexOf(strip.activeId);
   const [viewMode, setViewMode] = useState('cards');
   const [filterStatus, setFilterStatus] = useState('active');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -1129,34 +1137,38 @@ const CarePlanTabEnhanced = ({
       
       {/* Tabs - Reordered for Option B: Longitudinal Care Coordination */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)}>
-          <Tab
-            label={
-              <Badge badgeContent={carePlans.length} color="primary">
-                Care Plans
-              </Badge>
-            }
-          />
-          <Tab
-            label={
-              <Badge badgeContent={aggregatedCareTeam.filter(m => m.role?.[0]?.text !== 'Patient').length} color="info">
-                Care Team
-              </Badge>
-            }
-          />
-          <Tab
-            label={
-              <Badge badgeContent={sortedGoals.length} color={sortedGoals.length > 0 ? "success" : "default"}>
-                Goals
-              </Badge>
-            }
-          />
-          <Tab label="Timeline" />
+        <Tabs value={strip.activeId ?? false} onChange={(e, id) => strip.select(id)}>
+          {strip.sections.map((section) => {
+            const badge = {
+              'care-plan-list': { count: carePlans.length, color: 'primary' },
+              'care-team': { count: aggregatedCareTeam.filter(m => m.role?.[0]?.text !== 'Patient').length, color: 'info' },
+              'goals': { count: sortedGoals.length, color: sortedGoals.length > 0 ? 'success' : 'default' },
+            }[section.id];
+            return (
+              <Tab
+                key={section.id}
+                value={section.id}
+                label={badge
+                  ? <Badge badgeContent={badge.count} color={badge.color}>{section.label}</Badge>
+                  : section.label}
+              />
+            );
+          })}
         </Tabs>
       </Box>
       
       {/* Content Area */}
       <Box>
+        {strip.active && !strip.active.builtin && (
+          <Box sx={{ p: 2 }}>
+            <HostedSectionBody
+              section={strip.active}
+              patientId={patientId}
+              currentPatient={patient}
+              onNavigateToTab={onNavigateToTab}
+            />
+          </Box>
+        )}
         {/* Care Plans Tab (Tab 0) - NEW: Longitudinal Care View */}
         {activeTab === 0 && (
           <Box sx={{ p: 2 }}>

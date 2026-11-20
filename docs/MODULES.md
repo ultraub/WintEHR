@@ -43,9 +43,10 @@ Manifests may contribute (all optional):
   nurses). The component takes `{ patientId }` and loads its own data —
   it shares nothing with the host tab. Registry:
   `src/components/clinical/workspace/sectionRegistry.js`; what a user
-  sees on a tab is `useEffectiveSections(tabId)`. Chart Review is the
-  first host; its own eight panels are builtin sections of the same
-  registry.
+  sees on a tab is `useEffectiveSections(tabId)`. Hosts today: Chart
+  Review (eight builtin panels, stacked) and the strip tabs Results,
+  Pharmacy and Care Plan (their sub-tabs are builtin sections; a hosted
+  section becomes one more sub-tab).
 - **`permissions`** — the `User.permissions` entries the module's UI
   assumes (e.g. `['read', 'write']`). Informational: shown on the Command
   Center's Modules tab so an admin sees what a module expects before
