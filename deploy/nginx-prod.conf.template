@@ -51,21 +51,14 @@ http {
         '' close;
     }
 
-    # Upstream servers (using production service names)
-    upstream backend {
-        server backend-prod:8000;
-    }
-
-    # Note: backend-prod:8000 is the correct hostname for production.
-    # The docker-compose.yml also defines a 'backend' network alias for compatibility.
-
-    upstream hapi_fhir {
-        server hapi-fhir:8080;
-    }
-
-    upstream frontend {
-        server frontend-prod:80;
-    }
+    # Upstreams are re-resolved, not pinned. nginx resolves a hostname in an
+    # `upstream {}` block (or a literal proxy_pass) exactly once, at startup.
+    # `docker compose up -d` recreates app containers on new network IPs, so
+    # a pinned nginx then proxies to the old one: 502 "connect() failed (111)
+    # while connecting to upstream" until someone runs `nginx -s reload`.
+    # Docker's embedded DNS at 127.0.0.11 plus a variable in proxy_pass makes
+    # nginx look the name up again every `valid` seconds instead.
+    resolver 127.0.0.11 valid=10s ipv6=off;
 
     # HTTP redirect to HTTPS
     server {
@@ -88,6 +81,11 @@ http {
         listen 443 ssl http2;
         server_name _;
 
+        # Compose service names (prod profile). A variable here, not an
+        # `upstream`, is what makes the resolver above apply — see its note.
+        set $backend http://backend-prod:8000;
+        set $frontend http://frontend-prod:80;
+
         # SSL configuration
         ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
         ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
@@ -107,7 +105,7 @@ http {
 
         # SMART on FHIR discovery endpoint (exact match)
         location = /.well-known/smart-configuration {
-            proxy_pass http://backend;
+            proxy_pass $backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -121,7 +119,7 @@ http {
 
         # WebSocket endpoint for real-time updates
         location /api/ws {
-            proxy_pass http://backend;
+            proxy_pass $backend;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection $connection_upgrade;
@@ -141,7 +139,7 @@ http {
         location /api/cds-services {
             limit_req zone=cds_limit burst=100 nodelay;
 
-            proxy_pass http://backend;
+            proxy_pass $backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -155,7 +153,7 @@ http {
         location /api/ {
             limit_req zone=api_limit burst=200 nodelay;
 
-            proxy_pass http://backend;
+            proxy_pass $backend;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection $connection_upgrade;
@@ -172,7 +170,7 @@ http {
         location /docs {
             limit_req zone=general_limit burst=50 nodelay;
 
-            proxy_pass http://backend;
+            proxy_pass $backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -183,7 +181,7 @@ http {
         location /openapi.json {
             limit_req zone=general_limit burst=50 nodelay;
 
-            proxy_pass http://backend;
+            proxy_pass $backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -208,7 +206,7 @@ http {
         location /fhir/R4/ {
             limit_req zone=api_limit burst=200 nodelay;
 
-            proxy_pass http://backend;
+            proxy_pass $backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -225,7 +223,7 @@ http {
         # (the backend has matching explicit /fhir and /fhir/R4 routes).
         location = /fhir {
             limit_req zone=api_limit burst=200 nodelay;
-            proxy_pass http://backend;
+            proxy_pass $backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -236,7 +234,7 @@ http {
 
         location = /fhir/R4 {
             limit_req zone=api_limit burst=200 nodelay;
-            proxy_pass http://backend;
+            proxy_pass $backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -250,7 +248,7 @@ http {
         location /fhir/ {
             limit_req zone=api_limit burst=200 nodelay;
 
-            proxy_pass http://backend;
+            proxy_pass $backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -264,7 +262,7 @@ http {
         location / {
             limit_req zone=general_limit burst=100 nodelay;
 
-            proxy_pass http://frontend;
+            proxy_pass $frontend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;

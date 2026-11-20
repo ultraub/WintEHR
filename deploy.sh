@@ -693,16 +693,10 @@ if [ -d "$HOME/fhir_vocabularies/terminology" ] && \
         # HAPI fallback. Restart picks up the new index immediately.
         docker restart emr-backend > /dev/null
         echo "   emr-backend restarted; catalog search now uses the local index"
-        # nginx caches upstream DNS at worker start. After a backend restart
-        # it can hold the old container IP and serve 502 Bad Gateway until
-        # something nudges it. `docker restart emr-nginx` is heavy-handed
-        # but cheap (~1s, no observable downtime) and re-resolves both the
-        # backend AND hapi-fhir upstreams. Without this, the catalog index
-        # we just built is unreachable until the next deploy.
-        if docker inspect emr-nginx >/dev/null 2>&1; then
-            docker restart emr-nginx > /dev/null
-            echo "   emr-nginx restarted to refresh upstream DNS"
-        fi
+        # No nginx restart needed: the prod config re-resolves upstream
+        # names via Docker DNS (resolver + variable proxy_pass in
+        # deploy/nginx-prod.conf.template), so a restarted backend on a
+        # new IP is picked up within seconds.
     else
         echo -e "${YELLOW}⚠️  Index build failed — catalog search will degrade to dynamic-only (HAPI \$expand fallback)${NC}"
     fi
@@ -770,9 +764,6 @@ elif [ -n "$UMLS_API_KEY" ]; then
             --ucum-json /app/scripts/terminology/ucum.json \
             --output /app/data/terminology.db; then
             docker restart emr-backend > /dev/null
-            if docker inspect emr-nginx >/dev/null 2>&1; then
-                docker restart emr-nginx > /dev/null
-            fi
             echo 'Local terminology index built; emr-backend restarted'
         else
             echo 'WARNING: index build failed - catalog search stays dynamic-only; continuing with HAPI load'
