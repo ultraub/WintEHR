@@ -32,7 +32,7 @@ Patient data volume comes from the `PATIENT_COUNT` env var (default 20; forced t
 positionally as `<count> <state>`.
 
 Services started: `hapi-fhir`, `postgres`, `redis`, `backend-dev|prod`,
-`frontend-dev|prod`, `nginx` + `certbot` (prod), `ldap`/`db`/`arc` (dicom,
+`frontend-dev|prod`, `control-plane` (both profiles), `nginx` + `certbot` (prod), `ldap`/`db`/`arc` (dicom,
 host ports bound to `127.0.0.1`). All FHIR resources land in HAPI's `hfj_*`
 tables; custom Postgres schemas come from `postgres-init/*.sql` on first boot.
 
@@ -50,6 +50,7 @@ tables; custom Postgres schemas come from `postgres-init/*.sql` on first boot.
 | `load_config.sh` | Shell entry to config loading |
 | `nginx-prod.conf.template` | Tracked nginx config with `${DOMAIN}` placeholders; `rendered/` holds the output and is gitignored |
 | `init-ssl.sh` | Placeholder cert → Let's Encrypt cert → renewal (there is no `setup-ssl.sh`) |
+| `../control-plane/` | Control-plane sidecar image (`app.py`, own `Dockerfile`): the only container with `/var/run/docker.sock`, plus the repo mounted read-only at `/repo`. Token-gated (`CONTROL_PLANE_TOKEN`), allow-listed containers (`CONTROL_PLANE_CONTAINERS` / `_RESTARTABLE`), never published. Backend proxies it; tests in `backend/tests/control_plane/`. |
 | `configure-azure-nsg.sh` | Azure NSG rules 22/80/443; honours `WINTEHR_SECURITY_ALLOWED_IPS` |
 
 ---

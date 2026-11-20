@@ -8,8 +8,9 @@ Permissions: reads need `admin`; anything that changes the deployment
 User.permissions (api/auth/config.py).
 """
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from api.auth.models import User
 from .jobs_service import JobsError, JobsService, default_jobs_service
 from .logs import LEVELS, export_logs, read_logs
 from .modules import module_inventory
+from .control_plane import ControlPlaneClient, default_control_plane
 from .models import (
     JobKindView,
     JobLogChunk,
@@ -42,6 +44,8 @@ from .tab_policy import ALWAYS_VISIBLE, EMPTY_POLICY, known_roles
 
 TAB_POLICY_SETTING = "ui.tabs.policy"
 ROLES_SETTING = "auth.roles"
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/command-center", tags=["Command Center"])
 
@@ -305,3 +309,53 @@ async def get_modules(_user: User = Depends(require_admin)):
             "external": "List the module in wintehr.modules.json and run scripts/sync-modules.py, then rebuild (docs/MODULES.md).",
         },
     )
+
+
+# --- control plane (sidecar) -------------------------------------------------------------
+
+
+@router.get("/control")
+async def get_control(_user: User = Depends(require_admin), cp: ControlPlaneClient = Depends(default_control_plane)):
+    """Container states from the sidecar; `configured=False` when the sidecar is not set up."""
+    if not cp.configured:
+        return {"configured": False, "reachable": False, "containers": [], "error": None,
+                "how_to": "Set CONTROL_PLANE_TOKEN in .env (any long random string) and start the control-plane service; the backend reads CONTROL_PLANE_URL from compose."}
+    try:
+        body = await cp.get("/containers")
+    except HTTPException as exc:
+        return {"configured": True, "reachable": False, "containers": [], "error": exc.detail, "how_to": None}
+    return {"configured": True, "reachable": True, "containers": body["containers"], "checked_at": body.get("checked_at"), "error": None, "how_to": None}
+
+
+@router.get("/control/containers/{name}/logs")
+async def get_container_logs(name: str, tail: int = 200, since: Optional[int] = None,
+                             _user: User = Depends(require_admin), cp: ControlPlaneClient = Depends(default_control_plane)):
+    params: Dict[str, Any] = {"tail": max(1, min(tail, 5000))}
+    if since:
+        params["since"] = since
+    return await cp.get(f"/containers/{name}/logs", params)
+
+
+@router.post("/control/containers/{name}/restart", status_code=202)
+async def restart_container(name: str, user: User = Depends(require_system), cp: ControlPlaneClient = Depends(default_control_plane)):
+    """Restart one of the sidecar's restartable containers. Audited."""
+    body = await cp.post(f"/containers/{name}/restart")
+    try:
+        from api.services.audit_event_service import AuditEventService
+
+        await AuditEventService().log_event(event_type="system.control.restart", user_id=getattr(user, "id", None),
+                                            action="execute", outcome="success", details={"container": name})
+    except Exception as exc:  # noqa: BLE001 — audit must never block an admin action
+        logger.warning("Audit of container restart failed: %s", exc)
+    return body
+
+
+@router.get("/control/update-check")
+async def get_update_check(_user: User = Depends(require_admin), cp: ControlPlaneClient = Depends(default_control_plane)):
+    return await cp.get("/update-check")
+
+
+@router.get("/control/config")
+async def get_control_config(_user: User = Depends(require_admin), cp: ControlPlaneClient = Depends(default_control_plane)):
+    """Rendered nginx.conf, docker-compose.yml, and .env variable NAMES (never values)."""
+    return await cp.get("/config")
