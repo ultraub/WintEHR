@@ -14,14 +14,17 @@ module's deltas are here.
 
 | File | Role |
 |---|---|
-| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`, `GET /settings`, `PUT /settings/{key}`, `DELETE /settings/{key}`. |
+| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
 | `service.py` | `CommandCenterService.status()`: runs the probes concurrently under the live-tier probe timeout, rolls them up. `roll_up` is pure. |
 | `probes.py` | One `async` probe per deployment part: `fhir`, `database`, `redis`, `terminology`, `vna`. Exceptions and timeouts become `down`, never a 500. |
 | `settings_registry.py` | **Where a setting is defined**: key, type, default, tier, env var it shadows, `used_by`. Add a setting here, and only when something reads it. |
 | `settings_repository.py` | Overrides in `system.settings` (Postgres, DDL also in `postgres-init/11_system.sql`, created idempotently on first use) or in memory for tests. |
 | `settings_service.py` | Precedence database → env → default; secrets encrypted/decrypted; audit on every write; `get_setting(key)` for live-tier consumers (15 s per-process cache, env/default fallback if Postgres is down). |
 | `secrets.py` | `SecretBox`: Fernet keyed from `WINTEHR_SETTINGS_KEY` (any passphrase, SHA-256 → key). No key → secrets refuse to save (409), plain settings unaffected. |
-| `models.py` | `ComponentStatus`, `RouterStatus`, `BuildInfo`, `StatusReport`, `SettingView`, `SettingUpdate`. |
+| `jobs_registry.py` | **Where a job kind is defined**: validated params → argv allow-list (never a shell string), a `ProgressParser` for its output, `patients_added` for the cap check. First kind: `synthea_load` (runs `scripts/synthea_to_hapi_pipeline.py`, the same pipeline `deploy.sh` uses). |
+| `jobs_repository.py` | `system.jobs` (Postgres; DDL also in `postgres-init/11_system.sql`, created on first use) or memory. The single-active-job rule is the partial unique index `system_jobs_one_active`, so two workers cannot both start one. |
+| `jobs_service.py` | Start / list / get / tail log / cancel. The accepting worker runs the subprocess, streams its output to `/app/data/jobs/<id>.log`, heartbeats the row, and honours `cancel_requested` set by any worker. `list()` marks jobs with a stale heartbeat `lost`. |
+| `models.py` | `ComponentStatus`, `RouterStatus`, `BuildInfo`, `StatusReport`, `SettingView`, `SettingUpdate`, `JobKindView`, `JobStartRequest`, `JobView`, `JobLogChunk`. |
 
 ---
 
@@ -47,6 +50,13 @@ module's deltas are here.
   `MemorySettingsRepository`, a `SecretBox("passphrase")`, and a fake audit.
   `settings_service.use_settings_service(svc)` swaps the process-wide
   service that `get_setting()` reads.
+- **Jobs are polled, not pushed.** The websocket manager is per worker, so a
+  broadcast from the worker running a job reaches a quarter of the clients
+  on a 4-worker box. The UI polls `GET /jobs/{id}` and `/log?offset=`;
+  both read the shared row and the shared log file.
+- **A job kind is an allow-list.** Params are validated into typed values
+  and placed into an argv list; nothing from the request reaches a shell.
+  Adding a kind means adding a `JobKind` with its own validator and parser.
 - **`database` probe reads `hfj_resource` directly** — the one sanctioned raw
   read of HAPI's tables (counts only).
 - **Overall roll-up**: `fhir` down → `down`; any other `down`/`degraded` or a
@@ -59,6 +69,8 @@ module's deltas are here.
 | Var | Used for |
 |---|---|
 | `WINTEHR_SETTINGS_KEY` | Passphrase for secret settings. Forwarded by compose (both backends); unset = secrets cannot be saved |
+| `COMMAND_CENTER_JOB_LOG_DIR` | Job logs (default `/app/data/jobs`, on the `./data` bind mount) |
+| `COMMAND_CENTER_JOB_HEARTBEAT` | Seconds between heartbeats while a job runs (default 5); a job is `lost` after 12 missed beats |
 | `COMMAND_CENTER_PROBE_TIMEOUT` | Env fallback for `system.probe_timeout_seconds` (default 8) |
 | `WINTEHR_VERSION`, `WINTEHR_GIT_COMMIT` | Reported in `build` when the image sets them |
 | `TERMINOLOGY_DB_PATH`, `REDIS_URL`, `DICOM_QIDO_URL`, `CATALOG_SCAN_MAX_RESOURCES`, `UMLS_API_KEY` | Read by probes, or shadowed by a registered setting |
