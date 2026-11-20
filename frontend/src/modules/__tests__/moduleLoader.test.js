@@ -155,3 +155,19 @@ describe('tab placement', () => {
     }
   });
 });
+
+describe('module summaries (Command Center Modules tab)', () => {
+  it('describe every manifest as plain data, including permissions', async () => {
+    const { getModuleSummaries } = await import('../index');
+    const summaries = getModuleSummaries();
+    const flow = summaries.find((m) => m.id === 'flowsheets');
+    expect(flow.enabled).toBe(true);
+    expect(flow.tabs.map((t) => t.id)).toEqual(['flowsheet']);
+    expect(flow.sections.map((s) => s.id)).toEqual(['flowsheet']);
+    expect(flow.permissions).toEqual(['read', 'write']);
+    for (const m of summaries) {
+      expect(typeof m.id).toBe('string');
+      expect(JSON.stringify(m)).not.toMatch(/loader|Component/);
+    }
+  });
+});

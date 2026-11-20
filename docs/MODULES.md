@@ -46,6 +46,28 @@ Manifests may contribute (all optional):
   sees on a tab is `useEffectiveSections(tabId)`. Chart Review is the
   first host; its own eight panels are builtin sections of the same
   registry.
+- **`permissions`** — the `User.permissions` entries the module's UI
+  assumes (e.g. `['read', 'write']`). Informational: shown on the Command
+  Center's Modules tab so an admin sees what a module expects before
+  enabling it; the backend still gates its own routes.
+- **`settings`** — keys of settings this module reads, for display. The
+  definitions themselves live in the backend half: a module package may
+  ship `settings.py` with `SETTINGS = [SettingDefinition(key="module.<key>.<name>", ...)]`
+  (see `backend/api/command_center/settings_registry.py` for the fields).
+  They are discovered when routers register and appear on the Command
+  Center's Settings tab with the same tiers, secrets and audit as platform
+  settings. Keys outside `module.<key>.` are refused.
+- **`permissions`** — the `User.permissions` entries the module's UI
+  assumes (e.g. `['read', 'write']`). Informational: shown on the Command
+  Center's Modules tab so an admin sees what a module expects before
+  enabling it; the backend still gates its own routes.
+- **`settings`** — keys of settings this module reads, for display. The
+  definitions themselves live in the backend half: a module package may
+  ship `settings.py` with `SETTINGS = [SettingDefinition(key="module.<key>.<name>", ...)]`
+  (see `backend/api/command_center/settings_registry.py` for the fields).
+  They are discovered when routers register and appear on the Command
+  Center's Settings tab with the same tiers, secrets and audit as platform
+  settings. Keys outside `module.<key>.` are refused.
 - **`pages`** — top-level routed pages: `{ id, path, label, icon, color,
   description, nav: { section, order }, loader }`. ONE entry yields the
   route (router/router.js) and the app-shell menu item

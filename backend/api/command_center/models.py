@@ -179,3 +179,21 @@ class LogsResponse(BaseModel):
     files: int          # log files consulted
     levels: List[str]
     truncated: bool
+
+
+# --- modules (slice 9) ----------------------------------------------------------------
+
+class ModuleView(BaseModel):
+    key: str
+    source: Literal["builtin", "external"] = "builtin"
+    backend_routers: List[str] = Field(default_factory=list)
+    disabled: bool = False
+    registered: bool = True
+    failed: List[Dict[str, str]] = Field(default_factory=list)
+    settings: List[str] = Field(default_factory=list)
+
+
+class ModulesResponse(BaseModel):
+    modules: List[ModuleView]
+    disabled_backend: List[str]
+    how_to: Dict[str, str]
