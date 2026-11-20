@@ -51,6 +51,10 @@ class AuditEventType:
     EXTERNAL_SERVICE_UPDATED = "external.service.updated"
     EXTERNAL_SERVICE_DELETED = "external.service.deleted"
 
+    # Command Center admin actions (api/command_center/)
+    SYSTEM_SETTING_UPDATED = "system.setting.updated"
+    SYSTEM_SETTING_RESET = "system.setting.reset"
+
 
 class AuditEventService:
     """Service for logging audit events as FHIR AuditEvent resources in HAPI FHIR"""
@@ -89,6 +93,11 @@ class AuditEventService:
                 "display": "Security Alert"
             },
             "external": {
+                "system": "http://terminology.hl7.org/CodeSystem/audit-event-type",
+                "code": "110100",
+                "display": "Application Activity"
+            },
+            "system": {
                 "system": "http://terminology.hl7.org/CodeSystem/audit-event-type",
                 "code": "110100",
                 "display": "Application Activity"

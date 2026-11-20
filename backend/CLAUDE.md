@@ -104,6 +104,7 @@ live in named schemas.
 | `cds_hooks.*` | CDS Studio visual-builder configs + execution logs |
 | `dicom.*` | DICOM file metadata |
 | `audit.*` | Legacy audit-trail schema — **no writers remain**; audit events are FHIR `AuditEvent` resources in HAPI (`api/services/audit_event_service.py`) |
+| `system.*` | Command Center setting overrides (`system.settings`); definitions live in `api/command_center/settings_registry.py`. Created by `postgres-init/11_system.sql` and idempotently on first use |
 
 ```sql
 -- Resource counts (the only correct way — there is no fhir.resources table)
