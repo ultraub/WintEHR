@@ -193,3 +193,52 @@ async def test_store_failure_keeps_the_current_apps(store):
     smart_router.use_app_store(Broken())
     again = await smart_router.get_auth_server()
     assert {a.client_id for a in again.get_all_apps()} == before
+
+
+# --- cross-worker invalidation ------------------------------------------------------
+
+
+class _FakeRedis:
+    def __init__(self):
+        self.data = {}
+
+    async def ping(self):
+        return True
+
+    async def get(self, key):
+        v = self.data.get(key)
+        return str(v).encode() if v is not None else None
+
+    async def incr(self, key):
+        self.data[key] = int(self.data.get(key, 0)) + 1
+        return self.data[key]
+
+
+@pytest.mark.asyncio
+async def test_a_rotation_on_another_worker_is_picked_up_within_a_second(store, monkeypatch):
+    from api.services.shared_version import SharedVersionCounter
+
+    redis = _FakeRedis()
+    now = [1000.0]
+    counter = SharedVersionCounter("smart:apps:version", client_factory=lambda: redis, clock=lambda: now[0])
+    monkeypatch.setattr(smart_router, "apps_version", counter)
+    monkeypatch.setattr(smart_router.time, "monotonic", lambda: now[0])
+
+    server = await smart_router.get_auth_server()
+    created = await smart_router.register_app(
+        SMARTAppRegistration(name="Conf", client_type="confidential", redirect_uris=["https://c/cb"], scopes=["openid"]),
+        user=_sysadmin(), auth_server=server,
+    )
+    assert server.get_app(created.client_id).verify_client_secret(created.client_secret)
+    await smart_router.get_auth_server()  # settles this worker's last counter check at "now"
+
+    # "Another worker" rotates: new hash in the shared store + counter bump.
+    await store.update(created.client_id, client_secret_hash=get_password_hash("rotated-elsewhere"))
+    await redis.incr("smart:apps:version")
+
+    await smart_router.get_auth_server()
+    assert server.get_app(created.client_id).verify_client_secret(created.client_secret), "within the 1 s check window: old hash still cached"
+    now[0] += 1.1
+    await smart_router.get_auth_server()
+    assert server.get_app(created.client_id).verify_client_secret("rotated-elsewhere"), "counter moved → reloaded"
+    assert not server.get_app(created.client_id).verify_client_secret(created.client_secret)

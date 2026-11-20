@@ -45,6 +45,7 @@ from api.auth.jwt_handler import get_password_hash
 from api.auth.models import User
 from api.auth.permissions import require_system
 from api.services.audit_event_service import AuditEventService, AuditEventType
+from api.services.shared_version import SharedVersionCounter
 from .token_service import SMARTTokenService, create_token_service
 
 logger = logging.getLogger(__name__)
@@ -76,7 +77,11 @@ def get_token_service() -> SMARTTokenService:
 
 _app_store: Optional[SmartAppStore] = None
 _apps_loaded_at: float = -1.0
+_apps_version_seen: Optional[str] = None
 APP_RELOAD_SECONDS = 5.0
+# Writes bump this shared counter so other workers reload within a second
+# instead of waiting for the 5 s poll (a rotated secret must work at once).
+apps_version = SharedVersionCounter("smart:apps:version")
 
 
 def get_app_store() -> SmartAppStore:
@@ -89,9 +94,11 @@ def get_app_store() -> SmartAppStore:
 
 def use_app_store(store: Optional[SmartAppStore]) -> None:
     """Test hook: inject a memory store and force the next reload."""
-    global _app_store, _apps_loaded_at
+    global _app_store, _apps_loaded_at, _apps_version_seen
     _app_store = store
     _apps_loaded_at = -1.0
+    _apps_version_seen = None
+    apps_version.reset()
 
 
 def _to_registered(app: StoredApp) -> RegisteredApp:
@@ -109,8 +116,10 @@ async def refresh_registered_apps(server: SMARTAuthorizationServer, force: bool 
     took the request; this is how the other workers learn about them. A
     store failure keeps whatever was loaded last — the demo apps at worst.
     """
-    global _apps_loaded_at
-    if not force and time.monotonic() - _apps_loaded_at < APP_RELOAD_SECONDS:
+    global _apps_loaded_at, _apps_version_seen
+    version = await apps_version.current()
+    fresh_enough = time.monotonic() - _apps_loaded_at < APP_RELOAD_SECONDS
+    if not force and fresh_enough and version == _apps_version_seen:
         return
     try:
         apps = await get_app_store().list()
@@ -120,6 +129,7 @@ async def refresh_registered_apps(server: SMARTAuthorizationServer, force: bool 
         return
     server.load_persisted_apps([_to_registered(a) for a in apps])
     _apps_loaded_at = time.monotonic()
+    _apps_version_seen = version
 
 
 async def get_auth_server() -> SMARTAuthorizationServer:
@@ -658,6 +668,7 @@ async def register_app(
     except ClientIdTaken:
         raise HTTPException(status_code=409, detail=f"client_id '{client_id}' is already registered") from None
     await refresh_registered_apps(auth_server, force=True)
+    await apps_version.bump()
     await _audit(AuditEventType.SMART_APP_REGISTERED, user, client_id, {"name": reg.name, "client_type": reg.client_type, "scopes": reg.scopes})
     info = _app_info(auth_server.get_app(client_id), stored)
     return SMARTAppCreated(**info.model_dump(), client_secret=secret)
@@ -675,6 +686,7 @@ async def update_app(
     if fields:
         stored = await get_app_store().update(client_id, **fields)
         await refresh_registered_apps(auth_server, force=True)
+        await apps_version.bump()
         await _audit(AuditEventType.SMART_APP_UPDATED, user, client_id, {"fields": sorted(fields)})
     return _app_info(auth_server.get_app(client_id), stored)
 
@@ -692,6 +704,7 @@ async def rotate_secret(
     secret = new_client_secret()
     stored = await get_app_store().update(client_id, client_secret_hash=get_password_hash(secret))
     await refresh_registered_apps(auth_server, force=True)
+    await apps_version.bump()
     await _audit(AuditEventType.SMART_APP_SECRET_ROTATED, user, client_id, {})
     info = _app_info(auth_server.get_app(client_id), stored)
     return SMARTAppCreated(**info.model_dump(), client_secret=secret)
