@@ -48,7 +48,7 @@ tables; custom Postgres schemas come from `postgres-init/*.sql` on first boot.
 | `secrets_policy.py` | The secret/security-switch checks (no third-party imports; tested in `backend/tests/deploy/`). Example values (`emr_password`, example JWT keys) are errors in prod; `JWT_SECRET_KEY` or `JWT_SECRET` both accepted |
 | `export_config.py` | Exports resolved config |
 | `load_config.sh` | Shell entry to config loading |
-| `nginx-prod.conf.template` | Tracked nginx config with `${DOMAIN}` placeholders; `rendered/` holds the output and is gitignored |
+| `nginx-prod.conf.template` | Tracked nginx config with `${DOMAIN}` placeholders; `rendered/` holds the output and is gitignored. Upstreams are `set $backend` / `set $frontend` variables plus `resolver 127.0.0.11`, never `upstream {}` blocks: nginx then re-resolves the service names and survives `up -d` recreating containers without a reload (`backend/tests/deploy/test_nginx_template.py` pins this) |
 | `init-ssl.sh` | Placeholder cert → Let's Encrypt cert → renewal (there is no `setup-ssl.sh`) |
 | `../control-plane/` | Control-plane sidecar image (`app.py`, own `Dockerfile`): the only container with `/var/run/docker.sock`, plus the repo mounted read-only at `/repo`. Token-gated (`CONTROL_PLANE_TOKEN`), allow-listed containers (`CONTROL_PLANE_CONTAINERS` / `_RESTARTABLE`), never published. Backend proxies it; tests in `backend/tests/control_plane/`. |
 | `configure-azure-nsg.sh` | Azure NSG rules 22/80/443; honours `WINTEHR_SECURITY_ALLOWED_IPS` |

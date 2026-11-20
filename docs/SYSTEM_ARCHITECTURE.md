@@ -568,26 +568,31 @@ to `deploy/rendered/nginx.conf` with `${DOMAIN}` substituted):
 - Security headers
 - Gzip compression
 - No CORS headers — the backend sets them once
+- Upstreams resolved through Docker DNS (`resolver 127.0.0.11` + variable
+  `proxy_pass`), so recreated containers are picked up without a reload
 
 **Routing Rules** (abridged):
 ```nginx
+set $backend http://backend-prod:8000;
+set $frontend http://frontend-prod:80;
+
 # Frontend (static Vite build)
 location / {
-    proxy_pass http://frontend;
+    proxy_pass $frontend;
     limit_req zone=general_limit burst=100 nodelay;
 }
 
 # Backend API
 location /api/ {
-    proxy_pass http://backend;
+    proxy_pass $backend;
     limit_req zone=api_limit burst=200 nodelay;
 }
 
 # FHIR — through the backend (api/fhir/proxy.py) so the SMART middleware
 # can validate tokens; the backend forwards to HAPI. Exact-match blocks for
 # /fhir and /fhir/R4 keep POST [base] from being 301'd into a GET.
-location /fhir/R4/ { proxy_pass http://backend; }
-location = /fhir    { proxy_pass http://backend; }
+location /fhir/R4/ { proxy_pass $backend; }
+location = /fhir    { proxy_pass $backend; }
 location = /fhir/R4 { proxy_pass http://backend; }
 location /fhir/     { proxy_pass http://backend; }
 

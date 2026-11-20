@@ -556,15 +556,13 @@ services:
 docker compose --profile prod up -d --scale backend-prod=3
 ```
 
-**Load balancing**: Configure the nginx upstream in `deploy/nginx-prod.conf.template` (then re-run `deploy.sh` to re-render):
-
-```nginx
-upstream backend {
-    server backend-prod-1:8000;
-    server backend-prod-2:8000;
-    server backend-prod-3:8000;
-}
-```
+**Load balancing**: the prod nginx config proxies to the compose service name
+through a variable (`set $backend http://backend-prod:8000;` with
+`resolver 127.0.0.11`), so Docker's DNS round-robins across the scaled
+replicas and re-resolves when containers are recreated — no `upstream {}`
+block to edit. If you need weights or health checks, add an `upstream` block
+in `deploy/nginx-prod.conf.template` and point `$backend` at it (then re-run
+`deploy.sh` to re-render), accepting that nginx will then pin IPs at startup.
 
 ---
 
