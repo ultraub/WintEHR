@@ -75,6 +75,9 @@ def test_dicom_kind_params_and_argv():
 class _Proc:
     async def lines(self):
         yield "STEP 1/1: hi"
+        # A script that is careless with its key: the runner must scrub it.
+        yield "GET https://uts-ws.nlm.nih.gov/download?apiKey=umls-SECRET-123&url=..."
+        yield "✗ auth failed for key umls-SECRET-123"
         yield "DONE"
 
     async def wait(self):
@@ -110,7 +113,10 @@ async def test_terminology_job_gets_the_umls_key_from_settings_but_never_logs_it
     assert runner.env == {"UMLS_API_KEY": "umls-SECRET-123"}
     log = (await svc.tail_log(job.id)).text
     assert "umls-SECRET-123" not in log and "UMLS_API_KEY from settings" in log
-    assert (await svc.get(job.id)).status == "succeeded"
+    assert "apiKey=[redacted]&url" in log and "for key [redacted]" in log, "script output is scrubbed"
+    done = await svc.get(job.id)
+    assert done.status == "succeeded"
+    assert "umls-SECRET-123" not in (done.message or ""), "the row's message is scrubbed too"
 
     kinds = {k.key: k for k in svc.kinds_view()}
     assert kinds["terminology_load"].required_settings == ["system.umls_api_key"]

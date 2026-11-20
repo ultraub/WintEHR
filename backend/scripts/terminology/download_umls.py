@@ -64,6 +64,9 @@ except ImportError:
     sys.exit(1)
 
 logger = logging.getLogger("download_umls")
+# httpx logs every request at INFO with the full URL — which carries apiKey=…
+# for the UTS download endpoint. Never let the key reach a log or job output.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # UMLS REST auth + download services
 UTS_DOWNLOAD_ENDPOINT = "https://uts-ws.nlm.nih.gov/download"

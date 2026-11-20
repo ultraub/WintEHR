@@ -24,6 +24,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import socket
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -161,6 +162,21 @@ class JobsService:
         return env
 
     @staticmethod
+    def _redactor(secrets: Dict[str, str]) -> Callable[[str], str]:
+        """Scrub secret values from job output before it reaches the log or the row.
+
+        The scripts are not trusted to keep a key out of a URL or an error
+        message (download_umls.py printed one), so the runner redacts every
+        line. Values shorter than 4 chars are not redacted — replacing them
+        would mangle unrelated text, and such a value is not a secret.
+        """
+        values = sorted({v for v in secrets.values() if len(v) >= 4}, key=len, reverse=True)
+        if not values:
+            return lambda line: line
+        pattern = re.compile("|".join(re.escape(v) for v in values))
+        return lambda line: pattern.sub("[redacted]", line)
+
+    @staticmethod
     def _view(row: StoredJob) -> JobView:
         return JobView(
             id=row.id, kind=row.kind, params=json.loads(row.params or "{}"), status=row.status,
@@ -267,6 +283,7 @@ class JobsService:
             await self.repository.update(job_id, status="running", started_at=_now(), heartbeat_at=_now(),
                                          message="Starting", worker=self.worker_name)
             extra_env = await self._secret_env(kind)
+            redact = self._redactor(extra_env)
             with open(row.log_path, "a", encoding="utf-8") as log:
                 # argv only: secret env values never reach the log.
                 log.write(f"$ {' '.join(argv)}\n")
@@ -278,7 +295,8 @@ class JobsService:
                 last_beat = asyncio.get_running_loop().time()
                 message = "Running"
                 dirty = False
-                async for line in proc.lines():
+                async for raw_line in proc.lines():
+                    line = redact(raw_line)
                     log.write(line + "\n")
                     update = parser.feed(line)
                     if update is not None:
