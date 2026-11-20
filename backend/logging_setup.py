@@ -83,8 +83,10 @@ def configure_logging() -> logging.Logger:
     except OSError as exc:
         root.warning("Log directory %s not writable (%s); file logging disabled", directory, exc)
 
-    # Quiet the chattiest third-party loggers at INFO; errors still surface.
-    for noisy in ("httpx", "httpcore", "asyncio"):
+    # Quiet the chattiest loggers at INFO; warnings and errors still surface.
+    # security_middleware logs a Request and a Response line per call, which
+    # duplicates uvicorn's access log and would dominate the Logs tab.
+    for noisy in ("httpx", "httpcore", "asyncio", "api.middleware.security_middleware"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     root._wintehr_configured = True  # type: ignore[attr-defined]
