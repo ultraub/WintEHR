@@ -35,6 +35,7 @@ MODULE_PREFIX = {
     "scheduling": "/api/scheduling",
     "questionnaires": "/api/questionnaires",
     "inpatient": "/api/inpatient",
+    "command-center": "/api/command-center",
 }
 
 

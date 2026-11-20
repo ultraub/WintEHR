@@ -187,6 +187,7 @@ A workspace module is not always the right tool. In order of preference:
 | `quality-analytics` | Quality measures + analytics reporting | Population Health nav section (Analytics / Quality / Care Gaps pages) | full module (backend + pages) |
 | `scheduling` | Scheduling | Schedule page + nav item | full module (backend + pages) |
 | `questionnaires` | Questionnaires | — | converted from core |
+| `command-center` | Admin console: deployment status (slice 1), then settings, jobs, tab policy, module management (`docs/COMMAND_CENTER.md`) | Command Center page in the Administration nav section | slice 1 — live |
 
 `scheduling` and `quality-analytics` are fully coherent since Phase 1 of
 the platform roadmap: one key removes their backend routers, routes, and
