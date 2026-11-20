@@ -37,6 +37,7 @@ python-multipart==0.0.32
 # since 2020 and permanently incompatible with bcrypt >= 5.
 bcrypt==5.0.0
 PyJWT==2.15.1
+cryptography>=42.0.0  # Fernet for Command Center secret settings (api/command_center/secrets.py)
 
 # Development tools
 # pytest 9 + pytest-asyncio 1.x move TOGETHER: asyncio 0.21 pins pytest<8 and

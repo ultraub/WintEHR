@@ -56,3 +56,33 @@ class StatusReport(BaseModel):
     build: BuildInfo
     routers: RouterStatus
     components: List[ComponentStatus]
+
+
+# --- settings (slice 2) -------------------------------------------------------
+
+SettingSource = Literal["database", "environment", "default"]
+
+
+class SettingView(BaseModel):
+    """One setting as the admin sees it. Secrets never carry their value."""
+
+    key: str
+    label: str
+    description: str
+    type: Literal["int", "float", "bool", "str", "secret"]
+    tier: Literal["live", "restart", "rebuild"]
+    used_by: str
+    env_var: Optional[str] = None
+    default: Any = None
+    value: Any = None
+    is_secret: bool = False
+    is_set: bool = False
+    source: SettingSource
+    updated_by: Optional[str] = None
+    updated_at: Optional[datetime] = None
+    # For secrets only: whether the backend can store one (WINTEHR_SETTINGS_KEY set).
+    secrets_enabled: Optional[bool] = None
+
+
+class SettingUpdate(BaseModel):
+    value: Any

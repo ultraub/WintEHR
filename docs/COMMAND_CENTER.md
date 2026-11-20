@@ -33,6 +33,11 @@ starts a job requires `system`. Both already exist in
 `backend/api/auth/config.py`. Every write goes through the audit path
 (`api/services/audit_event_service.py` — FHIR `AuditEvent`).
 
+Settings are **defined in code** (`backend/api/command_center/settings_registry.py`:
+key, type, default, tier, env var, `used_by`) and only their overrides are
+stored (`system.settings`). A setting is registered only when something
+reads it; `live` means the consumer calls `get_setting()` at use time.
+
 ---
 
 ## Build order
@@ -40,7 +45,7 @@ starts a job requires `system`. Both already exist in
 | # | Slice | Delivers | Depends on |
 |---|---|---|---|
 | 1 | Scaffold and status dashboard | `GET /api/command-center/status`: routers, FHIR store, database counts, Redis, terminology index, VNA. Read-only. **Shipped.** | — |
-| 2 | Settings store core | `system.settings` table, `get_setting()` with env fallback and tier, encrypted secrets, settings API behind `system`, admin audit events | 1 |
+| 2 | Settings store core | `system.settings` table, registry of definitions with tiers, `get_setting()` with env fallback, Fernet-encrypted secrets (`WINTEHR_SETTINGS_KEY`), settings API behind `system`, FHIR `AuditEvent` on every write. **Shipped.** | 1 |
 | 3 | Job runner and first job | `system.jobs` table, Redis-locked runner, subprocess with a log file per job, websocket progress; Synthea load with cap | 2 |
 | 4 | Content generation | Terminology load + index (restart step reported), DICOM chain; forms and job log viewer | 3 |
 | 5 | Settings UI | Tier badges; HAPI timeout, catalog scan cap, patient cap, UMLS key, console logging; System Health / About move in from `Settings.js` | 2 |

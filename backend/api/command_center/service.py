@@ -23,10 +23,11 @@ from services.hapi_fhir_client import HAPIFHIRClient
 
 from .models import BuildInfo, ComponentStatus, RouterStatus, StatusReport
 from .probes import Probe, default_probes
+from .settings_service import get_setting
 
 logger = logging.getLogger(__name__)
 
-PROBE_TIMEOUT_SECONDS = float(os.getenv("COMMAND_CENTER_PROBE_TIMEOUT", "8"))
+PROBE_TIMEOUT_SETTING = "system.probe_timeout_seconds"  # live tier; resolved per report
 
 RouterStateReader = Callable[[], Dict[str, Any]]
 
@@ -62,20 +63,24 @@ class CommandCenterService:
         hapi_client: Optional[HAPIFHIRClient] = None,
         probes: Optional[Dict[str, Probe]] = None,
         router_state: RouterStateReader = read_router_state,
-        timeout_seconds: float = PROBE_TIMEOUT_SECONDS,
+        timeout_seconds: Optional[float] = None,
     ):
         self.hapi = hapi_client or HAPIFHIRClient()
         self.probes = probes if probes is not None else default_probes(self.hapi)
         self.router_state = router_state
+        # None → read the live-tier setting when the report is built.
         self.timeout_seconds = timeout_seconds
 
-    async def _run_probe(self, name: str, probe: Probe) -> ComponentStatus:
+    async def _timeout(self) -> float:
+        if self.timeout_seconds is not None:
+            return self.timeout_seconds
+        return float(await get_setting(PROBE_TIMEOUT_SETTING))
+
+    async def _run_probe(self, name: str, probe: Probe, timeout: float) -> ComponentStatus:
         try:
-            result = await asyncio.wait_for(probe(), timeout=self.timeout_seconds)
+            result = await asyncio.wait_for(probe(), timeout=timeout)
         except asyncio.TimeoutError:
-            return ComponentStatus(
-                name=name, status="down", detail=f"Probe timed out after {self.timeout_seconds:g}s"
-            )
+            return ComponentStatus(name=name, status="down", detail=f"Probe timed out after {timeout:g}s")
         except Exception as exc:  # a probe must never take the report down with it
             logger.warning("Command Center probe %s failed: %s", name, exc)
             return ComponentStatus(name=name, status="down", detail=f"{type(exc).__name__}: {exc}")
@@ -84,8 +89,9 @@ class CommandCenterService:
         return result
 
     async def status(self) -> StatusReport:
+        timeout = await self._timeout()
         components = list(
-            await asyncio.gather(*(self._run_probe(n, p) for n, p in self.probes.items()))
+            await asyncio.gather(*(self._run_probe(n, p, timeout) for n, p in self.probes.items()))
         )
         routers = RouterStatus(**self.router_state())
         return StatusReport(
