@@ -77,11 +77,32 @@ class RegisteredApp:
     redirect_uris: List[str]
     scopes: List[str]
     client_type: str = "public"  # public or confidential
-    client_secret: Optional[str] = None
+    client_secret: Optional[str] = None        # plaintext — demo apps defined in code only
+    client_secret_hash: Optional[str] = None   # bcrypt hash — apps registered at runtime
     launch_uri: Optional[str] = None
     logo_uri: Optional[str] = None
     description: Optional[str] = None
     is_active: bool = True
+    source: str = "demo"                        # "demo" (code) or "registered" (smart_auth.registered_apps)
+
+    def verify_client_secret(self, presented: Optional[str]) -> bool:
+        """True when a confidential client proves its secret (public clients always pass).
+
+        Registered apps carry only a bcrypt hash; demo apps may carry a
+        plaintext secret. A confidential app with neither can never
+        authenticate — a misconfiguration, not a bypass.
+        """
+        if self.client_type != "confidential":
+            return True
+        if not presented:
+            return False
+        if self.client_secret_hash:
+            from api.auth.jwt_handler import verify_password
+
+            return verify_password(presented, self.client_secret_hash)
+        if self.client_secret:
+            return secrets.compare_digest(presented, self.client_secret)
+        return False
 
 
 @dataclass
@@ -296,6 +317,21 @@ class SMARTAuthorizationServer:
     def get_app(self, client_id: str) -> Optional[RegisteredApp]:
         """Get registered app by client ID"""
         return self._registered_apps.get(client_id)
+
+    def load_persisted_apps(self, apps: List[RegisteredApp]) -> None:
+        """Replace the apps sourced from smart_auth.registered_apps.
+
+        Demo apps (source "demo") stay; a persisted app with the same
+        client_id as a demo app overrides it. Called by the router's
+        get_auth_server() every few seconds so registrations made on another
+        uvicorn worker become usable here.
+        """
+        for client_id, app in list(self._registered_apps.items()):
+            if app.source == "registered":
+                del self._registered_apps[client_id]
+        for app in apps:
+            app.source = "registered"
+            self._registered_apps[app.client_id] = app
 
     def get_all_apps(self) -> List[RegisteredApp]:
         """Get all registered apps"""
@@ -627,6 +663,16 @@ class SMARTAuthorizationServer:
         Returns:
             Tuple of (TokenResponse, TokenError) - one will be None
         """
+        # Confidential clients must prove their secret on every token call.
+        # Before this check existed, a confidential app's secret was accepted
+        # unverified (and a missing one ignored).
+        app = self.get_app(request.client_id)
+        if app is not None and not app.verify_client_secret(request.client_secret):
+            return None, TokenError(
+                error=AuthorizationErrorCode.INVALID_CLIENT.value,
+                error_description="Client authentication failed"
+            )
+
         # Handle authorization code grant
         if request.grant_type == GrantType.AUTHORIZATION_CODE:
             return self._handle_authorization_code_grant(request)

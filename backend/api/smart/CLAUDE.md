@@ -45,7 +45,10 @@ middleware is disabled, and vice versa.
 | `/api/smart/token` | POST | Exchange code (or refresh) for tokens |
 | `/api/smart/launch` | POST | Create an EHR launch context |
 | `/api/smart/flow/{session_id}` | GET | Educational step-by-step flow trace |
-| `/api/smart/apps` | GET | List registered apps |
+| `/api/smart/apps` | GET | List registered apps (demo + persisted) |
+| `/api/smart/apps` | POST | Register an app (`system`); secret returned once |
+| `/api/smart/apps/{client_id}` | PUT | Update a registered app (`system`) |
+| `/api/smart/apps/{client_id}/rotate-secret` | POST | New secret, returned once (`system`) |
 | `/api/smart/apps/{client_id}` | GET | One app's details |
 | `/api/smart/token-info` | GET | Decode/inspect a token (`?token=...`) |
 | `/api/smart/revoke` | POST | Revoke a token |
@@ -103,7 +106,22 @@ testing. Redirect URIs come from `SMART_APP_URL` / `FRONTEND_URL` env vars:
 | `growth-chart-app` | Growth Chart | `launch`, `launch/patient`, `patient/Patient.read`, `patient/Observation.read`, `openid`, `fhirUser` |
 | `demo-patient-viewer` | Patient Summary Viewer | the above + `Condition`, `MedicationRequest`, `AllergyIntolerance` reads |
 
-Register more at runtime via `get_auth_server().register_app(RegisteredApp(...))`.
+Apps registered at runtime (Command Center → Apps, or `POST /api/smart/apps`
+with the `system` permission) persist in `smart_auth.registered_apps`
+(`app_store.py`) and are reloaded into every worker's server by
+`router.get_auth_server()` every `APP_RELOAD_SECONDS` (5). Only a bcrypt
+hash of a confidential client's secret is stored; the plaintext is returned
+once, at registration or `POST /api/smart/apps/{client_id}/rotate-secret`.
+`RegisteredApp.source` is `demo` (code) or `registered` (store); demo apps
+cannot be edited through the API (404). **The token endpoint verifies a
+confidential client's secret** (`RegisteredApp.verify_client_secret`,
+checked at the top of `exchange_code_for_tokens`) — before PR #366 it did
+not.
+
+Still per-worker and in-memory, by design (see the note at the top):
+authorization sessions, codes and launch contexts. On a multi-worker
+deployment an OAuth flow that starts on one worker can fail on another;
+registrations are not affected.
 
 ---
 

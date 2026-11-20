@@ -224,11 +224,33 @@ class SMARTAppInfo(BaseModel):
     """SMART app information for display"""
     client_id: str
     name: str
-    description: Optional[str]
-    logo_uri: Optional[str]
+    description: Optional[str] = None
+    logo_uri: Optional[str] = None
     scopes: List[str]
-    launch_uri: Optional[str]
+    launch_uri: Optional[str] = None
     is_active: bool = True
+    # Registration metadata (slice 8b). Secrets are never included.
+    client_type: Literal["public", "confidential"] = "public"
+    redirect_uris: List[str] = Field(default_factory=list)
+    source: Literal["demo", "registered"] = "demo"
+    has_secret: bool = False
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class SMARTAppCreated(SMARTAppInfo):
+    """Returned once, at registration or secret rotation: the only time the secret is visible."""
+    client_secret: Optional[str] = None
+
+
+class SMARTAppUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    redirect_uris: Optional[List[str]] = Field(None, min_length=1)
+    scopes: Optional[List[str]] = Field(None, min_length=1)
+    launch_uri: Optional[str] = None
+    logo_uri: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 # ============================================================

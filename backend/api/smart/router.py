@@ -23,19 +23,29 @@ in the response for learning purposes.
 """
 
 import os
+import time
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from typing import Optional, List
 import logging
 
 from .models import (
+    SMARTAppCreated,
+    SMARTAppRegistration,
+    SMARTAppUpdate,
     SMARTConfiguration, AuthorizationRequest, AuthorizationResponse, AuthorizationError,
     TokenRequest, TokenResponse, TokenError,
     LaunchRequest, LaunchResponse,
     FlowSession, ConsentDisplay, ConsentRequest,
     SMARTAppInfo, ResponseType, GrantType
 )
-from .authorization_server import SMARTAuthorizationServer
+from .authorization_server import SMARTAuthorizationServer, RegisteredApp
+from .app_store import ClientIdTaken, SmartAppStore, SqlSmartAppStore, StoredApp, new_client_id, new_client_secret
+from api.auth.jwt_handler import get_password_hash
+from api.auth.models import User
+from api.auth.permissions import require_system
+from api.services.audit_event_service import AuditEventService, AuditEventType
+from api.services.shared_version import SharedVersionCounter
 from .token_service import SMARTTokenService, create_token_service
 
 logger = logging.getLogger(__name__)
@@ -65,8 +75,65 @@ def get_token_service() -> SMARTTokenService:
     return _token_service
 
 
-def get_auth_server() -> SMARTAuthorizationServer:
-    """Get or create authorization server singleton"""
+_app_store: Optional[SmartAppStore] = None
+_apps_loaded_at: float = -1.0
+_apps_version_seen: Optional[str] = None
+APP_RELOAD_SECONDS = 5.0
+# Writes bump this shared counter so other workers reload within a second
+# instead of waiting for the 5 s poll (a rotated secret must work at once).
+apps_version = SharedVersionCounter("smart:apps:version")
+
+
+def get_app_store() -> SmartAppStore:
+    """The persistent registration store (smart_auth.registered_apps)."""
+    global _app_store
+    if _app_store is None:
+        _app_store = SqlSmartAppStore()
+    return _app_store
+
+
+def use_app_store(store: Optional[SmartAppStore]) -> None:
+    """Test hook: inject a memory store and force the next reload."""
+    global _app_store, _apps_loaded_at, _apps_version_seen
+    _app_store = store
+    _apps_loaded_at = -1.0
+    _apps_version_seen = None
+    apps_version.reset()
+
+
+def _to_registered(app: StoredApp) -> RegisteredApp:
+    return RegisteredApp(
+        client_id=app.client_id, name=app.name, redirect_uris=list(app.redirect_uris), scopes=list(app.scopes),
+        client_type=app.client_type, client_secret_hash=app.client_secret_hash, launch_uri=app.launch_uri,
+        logo_uri=app.logo_uri, description=app.description, is_active=app.is_active, source="registered",
+    )
+
+
+async def refresh_registered_apps(server: SMARTAuthorizationServer, force: bool = False) -> None:
+    """Load runtime registrations into the server's memory, at most every APP_RELOAD_SECONDS.
+
+    Registrations are made through the Command Center on whichever worker
+    took the request; this is how the other workers learn about them. A
+    store failure keeps whatever was loaded last — the demo apps at worst.
+    """
+    global _apps_loaded_at, _apps_version_seen
+    version = await apps_version.current()
+    fresh_enough = time.monotonic() - _apps_loaded_at < APP_RELOAD_SECONDS
+    if not force and fresh_enough and version == _apps_version_seen:
+        return
+    try:
+        apps = await get_app_store().list()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not load SMART app registrations (%s); keeping the current set", exc)
+        _apps_loaded_at = time.monotonic()
+        return
+    server.load_persisted_apps([_to_registered(a) for a in apps])
+    _apps_loaded_at = time.monotonic()
+    _apps_version_seen = version
+
+
+async def get_auth_server() -> SMARTAuthorizationServer:
+    """Get or create authorization server singleton (and refresh persisted apps)."""
     global _auth_server
     if _auth_server is None:
         _auth_server = SMARTAuthorizationServer(
@@ -74,7 +141,18 @@ def get_auth_server() -> SMARTAuthorizationServer:
             fhir_url=FHIR_URL,
             token_service=get_token_service()
         )
+    await refresh_registered_apps(_auth_server)
     return _auth_server
+
+
+def _app_info(app: RegisteredApp, stored: Optional[StoredApp] = None) -> SMARTAppInfo:
+    return SMARTAppInfo(
+        client_id=app.client_id, name=app.name, description=app.description, logo_uri=app.logo_uri,
+        scopes=app.scopes, launch_uri=app.launch_uri, is_active=app.is_active, client_type=app.client_type,
+        redirect_uris=app.redirect_uris, source=app.source,
+        has_secret=bool(app.client_secret_hash or app.client_secret),
+        created_at=stored.created_at if stored else None, updated_at=stored.updated_at if stored else None,
+    )
 
 
 # =============================================================================
@@ -439,18 +517,7 @@ async def list_apps(
 ):
     """List all registered SMART apps"""
     apps = auth_server.get_all_apps()
-    return [
-        SMARTAppInfo(
-            client_id=app.client_id,
-            name=app.name,
-            description=app.description,
-            logo_uri=app.logo_uri,
-            scopes=app.scopes,
-            launch_uri=app.launch_uri,
-            is_active=app.is_active
-        )
-        for app in apps
-    ]
+    return [_app_info(app) for app in apps]
 
 
 @router.get(
@@ -466,16 +533,7 @@ async def get_app(
     app = auth_server.get_app(client_id)
     if not app:
         raise HTTPException(status_code=404, detail="App not found")
-
-    return SMARTAppInfo(
-        client_id=app.client_id,
-        name=app.name,
-        description=app.description,
-        logo_uri=app.logo_uri,
-        scopes=app.scopes,
-        launch_uri=app.launch_uri,
-        is_active=app.is_active
-    )
+    return _app_info(app)
 
 
 @router.get(
@@ -551,3 +609,102 @@ async def health_check():
         "version": "1.0.0",
         "spec": "SMART App Launch IG v2.1.0"
     }
+
+
+# =============================================================================
+# App registration (Command Center, slice 8b) — `system` permission
+# =============================================================================
+
+
+def _registration_fields(reg: SMARTAppRegistration) -> dict:
+    return dict(
+        name=reg.name, description=reg.description, client_type=reg.client_type,
+        redirect_uris=list(reg.redirect_uris), scopes=list(reg.scopes), launch_uri=reg.launch_uri,
+        logo_uri=reg.logo_uri, tos_uri=reg.tos_uri, policy_uri=reg.policy_uri, contacts=list(reg.contacts or []),
+    )
+
+
+async def _registered_or_404(client_id: str) -> StoredApp:
+    stored = await get_app_store().get(client_id)
+    if stored is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"'{client_id}' is not a registered app (demo apps are defined in code and cannot be edited)",
+        )
+    return stored
+
+
+async def _audit(event_type: str, user: User, client_id: str, details: dict) -> None:
+    try:
+        await AuditEventService().log_event(
+            event_type=event_type, user_id=user.id, resource_type="SMARTApp", resource_id=client_id,
+            action="update", outcome="success", details=details,
+        )
+    except Exception as exc:  # noqa: BLE001 — audit must not block the admin action
+        logger.warning("SMART app audit failed: %s", exc)
+
+
+@router.post(
+    "/api/smart/apps",
+    response_model=SMARTAppCreated,
+    status_code=201,
+    summary="Register a SMART App",
+    description="Registers an app persistently (every worker sees it within seconds). "
+                "A confidential app's secret is generated here and returned exactly once.",
+)
+async def register_app(
+    reg: SMARTAppRegistration,
+    user: User = Depends(require_system),
+    auth_server: SMARTAuthorizationServer = Depends(get_auth_server),
+):
+    client_id = (reg.client_id or "").strip() or new_client_id(reg.name)
+    if auth_server.get_app(client_id) is not None:
+        raise HTTPException(status_code=409, detail=f"client_id '{client_id}' is already registered")
+    secret = new_client_secret() if reg.client_type == "confidential" else None
+    stored = StoredApp(client_id=client_id, approved_by=user.id, is_active=True,
+                       client_secret_hash=get_password_hash(secret) if secret else None, **_registration_fields(reg))
+    try:
+        stored = await get_app_store().create(stored)
+    except ClientIdTaken:
+        raise HTTPException(status_code=409, detail=f"client_id '{client_id}' is already registered") from None
+    await refresh_registered_apps(auth_server, force=True)
+    await apps_version.bump()
+    await _audit(AuditEventType.SMART_APP_REGISTERED, user, client_id, {"name": reg.name, "client_type": reg.client_type, "scopes": reg.scopes})
+    info = _app_info(auth_server.get_app(client_id), stored)
+    return SMARTAppCreated(**info.model_dump(), client_secret=secret)
+
+
+@router.put("/api/smart/apps/{client_id}", response_model=SMARTAppInfo, summary="Update a registered SMART App")
+async def update_app(
+    client_id: str,
+    body: SMARTAppUpdate,
+    user: User = Depends(require_system),
+    auth_server: SMARTAuthorizationServer = Depends(get_auth_server),
+):
+    stored = await _registered_or_404(client_id)
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if fields:
+        stored = await get_app_store().update(client_id, **fields)
+        await refresh_registered_apps(auth_server, force=True)
+        await apps_version.bump()
+        await _audit(AuditEventType.SMART_APP_UPDATED, user, client_id, {"fields": sorted(fields)})
+    return _app_info(auth_server.get_app(client_id), stored)
+
+
+@router.post("/api/smart/apps/{client_id}/rotate-secret", response_model=SMARTAppCreated,
+             summary="Rotate a confidential app's secret (returned once)")
+async def rotate_secret(
+    client_id: str,
+    user: User = Depends(require_system),
+    auth_server: SMARTAuthorizationServer = Depends(get_auth_server),
+):
+    stored = await _registered_or_404(client_id)
+    if stored.client_type != "confidential":
+        raise HTTPException(status_code=400, detail="Public clients have no secret")
+    secret = new_client_secret()
+    stored = await get_app_store().update(client_id, client_secret_hash=get_password_hash(secret))
+    await refresh_registered_apps(auth_server, force=True)
+    await apps_version.bump()
+    await _audit(AuditEventType.SMART_APP_SECRET_ROTATED, user, client_id, {})
+    info = _app_info(auth_server.get_app(client_id), stored)
+    return SMARTAppCreated(**info.model_dump(), client_secret=secret)

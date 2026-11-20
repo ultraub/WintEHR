@@ -77,3 +77,48 @@ it('is read-only without system', async () => {
   expect(screen.queryByRole('button', { name: 'Register' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
 });
+
+// --- SMART registration (slice 8b) --------------------------------------------------
+
+it('registers a confidential SMART app, shows the secret once, and offers rotate/deactivate for registered apps', async () => {
+  useAuth.mockReturnValue({ user: { permissions: ['admin', 'system'] } });
+  let apps = [{ client_id: 'growth-chart-app', name: 'Growth Chart', scopes: ['launch'], is_active: true, client_type: 'public', source: 'demo' }];
+  api.get.mockImplementation((url) => {
+    if (url === '/api/external-services') return Promise.resolve({ data: { items: [], total: 0 } });
+    if (url === '/api/smart/apps') return Promise.resolve({ data: apps });
+    return Promise.reject(new Error(`unexpected ${url}`));
+  });
+  api.post.mockImplementation((url, body) => {
+    if (url === '/api/smart/apps') {
+      apps = [...apps, { client_id: 'risk-calc-abc123', name: body.name, scopes: body.scopes, is_active: true, client_type: body.client_type, source: 'registered', has_secret: true }];
+      return Promise.resolve({ data: { client_id: 'risk-calc-abc123', client_secret: 'ONE-TIME-SECRET-xyz' } });
+    }
+    if (url.endsWith('/rotate-secret')) return Promise.resolve({ data: { client_id: 'risk-calc-abc123', client_secret: 'ROTATED-SECRET' } });
+    return Promise.reject(new Error(`unexpected POST ${url}`));
+  });
+  api.put.mockResolvedValue({ data: {} });
+
+  render(<AppsPanel />);
+  await screen.findByText('Growth Chart');
+  expect(screen.getByText('defined in code')).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText('SMART app name'), { target: { value: 'Risk Calc' } });
+  fireEvent.change(screen.getByLabelText('Redirect URIs'), { target: { value: 'https://app.example/cb\nhttps://app.example/alt' } });
+  fireEvent.mouseDown(screen.getAllByRole('combobox').find((el) => el.textContent.includes('Public')));
+  fireEvent.click(await screen.findByRole('option', { name: /Confidential/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Register SMART app' }));
+
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/smart/apps', expect.objectContaining({
+    name: 'Risk Calc', client_type: 'confidential', redirect_uris: ['https://app.example/cb', 'https://app.example/alt'],
+  })));
+  const secretBox = await screen.findByTestId('issued-secret');
+  expect(secretBox.textContent).toContain('ONE-TIME-SECRET-xyz');
+  await waitFor(() => expect(screen.getByText('Risk Calc')).toBeInTheDocument());
+
+  fireEvent.click(screen.getByRole('button', { name: 'Rotate secret for Risk Calc' }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/smart/apps/risk-calc-abc123/rotate-secret'));
+  await waitFor(() => expect(screen.getByTestId('issued-secret').textContent).toContain('ROTATED-SECRET'));
+
+  fireEvent.click(screen.getByRole('button', { name: 'Deactivate Risk Calc' }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/api/smart/apps/risk-calc-abc123', { is_active: false }));
+});
