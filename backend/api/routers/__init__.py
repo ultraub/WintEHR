@@ -153,6 +153,12 @@ MODULE_ROUTERS = {
         ("Inpatient census", "api.inpatient.router", "router",
          {"tags": ["Inpatient"]}),
     ],
+    "command-center": [
+        # Admin console (docs/COMMAND_CENTER.md). Every route is admin-only;
+        # a deployment that wants no admin surface at all disables the key.
+        ("Command Center", "api.command_center.router", "router",
+         {"tags": ["Command Center"]}),
+    ],
 }
 
 # External modules vendored by scripts/sync-modules.py (empty by default —

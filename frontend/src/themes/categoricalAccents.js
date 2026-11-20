@@ -46,6 +46,7 @@ export const categoricalAccents = {
   cdsStudio: '#A855F7', // purple
   audit: '#EF4444', // red
   settings: '#9CA3AF', // gray
+  commandCenter: '#0369A1', // deep sky
 
   // --- Resource families without a dedicated tab of their own ---
   // (Chart Review is a composite tab; giving all of its resource types the

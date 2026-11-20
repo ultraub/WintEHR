@@ -33,6 +33,7 @@ import flowsheets from './flowsheets';
 import scheduling from './scheduling';
 import qualityAnalytics from './quality-analytics';
 import inpatient from './inpatient';
+import commandCenter from './command-center';
 // External modules vendored by scripts/sync-modules.py (empty by default).
 import { EXTERNAL_MODULES } from './registry.generated';
 
@@ -41,6 +42,7 @@ const BUILTIN_MODULES = [
   scheduling,
   qualityAnalytics,
   inpatient,
+  commandCenter,
 ];
 
 const ALL_MODULES = [...BUILTIN_MODULES, ...EXTERNAL_MODULES];
