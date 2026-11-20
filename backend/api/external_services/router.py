@@ -548,9 +548,10 @@ async def delete_service(
             resource_type="ExternalService",
             resource_id=service_id,
             details={
-                "service_name": service.name,
-                "service_type": service.service_type,
-                "fhir_resource_id": service.fhir_resource_id,
+                # registry.get_service returns a dict (DB row), not a model
+                "service_name": service.get("name") if isinstance(service, dict) else service.name,
+                "service_type": service.get("service_type") if isinstance(service, dict) else service.service_type,
+                "fhir_resource_id": service.get("fhir_resource_id") if isinstance(service, dict) else service.fhir_resource_id,
                 "timestamp": datetime.utcnow().isoformat()
             }
         )

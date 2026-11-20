@@ -296,7 +296,9 @@ class HealthCheckResult(BaseModel):
     """Health check result"""
     service_id: str
     status: HealthStatus
-    response_time_ms: Optional[int]
+    # Optional WITH a default: Pydantic v2 treats a bare Optional[...] as
+    # required, which made every timeout / unreachable / no-URL result a 500.
+    response_time_ms: Optional[int] = None
     timestamp: datetime
     error_message: Optional[str] = None
     details: Optional[Dict[str, Any]] = None
