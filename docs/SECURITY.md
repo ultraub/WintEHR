@@ -83,7 +83,7 @@ deployment using the prod profile (`./deploy.sh --environment prod`).
 
 | Mitigation | Implementation | Why |
 |------------|----------------|-----|
-| `python-jose[cryptography]` 3.5.0 | `backend/requirements.txt` | Patches ECDSA algorithm-confusion CVE (CRITICAL) |
+| `python-jose` and `GitPython` removed | PR #355 | Neither was imported anywhere. `python-jose` carried a critical advisory with no patched release and `GitPython` accounted for 14 open alerts; JWTs are handled by `PyJWT` (`backend/api/auth/jwt_handler.py`) |
 | `PyJWT` 2.15.1 | requirements.txt | Patches `crit` header bypass |
 | `python-multipart` 0.0.32 | requirements.txt | Patches arbitrary-file-write (CVSS 8.6) |
 | `aiohttp` 3.14.4 | requirements.txt | Patches UNC SSRF + a long tail of lower-severity issues |
