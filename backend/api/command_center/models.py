@@ -160,3 +160,22 @@ class JobLogChunk(BaseModel):
     next_offset: int
     text: str
     finished: bool
+
+
+# --- backend logs (slice 6) ---------------------------------------------------------
+
+class LogLine(BaseModel):
+    ts: datetime
+    level: str
+    pid: int
+    logger: str
+    message: str
+    file: str
+
+
+class LogsResponse(BaseModel):
+    lines: List[LogLine]
+    total: int          # matches before the limit was applied
+    files: int          # log files consulted
+    levels: List[str]
+    truncated: bool

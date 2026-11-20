@@ -10,6 +10,10 @@ import uvicorn
 import os
 
 # Import database lifecycle functions
+from logging_setup import configure_logging
+
+configure_logging()  # root logger + per-worker files; must precede every other import that logs
+
 from database import init_db, close_db
 
 # Import all routers

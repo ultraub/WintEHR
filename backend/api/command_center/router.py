@@ -8,18 +8,24 @@ Permissions: reads need `admin`; anything that changes the deployment
 User.permissions (api/auth/config.py).
 """
 
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime, timezone
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from api.auth.models import User
 
 from .jobs_service import JobsError, JobsService, default_jobs_service
+from .logs import LEVELS, export_logs, read_logs
 from .models import (
     JobKindView,
     JobLogChunk,
     JobStartRequest,
     JobView,
+    LogLine,
+    LogsResponse,
     RoleView,
     RolesResponse,
     SettingUpdate,
@@ -223,3 +229,58 @@ async def cancel_job(
         return await jobs.cancel(job_id, user.id)
     except JobsError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+
+
+# --- backend logs -------------------------------------------------------------------
+
+
+def _parse_when(value: Optional[str], name: str) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"{name} must be an ISO-8601 timestamp") from None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _log_dir() -> Path:
+    from logging_setup import log_dir
+
+    return log_dir()
+
+
+@router.get("/logs", response_model=LogsResponse)
+async def get_backend_logs(
+    level: Optional[str] = None,
+    q: Optional[str] = None,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    limit: int = 500,
+    _user: User = Depends(require_admin),
+):
+    """The backend's own log lines (every worker), newest last, filtered."""
+    if level and level.upper() not in LEVELS:
+        raise HTTPException(status_code=400, detail=f"level must be one of {LEVELS}")
+    records, total, files = read_logs(
+        _log_dir(), level=level, query=q, since=_parse_when(since, "since"), until=_parse_when(until, "until"), limit=limit,
+    )
+    return LogsResponse(
+        lines=[LogLine(ts=r.ts, level=r.level, pid=r.pid, logger=r.logger, message=r.message, file=r.file) for r in records],
+        total=total, files=len(files), levels=LEVELS, truncated=total > len(records),
+    )
+
+
+@router.get("/logs/export")
+async def export_backend_logs(
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    level: Optional[str] = None,
+    _user: User = Depends(require_admin),
+):
+    """Plain-text download of the log lines in a time window."""
+    start, end = _parse_when(since, "since"), _parse_when(until, "until")
+    text = export_logs(_log_dir(), since=start, until=end, level=level)
+    stamp = lambda d: d.strftime("%Y%m%dT%H%M%SZ") if d else "all"  # noqa: E731
+    filename = f"wintehr-backend-logs-{stamp(start)}-{stamp(end)}.txt"
+    return Response(content=text, media_type="text/plain", headers={"Content-Disposition": f'attachment; filename="{filename}"'})

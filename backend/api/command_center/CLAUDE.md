@@ -14,12 +14,13 @@ module's deltas are here.
 
 | File | Role |
 |---|---|
-| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /ui-policy` (no auth); `GET /roles`; `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
+| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /ui-policy` (no auth); `GET /roles`; `GET /logs`, `GET /logs/export`; `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
 | `service.py` | `CommandCenterService.status()`: runs the probes concurrently under the live-tier probe timeout, rolls them up. `roll_up` is pure. |
 | `probes.py` | One `async` probe per deployment part: `fhir`, `database`, `redis`, `terminology`, `vna`. Exceptions and timeouts become `down`, never a 500. |
 | `settings_registry.py` | **Where a setting is defined**: key, type, default, tier, env var it shadows, `used_by`. Add a setting here, and only when something reads it. |
 | `settings_repository.py` | Overrides in `system.settings` (Postgres, DDL also in `postgres-init/11_system.sql`, created idempotently on first use) or in memory for tests. |
 | `settings_service.py` | Precedence database → env → default; secrets encrypted/decrypted; audit on every write; `get_setting(key)` for live-tier consumers (15 s per-process cache, env/default fallback if Postgres is down). |
+| `logs.py` | Reads `backend.<pid>.log*` from `WINTEHR_LOG_DIR` (written by `backend/logging_setup.py`), merges workers by timestamp, attaches tracebacks to their record, filters by level / text / window; `export_logs` for the download. |
 | `roles.py` | `KNOWN_PERMISSIONS` (the vocabulary the code assigns or checks), `default_roles()` from `TRAINING_USERS`, validator for the `auth.roles` setting (unknown permission → 400; `admin` must keep `admin` and `system`), `effective_permissions()`. Applied on every request by `api/auth/service.apply_role_overrides`. |
 | `tab_policy.py` | Shape validation for `ui.tabs.policy` (org / roles / contexts layers of hidden, order, default; `summary` stripped from hidden) and `known_roles()`. Tab ids are not validated here — the catalog is a frontend build artifact; the client resolver ignores unknown ids with a warning. |
 | `secrets.py` | `SecretBox`: Fernet keyed from `WINTEHR_SETTINGS_KEY` (any passphrase, SHA-256 → key). No key → secrets refuse to save (409), plain settings unaffected. |
@@ -77,6 +78,7 @@ module's deltas are here.
 | `WINTEHR_SETTINGS_KEY` | Passphrase for secret settings. Forwarded by compose (both backends); unset = secrets cannot be saved |
 | `COMMAND_CENTER_JOB_LOG_DIR` | Job logs (default `/app/data/jobs`, on the `./data` bind mount) |
 | `COMMAND_CENTER_JOB_HEARTBEAT` | Seconds between heartbeats while a job runs (default 5); a job is `lost` after 12 missed beats |
+| `LOG_LEVEL`, `WINTEHR_LOG_DIR`, `LOG_RETENTION_DAYS` | Backend logging (`logging_setup.py`): level, where the per-worker files go (default `/app/logs`, the `./logs` bind mount), how long they are kept (7 days) |
 | `COMMAND_CENTER_PROBE_TIMEOUT` | Env fallback for `system.probe_timeout_seconds` (default 8) |
 | `HAPI_FHIR_TIMEOUT` | Env fallback for `system.hapi_timeout_seconds` (default 30; read at startup by `services/hapi_fhir_client.py` and the `/fhir` proxy) |
 | `WINTEHR_VERSION`, `WINTEHR_GIT_COMMIT` | Reported in `build` when the image sets them |
