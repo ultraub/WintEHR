@@ -97,8 +97,11 @@ class JobKindView(BaseModel):
     key: str
     label: str
     description: str
+    notes: str = ""
     param_schema: Dict[str, Any] = Field(default_factory=dict)
     adds_patients: bool = False
+    # Setting keys the job reads (e.g. the UMLS key); the UI can warn when unset.
+    required_settings: List[str] = Field(default_factory=list)
 
 
 class JobStartRequest(BaseModel):

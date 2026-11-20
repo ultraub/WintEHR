@@ -64,7 +64,7 @@ class RunningProcess(Protocol):
 
 
 class ProcessRunner(Protocol):
-    async def start(self, argv: List[str], cwd: str) -> RunningProcess: ...
+    async def start(self, argv: List[str], cwd: str, env: Optional[Dict[str, str]] = None) -> RunningProcess: ...
 
 
 class _Subprocess:
@@ -88,10 +88,10 @@ class _Subprocess:
 
 
 class SubprocessRunner:
-    async def start(self, argv: List[str], cwd: str) -> RunningProcess:
+    async def start(self, argv: List[str], cwd: str, env: Optional[Dict[str, str]] = None) -> RunningProcess:
         proc = await asyncio.create_subprocess_exec(
             *argv, cwd=cwd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            env={**os.environ, "PYTHONUNBUFFERED": "1", **(env or {})},
         )
         return _Subprocess(proc)
 
@@ -145,10 +145,20 @@ class JobsService:
 
     def kinds_view(self) -> List[JobKindView]:
         return [
-            JobKindView(key=k.key, label=k.label, description=k.description,
-                        param_schema=k.param_schema, adds_patients=k.patients_added is not None)
+            JobKindView(key=k.key, label=k.label, description=k.description, notes=k.notes,
+                        param_schema=k.param_schema, adds_patients=k.patients_added is not None,
+                        required_settings=sorted(k.secret_env.values()))
             for k in self.kinds.values()
         ]
+
+    async def _secret_env(self, kind: JobKind) -> Dict[str, str]:
+        """Settings the subprocess needs as env vars; missing ones are simply absent."""
+        env: Dict[str, str] = {}
+        for var, setting_key in kind.secret_env.items():
+            value = await self.setting(setting_key)
+            if value not in (None, ""):
+                env[var] = str(value)
+        return env
 
     @staticmethod
     def _view(row: StoredJob) -> JobView:
@@ -256,10 +266,14 @@ class JobsService:
         try:
             await self.repository.update(job_id, status="running", started_at=_now(), heartbeat_at=_now(),
                                          message="Starting", worker=self.worker_name)
+            extra_env = await self._secret_env(kind)
             with open(row.log_path, "a", encoding="utf-8") as log:
+                # argv only: secret env values never reach the log.
                 log.write(f"$ {' '.join(argv)}\n")
+                if extra_env:
+                    log.write(f"  (with {', '.join(sorted(extra_env))} from settings)\n")
                 log.flush()
-                proc = await self.runner.start(argv, kind.cwd)
+                proc = await self.runner.start(argv, kind.cwd, env=extra_env)
                 self._processes[job_id] = proc
                 last_beat = asyncio.get_running_loop().time()
                 message = "Running"

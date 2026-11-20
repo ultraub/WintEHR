@@ -112,7 +112,7 @@ DEFINITIONS: Dict[str, SettingDefinition] = {
             tier="live",
             label="Patient count cap",
             description="Upper bound on the number of patients a Synthea load job may bring the deployment to.",
-            used_by="Command Center job runner (slice 3, Synthea load)",
+            used_by="Command Center job runner (Synthea load refuses to exceed it)",
             minimum=1,
             maximum=100000,
         ),
@@ -123,7 +123,7 @@ DEFINITIONS: Dict[str, SettingDefinition] = {
             tier="live",
             label="UMLS API key",
             description="Licence key for downloading UMLS vocabularies (LOINC, RxNorm, SNOMED) in the terminology load job.",
-            used_by="Command Center terminology job (slice 4); deploy.sh reads the same UMLS_API_KEY env var",
+            used_by="Command Center terminology job (injected as UMLS_API_KEY); deploy.sh reads the env var",
             env_var="UMLS_API_KEY",
         ),
         SettingDefinition(

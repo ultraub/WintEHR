@@ -42,10 +42,12 @@ The backend image sets `WORKDIR /app` and copies the `backend/` tree in, so
 `scripts/active/load_cds_services_to_hapi.py` in `deploy.sh` resolves to
 `backend/scripts/active/load_cds_services_to_hapi.py` in the repo.
 
-Exception — terminology load: `download_umls.py`, `extract_vocabularies.py`,
-`load_terminology.py`, and `ucum.json` live in the **repo-root `scripts/`**
-(not here) and are `docker cp`'d into `/tmp` at deploy time. Only
-`active/build_terminology_index.py` is in this directory.
+Terminology tooling lives in `terminology/` here (`download_umls.py`,
+`extract_vocabularies.py`, `load_terminology.py`, `ucum.json`,
+`run_pipeline.py`) so the image carries it and the Command Center can run the
+whole chain as a job; the repo-root `scripts/*.py` of the same names are
+shims that `runpy` these. `active/build_terminology_index.py` builds the
+SQLite search index the catalogs read.
 
 ---
 
@@ -68,6 +70,7 @@ Exception — terminology load: `download_umls.py`, `extract_vocabularies.py`,
 | `create_dicom_endpoints.py` | Scans generated DICOM dirs, creates FHIR `Endpoint`s, links `ImagingStudy` | yes |
 | `create_demo_practitioners.py` | Creates `Practitioner` resources for demo/nurse/pharmacist/admin | yes |
 | `build_terminology_index.py` | Builds local SQLite terminology index for `/api/catalogs/*` autocomplete | yes (terminology phase) |
+| `run_imaging_pipeline.py` | generate → STOW → endpoints as one job with `STEP i/3` progress lines; what the Command Center `dicom_generate` job runs | no (Command Center) |
 | `imaging_tools.py` / `imaging_workflow.py` | Older imaging/DICOM utilities; on-demand only | no |
 | `seed_smart_apps.py` | Seeds `smart_auth.registered_apps` with sample SMART apps | no |
 | `expunge_dev_libraries.py` | Reclaims orphan draft CQL `Library`s + smoke-test `PlanDefinition`s from HAPI | no |
@@ -119,9 +122,11 @@ Exception — terminology load: `download_umls.py`, `extract_vocabularies.py`,
 
 - FHIR table creation / schema → HAPI owns `hfj_*`; custom schemas →
   `postgres-init/`.
-- Terminology source extraction → repo-root `scripts/` (`download_umls.py`,
-  `extract_vocabularies.py`, `load_terminology.py`).
-- Runtime API / business logic → `backend/api/`.
+- Runtime API / business logic → `backend/api/`. The Command Center job
+  runner (`api/command_center/jobs_registry.py`) is what launches
+  `synthea_to_hapi_pipeline.py`, `terminology/run_pipeline.py`, and
+  `active/run_imaging_pipeline.py` from the UI; it treats them as argv
+  allow-lists, so keep their CLIs positional/flag-stable.
 
 ## Debugging — symptom → where to look
 
@@ -131,6 +136,6 @@ Exception — terminology load: `download_umls.py`, `extract_vocabularies.py`,
 | Synthea bundle rejected by HAPI | Pipeline rewrites `collection`→`transaction` and fixes `ifNoneExist`; check that conversion step |
 | Imaging tab shows no images | DICOM not in dcm4chee — run `generate_dicom_from_hapi.py` → `stow_dicom_to_dcm4chee.py` → `create_dicom_endpoints.py`. The viewer proxies to dcm4chee; local files alone don't render. |
 | CDS service missing from CDS Studio | `load_cds_services_to_hapi.py` did not run / failed (non-critical in `deploy.sh`) |
-| Catalog autocomplete falls back / sparse | Terminology index not built — `build_terminology_index.py` needs vocab files in `/tmp`; restart `emr-backend` after build |
+| Catalog autocomplete falls back / sparse | Terminology index not built — run `terminology/run_pipeline.py` (or the Command Center terminology job); the backend re-opens `/app/data/terminology.db` when the file changes, no restart needed |
 | Same CDS card appears N times | Orphan visual-builder `PlanDefinition`s — `expunge_orphan_visual_plan_definitions.py` |
 | Resource counts look wrong | `SELECT res_type, COUNT(*) FROM hfj_resource WHERE res_deleted_at IS NULL GROUP BY res_type;` — there is no `fhir.resources` table |

@@ -54,8 +54,9 @@ class FakeRunner:
     def queue(self, script, exit_code=0, hold=None):
         self.next.append(FakeProcess(script, exit_code, hold))
 
-    async def start(self, argv, cwd):
+    async def start(self, argv, cwd, env=None):
         self.started.append((argv, cwd))
+        self.env = env
         return self.next.pop(0)
 
 
@@ -74,8 +75,7 @@ def _service(tmp_path, repo=None, patients=0, cap=500, audit=None, worker="w1"):
         return patients
 
     async def setting(key):
-        assert key == "system.patient_count_cap"
-        return cap
+        return cap if key == "system.patient_count_cap" else None
 
     svc = JobsService(repo or MemoryJobsRepository(), runner=runner, patient_count=count,
                       setting=setting, audit=audit, log_dir=str(tmp_path / "jobs"),
@@ -215,7 +215,7 @@ async def test_nonzero_exit_is_failed_with_the_last_message(tmp_path):
 @pytest.mark.asyncio
 async def test_runner_crash_is_a_failed_job_not_an_exception(tmp_path):
     class Boom:
-        async def start(self, argv, cwd):
+        async def start(self, argv, cwd, env=None):
             raise FileNotFoundError("java not found")
 
     svc, _ = _service(tmp_path)
