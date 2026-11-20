@@ -327,3 +327,57 @@ def test_require_system_rejects_plain_admins():
     assert exc.value.status_code == 403
     user = _user("admin", "system")
     assert require_system(user) is user
+
+
+# --- cross-worker invalidation ------------------------------------------------------
+
+
+class _FakeRedis:
+    def __init__(self):
+        self.data = {}
+
+    async def ping(self):
+        return True
+
+    async def get(self, key):
+        v = self.data.get(key)
+        return str(v).encode() if v is not None else None
+
+    async def incr(self, key):
+        self.data[key] = int(self.data.get(key, 0)) + 1
+        return self.data[key]
+
+
+@pytest.mark.asyncio
+async def test_a_write_on_another_worker_invalidates_this_workers_cache(monkeypatch):
+    redis = _FakeRedis()
+    svc = _service()
+    ss.use_settings_service(svc)
+    ss.use_version_client(lambda: redis)
+    now = [1000.0]
+    monkeypatch.setattr(ss, "_clock", lambda: now[0])
+
+    assert await get_setting("system.patient_count_cap") == 500
+
+    # "Another worker" writes straight to the shared store and bumps the counter.
+    await svc.repository.upsert("system.patient_count_cap", "77", False, "other")
+    await redis.incr(ss.VERSION_KEY)
+    assert await get_setting("system.patient_count_cap") == 500, "version is re-read at most once per second"
+    now[0] += ss.VERSION_CHECK_SECONDS + 0.1
+    assert await get_setting("system.patient_count_cap") == 77, "counter moved → cache dropped"
+
+    # Our own write bumps the counter so other workers drop theirs.
+    before = redis.data.get(ss.VERSION_KEY)
+    await svc.set("system.patient_count_cap", 90, "u")
+    assert redis.data[ss.VERSION_KEY] == before + 1
+    assert await get_setting("system.patient_count_cap") == 90
+
+
+@pytest.mark.asyncio
+async def test_without_redis_the_ttl_alone_bounds_staleness(monkeypatch):
+    ss.use_settings_service(_service())
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    now = [1000.0]
+    monkeypatch.setattr(ss, "_clock", lambda: now[0])
+    assert await get_setting("system.patient_count_cap") == 500
+    assert ss._version_client is False, "no REDIS_URL → version checks disabled, not retried per call"
