@@ -70,6 +70,13 @@ Related dependencies in `service.py`:
 
 ### Permissions
 
+Role permission lists can be overridden at runtime: the Command Center's
+`auth.roles` setting (validated by `api/command_center/roles.py`) is applied by
+`apply_role_overrides()` at the end of `get_current_user`, so a change takes
+effect on the user's next request without a new login. The lists in
+`config.py` are the defaults and the fallback whenever the settings store
+cannot be read. The `admin` role can never lose `admin` or `system`.
+
 `User.permissions` is a flat `List[str]` (e.g. `"prescribe"`, `"order:lab"`,
 `"admin"`). Endpoints check it directly — e.g. `router.py:94` gates `/users`
 with `if "admin" not in current_user.permissions`. There is no permission

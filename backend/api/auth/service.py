@@ -230,7 +230,7 @@ async def get_current_user(
         practitioner_service = get_practitioner_auth_service()
         user = await practitioner_service.validate_session(token)
         if user:
-            return user
+            return await apply_role_overrides(user)
 
     # Fall back to legacy auth service
     async with get_db_context() as db:
@@ -243,7 +243,30 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return user
+    return await apply_role_overrides(user)
+
+
+async def apply_role_overrides(user: User) -> User:
+    """Replace the user's permissions with the Command Center's role override, if any.
+
+    Reads the live `auth.roles` setting (cached per process for seconds), so an
+    admin's change applies on the user's next request. Any failure to read the
+    setting leaves the built-in permissions untouched — identity must never
+    depend on the settings store being up.
+    """
+    try:
+        from api.command_center.roles import effective_permissions
+        from api.command_center.settings_service import get_setting
+
+        overrides = await get_setting("auth.roles")
+    except Exception:  # noqa: BLE001 — see docstring
+        return user
+    if not overrides:
+        return user
+    perms = effective_permissions(user.role, user.permissions, overrides)
+    if perms == list(user.permissions):
+        return user
+    return user.model_copy(update={"permissions": perms})
 
 
 # Optional dependency for endpoints that work with or without auth

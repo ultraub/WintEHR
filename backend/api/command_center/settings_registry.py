@@ -13,8 +13,8 @@ control so the page never claims more than it can deliver:
   rebuild  — baked into the frontend image (REACT_APP_*); rebuild required
 
 Naming: `system.<name>` for platform settings, `ui.<name>` for policies the
-frontend applies (tab policy), `module.<key>.<name>` for module-owned
-settings (docs/COMMAND_CENTER.md, Extensions).
+frontend applies (tab policy), `auth.<name>` for identity (role overrides),
+`module.<key>.<name>` for module-owned settings (docs/COMMAND_CENTER.md).
 
 Only register a setting something actually reads: `used_by` is shown to
 the admin and must name a real consumer.
@@ -172,8 +172,25 @@ DEFINITIONS: Dict[str, SettingDefinition] = {
             used_by="frontend useEffectiveTabs() (tab strip, keyboard shortcuts, hidden-tab fallback)",
             validator=lambda doc: _normalize_tab_policy(doc),
         ),
+        SettingDefinition(
+            key="auth.roles",
+            type="json",
+            default={},
+            tier="live",
+            label="Role permissions",
+            description="Overrides a role's permission list. Applied on every request, so it takes effect "
+                        "without a new login. Edited on the Command Center's Roles tab.",
+            used_by="api/auth/service.get_current_user (effective_permissions)",
+            validator=lambda doc: _normalize_roles(doc),
+        ),
     ]
 }
+
+
+def _normalize_roles(doc):
+    from .roles import normalize_roles  # local import: roles imports SettingValueError from here
+
+    return normalize_roles(doc)
 
 
 def _normalize_tab_policy(doc):

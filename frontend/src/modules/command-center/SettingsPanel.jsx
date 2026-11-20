@@ -100,7 +100,7 @@ const SettingRow = ({ setting, canEdit, onSaved, onError }) => {
   if (setting.type === 'json') {
     editor = (
       <Typography variant="body2" color="text.secondary">
-        Structured setting — edited on the <strong>Tabs</strong> tab.
+        Structured setting — edited on the <strong>{setting.key.startsWith('auth.') ? 'Roles' : 'Tabs'}</strong> tab.
       </Typography>
     );
   } else if (setting.type === 'bool') {
