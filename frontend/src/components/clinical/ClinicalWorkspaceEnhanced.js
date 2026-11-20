@@ -28,6 +28,7 @@ import { useKeyboardNavigation } from '../../hooks/useKeyboardNavigation';
 import KeyboardShortcutsDialog from './shared/dialogs/KeyboardShortcutsDialog';
 import CDSPresentation, { PRESENTATION_MODES } from './cds/CDSPresentation';
 import { buildTabContentConfig } from './workspace/clinicalTabRegistry';
+import { useEffectiveTabs } from './workspace/useEffectiveTabs';
 
 // Tab Loading Component
 const TabLoadingFallback = () => (
@@ -118,6 +119,11 @@ const ClinicalWorkspaceEnhanced = ({
   // Get the active tab configuration
   const activeTabConfig = TAB_CONFIG.find(tab => tab.id === activeTab);
 
+  // Tab policy (Command Center → Tabs): a deep link or stale bookmark to a
+  // tab hidden for this user falls back to the policy's default tab with a
+  // notice — never a blank workspace.
+  const { ready: tabPolicyReady, hiddenIds, defaultTab } = useEffectiveTabs();
+
   // Handle tab change notification to parent
   const handleTabChange = useCallback((newTab, params = {}) => {
     if (onNavigateToTab) {
@@ -139,6 +145,14 @@ const ClinicalWorkspaceEnhanced = ({
       navigationContext: params
     });
   }, [onNavigateToTab, onModuleChange, publish, activePatient?.id]);
+
+  useEffect(() => {
+    if (!tabPolicyReady || !hiddenIds.includes(activeTab) || !defaultTab || defaultTab === activeTab) return;
+    const hiddenLabel = TAB_CONFIG.find(t => t.id === activeTab)?.label || activeTab;
+    const targetLabel = TAB_CONFIG.find(t => t.id === defaultTab)?.label || defaultTab;
+    enqueueSnackbar(`The ${hiddenLabel} tab is not available for your role; showing ${targetLabel}.`, { variant: 'info' });
+    handleTabChange(defaultTab);
+  }, [tabPolicyReady, hiddenIds, defaultTab, activeTab, handleTabChange, enqueueSnackbar]);
 
   // Handle refresh - delegate to parent
   const handleRefresh = useCallback(async () => {

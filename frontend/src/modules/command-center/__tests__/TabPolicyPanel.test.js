@@ -1,0 +1,105 @@
+/**
+ * TabPolicyPanel — matrix editing, org-over-role locking, preview, save and
+ * reset, and the system-permission gate. SDK mocked at the boundary.
+ */
+
+import React from 'react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
+import { vi } from 'vitest';
+
+const CATALOG = [
+  { id: 'summary', label: 'Summary', color: '#111' },
+  { id: 'orders', label: 'Orders', color: '#222' },
+  { id: 'administration', label: 'Administration', color: '#333' },
+  { id: 'inbox', label: 'Inbox', color: '#444' },
+];
+
+vi.mock('../../sdk', async () => {
+  const policy = await vi.importActual('../../../components/clinical/workspace/tabPolicy');
+  return {
+    api: { get: vi.fn(), put: vi.fn(), delete: vi.fn() },
+    useAuth: vi.fn(),
+    loadClinicalTabCatalog: vi.fn(() => Promise.resolve(CATALOG)),
+    refreshTabPolicy: vi.fn(() => Promise.resolve()),
+    resolveEffectiveTabs: policy.resolveEffectiveTabs,
+    ALWAYS_VISIBLE_TABS: policy.ALWAYS_VISIBLE,
+    EMPTY_TAB_POLICY: policy.EMPTY_TAB_POLICY,
+  };
+});
+
+import { api, useAuth, refreshTabPolicy } from '../../sdk';
+import TabPolicyPanel from '../TabPolicyPanel';
+
+const policyResponse = (policy, extra = {}) => ({
+  data: { policy, roles: ['nurse', 'physician'], contexts: [], always_visible: ['summary'], source: 'default', ...extra },
+});
+
+beforeEach(() => {
+  api.get.mockReset();
+  api.put.mockReset();
+  api.delete.mockReset();
+  refreshTabPolicy.mockClear();
+});
+
+it('renders the matrix with Summary locked and lets a system user hide a tab for a role', async () => {
+  useAuth.mockReturnValue({ user: { permissions: ['admin', 'system'] } });
+  api.get.mockResolvedValue(policyResponse({}));
+  api.put.mockImplementation((_url, body) => Promise.resolve({ data: { value: body.value, source: 'database', updated_by: 'demo-admin' } }));
+
+  render(<TabPolicyPanel />);
+  await screen.findByLabelText('Orders visible for nurse');
+
+  expect(screen.getByLabelText('Summary visible for nurse')).toBeDisabled();
+  const ordersForNurse = screen.getByLabelText('Orders visible for nurse');
+  expect(ordersForNurse).toBeChecked();
+  fireEvent.click(ordersForNurse);
+  expect(ordersForNurse).not.toBeChecked();
+
+  // Preview for nurse drops Orders; organization keeps it.
+  expect(within(screen.getByTestId('preview-nurse')).queryByText('Orders')).not.toBeInTheDocument();
+  expect(within(screen.getByTestId('preview-__org__')).getByText('Orders')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1));
+  const [url, body] = api.put.mock.calls[0];
+  expect(url).toBe('/api/command-center/settings/ui.tabs.policy');
+  expect(body.value.roles.nurse.hidden).toEqual(['orders']);
+  expect(body.value.org.hidden).toEqual([]);
+  await waitFor(() => expect(screen.getByText(/Saved\./)).toBeInTheDocument());
+  expect(refreshTabPolicy).toHaveBeenCalled();
+  expect(screen.getByText(/Custom policy by demo-admin/)).toBeInTheDocument();
+});
+
+it('a tab hidden for the organization is locked off in every role column', async () => {
+  useAuth.mockReturnValue({ user: { permissions: ['admin', 'system'] } });
+  api.get.mockResolvedValue(policyResponse({ org: { hidden: ['inbox'] } }, { source: 'database' }));
+  render(<TabPolicyPanel />);
+  await screen.findByLabelText('Inbox visible for nurse');
+  const inboxForNurse = screen.getByLabelText('Inbox visible for nurse');
+  expect(inboxForNurse).not.toBeChecked();
+  expect(inboxForNurse).toBeDisabled();
+  expect(screen.getByLabelText('Inbox visible for Organization')).not.toBeChecked();
+  expect(screen.getByRole('button', { name: 'Reset to show everything' })).toBeInTheDocument();
+});
+
+it('reset deletes the override and refreshes the policy', async () => {
+  useAuth.mockReturnValue({ user: { permissions: ['admin', 'system'] } });
+  api.get.mockResolvedValue(policyResponse({ org: { hidden: ['inbox'] } }, { source: 'database' }));
+  api.delete.mockResolvedValue({ data: { value: { org: { hidden: [] }, roles: {}, contexts: {} }, source: 'default' } });
+  render(<TabPolicyPanel />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Reset to show everything' }));
+  await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/api/command-center/settings/ui.tabs.policy'));
+  await waitFor(() => expect(screen.getByText(/Policy reset/)).toBeInTheDocument());
+  expect(screen.getByLabelText('Inbox visible for nurse')).toBeChecked();
+  expect(refreshTabPolicy).toHaveBeenCalled();
+});
+
+it('is read-only without the system permission', async () => {
+  useAuth.mockReturnValue({ user: { permissions: ['admin'] } });
+  api.get.mockResolvedValue(policyResponse({}));
+  render(<TabPolicyPanel />);
+  await screen.findByLabelText('Orders visible for nurse');
+  expect(screen.getByText(/needs the/)).toBeInTheDocument();
+  expect(screen.getByLabelText('Orders visible for nurse')).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+});

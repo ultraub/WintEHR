@@ -9,6 +9,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useClinicalWorkflow } from '../../contexts/ClinicalWorkflowContext';
 import { CLINICAL_TABS, TAB_ID_LIST } from '../../components/clinical/workspace/clinicalTabRegistry';
+import { useEffectiveTabs } from '../../components/clinical/workspace/useEffectiveTabs';
 
 // Digit shortcuts derive from the tab registry: ctrl+N is the Nth tab in
 // the strip (ctrl+0 = 10th). Hand-maintained copies of the tab list here
@@ -16,16 +17,26 @@ import { CLINICAL_TABS, TAB_ID_LIST } from '../../components/clinical/workspace/
 // Inbox had no shortcut, and ctrl+Tab from either jumped to Summary
 // because indexOf returned -1 (bug B2, docs/ARCHITECTURE_DEBT.md).
 const digitForIndex = (i) => (i < 9 ? String(i + 1) : i === 9 ? '0' : null);
+// Registry-order shortcut table (what the docs and coverage tests describe).
 export const TAB_SHORTCUTS = Object.fromEntries(
   CLINICAL_TABS.slice(0, 10).map((tab, i) => [
     `ctrl+${digitForIndex(i)}, cmd+${digitForIndex(i)}`,
     { tab: tab.id, description: `Go to ${tab.label}` },
   ])
 );
+// At runtime a digit means "the Nth tab THIS user sees" (tab policy —
+// useEffectiveTabs), so hidden tabs never get a key and the strip and the
+// keys always agree. Resolved in hotkeyHandler from the effective order.
+const DIGIT_SHORTCUTS = Object.fromEntries(
+  Array.from({ length: 10 }, (_, i) => [
+    `ctrl+${digitForIndex(i)}, cmd+${digitForIndex(i)}`,
+    { tabIndex: i, description: `Go to tab ${i + 1}` },
+  ])
+);
 
 const KEYBOARD_SHORTCUTS = {
-  // Tab navigation — derived, see above
-  ...TAB_SHORTCUTS,
+  // Tab navigation — by position in the effective strip, see above
+  ...DIGIT_SHORTCUTS,
 
   // Quick actions
   'ctrl+n, cmd+n': { action: 'new', description: 'Create new (context-aware)' },
@@ -51,8 +62,8 @@ const KEYBOARD_SHORTCUTS = {
   'esc': { action: 'escape', description: 'Close dialogs/Cancel' }
 };
 
-// Tab order for cycling — ALL registry tabs, in strip order (ctrl+Tab
-// cycles through every tab, including the ones beyond the 10 digit keys).
+// Registry tab order (every tab that exists). Cycling at runtime uses the
+// EFFECTIVE order from useEffectiveTabs so hidden tabs are skipped.
 export const TAB_ORDER = TAB_ID_LIST;
 
 export const useKeyboardNavigation = ({
@@ -66,6 +77,8 @@ export const useKeyboardNavigation = ({
   const location = useLocation();
   const { publish } = useClinicalWorkflow();
   const [showHelp, setShowHelp] = useState(false);
+  const { tabs: effectiveTabs } = useEffectiveTabs();
+  const effectiveOrder = effectiveTabs.length ? effectiveTabs.map((t) => t.id) : TAB_ORDER;
   
   // Handle tab navigation
   const handleTabNavigation = useCallback((targetTab) => {
@@ -82,18 +95,18 @@ export const useKeyboardNavigation = ({
   
   // Handle cycling through tabs
   const cycleTab = useCallback((direction) => {
-    const currentIndex = TAB_ORDER.indexOf(activeTab);
+    const currentIndex = effectiveOrder.indexOf(activeTab);
     let newIndex;
     
     if (direction === 'next') {
-      newIndex = (currentIndex + 1) % TAB_ORDER.length;
+      newIndex = (currentIndex + 1) % effectiveOrder.length;
     } else {
       newIndex = currentIndex - 1;
-      if (newIndex < 0) newIndex = TAB_ORDER.length - 1;
+      if (newIndex < 0) newIndex = effectiveOrder.length - 1;
     }
     
-    handleTabNavigation(TAB_ORDER[newIndex]);
-  }, [activeTab, handleTabNavigation]);
+    handleTabNavigation(effectiveOrder[newIndex]);
+  }, [activeTab, handleTabNavigation, effectiveOrder]);
   
   // Handle actions
   const handleAction = useCallback((action) => {
@@ -138,14 +151,17 @@ export const useKeyboardNavigation = ({
     
     if (!config) return;
     
-    if (config.tab) {
+    if (config.tabIndex !== undefined) {
+      const target = effectiveOrder[config.tabIndex];
+      if (target) handleTabNavigation(target);
+    } else if (config.tab) {
       handleTabNavigation(config.tab);
     } else if (config.action) {
       handleAction(config.action);
     } else if (config.density && onDensityChange) {
       onDensityChange(config.density);
     }
-  }, [enabled, handleTabNavigation, handleAction, onDensityChange]);
+  }, [enabled, handleTabNavigation, handleAction, onDensityChange, effectiveOrder]);
   
   // Register all hotkeys as a single string
   const allHotkeys = Object.keys(KEYBOARD_SHORTCUTS).join(', ');
@@ -157,7 +173,7 @@ export const useKeyboardNavigation = ({
       enabled: enabled,
       enableOnFormTags: ['INPUT', 'TEXTAREA', 'SELECT']
     },
-    [enabled, activeTab, handleTabNavigation, handleAction, onDensityChange]
+    [enabled, activeTab, handleTabNavigation, handleAction, onDensityChange, effectiveOrder]
   );
   
   // Focus management for accessibility

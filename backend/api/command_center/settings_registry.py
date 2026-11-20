@@ -12,8 +12,9 @@ control so the page never claims more than it can deliver:
              must restart
   rebuild  — baked into the frontend image (REACT_APP_*); rebuild required
 
-Naming: `system.<name>` for platform settings. Module-owned settings will
-use `module.<key>.<name>` (docs/COMMAND_CENTER.md, Extensions).
+Naming: `system.<name>` for platform settings, `ui.<name>` for policies the
+frontend applies (tab policy), `module.<key>.<name>` for module-owned
+settings (docs/COMMAND_CENTER.md, Extensions).
 
 Only register a setting something actually reads: `used_by` is shown to
 the admin and must name a real consumer.
@@ -21,10 +22,11 @@ the admin and must name a real consumer.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Callable, Dict, Literal, Optional
 
-SettingType = Literal["int", "float", "bool", "str", "secret"]
+SettingType = Literal["int", "float", "bool", "str", "secret", "json"]
 Tier = Literal["live", "restart", "rebuild"]
 
 _TRUE = {"true", "1", "yes", "on"}
@@ -47,6 +49,8 @@ class SettingDefinition:
     env_var: Optional[str] = None
     minimum: Optional[float] = None
     maximum: Optional[float] = None
+    # json settings: structural validator, returns the normalized document.
+    validator: Optional[Callable[[Any], Any]] = None
 
     @property
     def is_secret(self) -> bool:
@@ -56,6 +60,13 @@ class SettingDefinition:
         """Coerce and validate a value from JSON, a form, or an env var string."""
         if raw is None:
             raise SettingValueError(f"{self.key}: a value is required")
+        if self.type == "json":
+            if isinstance(raw, str):
+                try:
+                    raw = json.loads(raw)
+                except json.JSONDecodeError as exc:
+                    raise SettingValueError(f"{self.key}: not valid JSON ({exc.msg})") from None
+            return self.validator(raw) if self.validator else raw
         try:
             if self.type == "int":
                 if isinstance(raw, bool):
@@ -150,8 +161,25 @@ DEFINITIONS: Dict[str, SettingDefinition] = {
             minimum=5,
             maximum=600,
         ),
+        SettingDefinition(
+            key="ui.tabs.policy",
+            type="json",
+            default={"org": {"hidden": [], "order": [], "default": None}, "roles": {}, "contexts": {}},
+            tier="live",
+            label="Chart workspace tabs",
+            description="Which chart tabs are shown, in what order, and which opens first — for the whole "
+                        "organization and per role. Edited on the Command Center's Tabs tab.",
+            used_by="frontend useEffectiveTabs() (tab strip, keyboard shortcuts, hidden-tab fallback)",
+            validator=lambda doc: _normalize_tab_policy(doc),
+        ),
     ]
 }
+
+
+def _normalize_tab_policy(doc):
+    from .tab_policy import normalize_tab_policy  # local import: tab_policy imports SettingValueError from here
+
+    return normalize_tab_policy(doc)
 
 
 def get_definition(key: str) -> SettingDefinition:

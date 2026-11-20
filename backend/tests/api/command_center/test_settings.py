@@ -57,7 +57,7 @@ def _isolated_default_service():
 
 def test_every_definition_names_a_consumer_and_is_namespaced():
     for d in DEFINITIONS.values():
-        assert d.key.startswith("system."), d.key
+        assert d.key.startswith(("system.", "ui.", "module.")), d.key
         assert d.used_by, d.key
         assert d.tier in ("live", "restart", "rebuild")
 

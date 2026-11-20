@@ -14,12 +14,13 @@ module's deltas are here.
 
 | File | Role |
 |---|---|
-| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
+| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /ui-policy` (no auth); `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
 | `service.py` | `CommandCenterService.status()`: runs the probes concurrently under the live-tier probe timeout, rolls them up. `roll_up` is pure. |
 | `probes.py` | One `async` probe per deployment part: `fhir`, `database`, `redis`, `terminology`, `vna`. Exceptions and timeouts become `down`, never a 500. |
 | `settings_registry.py` | **Where a setting is defined**: key, type, default, tier, env var it shadows, `used_by`. Add a setting here, and only when something reads it. |
 | `settings_repository.py` | Overrides in `system.settings` (Postgres, DDL also in `postgres-init/11_system.sql`, created idempotently on first use) or in memory for tests. |
 | `settings_service.py` | Precedence database → env → default; secrets encrypted/decrypted; audit on every write; `get_setting(key)` for live-tier consumers (15 s per-process cache, env/default fallback if Postgres is down). |
+| `tab_policy.py` | Shape validation for `ui.tabs.policy` (org / roles / contexts layers of hidden, order, default; `summary` stripped from hidden) and `known_roles()`. Tab ids are not validated here — the catalog is a frontend build artifact; the client resolver ignores unknown ids with a warning. |
 | `secrets.py` | `SecretBox`: Fernet keyed from `WINTEHR_SETTINGS_KEY` (any passphrase, SHA-256 → key). No key → secrets refuse to save (409), plain settings unaffected. |
 | `jobs_registry.py` | **Where a job kind is defined**: validated params → argv allow-list (never a shell string), a `ProgressParser` for its output, `patients_added` for the cap check, `secret_env` for settings the subprocess needs as env vars. Kinds: `synthea_load` (`scripts/synthea_to_hapi_pipeline.py`), `terminology_load` (`scripts/terminology/run_pipeline.py`, gets `UMLS_API_KEY` from `system.umls_api_key`), `dicom_generate` (`scripts/active/run_imaging_pipeline.py`). Orchestrators print `STEP i/N:` lines for `StepProgress`. |
 | `jobs_repository.py` | `system.jobs` (Postgres; DDL also in `postgres-init/11_system.sql`, created on first use) or memory. The single-active-job rule is the partial unique index `system_jobs_one_active`, so two workers cannot both start one. |

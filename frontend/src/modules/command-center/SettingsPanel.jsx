@@ -97,7 +97,13 @@ const SettingRow = ({ setting, canEdit, onSaved, onError }) => {
   };
 
   let editor;
-  if (setting.type === 'bool') {
+  if (setting.type === 'json') {
+    editor = (
+      <Typography variant="body2" color="text.secondary">
+        Structured setting — edited on the <strong>Tabs</strong> tab.
+      </Typography>
+    );
+  } else if (setting.type === 'bool') {
     editor = (
       <Switch checked={Boolean(draft)} onChange={(e) => setDraft(e.target.checked)}
         disabled={!canEdit || busy} inputProps={{ 'aria-label': setting.label }} />
@@ -147,7 +153,7 @@ const SettingRow = ({ setting, canEdit, onSaved, onError }) => {
         )}
       </TableCell>
       <TableCell sx={{ verticalAlign: 'top', whiteSpace: 'nowrap' }}>
-        {canEdit && (
+        {canEdit && setting.type !== 'json' && (
           <Stack direction="row" spacing={1}>
             <Button size="small" variant="contained" onClick={save} disabled={!dirty || busy || secretsBlocked}
               aria-label={`Save ${setting.label}`}>
