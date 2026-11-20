@@ -19,6 +19,7 @@ from api.auth.models import User
 
 from .jobs_service import JobsError, JobsService, default_jobs_service
 from .logs import LEVELS, export_logs, read_logs
+from .modules import module_inventory
 from .models import (
     JobKindView,
     JobLogChunk,
@@ -26,6 +27,7 @@ from .models import (
     JobView,
     LogLine,
     LogsResponse,
+    ModulesResponse,
     RoleView,
     RolesResponse,
     SettingUpdate,
@@ -284,3 +286,22 @@ async def export_backend_logs(
     stamp = lambda d: d.strftime("%Y%m%dT%H%M%SZ") if d else "all"  # noqa: E731
     filename = f"wintehr-backend-logs-{stamp(start)}-{stamp(end)}.txt"
     return Response(content=text, media_type="text/plain", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+# --- modules ----------------------------------------------------------------------------
+
+
+@router.get("/modules", response_model=ModulesResponse)
+async def get_modules(_user: User = Depends(require_admin)):
+    """Every pluggable module the backend knows: routers, status, source, declared settings."""
+    from api.routers import DISABLED_MODULES
+
+    return ModulesResponse(
+        modules=module_inventory(),
+        disabled_backend=list(DISABLED_MODULES),
+        how_to={
+            "backend": "Set WINTEHR_DISABLED_MODULES=<key>,<key> in .env and restart emr-backend (restart tier).",
+            "frontend": "Set REACT_APP_DISABLED_MODULES=<key>,<key> in .env and rebuild the frontend image (rebuild tier).",
+            "external": "List the module in wintehr.modules.json and run scripts/sync-modules.py, then rebuild (docs/MODULES.md).",
+        },
+    )

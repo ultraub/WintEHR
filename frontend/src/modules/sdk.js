@@ -59,6 +59,7 @@ export const loadClinicalTabCatalog = () =>
   import('../components/clinical/workspace/clinicalTabRegistry').then((m) =>
     m.CLINICAL_TABS.map((t) => ({ id: t.id, label: t.label, color: t.color })),
   );
+export const loadModuleSummaries = () => import('./index').then((m) => m.getModuleSummaries());
 export const loadClinicalSectionCatalog = () =>
   import('../components/clinical/workspace/sectionRegistry').then((m) => m.sectionCatalog());
 

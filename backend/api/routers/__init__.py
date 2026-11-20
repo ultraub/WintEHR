@@ -225,6 +225,14 @@ def register_all_routers(app: FastAPI) -> None:
         for name, module_path, attr, kwargs in entries:
             _register(name, module_path, attr, kwargs)
 
+    # Module-owned settings (api/<package>/settings.py, SETTINGS=[...]) join the
+    # Command Center registry; a broken settings module never breaks startup.
+    try:
+        from api.command_center.module_settings import discover_module_settings
+        discover_module_settings(MODULE_ROUTERS, DISABLED_MODULES)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Module settings discovery failed: {e}")
+
     # Debug tools — development only, opt-in via DEBUG=true
     if os.getenv("DEBUG", "false").lower() == "true":
         try:

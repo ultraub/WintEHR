@@ -66,6 +66,26 @@ export const DISABLED_MODULE_KEYS = ALL_MODULES
 export const getModuleTabs = () => ENABLED_MODULES.flatMap((m) => m.tabs || []);
 
 /**
+ * Plain-data summary of every manifest (enabled and build-disabled) for the
+ * Command Center's Modules tab: what each module contributes, the
+ * permissions it says its UI needs (`permissions`), and the settings keys
+ * it reads (`settings`, declared by the backend half as module.<key>.*).
+ * No components or loaders — safe to ship over the SDK.
+ */
+export const getModuleSummaries = () =>
+  ALL_MODULES.map((m) => ({
+    id: m.id,
+    enabled: !disabledKeys.has(m.id),
+    external: EXTERNAL_MODULES.includes(m),
+    tabs: (m.tabs || []).map((t) => ({ id: t.id, label: t.label })),
+    pages: (m.pages || []).map((p) => ({ id: p.id, path: p.path, label: p.label })),
+    sections: (m.sections || []).map((s) => ({ id: s.id, label: s.label, hostable: s.hostable !== false })),
+    slots: Object.keys(m.slots || {}),
+    permissions: [...(m.permissions || [])],
+    settings: [...(m.settings || [])],
+  }));
+
+/**
  * Section entries contributed by enabled modules (panels that can live
  * inside a tab; see workspace/sectionRegistry.js and docs/MODULES.md).
  * Each entry: { id, label, icon?, color?, loader, host?, hostable?,

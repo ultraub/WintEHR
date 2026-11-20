@@ -14,6 +14,9 @@ import { categoricalAccents } from '../sdk';
 
 const flowsheetsModule = {
   id: 'flowsheets',
+  // What the module's UI needs a user to hold (docs/MODULES.md). Shown on the
+  // Command Center's Modules tab; the chart itself still works read-only.
+  permissions: ['read', 'write'],
   tabs: [
     {
       id: 'flowsheet',
