@@ -236,12 +236,11 @@ class ConfigLoader:
         if not os.getenv('POSTGRES_PASSWORD'):
             env_warnings.append("POSTGRES_PASSWORD not set in environment")
 
-        # Application secrets
-        if not os.getenv('SECRET_KEY'):
-            env_warnings.append("SECRET_KEY not set in environment")
-
-        if not os.getenv('JWT_SECRET'):
-            env_warnings.append("JWT_SECRET not set in environment")
+        # JWT signing key: JWT_SECRET_KEY is canonical, JWT_SECRET the fallback
+        # (same resolution as backend/api/auth/config.py).
+        from deploy.secrets_policy import jwt_secret
+        if not jwt_secret():
+            env_warnings.append("JWT_SECRET_KEY (or JWT_SECRET) not set in environment")
 
         # Report errors
         if errors:

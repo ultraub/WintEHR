@@ -326,6 +326,16 @@ services:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-emr_user}:${POSTGRES_PASSWORD:-emr_password}@postgres:5432/${POSTGRES_DB:-emr_db}
       - JWT_ENABLED=${JWT_ENABLED:-false}
+      # SMART enforcement flags. Defaults mirror backend/api/smart/middleware.py
+      # (SMART_ENABLED follows JWT_ENABLED; unauthenticated reads allowed) —
+      # an empty string would read as "false" in the backend, so never forward
+      # these without a default.
+      - SMART_ENABLED=${SMART_ENABLED:-${JWT_ENABLED:-false}}
+      - SMART_ALLOW_UNPROTECTED=${SMART_ALLOW_UNPROTECTED:-true}
+      # Backend CORS allow-list (empty = "*") and the SSRF guard for registered
+      # external CDS/webhook/CQL-library URLs (empty = accept all + warning).
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - EXTERNAL_SERVICES_URL_ALLOWLIST=${EXTERNAL_SERVICES_URL_ALLOWLIST:-}
       - WINTEHR_DISABLED_MODULES=${WINTEHR_DISABLED_MODULES:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-${JWT_SECRET:-dev-secret-key}}
@@ -368,6 +378,16 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-emr_user}
       - POSTGRES_DB=${POSTGRES_DB:-emr_db}
       - JWT_ENABLED=${JWT_ENABLED:-false}
+      # SMART enforcement flags. Defaults mirror backend/api/smart/middleware.py
+      # (SMART_ENABLED follows JWT_ENABLED; unauthenticated reads allowed) —
+      # an empty string would read as "false" in the backend, so never forward
+      # these without a default.
+      - SMART_ENABLED=${SMART_ENABLED:-${JWT_ENABLED:-false}}
+      - SMART_ALLOW_UNPROTECTED=${SMART_ALLOW_UNPROTECTED:-true}
+      # Backend CORS allow-list (empty = "*") and the SSRF guard for registered
+      # external CDS/webhook/CQL-library URLs (empty = accept all + warning).
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - EXTERNAL_SERVICES_URL_ALLOWLIST=${EXTERNAL_SERVICES_URL_ALLOWLIST:-}
       - WINTEHR_DISABLED_MODULES=${WINTEHR_DISABLED_MODULES:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-${JWT_SECRET:-change-this-in-production}}

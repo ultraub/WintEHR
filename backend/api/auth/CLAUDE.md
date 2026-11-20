@@ -87,7 +87,7 @@ router itself carries `prefix="/api/auth"`, so paths resolve verbatim.
 | Env var | Default | Effect |
 |---|---|---|
 | `JWT_ENABLED` | `false` | `true` → login returns a JWT instead of an in-memory session token (same demo credentials either way) |
-| `JWT_SECRET_KEY` | `training-secret-key-change-in-production` | HS256 signing key. Note the deployment plumbing (`docker-compose.yml`, `.env.example`) sets `JWT_SECRET`, a **different** variable that this module never reads — see the hygiene backlog / security review. |
+| `JWT_SECRET_KEY` | `training-secret-key-change-in-production` | HS256 signing key. Canonical name since PR #215; `JWT_SECRET` is read as a fallback here and compose maps either into the container (`JWT_SECRET_KEY=${JWT_SECRET_KEY:-${JWT_SECRET:-…}}`). |
 | `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` (24h) | Token lifetime |
 
 `TRAINING_USERS` (`config.py:22`) hard-codes four users — `demo`, `nurse`,
@@ -135,4 +135,4 @@ attempts / 15 min, lost on restart. Not distributed.
 | Login works but `/users` returns 403 | Caller's `User.permissions` lacks `"admin"` |
 | Practitioner login "not found" | `find_practitioner` searches HAPI by ID / `family` / NPI `identifier`, `active=true` only — confirm the Practitioner exists and is active |
 | Logout doesn't invalidate a JWT | By design — JWT mode has no server-side revocation; only in-memory sessions can be dropped |
-| JWT verifies locally but not on the server (or vice versa) | Signing-key mismatch — this module reads `JWT_SECRET_KEY`, while compose/`.env` set `JWT_SECRET`; if only the latter is configured, tokens are signed with the hardcoded default |
+| JWT verifies locally but not on the server (or vice versa) | Signing-key mismatch — check `docker exec emr-backend env | grep JWT_SECRET_KEY`; a local run reads `.env` directly while the container only gets what compose forwards |

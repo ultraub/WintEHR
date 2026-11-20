@@ -103,6 +103,7 @@ ENVIRONMENT=""
 SKIP_BUILD=false
 SKIP_DATA=false
 CLEAN_FIRST=false
+SKIP_VALIDATION=false
 BASE_URL=""
 
 # Parse command line arguments
@@ -130,6 +131,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-dicom)
             SKIP_DICOM=true
+            shift
+            ;;
+        --skip-validation)
+            SKIP_VALIDATION=true
             shift
             ;;
         --base-url)
@@ -161,6 +166,7 @@ Options:
   --skip-build             Skip Docker image builds
   --skip-data              Skip patient data generation
   --skip-dicom             Omit the DICOM/dcm4chee (VNA) imaging stack
+  --skip-validation        Don't abort a prod deploy on config/secret errors
   --clean-first            Wipe server completely before deployment
   --base-url URL           Base URL for DICOM endpoints (e.g., https://server.com)
   --help, -h               Show this help message
@@ -359,21 +365,36 @@ if [ -f "config.yaml" ] && [ -f "deploy/load_config.sh" ]; then
     echo ""
 fi
 
-# Validate configuration (if validator exists)
+# Validate configuration and secrets (deploy/validate_config.py).
+# Errors abort a prod deploy — a default Postgres password or example JWT
+# secret on a prod box is exactly what this gate exists to catch. Dev deploys
+# only warn. --skip-validation is the escape hatch; warnings never block.
+VALIDATION_STATUS=0
 if [ -f "deploy/validate_config.py" ]; then
     echo -e "${BLUE}🔍 Validating configuration...${NC}"
-    if python3 deploy/validate_config.py ${ENVIRONMENT:+--environment "$ENVIRONMENT"} 2>/dev/null; then
+    if VALIDATION_OUTPUT=$(python3 deploy/validate_config.py --environment "$PROFILE" 2>&1); then
         echo -e "${GREEN}✅ Configuration validation passed${NC}"
+        echo "$VALIDATION_OUTPUT" | grep -A100 "WARNINGS:" | grep -v "^===" || true
     else
-        echo -e "${YELLOW}⚠️  Configuration validation skipped or had warnings${NC}"
+        VALIDATION_STATUS=$?
+        echo "$VALIDATION_OUTPUT" | grep -A100 -E "ERRORS FOUND|Configuration Error|Traceback" | grep -v "^===" || echo "$VALIDATION_OUTPUT" | tail -20
+        if [ "$PROFILE" = "prod" ] && [ "$SKIP_VALIDATION" != true ] && [ "$VALIDATE_ONLY" != true ]; then
+            echo -e "${RED}❌ Configuration validation failed — fix the errors above in .env (or pass --skip-validation)${NC}"
+            exit 1
+        fi
+        echo -e "${YELLOW}⚠️  Configuration validation reported errors (not fatal for the $PROFILE profile)${NC}"
     fi
     echo ""
 fi
 
 # Stop here if validate-only
 if [ "$VALIDATE_ONLY" = true ]; then
-    echo -e "${GREEN}✅ Validation complete (--validate-only mode)${NC}"
-    exit 0
+    if [ "$VALIDATION_STATUS" -eq 0 ]; then
+        echo -e "${GREEN}✅ Validation complete (--validate-only mode)${NC}"
+    else
+        echo -e "${RED}❌ Validation failed (--validate-only mode)${NC}"
+    fi
+    exit "$VALIDATION_STATUS"
 fi
 
 # Start deployment

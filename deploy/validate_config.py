@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from deploy.config_loader import load_config, print_config_summary, ConfigurationError
+from deploy.secrets_policy import check_secrets, is_production
 
 
 def validate_email(email: str) -> bool:
@@ -33,45 +34,6 @@ def validate_domain(domain: str) -> bool:
     return bool(re.match(pattern, domain))
 
 
-def validate_secrets():
-    """Validate that required secrets are set and secure."""
-    issues = []
-    warnings = []
-
-    # Check POSTGRES_PASSWORD
-    postgres_password = os.getenv('POSTGRES_PASSWORD', '')
-    if not postgres_password:
-        issues.append("POSTGRES_PASSWORD is not set")
-    elif postgres_password == 'CHANGE_ME_TO_SECURE_PASSWORD':
-        issues.append("POSTGRES_PASSWORD is still set to the example value")
-    elif len(postgres_password) < 16:
-        warnings.append(f"POSTGRES_PASSWORD is weak (length: {len(postgres_password)}, recommended: 16+)")
-
-    # Check SECRET_KEY
-    secret_key = os.getenv('SECRET_KEY', '')
-    if not secret_key:
-        issues.append("SECRET_KEY is not set")
-    elif secret_key == 'CHANGE_ME_TO_RANDOM_SECRET_KEY':
-        issues.append("SECRET_KEY is still set to the example value")
-    elif len(secret_key) < 32:
-        warnings.append(f"SECRET_KEY is weak (length: {len(secret_key)}, recommended: 32+)")
-
-    # Check JWT_SECRET
-    jwt_secret = os.getenv('JWT_SECRET', '')
-    if not jwt_secret:
-        issues.append("JWT_SECRET is not set")
-    elif jwt_secret == 'CHANGE_ME_TO_RANDOM_JWT_SECRET':
-        issues.append("JWT_SECRET is still set to the example value")
-    elif len(jwt_secret) < 32:
-        warnings.append(f"JWT_SECRET is weak (length: {len(jwt_secret)}, recommended: 32+)")
-
-    # Check if SECRET_KEY and JWT_SECRET are the same
-    if secret_key and jwt_secret and secret_key == jwt_secret:
-        warnings.append("SECRET_KEY and JWT_SECRET should be different")
-
-    return issues, warnings
-
-
 def validate_configuration(config: dict, verbose: bool = False) -> tuple:
     """
     Perform detailed validation of configuration.
@@ -84,9 +46,10 @@ def validate_configuration(config: dict, verbose: bool = False) -> tuple:
 
     # Deployment validation
     deployment = config.get('deployment', {})
+    prod = is_production(deployment.get('environment'))
 
     # Environment
-    if deployment.get('environment') not in ['dev', 'staging', 'production']:
+    if deployment.get('environment') not in ['dev', 'staging', 'prod', 'production']:
         warnings.append(f"Unusual environment: {deployment.get('environment')}")
 
     # Patient count
@@ -132,7 +95,7 @@ def validate_configuration(config: dict, verbose: bool = False) -> tuple:
 
     # Database validation
     database = config.get('database', {})
-    if database.get('host') == 'localhost' and deployment.get('environment') == 'production':
+    if database.get('host') == 'localhost' and prod:
         warnings.append("Using localhost for database in production - ensure this is correct")
 
     # HAPI FHIR validation
@@ -161,7 +124,7 @@ def validate_configuration(config: dict, verbose: bool = False) -> tuple:
     # Security validation
     security = config.get('security', {})
     cors_origins = security.get('cors_origins', [])
-    if '*' in cors_origins and deployment.get('environment') == 'production':
+    if '*' in cors_origins and prod:
         warnings.append("CORS allows all origins (*) in production - this may be a security risk")
 
     allowed_ips = security.get('allowed_ips', [])
@@ -188,8 +151,8 @@ Examples:
     )
     parser.add_argument(
         '--environment',
-        choices=['dev', 'staging', 'production'],
-        help='Specify environment to validate'
+        choices=['dev', 'staging', 'prod', 'production'],
+        help='Deploy profile to validate (deploy.sh passes dev or prod)'
     )
     parser.add_argument(
         '--verbose',
@@ -225,9 +188,9 @@ Examples:
         print("🔍 Validating configuration...")
         config_errors, config_warnings = validate_configuration(config, args.verbose)
 
-        # Validate secrets
+        # Validate secrets and security switches (prod is strict, dev warns)
         print("🔐 Validating secrets...")
-        secret_errors, secret_warnings = validate_secrets()
+        secret_errors, secret_warnings = check_secrets(config['deployment']['environment'])
 
         # Combine results
         all_errors = config_errors + secret_errors

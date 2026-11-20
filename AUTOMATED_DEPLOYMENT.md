@@ -497,7 +497,7 @@ docker-compose logs -f backend
 
 - **[CLAUDE.md](CLAUDE.md)** - Main project documentation
 - **[README.md](README.md)** - Project overview
-- **[docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md)** - Detailed deployment guide
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Detailed deployment guide (the checklist is at the end)
 - **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)** - Configuration reference
 
 ---

@@ -2,7 +2,7 @@
 
 Guide to WintEHR platform documentation.
 
-**Last Updated**: July 2026
+**Last Updated**: 2026-11-03
 
 ---
 
@@ -16,7 +16,7 @@ Guide to WintEHR platform documentation.
 ### Deployment & Operations
 - **[Client Deployment Playbook](CLIENT_DEPLOYMENT.md)** – End-to-end guide for installing into a client VPC, with day-2 ops, upgrade path, and troubleshooting
 - **[Azure Deployment](AZURE_DEPLOYMENT.md)** – Azure-specific notes
-- **[Security Posture](SECURITY.md)** – What's hardened by default, what each deployer owns, audit checklist for InfoSec review
+- **[Security Posture](SECURITY.md)** – What's hardened by default, what each deployer owns, audit checklist for InfoSec review (verified against code 2026-11-03)
 - **[Terminology Setup](TERMINOLOGY_SETUP.md)** – Optional UMLS-based vocabulary load (RxNorm, ICD-10-CM, LOINC, CVX, HCPCS, ATC, optionally SNOMED)
 
 ### Extending the platform
@@ -41,11 +41,15 @@ Guide to WintEHR platform documentation.
 
 ### Testing & Verification
 - **[Testing Checklist](TESTING_CHECKLIST.md)** – Workflow verification checklist for reviewers
-- **[Workflow Verification Report](WORKFLOW_VERIFICATION_REPORT.md)** – Findings from the last full workflow verification
+- **[Workflow Verification Report](WORKFLOW_VERIFICATION_REPORT.md)** – Findings from the 2025-12-11 workflow verification (historical; the bug list has since been worked through — see [ARCHITECTURE_DEBT.md](ARCHITECTURE_DEBT.md) for the live list)
+
+### Data import
+- **[Notebooks](../notebooks/README.md)** – Runnable import notebooks (MIMIC-IV-on-FHIR demo); real-derived data, read the governance note in SECURITY.md first
 
 ### Change Logs
 - **[API Updates 2025-12-14](API_UPDATES_2025-12-14.md)**
 - **[Release Notes](../RELEASE_NOTES.md)** – Historical (describes v1.0.0, pre-HAPI architecture)
+- **[AUTOMATED_DEPLOYMENT.md](../AUTOMATED_DEPLOYMENT.md)** – Historical design doc; its scripts never shipped
 
 ---
 
@@ -56,13 +60,18 @@ WintEHR/
 ├── README.md                # Project overview + quick start
 ├── CONTRIBUTING.md          # Contributing guidelines
 ├── RELEASE_NOTES.md         # Historical release notes
-├── AUTOMATED_DEPLOYMENT.md  # Deployment automation notes
+├── AUTOMATED_DEPLOYMENT.md  # Historical design doc (scripts never shipped)
 ├── CLAUDE.md                # Agent context (committed; root of the CLAUDE.md tree)
 ├── docs/                    # Human-facing reference docs (this directory)
 ├── backend/                 # FastAPI backend (see backend/CLAUDE.md)
-├── frontend/                # React frontend (see frontend/CLAUDE.md)
-├── deploy/                  # Deployment configs (HAPI overlay, nginx, NSG script)
-└── docker-compose.yml       # Single compose file, dev/prod profiles
+├── frontend/                # React frontend, Vite 7 (see frontend/CLAUDE.md)
+├── deploy/                  # HAPI overlay, nginx template, SSL + NSG scripts
+├── scripts/                 # Module scaffolder, terminology extraction, validation
+├── notebooks/               # External-dataset import notebooks (MIMIC)
+├── examples/                # Sample CQL
+├── site/                    # GitHub Pages marketing site (.github/workflows/pages.yml)
+├── .github/                 # CI (both test suites, contents:read), Dependabot
+└── docker-compose.yml       # Single compose file, dev/prod (+ dicom) profiles
 ```
 
 Notes:
@@ -70,7 +79,10 @@ Notes:
   the root file owns project-wide rules; module files carry deltas. Start at
   [`/CLAUDE.md`](../CLAUDE.md).
 - There is **one** `docker-compose.yml` with `dev` / `prod` profiles — there is
-  no separate `docker-compose.prod.yml`.
+  no separate `docker-compose.prod.yml`. The `dicom` profile (dcm4chee) is
+  added by `deploy.sh` unless `--skip-dicom` is passed.
+- `nginx-prod.conf` no longer exists as a tracked file; `deploy.sh` renders
+  `deploy/nginx-prod.conf.template` into the gitignored `deploy/rendered/`.
 - `claudedocs/` holds agent-generated working documents and is gitignored.
 
 ---
@@ -90,7 +102,7 @@ Notes:
 
 ### Verifying workflows
 1. [Testing Checklist](TESTING_CHECKLIST.md) — the reviewer checklist
-2. `cd backend && pytest tests/ -v` and `cd frontend && npm test -- --watchAll=false`
+2. `cd backend && pytest tests/ -v` and `cd frontend && npm test`
 
 ---
 
@@ -106,9 +118,9 @@ Notes:
 # Backend
 cd backend && pytest tests/ -v
 
-# Frontend
-cd frontend && npm start
-cd frontend && npm test -- --watchAll=false
+# Frontend (Vite)
+cd frontend && npm run dev
+cd frontend && npm test
 cd frontend && npm run lint
 
 # Database / FHIR
