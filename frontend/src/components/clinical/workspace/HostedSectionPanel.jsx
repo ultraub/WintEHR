@@ -36,12 +36,30 @@ class SectionErrorBoundary extends React.Component {
   }
 }
 
-const HostedSectionPanel = ({ section, patientId, currentPatient, onNavigateToTab }) => {
-  const [open, setOpen] = useState(!section.defaultCollapsed);
+/**
+ * The section's content alone: lazy component, retry, error boundary. Strip
+ * tabs (Results, Pharmacy, Care Plan) render this as a sub-tab body; the
+ * card below wraps it for stacked hosts like Chart Review.
+ */
+export const HostedSectionBody = ({ section, patientId, currentPatient, onNavigateToTab }) => {
   const Component = useMemo(
     () => (section.loader ? lazy(() => retryOnce(section.loader)) : null),
     [section.loader],
   );
+  if (!Component) {
+    return <Typography variant="body2" color="text.secondary">This section has no content to host.</Typography>;
+  }
+  return (
+    <SectionErrorBoundary label={section.label}>
+      <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={22} /></Box>}>
+        <Component patientId={patientId} currentPatient={currentPatient} onNavigateToTab={onNavigateToTab} hosted />
+      </Suspense>
+    </SectionErrorBoundary>
+  );
+};
+
+const HostedSectionPanel = ({ section, patientId, currentPatient, onNavigateToTab }) => {
+  const [open, setOpen] = useState(!section.defaultCollapsed);
 
   return (
     <Grid item xs={12} data-testid={`hosted-section-${section.id}`}>
@@ -63,15 +81,7 @@ const HostedSectionPanel = ({ section, patientId, currentPatient, onNavigateToTa
         />
         <Collapse in={open} unmountOnExit>
           <CardContent sx={{ pt: 1 }}>
-            {Component ? (
-              <SectionErrorBoundary label={section.label}>
-                <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={22} /></Box>}>
-                  <Component patientId={patientId} currentPatient={currentPatient} onNavigateToTab={onNavigateToTab} hosted />
-                </Suspense>
-              </SectionErrorBoundary>
-            ) : (
-              <Typography variant="body2" color="text.secondary">This section has no content to host.</Typography>
-            )}
+            <HostedSectionBody section={section} patientId={patientId} currentPatient={currentPatient} onNavigateToTab={onNavigateToTab} />
           </CardContent>
         </Collapse>
       </Card>

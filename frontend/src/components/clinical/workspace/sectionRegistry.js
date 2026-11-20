@@ -20,7 +20,9 @@
  *               imaging fires DICOM queries on mount)
  *
  * Like the tab registry, this is what EXISTS. What a user SEES on a tab is
- * `useEffectiveSections(tabId)`.
+ * `useEffectiveSections(tabId)`. Chart Review stacks its sections as
+ * panels; Results, Pharmacy and Care Plan show theirs as a sub-tab strip,
+ * one at a time (`useSectionStrip`) — same policy, different layout.
  */
 
 import { getModuleSections } from '../../../modules';
@@ -37,6 +39,22 @@ export const CORE_SECTIONS = [
   builtin('chart-review', 'care-plans', 'Care Plans'),
   builtin('chart-review', 'documents', 'Clinical Documents'),
   builtin('chart-review', 'encounters', 'Recent Encounters'),
+
+  // Sub-tab strips, in their strip order.
+  builtin('results', 'lab-results', 'Lab Results'),
+  builtin('results', 'vital-signs', 'Vital Signs'),
+  builtin('results', 'diagnostic-reports', 'Diagnostic Reports'),
+
+  builtin('pharmacy', 'all-medications', 'All Medications'),
+  builtin('pharmacy', 'pending-review', 'Pending Review'),
+  builtin('pharmacy', 'ready-to-dispense', 'Ready to Dispense'),
+  builtin('pharmacy', 'dispensed', 'Dispensed'),
+  builtin('pharmacy', 'refills', 'Refills'),
+
+  builtin('care-plan', 'care-plan-list', 'Care Plans'),
+  builtin('care-plan', 'care-team', 'Care Team'),
+  builtin('care-plan', 'goals', 'Goals'),
+  builtin('care-plan', 'care-timeline', 'Timeline'),
 
   // Hostable core content: the Imaging tab's study browser as a panel.
   {
