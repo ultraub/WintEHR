@@ -46,7 +46,7 @@ reads it; `live` means the consumer calls `get_setting()` at use time.
 |---|---|---|---|
 | 1 | Scaffold and status dashboard | `GET /api/command-center/status`: routers, FHIR store, database counts, Redis, terminology index, VNA. Read-only. **Shipped.** | — |
 | 2 | Settings store core | `system.settings` table, registry of definitions with tiers, `get_setting()` with env fallback, Fernet-encrypted secrets (`WINTEHR_SETTINGS_KEY`), settings API behind `system`, FHIR `AuditEvent` on every write. **Shipped.** | 1 |
-| 3 | Job runner and first job | `system.jobs` table, Redis-locked runner, subprocess with a log file per job, websocket progress; Synthea load with cap | 2 |
+| 3 | Job runner and first job | `system.jobs` table (one active job per deployment via a partial unique index), subprocess runner with a log file per job under `/app/data/jobs`, heartbeat + lost-job reconciliation, cancel from any worker, polling log API (multi-worker safe; no websocket), Synthea load with the patient cap enforced. **Shipped.** | 2 |
 | 4 | Content generation | Terminology load + index (restart step reported), DICOM chain; forms and job log viewer | 3 |
 | 5 | Settings UI | Tier badges; HAPI timeout, catalog scan cap, patient cap, UMLS key, console logging; System Health / About move in from `Settings.js` | 2 |
 | 6 | Backend log viewer | Rolling log file, level + timeframe filter, export | 1 |

@@ -86,3 +86,45 @@ class SettingView(BaseModel):
 
 class SettingUpdate(BaseModel):
     value: Any
+
+
+# --- jobs (slice 3) ----------------------------------------------------------------
+
+JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled", "lost"]
+
+
+class JobKindView(BaseModel):
+    key: str
+    label: str
+    description: str
+    param_schema: Dict[str, Any] = Field(default_factory=dict)
+    adds_patients: bool = False
+
+
+class JobStartRequest(BaseModel):
+    kind: str
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class JobView(BaseModel):
+    id: str
+    kind: str
+    params: Dict[str, Any]
+    status: JobStatus
+    progress: Optional[float] = None
+    message: Optional[str] = None
+    started_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    cancel_requested: bool = False
+    exit_code: Optional[int] = None
+    worker: Optional[str] = None
+
+
+class JobLogChunk(BaseModel):
+    job_id: str
+    offset: int
+    next_offset: int
+    text: str
+    finished: bool

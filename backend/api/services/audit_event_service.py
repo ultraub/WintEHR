@@ -54,6 +54,8 @@ class AuditEventType:
     # Command Center admin actions (api/command_center/)
     SYSTEM_SETTING_UPDATED = "system.setting.updated"
     SYSTEM_SETTING_RESET = "system.setting.reset"
+    SYSTEM_JOB_STARTED = "system.job.started"
+    SYSTEM_JOB_CANCELLED = "system.job.cancelled"
 
 
 class AuditEventService:

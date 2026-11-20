@@ -20,3 +20,34 @@ CREATE TABLE IF NOT EXISTS system.settings (
 
 COMMENT ON TABLE system.settings IS
     'Command Center setting overrides. Definitions live in backend/api/command_center/settings_registry.py.';
+
+-- Command Center jobs (docs/COMMAND_CENTER.md, slice 3): long-running admin
+-- tasks (Synthea load, terminology load, DICOM generation) run as
+-- subprocesses inside emr-backend. Rows are the source of truth across the
+-- uvicorn workers; the log lives at log_path under /app/data/jobs.
+-- The same DDL is applied idempotently by SqlJobsRepository.ensure_schema().
+
+CREATE TABLE IF NOT EXISTS system.jobs (
+    id                TEXT PRIMARY KEY,
+    kind              TEXT NOT NULL,                 -- key in jobs_registry.py
+    params            TEXT NOT NULL DEFAULT '{}',    -- JSON
+    status            TEXT NOT NULL,                 -- queued|running|succeeded|failed|cancelled|lost
+    progress          DOUBLE PRECISION,              -- 0..1 when the kind reports it
+    message           TEXT,                          -- last human-readable status line
+    started_by        TEXT,                          -- User.id
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    started_at        TIMESTAMPTZ,
+    finished_at       TIMESTAMPTZ,
+    heartbeat_at      TIMESTAMPTZ,                   -- bumped by the running worker
+    cancel_requested  BOOLEAN NOT NULL DEFAULT FALSE,
+    exit_code         INTEGER,
+    log_path          TEXT,
+    worker            TEXT                           -- hostname:pid of the worker running it
+);
+
+-- One job at a time per deployment: the insert of a second queued/running
+-- job fails on this index, which is how the service answers 409 atomically.
+CREATE UNIQUE INDEX IF NOT EXISTS system_jobs_one_active
+    ON system.jobs ((TRUE)) WHERE status IN ('queued', 'running');
+
+CREATE INDEX IF NOT EXISTS system_jobs_created_at ON system.jobs (created_at DESC);
