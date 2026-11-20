@@ -4,7 +4,7 @@
  * Part of the Clinical UI Improvements Initiative
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -35,21 +35,21 @@ import {
   NavigateBefore as PrevIcon
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CLINICAL_TABS } from '../../workspace/clinicalTabRegistry';
+import { useEffectiveTabs } from '../../workspace/useEffectiveTabs';
 
 // Platform detection for showing correct modifier keys
 const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 const modifierKey = isMac ? '⌘' : 'Ctrl';
 
 // Keyboard shortcut categories. Tab shortcuts derive from the tab
-// registry — this dialog used to hand-maintain its own copy of the tab
-// list, which drifted from the strip (B2).
-const shortcutCategories = {
+// EFFECTIVE tab list (useEffectiveTabs) so they match the strip the user
+// sees; this dialog used to hand-maintain its own copy, which drifted (B2).
+const buildShortcutCategories = (tabs) => ({
   navigation: {
     label: 'Tab Navigation',
     icon: '🧭',
     shortcuts: [
-      ...CLINICAL_TABS.slice(0, 10).map((tab, i) => ({
+      ...tabs.slice(0, 10).map((tab, i) => ({
         keys: [`${modifierKey}+${i < 9 ? i + 1 : 0}`],
         description: `Go to ${tab.label}`,
       })),
@@ -110,7 +110,7 @@ const shortcutCategories = {
       { keys: [`${modifierKey}+Shift+Z`], description: 'Redo' }
     ]
   }
-};
+});
 
 // Key component for displaying keyboard keys
 const KeyChip = ({ keyText }) => {
@@ -145,6 +145,8 @@ const KeyChip = ({ keyText }) => {
 };
 
 const KeyboardShortcutsDialog = ({ open, onClose }) => {
+  const { tabs: effectiveTabs } = useEffectiveTabs();
+  const shortcutCategories = useMemo(() => buildShortcutCategories(effectiveTabs), [effectiveTabs]);
   const theme = useTheme();
   const [activeTab, setActiveTab] = React.useState(0);
   

@@ -31,6 +31,7 @@ import {
 import { api, useAuth } from '../sdk';
 import JobsPanel from './JobsPanel';
 import SettingsPanel from './SettingsPanel';
+import TabPolicyPanel from './TabPolicyPanel';
 
 const STATUS_COLOR = {
   ok: 'success',
@@ -200,7 +201,7 @@ const CommandCenterPage = () => {
             Command Center
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {{ status: 'Deployment status', jobs: 'Jobs', settings: 'Settings' }[tab]}
+            {{ status: 'Deployment status', jobs: 'Jobs', settings: 'Settings', tabs: 'Chart tabs by role' }[tab]}
             {tab === 'status' && report?.checked_at && ` · checked ${new Date(report.checked_at).toLocaleString()}`}
             {report?.build?.version && ` · v${report.build.version}`}
             {report?.build?.git_commit && ` (${String(report.build.git_commit).slice(0, 8)})`}
@@ -220,10 +221,12 @@ const CommandCenterPage = () => {
         <Tab value="status" label="Status" />
         <Tab value="jobs" label="Jobs" />
         <Tab value="settings" label="Settings" />
+        <Tab value="tabs" label="Tabs" />
       </Tabs>
 
       {tab === 'jobs' && <JobsPanel />}
       {tab === 'settings' && <SettingsPanel />}
+      {tab === 'tabs' && <TabPolicyPanel />}
 
       {tab === 'status' && loading && !report && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 4 }}>

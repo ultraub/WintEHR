@@ -121,6 +121,13 @@ of truth (#150). Before it, five hardcoded lists had to agree and silently
 drifted. Tab components are `React.lazy()`-loaded from the registry. Do not
 re-add a parallel tab list anywhere.
 
+The registry is what EXISTS; what a user SEES is `useEffectiveTabs()`
+(`workspace/useEffectiveTabs.js`), which applies the Command Center tab
+policy (organization / role / context layers, `ui.tabs.policy`). Anything
+that renders or navigates the strip — `ClinicalTabs`, `useKeyboardNavigation`,
+`KeyboardShortcutsDialog`, the workspace's hidden-tab fallback — uses the
+hook, never `CLINICAL_TABS` directly. Summary can never be hidden.
+
 Pluggable modules (`src/modules/` — see `docs/MODULES.md`) contribute tabs
 through their manifests (placed via `insertAfter`, else appended) and
 top-level **pages**: one `pages` entry yields the route in

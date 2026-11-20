@@ -50,7 +50,7 @@ reads it; `live` means the consumer calls `get_setting()` at use time.
 | 4 | Content generation | Job kinds `terminology_load` (download → extract → index → HAPI load, in-image scripts, UMLS key injected from the secret setting) and `dicom_generate` (generate → STOW → endpoints); the terminology index is picked up without a restart; Jobs tab in the Command Center with schema-driven forms, progress, live log, cancel, history. **Shipped.** | 3 |
 | 5 | Settings UI | Settings tab: every managed setting with tier (live / restart / rebuild) and source (override / env var / default) chips, typed editors, write-only secrets, save and reset behind `system`. `HAPI_FHIR_TIMEOUT` made configurable and registered as `system.hapi_timeout_seconds` (restart tier). System Health and About moved out of the user Settings page into the Command Center. **Shipped.** | 2 |
 | 6 | Backend log viewer | Rolling log file, level + timeframe filter, export | 1 |
-| 7 | Configurable tabs | `useEffectiveTabs()` replaces direct `CLINICAL_TABS` imports; then organization / role / context policy and the matrix UI | 2 |
+| 7 | Configurable tabs | `ui.tabs.policy` (json setting, live tier, validated by `tab_policy.py`), public `GET /api/command-center/ui-policy`, `useEffectiveTabs()` in the tab strip / keyboard shortcuts / shortcut help / hidden-tab fallback, Tabs tab with the tabs × (organization, role) matrix, default picker and live preview. Contexts are in the policy shape and resolver but have no picker yet. **Shipped.** | 2 |
 | 8 | Roles and app registrations | Role + permission editor; SMART app and external-service registration UI | 2 |
 | 9 | Module management | Module list from the generated registry; `settings` and `permissions` manifest blocks | 5 |
 | 10 | Control plane sidecar | Compose service with the Docker socket, token auth, allow-list API: logs → restarts → update check → read-only config view | 1 |
@@ -78,6 +78,14 @@ layered policy where each layer can only narrow or reorder the one above it:
 Rules: unknown tab ids are ignored with a warning; Summary can never be
 removed; a deep link to a hidden tab falls back to the default tab with a
 notice; module tabs are governed by tab id like any other.
+
+Implementation (shipped): the policy is ONE json setting, `ui.tabs.policy`
+(`backend/api/command_center/tab_policy.py` validates shape only — tab ids
+are a frontend fact). `src/components/clinical/workspace/tabPolicy.js` is
+the pure resolver, `tabPolicyStore.js` the per-page cache of
+`GET /api/command-center/ui-policy` (no auth: it only says what is hidden),
+`useEffectiveTabs.js` the hook. The registry stays the catalog of what
+exists; the hook is what is shown.
 
 ---
 

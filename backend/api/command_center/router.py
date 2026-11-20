@@ -24,9 +24,13 @@ from .models import (
     SettingUpdate,
     SettingView,
     StatusReport,
+    TabPolicyResponse,
 )
 from .service import CommandCenterService, get_command_center_service
 from .settings_service import SettingsError, SettingsService, default_settings_service
+from .tab_policy import ALWAYS_VISIBLE, EMPTY_POLICY, known_roles
+
+TAB_POLICY_SETTING = "ui.tabs.policy"
 
 router = APIRouter(prefix="/api/command-center", tags=["Command Center"])
 
@@ -103,6 +107,27 @@ async def reset_setting(
         return await settings.reset(key, user.id)
     except SettingsError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+
+
+# --- tab policy (public read) ------------------------------------------------------
+
+
+@router.get("/ui-policy", response_model=TabPolicyResponse)
+async def get_ui_policy(settings: SettingsService = Depends(get_settings_service)):
+    """The chart tab policy every client applies. Not sensitive, so no auth:
+    it only says which tabs are hidden for whom, and the workspace needs it
+    before the user object is loaded."""
+    view = next((v for v in await settings.list() if v.key == TAB_POLICY_SETTING), None)
+    policy = view.value if view and isinstance(view.value, dict) else EMPTY_POLICY
+    return TabPolicyResponse(
+        policy=policy,
+        roles=known_roles(),
+        contexts=sorted(policy.get("contexts", {}).keys()),
+        always_visible=list(ALWAYS_VISIBLE),
+        source=view.source if view else "default",
+        updated_at=view.updated_at if view else None,
+        updated_by=view.updated_by if view else None,
+    )
 
 
 # --- jobs ------------------------------------------------------------------------

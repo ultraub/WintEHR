@@ -16,18 +16,19 @@ import {
 import { alpha } from '@mui/material/styles';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import { LAYOUT_HEIGHTS, Z_INDEX } from '../theme/clinicalThemeConstants';
-import { CLINICAL_TABS } from '../workspace/clinicalTabRegistry';
+import { useEffectiveTabs } from '../workspace/useEffectiveTabs';
 
-// Horizontal tab strip — derived from the single tab registry. `badge`
-// starts null; dynamic notification counts get layered on at render
-// time below.
-const NAVIGATION_ITEMS = CLINICAL_TABS.map((t) => ({
+// Horizontal tab strip — the tabs the tab POLICY leaves visible for this
+// user (useEffectiveTabs), in policy order; the registry is the catalog.
+// `badge` starts null; dynamic notification counts get layered on at
+// render time below.
+const toNavItem = (t) => ({
   id: t.id,
   label: t.label,
   icon: t.icon,
   color: t.color,
   badge: null,
-}));
+});
 
 const ClinicalTabs = ({
   activeTab,
@@ -41,6 +42,8 @@ const ClinicalTabs = ({
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const { notifications } = useClinicalWorkflow();
+  const { tabs: effectiveTabs } = useEffectiveTabs();
+  const NAVIGATION_ITEMS = effectiveTabs.map(toNavItem);
 
   // Get notification counts for badges
   const getNotificationCount = (moduleId) => {
