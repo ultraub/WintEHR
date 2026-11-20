@@ -24,6 +24,10 @@ deltas are below.
   FHIR data. Methods: `search`, `read`, `create`, `update`, `delete`,
   `search_with_includes`, `operation` (for `$everything` etc.).
 - `database.py` — `get_db_session` (the real one) + `get_db_context`.
+- `logging_setup.py` — `configure_logging()`, called first in `main.py`: root
+  logger at `LOG_LEVEL` (default INFO; before this, app `logger.info` calls
+  were dropped), stderr plus a rotating `logs/backend.<pid>.log` per worker
+  that the Command Center's Logs tab reads. Keep the line format stable.
 
 ---
 
