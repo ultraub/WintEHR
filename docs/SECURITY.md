@@ -185,7 +185,7 @@ target environment.
 
 18. **SNOMED CT licensing in client deployments.** Most US hospitals hold
     institutional UMLS/SNOMED licenses; verify this with your client before
-    enabling `--include-snomed` in `scripts/extract_vocabularies.py`.
+    enabling `--include-snomed` in `backend/scripts/terminology/extract_vocabularies.py`.
 
 19. **Non-Synthea datasets.** `notebooks/01_import_mimic_on_fhir.ipynb`
     loads the MIMIC-IV-on-FHIR demo. That data is de-identified but

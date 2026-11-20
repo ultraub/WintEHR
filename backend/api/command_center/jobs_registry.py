@@ -80,6 +80,27 @@ class SyntheaProgress(ProgressParser):
         return None
 
 
+class StepProgress(ProgressParser):
+    """Reads `STEP i/N: label` lines (the orchestrator scripts' convention).
+
+    Progress is (i-1)/N when a step starts; `DONE` is 1.0; a line starting
+    with ✗ becomes the message so a failed job says why.
+    """
+
+    _STEP = re.compile(r"^STEP (\d+)/(\d+): (.+)$")
+
+    def feed(self, line: str) -> Optional[ProgressUpdate]:
+        m = self._STEP.match(line.strip())
+        if m:
+            i, n, label = int(m.group(1)), int(m.group(2)), m.group(3)
+            return ProgressUpdate((i - 1) / n if n else None, f"Step {i}/{n}: {label}")
+        if line.startswith("DONE"):
+            return ProgressUpdate(1.0, line.partition(":")[2].strip() or "Complete")
+        if line.startswith("✗"):
+            return ProgressUpdate(None, line.strip())
+        return None
+
+
 @dataclass(frozen=True)
 class JobKind:
     key: str
@@ -93,6 +114,11 @@ class JobKind:
     # checked against system.patient_count_cap before starting.
     patients_added: Optional[Callable[[Dict[str, Any]], int]] = None
     param_schema: Dict[str, Any] = field(default_factory=dict)
+    # Environment variables the subprocess gets from settings: {ENV_VAR: setting key}.
+    # Secrets are decrypted by the settings service and never written to the job log.
+    secret_env: Dict[str, str] = field(default_factory=dict)
+    # Shown to the admin before starting (prerequisites, duration, licensing).
+    notes: str = ""
 
 
 def _validate_synthea(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -123,7 +149,100 @@ SYNTHEA_LOAD = JobKind(
     },
 )
 
-KINDS: Dict[str, JobKind] = {k.key: k for k in [SYNTHEA_LOAD]}
+def _bool(params: Dict[str, Any], key: str, default: bool) -> bool:
+    raw = params.get(key, default)
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str) and raw.strip().lower() in ("true", "false", "1", "0", "yes", "no", "on", "off"):
+        return raw.strip().lower() in ("true", "1", "yes", "on")
+    raise JobParamError(f"{key} must be true or false")
+
+
+def _int(params: Dict[str, Any], key: str, default: int, lo: int, hi: int) -> int:
+    raw = params.get(key, default)
+    if raw in ("", None):
+        raw = default
+    try:
+        if isinstance(raw, bool):
+            raise ValueError
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise JobParamError(f"{key} must be an integer") from None
+    if not lo <= value <= hi:
+        raise JobParamError(f"{key} must be between {lo} and {hi}")
+    return value
+
+
+def _validate_terminology(params: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "skip_download": _bool(params, "skip_download", False),
+        "include_snomed": _bool(params, "include_snomed", False),
+        "load_into_hapi": _bool(params, "load_into_hapi", True),
+        "max_per_vocab": _int(params, "max_per_vocab", 0, 0, 1_000_000),
+    }
+
+
+def _terminology_command(p: Dict[str, Any]) -> List[str]:
+    argv = ["python", "-u", "/app/scripts/terminology/run_pipeline.py"]
+    if p["skip_download"]:
+        argv.append("--skip-download")
+    if p["include_snomed"]:
+        argv.append("--include-snomed")
+    if not p["load_into_hapi"]:
+        argv.append("--skip-hapi-load")
+    if p["max_per_vocab"]:
+        argv += ["--max-per-vocab", str(p["max_per_vocab"])]
+    return argv
+
+
+TERMINOLOGY_LOAD = JobKind(
+    key="terminology_load",
+    label="Load terminology (UMLS)",
+    description="Download UMLS MRCONSO, extract RxNorm / ICD-10-CM / LOINC / CVX / HCPCS / ATC, "
+                "build the catalog search index, and load CodeSystems and ValueSets into HAPI.",
+    validate=_validate_terminology,
+    command=_terminology_command,
+    progress=StepProgress,
+    secret_env={"UMLS_API_KEY": "system.umls_api_key"},
+    notes="Needs the UMLS API key setting and about 12 GB free disk; a full run takes 1–3 hours. "
+          "Catalog search switches to the new index as soon as it is built, with no restart. "
+          "SNOMED is opt-in and requires a licence for redistribution (docs/TERMINOLOGY_SETUP.md).",
+    param_schema={
+        "skip_download": {"type": "bool", "label": "Reuse an already downloaded MRCONSO", "default": False},
+        "include_snomed": {"type": "bool", "label": "Include SNOMED CT (licensed deployments only)", "default": False},
+        "load_into_hapi": {"type": "bool", "label": "Also load CodeSystems/ValueSets into HAPI", "default": True},
+        "max_per_vocab": {"type": "int", "label": "Limit concepts per vocabulary (0 = all; for testing)", "default": 0, "min": 0, "max": 1000000},
+    },
+)
+
+
+def _validate_dicom(params: Dict[str, Any]) -> Dict[str, Any]:
+    return {"max_studies": _int(params, "max_studies", 0, 0, 100000)}
+
+
+def _dicom_command(p: Dict[str, Any]) -> List[str]:
+    argv = ["python", "-u", "/app/scripts/active/run_imaging_pipeline.py"]
+    if p["max_studies"]:
+        argv += ["--max-studies", str(p["max_studies"])]
+    return argv
+
+
+DICOM_GENERATE = JobKind(
+    key="dicom_generate",
+    label="Generate and store DICOM images",
+    description="Generate DICOM series for the ImagingStudy resources in HAPI, store them in the "
+                "dcm4chee VNA (STOW-RS), and link FHIR Endpoints so the Imaging tab renders them.",
+    validate=_validate_dicom,
+    command=_dicom_command,
+    progress=StepProgress,
+    notes="Needs the dicom compose profile (DICOM_QIDO_URL set) and ImagingStudy resources already "
+          "loaded. Studies that are already in the VNA are skipped.",
+    param_schema={
+        "max_studies": {"type": "int", "label": "Limit number of studies (0 = all)", "default": 0, "min": 0, "max": 100000},
+    },
+)
+
+KINDS: Dict[str, JobKind] = {k.key: k for k in [SYNTHEA_LOAD, TERMINOLOGY_LOAD, DICOM_GENERATE]}
 
 
 def get_kind(key: str) -> JobKind:

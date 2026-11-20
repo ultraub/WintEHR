@@ -156,6 +156,15 @@ TerminologyService = LocalTerminologyIndex  # alias for type annotations
 
 
 _terminology_service = None
+_terminology_signature = None  # (path, mtime_ns, size) the current service was opened for
+
+
+def _index_signature(db_path: str):
+    try:
+        st = os.stat(db_path)
+    except FileNotFoundError:
+        return (db_path, None, None)
+    return (db_path, st.st_mtime_ns, st.st_size)
 
 
 def get_terminology_service():
@@ -163,16 +172,23 @@ def get_terminology_service():
 
     Picks LocalTerminologyIndex if `/app/data/terminology.db` (or the
     override at `$TERMINOLOGY_DB_PATH`) is present. Otherwise falls
-    back to the HAPI-based implementation. The choice is sticky for
-    the lifetime of the process — restart the backend after building
-    the index to switch over.
+    back to the HAPI-based implementation.
+
+    The choice follows the file: when the index appears, changes (a
+    rebuild renames a new file into place), or disappears, the next call
+    re-opens it. One stat() per call is the price of never needing a
+    backend restart after `build_terminology_index.py` or the Command
+    Center's terminology job.
     """
-    global _terminology_service
-    if _terminology_service is not None:
-        return _terminology_service
+    global _terminology_service, _terminology_signature
 
     db_path = os.getenv("TERMINOLOGY_DB_PATH", DEFAULT_TERMINOLOGY_DB_PATH)
-    if Path(db_path).exists():
+    signature = _index_signature(db_path)
+    if _terminology_service is not None and signature == _terminology_signature:
+        return _terminology_service
+
+    previous = _terminology_service
+    if signature[1] is not None:
         logger.info("Using LocalTerminologyIndex (db=%s)", db_path)
         _terminology_service = LocalTerminologyIndex(db_path)
     else:
@@ -182,4 +198,10 @@ def get_terminology_service():
             db_path,
         )
         _terminology_service = _HapiTerminologyService()
+    _terminology_signature = signature
+    if previous is not None and hasattr(previous, "close"):
+        try:
+            previous.close()
+        except Exception:  # noqa: BLE001 — best effort; the old handle is being replaced
+            pass
     return _terminology_service

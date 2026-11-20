@@ -21,7 +21,7 @@ module's deltas are here.
 | `settings_repository.py` | Overrides in `system.settings` (Postgres, DDL also in `postgres-init/11_system.sql`, created idempotently on first use) or in memory for tests. |
 | `settings_service.py` | Precedence database → env → default; secrets encrypted/decrypted; audit on every write; `get_setting(key)` for live-tier consumers (15 s per-process cache, env/default fallback if Postgres is down). |
 | `secrets.py` | `SecretBox`: Fernet keyed from `WINTEHR_SETTINGS_KEY` (any passphrase, SHA-256 → key). No key → secrets refuse to save (409), plain settings unaffected. |
-| `jobs_registry.py` | **Where a job kind is defined**: validated params → argv allow-list (never a shell string), a `ProgressParser` for its output, `patients_added` for the cap check. First kind: `synthea_load` (runs `scripts/synthea_to_hapi_pipeline.py`, the same pipeline `deploy.sh` uses). |
+| `jobs_registry.py` | **Where a job kind is defined**: validated params → argv allow-list (never a shell string), a `ProgressParser` for its output, `patients_added` for the cap check, `secret_env` for settings the subprocess needs as env vars. Kinds: `synthea_load` (`scripts/synthea_to_hapi_pipeline.py`), `terminology_load` (`scripts/terminology/run_pipeline.py`, gets `UMLS_API_KEY` from `system.umls_api_key`), `dicom_generate` (`scripts/active/run_imaging_pipeline.py`). Orchestrators print `STEP i/N:` lines for `StepProgress`. |
 | `jobs_repository.py` | `system.jobs` (Postgres; DDL also in `postgres-init/11_system.sql`, created on first use) or memory. The single-active-job rule is the partial unique index `system_jobs_one_active`, so two workers cannot both start one. |
 | `jobs_service.py` | Start / list / get / tail log / cancel. The accepting worker runs the subprocess, streams its output to `/app/data/jobs/<id>.log`, heartbeats the row, and honours `cancel_requested` set by any worker. `list()` marks jobs with a stale heartbeat `lost`. |
 | `models.py` | `ComponentStatus`, `RouterStatus`, `BuildInfo`, `StatusReport`, `SettingView`, `SettingUpdate`, `JobKindView`, `JobStartRequest`, `JobView`, `JobLogChunk`. |
@@ -57,6 +57,10 @@ module's deltas are here.
 - **A job kind is an allow-list.** Params are validated into typed values
   and placed into an argv list; nothing from the request reaches a shell.
   Adding a kind means adding a `JobKind` with its own validator and parser.
+- **Secrets reach jobs as env vars, never argv or the log.** `secret_env`
+  maps `ENV_VAR → setting key`; the service decrypts via `get_setting()` and
+  passes the value to the subprocess only. The log records the variable
+  *name*. Grep a job log for a key value in review if you touch this.
 - **`database` probe reads `hfj_resource` directly** — the one sanctioned raw
   read of HAPI's tables (counts only).
 - **Overall roll-up**: `fhir` down → `down`; any other `down`/`degraded` or a

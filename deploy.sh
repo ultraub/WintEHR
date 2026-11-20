@@ -680,7 +680,7 @@ if [ -d "$HOME/fhir_vocabularies/terminology" ] && \
     docker exec emr-backend mkdir -p /app/data /tmp/fhir_vocabularies
     docker cp "$HOME/fhir_vocabularies/terminology" emr-backend:/tmp/fhir_vocabularies/
     # ucum.json is bundled in the repo (not in UMLS) — copy it in.
-    docker cp scripts/ucum.json emr-backend:/tmp/ucum.json 2>/dev/null || true
+    docker cp backend/scripts/terminology/ucum.json emr-backend:/tmp/ucum.json 2>/dev/null || true
 
     if docker exec emr-backend python3 \
         /app/scripts/active/build_terminology_index.py \
@@ -738,12 +738,12 @@ elif [ -d "$HOME/fhir_vocabularies/terminology" ] && \
     # HAPI's port 8080 is NOT exposed on the host (security hardening).
     # Load must run inside the backend container where hapi-fhir:8080 resolves.
     # Copy scripts + JSONs into the container, then exec load detached.
-    docker cp scripts/load_terminology.py emr-backend:/tmp/load_terminology.py
-    docker cp scripts/ucum.json emr-backend:/tmp/ucum.json
+    # The loader ships inside the image (backend/scripts/terminology/); only
+    # the extracted JSON needs copying in.
     docker exec emr-backend mkdir -p /tmp/fhir_vocabularies
     docker cp "$HOME/fhir_vocabularies/terminology" emr-backend:/tmp/fhir_vocabularies/
     docker exec -d emr-backend bash -c "
-        python3 /tmp/load_terminology.py /tmp/fhir_vocabularies \
+        python3 /app/scripts/terminology/load_terminology.py /tmp/fhir_vocabularies \
             --hapi-url http://hapi-fhir:8080/fhir \
             --timeout 600 \
             > /app/data/terminology_load.log 2>&1
@@ -763,13 +763,11 @@ elif [ -n "$UMLS_API_KEY" ]; then
         if [ -f ~/terminology_venv/bin/activate ]; then source ~/terminology_venv/bin/activate; fi
         python3 scripts/download_umls.py \$HOME/umls_source
         python3 scripts/extract_vocabularies.py \$HOME/umls_source \$HOME/fhir_vocabularies
-        docker cp scripts/load_terminology.py emr-backend:/tmp/load_terminology.py
-        docker cp scripts/ucum.json emr-backend:/tmp/ucum.json
         docker exec emr-backend mkdir -p /app/data /tmp/fhir_vocabularies
         docker cp \$HOME/fhir_vocabularies/terminology emr-backend:/tmp/fhir_vocabularies/
         if docker exec emr-backend python3 /app/scripts/active/build_terminology_index.py \
             --json-dir /tmp/fhir_vocabularies/terminology \
-            --ucum-json /tmp/ucum.json \
+            --ucum-json /app/scripts/terminology/ucum.json \
             --output /app/data/terminology.db; then
             docker restart emr-backend > /dev/null
             if docker inspect emr-nginx >/dev/null 2>&1; then
@@ -779,7 +777,7 @@ elif [ -n "$UMLS_API_KEY" ]; then
         else
             echo 'WARNING: index build failed - catalog search stays dynamic-only; continuing with HAPI load'
         fi
-        docker exec emr-backend python3 /tmp/load_terminology.py /tmp/fhir_vocabularies \
+        docker exec emr-backend python3 /app/scripts/terminology/load_terminology.py /tmp/fhir_vocabularies \
             --hapi-url http://hapi-fhir:8080/fhir --timeout 600
     " > terminology_load.log 2>&1 &
     LOAD_PID=$!

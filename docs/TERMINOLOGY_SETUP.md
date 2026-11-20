@@ -127,6 +127,23 @@ needed); that log is at `./data/terminology_load.log`.
 
 Path A needs no step 5 — the index is built for you.
 
+**Path C — From the Command Center (no shell needed):**
+
+With the UMLS API key saved as the *UMLS API key* setting (encrypted; needs
+`WINTEHR_SETTINGS_KEY` on the backend), an admin with the `system` permission
+can start **Load terminology (UMLS)** under Command Center → Jobs. It runs the
+whole chain inside the backend — download, extract, build the search index,
+load into HAPI — with progress and a live log, and the index takes effect
+without a restart. The same script is runnable by hand:
+
+```bash
+docker exec -e UMLS_API_KEY=... emr-backend python3 /app/scripts/terminology/run_pipeline.py
+# options: --skip-download (reuse MRCONSO), --include-snomed, --skip-hapi-load, --max-per-vocab N
+```
+
+It needs about 12 GB free under `./data` (the UMLS download + extract) and
+takes 1–3 hours.
+
 **Path B — Manually, right now, without touching deploy:**
 
 HAPI's port is not published on the host in the prod profile, so the load runs
@@ -142,15 +159,14 @@ python3 scripts/download_umls.py ~/umls_source
 # Extract to FHIR-compatible JSON (~100 MB)
 python3 scripts/extract_vocabularies.py ~/umls_source ~/fhir_vocabularies
 
-# Copy the loader + JSON into the backend container
-docker cp scripts/load_terminology.py emr-backend:/tmp/load_terminology.py
-docker cp scripts/ucum.json emr-backend:/tmp/ucum.json
+# Copy the JSON into the backend container (the loader ships inside the image
+# at /app/scripts/terminology/)
 docker exec emr-backend mkdir -p /tmp/fhir_vocabularies
 docker cp ~/fhir_vocabularies/terminology emr-backend:/tmp/fhir_vocabularies/
 
 # Load into HAPI (run in tmux so SSH can drop)
 tmux new-session -s tload
-docker exec emr-backend python3 /tmp/load_terminology.py /tmp/fhir_vocabularies \
+docker exec emr-backend python3 /app/scripts/terminology/load_terminology.py /tmp/fhir_vocabularies \
     --hapi-url http://hapi-fhir:8080/fhir \
     --timeout 600 \
     2>&1 | tee terminology_load.log
@@ -185,17 +201,15 @@ and rebuilds the index).
 cd ~/WintEHR
 docker exec emr-backend mkdir -p /app/data /tmp/fhir_vocabularies
 docker cp ~/fhir_vocabularies/terminology emr-backend:/tmp/fhir_vocabularies/
-docker cp scripts/ucum.json emr-backend:/tmp/ucum.json
 docker exec emr-backend python3 /app/scripts/active/build_terminology_index.py \
     --json-dir /tmp/fhir_vocabularies/terminology \
-    --ucum-json /tmp/ucum.json \
+    --ucum-json /app/scripts/terminology/ucum.json \
     --output /app/data/terminology.db
-
-# The backend chooses its terminology source once, at startup
-docker restart emr-backend
-# Prod profile only: nginx holds the old backend IP until restarted
-docker restart emr-nginx
 ```
+
+No restart is needed: the backend re-opens `/app/data/terminology.db`
+whenever the file changes, so catalog search switches to the new index on the
+next request (older checkouts needed `docker restart emr-backend`).
 
 ### 6. Verify
 

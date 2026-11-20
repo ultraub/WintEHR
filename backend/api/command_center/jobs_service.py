@@ -24,6 +24,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import socket
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -64,7 +65,7 @@ class RunningProcess(Protocol):
 
 
 class ProcessRunner(Protocol):
-    async def start(self, argv: List[str], cwd: str) -> RunningProcess: ...
+    async def start(self, argv: List[str], cwd: str, env: Optional[Dict[str, str]] = None) -> RunningProcess: ...
 
 
 class _Subprocess:
@@ -88,10 +89,10 @@ class _Subprocess:
 
 
 class SubprocessRunner:
-    async def start(self, argv: List[str], cwd: str) -> RunningProcess:
+    async def start(self, argv: List[str], cwd: str, env: Optional[Dict[str, str]] = None) -> RunningProcess:
         proc = await asyncio.create_subprocess_exec(
             *argv, cwd=cwd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            env={**os.environ, "PYTHONUNBUFFERED": "1", **(env or {})},
         )
         return _Subprocess(proc)
 
@@ -145,10 +146,35 @@ class JobsService:
 
     def kinds_view(self) -> List[JobKindView]:
         return [
-            JobKindView(key=k.key, label=k.label, description=k.description,
-                        param_schema=k.param_schema, adds_patients=k.patients_added is not None)
+            JobKindView(key=k.key, label=k.label, description=k.description, notes=k.notes,
+                        param_schema=k.param_schema, adds_patients=k.patients_added is not None,
+                        required_settings=sorted(k.secret_env.values()))
             for k in self.kinds.values()
         ]
+
+    async def _secret_env(self, kind: JobKind) -> Dict[str, str]:
+        """Settings the subprocess needs as env vars; missing ones are simply absent."""
+        env: Dict[str, str] = {}
+        for var, setting_key in kind.secret_env.items():
+            value = await self.setting(setting_key)
+            if value not in (None, ""):
+                env[var] = str(value)
+        return env
+
+    @staticmethod
+    def _redactor(secrets: Dict[str, str]) -> Callable[[str], str]:
+        """Scrub secret values from job output before it reaches the log or the row.
+
+        The scripts are not trusted to keep a key out of a URL or an error
+        message (download_umls.py printed one), so the runner redacts every
+        line. Values shorter than 4 chars are not redacted — replacing them
+        would mangle unrelated text, and such a value is not a secret.
+        """
+        values = sorted({v for v in secrets.values() if len(v) >= 4}, key=len, reverse=True)
+        if not values:
+            return lambda line: line
+        pattern = re.compile("|".join(re.escape(v) for v in values))
+        return lambda line: pattern.sub("[redacted]", line)
 
     @staticmethod
     def _view(row: StoredJob) -> JobView:
@@ -256,15 +282,21 @@ class JobsService:
         try:
             await self.repository.update(job_id, status="running", started_at=_now(), heartbeat_at=_now(),
                                          message="Starting", worker=self.worker_name)
+            extra_env = await self._secret_env(kind)
+            redact = self._redactor(extra_env)
             with open(row.log_path, "a", encoding="utf-8") as log:
+                # argv only: secret env values never reach the log.
                 log.write(f"$ {' '.join(argv)}\n")
+                if extra_env:
+                    log.write(f"  (with {', '.join(sorted(extra_env))} from settings)\n")
                 log.flush()
-                proc = await self.runner.start(argv, kind.cwd)
+                proc = await self.runner.start(argv, kind.cwd, env=extra_env)
                 self._processes[job_id] = proc
                 last_beat = asyncio.get_running_loop().time()
                 message = "Running"
                 dirty = False
-                async for line in proc.lines():
+                async for raw_line in proc.lines():
+                    line = redact(raw_line)
                     log.write(line + "\n")
                     update = parser.feed(line)
                     if update is not None:

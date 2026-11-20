@@ -19,14 +19,17 @@ import {
   Grid,
   Paper,
   Stack,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
+  Tabs,
   Typography,
 } from '@mui/material';
 import { api, useAuth } from '../sdk';
+import JobsPanel from './JobsPanel';
 
 const STATUS_COLOR = {
   ok: 'success',
@@ -155,6 +158,7 @@ const CommandCenterPage = () => {
   const { user } = useAuth();
   const isAdmin = Array.isArray(user?.permissions) && user.permissions.includes('admin');
 
+  const [tab, setTab] = useState('status');
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -189,27 +193,36 @@ const CommandCenterPage = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
         <Box>
           <Typography variant="h5" fontWeight={600}>
             Command Center
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Deployment status
-            {report?.checked_at && ` · checked ${new Date(report.checked_at).toLocaleString()}`}
+            {tab === 'status' ? 'Deployment status' : 'Jobs'}
+            {tab === 'status' && report?.checked_at && ` · checked ${new Date(report.checked_at).toLocaleString()}`}
             {report?.build?.version && ` · v${report.build.version}`}
             {report?.build?.git_commit && ` (${String(report.build.git_commit).slice(0, 8)})`}
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} alignItems="center">
           {report && <StatusChip status={report.status} />}
-          <Button size="small" variant="outlined" onClick={load} disabled={loading}>
-            {loading ? 'Checking…' : 'Refresh'}
-          </Button>
+          {tab === 'status' && (
+            <Button size="small" variant="outlined" onClick={load} disabled={loading}>
+              {loading ? 'Checking…' : 'Refresh'}
+            </Button>
+          )}
         </Stack>
       </Stack>
 
-      {loading && !report && (
+      <Tabs value={tab} onChange={(_e, value) => setTab(value)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Tab value="status" label="Status" />
+        <Tab value="jobs" label="Jobs" />
+      </Tabs>
+
+      {tab === 'jobs' && <JobsPanel />}
+
+      {tab === 'status' && loading && !report && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 4 }}>
           <CircularProgress size={20} />
           <Typography variant="body2" color="text.secondary">
@@ -218,13 +231,13 @@ const CommandCenterPage = () => {
         </Box>
       )}
 
-      {error && (
+      {tab === 'status' && error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
       )}
 
-      {report && (
+      {tab === 'status' && report && (
         <Grid container spacing={2}>
           <Grid item xs={12} md={6} lg={4}>
             <RoutersCard routers={report.routers} />
