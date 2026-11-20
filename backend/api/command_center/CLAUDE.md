@@ -14,7 +14,7 @@ module's deltas are here.
 
 | File | Role |
 |---|---|
-| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /ui-policy` (no auth); `GET /roles`; `GET /logs`, `GET /logs/export`; `GET /modules`; `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
+| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /ui-policy` (no auth); `GET /roles`; `GET /logs`, `GET /logs/export`; `GET /modules`; `GET /control`, `GET /control/containers/{name}/logs`, `POST /control/containers/{name}/restart` (system, audited), `GET /control/update-check`, `GET /control/config`; `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
 | `service.py` | `CommandCenterService.status()`: runs the probes concurrently under the live-tier probe timeout, rolls them up. `roll_up` is pure. |
 | `probes.py` | One `async` probe per deployment part: `fhir`, `database`, `redis`, `terminology`, `vna`. Exceptions and timeouts become `down`, never a 500. |
 | `settings_registry.py` | **Where a setting is defined**: key, type, default, tier, env var it shadows, `used_by`. Add a setting here, and only when something reads it. |
@@ -23,6 +23,7 @@ module's deltas are here.
 | `logs.py` | Reads `backend.<pid>.log*` from `WINTEHR_LOG_DIR` (written by `backend/logging_setup.py`), merges workers by timestamp, attaches tracebacks to their record, filters by level / text / window; `export_logs` for the download. |
 | `module_settings.py` | Discovers `api/<pkg>/settings.py` → `SETTINGS` for every enabled module at router registration and adds them to the registry; refuses keys outside `module.<key>.`. `MODULE_SETTINGS` maps module → keys. |
 | `modules.py` | `module_inventory()`: per module key, routers, registered / failed / disabled, builtin or external, declared settings. |
+| `control_plane.py` | `ControlPlaneClient`: token-bearing httpx client for the sidecar (`control-plane/app.py`) at `CONTROL_PLANE_URL`. Unconfigured → `configured=False`; unreachable → 503; sidecar verdicts (401/403/404) pass through. `use_control_plane()` swaps it in tests. |
 | `roles.py` | `KNOWN_PERMISSIONS` (the vocabulary the code assigns or checks), `default_roles()` from `TRAINING_USERS`, validator for the `auth.roles` setting (unknown permission → 400; `admin` must keep `admin` and `system`), `effective_permissions()`. Applied on every request by `api/auth/service.apply_role_overrides`. |
 | `tab_policy.py` | Shape validation for `ui.tabs.policy` (org / roles / contexts layers of hidden, order, default; `summary` stripped from hidden) and `known_roles()`. Tab ids are not validated here — the catalog is a frontend build artifact; the client resolver ignores unknown ids with a warning. |
 | `secrets.py` | `SecretBox`: Fernet keyed from `WINTEHR_SETTINGS_KEY` (any passphrase, SHA-256 → key). No key → secrets refuse to save (409), plain settings unaffected. |
@@ -68,6 +69,10 @@ module's deltas are here.
   *name*. Grep a job log for a key value in review if you touch this.
 - **`database` probe reads `hfj_resource` directly** — the one sanctioned raw
   read of HAPI's tables (counts only).
+- **The sidecar is the control plane; the backend never gets the socket.**
+  Anything that needs Docker or the host goes through `control-plane/app.py`
+  and its env allow-lists. Add an endpoint there only if it takes no
+  free-form input (no command, path, or image from the request).
 - **Overall roll-up**: `fhir` down → `down`; any other `down`/`degraded` or a
   failed router → `degraded`; else `ok`.
 
@@ -81,6 +86,7 @@ module's deltas are here.
 | `COMMAND_CENTER_JOB_LOG_DIR` | Job logs (default `/app/data/jobs`, on the `./data` bind mount) |
 | `COMMAND_CENTER_JOB_HEARTBEAT` | Seconds between heartbeats while a job runs (default 5); a job is `lost` after 12 missed beats |
 | `LOG_LEVEL`, `WINTEHR_LOG_DIR`, `LOG_RETENTION_DAYS` | Backend logging (`logging_setup.py`): level, where the per-worker files go (default `/app/logs`, the `./logs` bind mount), how long they are kept (7 days) |
+| `CONTROL_PLANE_URL`, `CONTROL_PLANE_TOKEN` | Where the sidecar is (compose default `http://control-plane:9000`) and the shared token; both empty = Control tab says not configured |
 | `COMMAND_CENTER_PROBE_TIMEOUT` | Env fallback for `system.probe_timeout_seconds` (default 8) |
 | `HAPI_FHIR_TIMEOUT` | Env fallback for `system.hapi_timeout_seconds` (default 30; read at startup by `services/hapi_fhir_client.py` and the `/fhir` proxy) |
 | `WINTEHR_VERSION`, `WINTEHR_GIT_COMMIT` | Reported in `build` when the image sets them |

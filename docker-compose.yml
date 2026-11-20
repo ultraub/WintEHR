@@ -347,6 +347,8 @@ services:
       - WINTEHR_SETTINGS_KEY=${WINTEHR_SETTINGS_KEY:-}
       - HAPI_FHIR_TIMEOUT=${HAPI_FHIR_TIMEOUT:-30}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CONTROL_PLANE_URL=${CONTROL_PLANE_URL:-http://control-plane:9000}
+      - CONTROL_PLANE_TOKEN=${CONTROL_PLANE_TOKEN:-}
       - DICOM_QIDO_URL=${DICOM_QIDO_URL:-http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/}
       - DICOM_WADO_URL=${DICOM_WADO_URL:-http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/}
       - ENVIRONMENT=${ENVIRONMENT:-development}
@@ -403,6 +405,8 @@ services:
       - WINTEHR_SETTINGS_KEY=${WINTEHR_SETTINGS_KEY:-}
       - HAPI_FHIR_TIMEOUT=${HAPI_FHIR_TIMEOUT:-30}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CONTROL_PLANE_URL=${CONTROL_PLANE_URL:-http://control-plane:9000}
+      - CONTROL_PLANE_TOKEN=${CONTROL_PLANE_TOKEN:-}
       - DICOM_QIDO_URL=${DICOM_QIDO_URL:-http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/}
       - DICOM_WADO_URL=${DICOM_WADO_URL:-http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/}
       - ENVIRONMENT=${ENVIRONMENT:-production}
@@ -493,6 +497,28 @@ services:
       - frontend-prod
       - hapi-fhir-prod
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+
+  # Control-plane sidecar: the ONLY container with the Docker socket. Serves an
+  # allow-listed API (container state, logs, restarts of named containers,
+  # update check, read-only config view) on the compose network, token-gated
+  # with CONTROL_PLANE_TOKEN. The backend proxies it under
+  # /api/command-center/control/... (Command Center → Control tab). Never
+  # publish its port. Empty token = it refuses every request.
+  control-plane:
+    build:
+      context: ./control-plane
+    container_name: emr-control-plane
+    profiles: ["dev", "prod"]
+    restart: ${RESTART_POLICY:-unless-stopped}
+    environment:
+      - CONTROL_PLANE_TOKEN=${CONTROL_PLANE_TOKEN:-}
+      - CONTROL_PLANE_CONTAINERS=${CONTROL_PLANE_CONTAINERS:-emr-backend,emr-frontend,emr-nginx,emr-hapi-fhir,emr-postgres,emr-redis,emr-certbot,vna-arc,vna-db,vna-ldap}
+      - CONTROL_PLANE_RESTARTABLE=${CONTROL_PLANE_RESTARTABLE:-emr-backend,emr-frontend,emr-nginx,emr-hapi-fhir,emr-redis,emr-certbot}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/repo:ro
+    networks:
+      - emr-network
 
   # Certbot for Let's Encrypt SSL (Production)
   certbot:

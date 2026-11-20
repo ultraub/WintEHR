@@ -36,6 +36,7 @@ import RolesPanel from './RolesPanel';
 import AppsPanel from './AppsPanel';
 import LogsPanel from './LogsPanel';
 import ModulesPanel from './ModulesPanel';
+import ControlPanel from './ControlPanel';
 
 const STATUS_COLOR = {
   ok: 'success',
@@ -205,7 +206,7 @@ const CommandCenterPage = () => {
             Command Center
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {{ status: 'Deployment status', jobs: 'Jobs', settings: 'Settings', tabs: 'Chart tabs by role', roles: 'Roles and permissions', apps: 'Registered services and apps', logs: 'Backend logs', modules: 'Modules' }[tab]}
+            {{ status: 'Deployment status', jobs: 'Jobs', settings: 'Settings', tabs: 'Chart tabs by role', roles: 'Roles and permissions', apps: 'Registered services and apps', logs: 'Backend logs', modules: 'Modules', control: 'Containers and host' }[tab]}
             {tab === 'status' && report?.checked_at && ` · checked ${new Date(report.checked_at).toLocaleString()}`}
             {report?.build?.version && ` · v${report.build.version}`}
             {report?.build?.git_commit && ` (${String(report.build.git_commit).slice(0, 8)})`}
@@ -230,6 +231,7 @@ const CommandCenterPage = () => {
         <Tab value="apps" label="Apps" />
         <Tab value="logs" label="Logs" />
         <Tab value="modules" label="Modules" />
+        <Tab value="control" label="Control" />
       </Tabs>
 
       {tab === 'jobs' && <JobsPanel />}
@@ -239,6 +241,7 @@ const CommandCenterPage = () => {
       {tab === 'apps' && <AppsPanel />}
       {tab === 'logs' && <LogsPanel />}
       {tab === 'modules' && <ModulesPanel />}
+      {tab === 'control' && <ControlPanel />}
 
       {tab === 'status' && loading && !report && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 4 }}>

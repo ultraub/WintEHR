@@ -30,6 +30,7 @@ deployment using the prod profile (`./deploy.sh --environment prod`).
 | `apt-get --no-install-recommends` | `backend/Dockerfile` | Smaller image, less attack surface |
 | No `Server:` header from uvicorn | `--no-server-header` in the backend `CMD` and compose `command` | Doesn't advertise the server version |
 | Bounded `curl --retry` on fetches | `backend/Dockerfile`, `docker-entrypoint.sh` | Avoids hung deploys on flaky networks |
+| Docker socket confined to the control-plane sidecar | `control-plane/app.py` + the `control-plane` compose service: the backend never mounts `/var/run/docker.sock`; the sidecar holds it, listens only on the compose network, requires `CONTROL_PLANE_TOKEN` (constant-time compare; empty token → every request 503), and serves an allow-list (container names from env, restarts only for `CONTROL_PLANE_RESTARTABLE`, `git ls-remote` only, `.env` variable names only). Restarts need the `system` permission and are audited (PR #369) | A demo-auth web app with the socket would be root on the host; the sidecar takes no free-form command, path, or image |
 | dcm4chee VNA uses named volumes | `docker-compose.yml` `dicom` profile | No root-owned host bind mounts left behind (PR #215) |
 
 ### Network
@@ -335,6 +336,8 @@ Kept so an auditor can see what landed after their last review.
 
 | Date | PR | Change |
 |---|---|---|
+| 2026-11-20 | #369 | Control-plane sidecar: Docker socket in one token-gated, allow-listed container; backend proxies container logs / restarts / update check / config view (env names only) |
+| 2026-11-20 | #367 | Root logging configured; per-worker log files under `./logs` read by the Command Center (security middleware's per-request lines moved to DEBUG-equivalent) |
 | 2026-11-20 | #366 | SMART token endpoint verifies confidential clients' secrets (previously unchecked); runtime app registrations persisted with bcrypt-hashed secrets |
 | 2026-11-20 | #365 | Role permissions editable at runtime via the Command Center (`auth.roles`), applied per request; `admin` cannot lose `admin`/`system` |
 | 2026-11-20 | #361 | Terminology scripts moved into the image; job runner redacts secret values from job output; httpx URL logging silenced in `download_umls.py` |
