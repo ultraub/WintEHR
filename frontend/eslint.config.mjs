@@ -106,9 +106,17 @@ export default [
   // refactors — deep imports would couple them to internals. Third-party
   // packages (react, @mui/*, ...) are unaffected. cds-studio and
   // ui-composer live under src/modules/ for historical reasons and are NOT
-  // manifest modules; they are deliberately not listed here.
+  // manifest modules; they are deliberately ignored below.
   {
-    files: ['src/modules/{flowsheets,scheduling,quality-analytics,inpatient}/**/*.{js,jsx}'],
+    // Every module directory is covered by default — a new module needs no
+    // edit here. Opt-outs are the two historical non-manifest directories
+    // and test files (tests legitimately mock deep core paths).
+    files: ['src/modules/*/**/*.{js,jsx}'],
+    ignores: [
+      'src/modules/{cds-studio,ui-composer}/**',
+      'src/modules/**/__tests__/**',
+      'src/modules/**/*.test.{js,jsx}',
+    ],
     rules: {
       'no-restricted-imports': ['error', {
         patterns: [{

@@ -59,7 +59,8 @@ deployment using the prod profile (`./deploy.sh --environment prod`).
 | Unauthenticated reads are optional | `SMART_ALLOW_UNPROTECTED` (default `true`) lets GETs through without a token; set `false` to require a token for reads too | Demo mode by design — see "What you own" |
 | Open-redirect protection in OAuth | `backend/api/smart/router.py` only redirects errors to a `redirect_uri` registered for the `client_id` | Prevents phishing via crafted error redirects |
 | `redirect_uri` allowlist per registered SMART client | `backend/api/smart/authorization_server.py` | OAuth2 best practice |
-| Login rate limiting | `AuthService._check_rate_limit`: 5 failed attempts per IP per 15 min, in-memory | Slows credential guessing (lost on restart; not distributed) |
+| Login rate limiting | `AuthService._check_rate_limit`: 5 failed attempts per IP per 15 min, in-memory | Slows credential guessing (lost on restart; not distributed — per uvicorn worker) |
+| Sessions shared across workers, with a TTL | `backend/api/auth/session_store.py`: training and practitioner session tokens are Redis keys with a 24 h TTL when `REDIS_URL` is set (in-process fallback otherwise) (PR #353) | Before, sessions were per-process dicts: with `--workers 4` a valid token failed ~3 of 4 requests, and sessions never expired. Logout now revokes on every worker |
 | Auth events audited | `AuditEventService` writes FHIR `AuditEvent` resources to HAPI | Login success/failure is queryable |
 | HAPI admin surface token-guarded | `deploy/hapi-overlay` `CrCacheAdminController` requires `Authorization: Bearer $HAPI_ADMIN_TOKEN`; HAPI itself is not published | Cache-flush endpoint can't be hit anonymously |
 
@@ -211,7 +212,9 @@ These are explicit gaps — operators should be aware:
 - **Practitioner login has no password at all.** `PractitionerAuthService`
   (`POST /api/auth/practitioners/login`) logs in as any active FHIR
   `Practitioner` by name, NPI, or ID.
-- **No token revocation.** JWTs are stateless; logout is client-side only.
+- **No JWT revocation.** JWTs are stateless; logout is client-side only in
+  JWT mode. (Training and practitioner session tokens *are* revoked
+  server-side, on every worker, since PR #353.)
 - **No systematic RBAC.** `User.permissions` exists; a handful of endpoints
   check it with an explicit `in` test, most do not.
 
