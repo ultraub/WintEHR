@@ -26,8 +26,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { useAuth } from '../../contexts/AuthContext';
-import api from '../../services/api';
+import { api, useAuth } from '../sdk';
 
 const STATUS_COLOR = {
   ok: 'success',
