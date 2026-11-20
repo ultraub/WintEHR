@@ -121,6 +121,16 @@ module's deltas on top of this file.
 
 ## Common tasks
 
+Some procedures are packaged as **skills** in `.agents/skills/` (symlinked into
+`.claude/skills/`). Look at the code you are about to change first, then load
+the matching skill before editing — each one carries steps and decisions that
+are not written anywhere else:
+
+| When the task is | Load skill |
+|---|---|
+| A new clinical domain, workspace tab, page, or switchable feature | `adding-clinical-module` |
+| Changed a backend endpoint/service, HAPI query, routing/proxy/compose, or a UI data flow — before calling it done | `verifying-live-endpoints` |
+
 **Add a backend endpoint** — router in `backend/api/{module}/`, logic in a service,
 register in `backend/api/routers/__init__.py`. See `backend/api/CLAUDE.md`.
 
@@ -128,8 +138,9 @@ register in `backend/api/routers/__init__.py`. See `backend/api/CLAUDE.md`.
 client at `core/fhir/services/fhirClient` and the React contexts. See `frontend/CLAUDE.md`.
 
 **Add a clinical module** (new domain with its own tab + backend) —
-`python3 scripts/new-module.py <key> "<Label>"`, then the three registration
-edits it prints. Contract in `docs/MODULES.md`; pilot: flowsheets.
+`python3 scripts/new-module.py <key> "<Label>"`, then the registration edits
+it prints. Use the `adding-clinical-module` skill. Contract in
+`docs/MODULES.md`; pilot: flowsheets.
 
 **Inspect FHIR data**:
 ```bash
@@ -182,3 +193,18 @@ changes, update the nearest file in the same change. Keep them:
 - **Layered** — state a rule once at the highest level it is true; child files link
   up rather than restate.
 - **Anchored** — tie non-obvious claims to real paths and PR numbers so drift shows.
+
+### Skills (`.agents/skills/`)
+
+`CLAUDE.md` files hold what is always true; skills hold procedures needed only
+for some tasks. Rules for skills:
+
+- **Canonical copy** in `.agents/skills/<name>/SKILL.md`, with a symlink at
+  `.claude/skills/<name>`. Spec frontmatter only (`name`, `description`) so
+  every agent harness can load them.
+- **Point, don't copy** — a skill names the script, registry, or test that
+  holds a fact instead of restating it. Mechanical steps belong in a script.
+- **Listed above** — a skill missing from the Common tasks table rarely gets
+  used.
+- **Checked** — `python3 scripts/check-skills.py` (run in CI) validates
+  frontmatter, symlinks, and that every repo path a skill names exists.

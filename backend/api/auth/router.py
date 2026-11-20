@@ -72,11 +72,11 @@ async def logout(
     """
     # In JWT mode, logout is handled client-side
     # In training mode, we could invalidate the session
-    if not JWT_ENABLED and hasattr(auth_service, 'training_sessions'):
-        # Remove session if exists
-        for token, session in list(auth_service.training_sessions.items()):
-            if session["user"]["id"] == current_user.id:
-                del auth_service.training_sessions[token]
+    if not JWT_ENABLED:
+        # Drop every training session this user holds, on every worker.
+        await auth_service.training_sessions.delete_where(
+            lambda session: session.get("user", {}).get("id") == current_user.id
+        )
     
     return {"message": "Successfully logged out"}
 

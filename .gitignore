@@ -236,7 +236,11 @@ DOMAIN.csv
 CONCEPT_CLASS.csv
 
 
-.claude
+# Local agent state stays untracked; shared project skills are tracked.
+# Canonical skills live in .agents/skills/; .claude/skills/ holds symlinks
+# to them (Claude Code reads only .claude/skills).
+.claude/*
+!.claude/skills/
 .claude_old
 .claude.json
 .playwright-mcp/

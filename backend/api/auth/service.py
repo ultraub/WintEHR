@@ -13,6 +13,7 @@ from database import get_db_session, get_db_context
 from .config import JWT_ENABLED, TRAINING_USERS, TRAINING_PASSWORD, JWT_ACCESS_TOKEN_EXPIRE_DELTA
 from .jwt_handler import create_access_token, verify_token, verify_password
 from .models import User, TokenResponse, SimpleAuthResponse
+from .session_store import SessionStore
 from api.services.audit_event_service import AuditEventService, AuditEventType
 
 # Security scheme
@@ -22,10 +23,12 @@ security = HTTPBearer(auto_error=False)
 class AuthService:
     """Authentication service handling both training and production modes"""
 
-    # Class-level session storage (shared across all instances)
-    # In production, this should use Redis or proper session storage
-    training_sessions: Dict[str, Dict[str, Any]] = {}
-    failed_attempts: Dict[str, list] = {}  # IP -> list of attempt timestamps
+    # Training sessions: Redis-backed when REDIS_URL is set so every uvicorn
+    # worker sees every login (session_store.py); in-process otherwise.
+    training_sessions: SessionStore = SessionStore(
+        "training", ttl_seconds=int(JWT_ACCESS_TOKEN_EXPIRE_DELTA.total_seconds())
+    )
+    failed_attempts: Dict[str, list] = {}  # IP -> list of attempt timestamps (per worker)
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -118,10 +121,10 @@ class AuthService:
         else:
             # Training mode - return simple session
             session_token = f"training-session-{secrets.token_urlsafe(32)}"
-            AuthService.training_sessions[session_token] = {
+            await AuthService.training_sessions.put(session_token, {
                 "user": user.dict(),
                 "created_at": datetime.utcnow()
-            }
+            })
             # Log successful login
             await audit.log_login_attempt(
                 username=username,
@@ -147,8 +150,8 @@ class AuthService:
                 return User(**TRAINING_USERS[username])
             return None
         else:
-            # Check training session
-            session = AuthService.training_sessions.get(token)
+            # Check training session (shared store — see session_store.py)
+            session = await AuthService.training_sessions.get(token)
             if session:
                 return User(**session["user"])
             return None

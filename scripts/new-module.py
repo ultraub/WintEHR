@@ -10,8 +10,11 @@ Generates the module skeleton on both sides of the stack:
     backend/tests/api/<key>/      test_<key>_service.py, __init__.py
     frontend/src/modules/<key>/   index.js (manifest), <Pascal>Tab.jsx
 
-then prints the three registration edits that wire it in. Registration is
+then prints the registration edits that wire it in. Registration is
 deliberately explicit (not auto-discovered) — see docs/MODULES.md for why.
+The printed list is the source of truth for those edits: when a new
+registration point appears, add it HERE so docs and agent skills that say
+"follow what the scaffold prints" stay correct.
 
 The generated code follows the platform patterns: full /api/... prefix in
 the router file, service with an injected HAPI client, thin Depends()
@@ -29,6 +32,12 @@ REPO = Path(__file__).resolve().parent.parent
 
 def pascal(key: str) -> str:
     return "".join(part.capitalize() for part in re.split(r"[-_]", key))
+
+
+def camel(key: str) -> str:
+    """Accent key in categoricalAccents — camelCase, like its neighbours."""
+    p = pascal(key)
+    return p[0].lower() + p[1:]
 
 
 def write(path: Path, content: str) -> None:
@@ -54,6 +63,7 @@ def main() -> None:
         sys.exit(f"module key must be kebab-case, got: {key!r}")
     pkg = key.replace("-", "_")
     cls = pascal(key)
+    accent = camel(key)
 
     if standalone:
         repo_dir = Path.cwd() / f"wintehr-module-{key}"
@@ -140,6 +150,10 @@ from .service import {cls}Service, get_{pkg}_service
 
 router = APIRouter(prefix="/api/{key}", tags=["{label}"])
 
+# AUTH IS A DECISION, not a default: this scaffold route is open. Before
+# adding real endpoints decide who may call them and add
+# `Depends(get_current_user)` (api.auth.service) — see backend/api/auth/CLAUDE.md.
+
 
 @router.get("/example", response_model=ExampleResponse)
 async def example(service: {cls}Service = Depends(get_{pkg}_service)):
@@ -169,7 +183,7 @@ async def test_example():
  */
 
 import {{ Extension as {cls}Icon }} from '@mui/icons-material';
-import {{ categoricalAccents }} from '../../themes/categoricalAccents';
+import {{ categoricalAccents }} from '../sdk';
 
 const {pkg}Module = {{
   id: '{key}',
@@ -178,7 +192,10 @@ const {pkg}Module = {{
       id: '{key}',
       label: '{label}',
       icon: {cls}Icon,
-      color: categoricalAccents.{pkg} || categoricalAccents.flowsheet,
+      // No fallback on purpose: until the accent is registered this is
+      // undefined and moduleLoader.test.js fails, instead of the module
+      // silently borrowing another domain's hue.
+      color: categoricalAccents.{accent},
       description: '{label} module',
       loader: () => import(/* webpackChunkName: "module-{key}" */ './{cls}Tab'),
     }},
@@ -232,22 +249,30 @@ this after vendoring.""")
         return
 
     print(f"""
-Now wire it in (three explicit edits — see docs/MODULES.md):
+Now wire it in (four explicit edits — see docs/MODULES.md):
 
 1. backend/api/routers/__init__.py — add to MODULE_ROUTERS:
        "{key}": [
            ("{label}", "api.{pkg}.router", "router", {{"tags": ["{label}"]}}),
        ],
 
-2. frontend/src/modules/index.js — import and list the manifest:
-       import {pkg} from './{key}';
-       const ALL_MODULES = [..., {pkg}];
+2. backend/tests/api/test_module_registration.py — add to MODULE_PREFIX
+   (the test requires its keys to equal MODULE_ROUTERS'):
+       "{key}": "/api/{key}",
 
-3. frontend/src/themes/categoricalAccents.js — give the module its own hue
-   (key: {pkg}) in the pluggable-module section.
+3. frontend/src/modules/index.js — import and list the manifest:
+       import {accent} from './{key}';
+       const BUILTIN_MODULES = [..., {accent}];
 
-Then: backend pytest + frontend npm test, and add the module to
-docs/MODULES.md's inventory table.""")
+4. frontend/src/themes/categoricalAccents.js — give the module its own hue
+   (key: {accent}) in the pluggable-module section. Until this lands the
+   tab has no color and moduleLoader.test.js fails — that is intended.
+
+Then verify:
+    cd backend  && pytest tests/api/test_module_registration.py tests/api/{pkg} -v
+    cd frontend && npx vitest run src/modules src/core/fhir/__tests__/registryCoverage.test.js && npx eslint src/modules
+
+and add the module to docs/MODULES.md's inventory table.""")
 
 
 if __name__ == "__main__":

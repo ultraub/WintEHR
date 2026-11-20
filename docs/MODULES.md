@@ -61,7 +61,7 @@ Scaffold a new module with:
 python3 scripts/new-module.py referrals "Referrals"
 ```
 
-## Registration — three explicit edits
+## Registration — four explicit edits
 
 Registration is deliberately explicit, not auto-discovered. An explicit
 list is reviewable, gives Vite a static import to code-split, and preserves
@@ -80,14 +80,25 @@ the two extension seams that have proven themselves.
    broken module degrades to *its own* routers failing, named in
    `/api/health`, never taking anything else down.
 
-2. **Frontend** — `frontend/src/modules/index.js`: import the manifest, add
-   it to `ALL_MODULES`. Module tabs append to the workspace tab registry and
+2. **Registration test** — `backend/tests/api/test_module_registration.py`,
+   `MODULE_PREFIX`: the module's expected URL prefix. The test requires
+   this dict's keys to equal `MODULE_ROUTERS`', so a module cannot be
+   registered without also being covered by the disable/enable checks.
+
+3. **Frontend** — `frontend/src/modules/index.js`: import the manifest, add
+   it to `BUILTIN_MODULES`. Module tabs append to the workspace tab registry and
    become ordinary entries: the strip, keyboard shortcuts, URL routing, and
    the registry coverage tests all pick them up with zero further edits.
 
-3. **Hue** — `frontend/src/themes/categoricalAccents.js`: one accent per
+4. **Hue** — `frontend/src/themes/categoricalAccents.js`: one accent per
    module in the pluggable-module section (the one-hue-per-domain rule; the
-   coverage tests enforce membership).
+   coverage tests enforce membership). The scaffolded manifest has no
+   fallback color, so `moduleLoader.test.js` fails until this lands.
+
+`scripts/new-module.py` prints these edits filled in for the new key; its
+output is the source of truth when this list and the script disagree. The
+SDK lint boundary needs no edit: it covers every directory under
+`src/modules/` except the two non-manifest ones.
 
 ## Disabling a module per deployment
 
@@ -123,7 +134,7 @@ Modules are not exempt from the platform invariants (root `CLAUDE.md`):
 
 Module frontend code imports platform APIs from **`src/modules/sdk.js`
 only** (lint-enforced: `no-restricted-imports` rejects deep imports from
-module directories). The SDK re-exports the sanctioned surface —
+every module directory; test files are exempt). The SDK re-exports the sanctioned surface —
 `fhirClient`, `extractBundleResources`, the patient-data contexts,
 `useClinicalWorkflow` + `CLINICAL_EVENTS`, `useAuth`, `api`/`buildUrl`,
 `categoricalAccents`, `getSeverityColor`. Third-party packages (react,

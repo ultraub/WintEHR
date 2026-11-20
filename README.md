@@ -79,7 +79,7 @@ to deepest:
    ```
 
    A module is one backend directory + one frontend directory sharing a key,
-   wired in by three explicit edits, and switchable off per deployment
+   wired in by four explicit edits, and switchable off per deployment
    (`WINTEHR_DISABLED_MODULES` / `REACT_APP_DISABLED_MODULES`) without
    deleting code. The nursing **Flowsheet** tab in the screenshot above is
    the pilot module — read it as the template. Full contract:

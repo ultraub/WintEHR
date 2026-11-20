@@ -26,8 +26,22 @@ examples referencing `secure_auth_service.py`, they are stale.
 
 | Service | File | When active | What it actually does |
 |---|---|---|---|
-| `AuthService` | `service.py` | Always, for `/api/auth/*` | Checks `TRAINING_USERS` dict; password must equal the literal `"password"`. In-memory sessions (or a JWT when `JWT_ENABLED=true`). |
-| `PractitionerAuthService` | `practitioner_auth_service.py` | Always, for `/practitioners/*` routes only | Logs in as a real FHIR `Practitioner` from HAPI; **no password check at all** |
+| `AuthService` | `service.py` | Always, for `/api/auth/*` | Checks `TRAINING_USERS` dict; password must equal the literal `"password"`. Session tokens in the shared `SessionStore` (or a JWT when `JWT_ENABLED=true`). |
+| `PractitionerAuthService` | `practitioner_auth_service.py` | Always, for `/practitioners/*` routes only | Logs in as a real FHIR `Practitioner` from HAPI; **no password check at all**; sessions in the shared `SessionStore` |
+
+### Sessions are shared across uvicorn workers (`session_store.py`)
+
+Both `training-session-*` and `practitioner-session-*` tokens live in a
+`SessionStore` (`api/auth/session_store.py`): one Redis key per token with a
+24 h TTL when `REDIS_URL` is set, else an in-process dict with the same TTL.
+Before this, each store was a per-process dict and the prod profile
+(`uvicorn --workers 4`) rejected ~3 of 4 authenticated requests because the
+worker that minted a token was rarely the one that received the next
+request. If Redis is configured but unreachable at first use, the store logs
+a warning and falls back to in-process for that worker — fine for a
+single-worker dev run, broken for multi-worker, so treat that warning as an
+outage on a prod box. Tests inject a `FakeRedis` through
+`SessionStore(redis_client=...)`; see `tests/api/auth/test_session_store.py`.
 
 The "production" JWT path is not separate code — `AuthService.authenticate_user`
 takes the same `TRAINING_USERS` / `TRAINING_PASSWORD` branch whether `JWT_ENABLED`
@@ -43,9 +57,9 @@ in the response.
 
 1. `Bearer` token from `HTTPBearer`, else the raw `Authorization` header.
 2. Token prefixed `practitioner-session-` → validated by `PractitionerAuthService`
-   (in-process session dict).
+   (`SessionStore`, namespace `practitioner`).
 3. Otherwise → `AuthService.get_current_user_from_token` (JWT verify, or the
-   `training-session-*` in-memory dict).
+   `training-session-*` `SessionStore`, namespace `training`).
 
 `get_current_user` lives in `service.py` and is the only implementation —
 import it from there.
@@ -74,7 +88,7 @@ router itself carries `prefix="/api/auth"`, so paths resolve verbatim.
 | `POST /api/auth/login` | `AuthService.login` | Training: any `TRAINING_USERS` name + `"password"` |
 | `GET  /api/auth/config` | — | Returns mode + `available_users` (training only) |
 | `GET  /api/auth/me` | `get_current_user` | |
-| `POST /api/auth/logout` | — | JWT mode: client-side only (no server revocation) |
+| `POST /api/auth/logout` | — | Training mode: drops every session of that user from the shared store. JWT mode: client-side only (no server revocation) |
 | `GET  /api/auth/users` | — | `"admin"` permission required |
 | `GET  /api/auth/health` | — | |
 | `GET  /api/auth/practitioners` | `PractitionerAuthService` | Lists active FHIR Practitioners |
@@ -131,7 +145,7 @@ attempts / 15 min, lost on restart. Not distributed.
 | Symptom | Look at |
 |---|---|
 | `401 Not authenticated` | No/blank `Authorization` header — `get_current_user` raises before any service runs |
-| `401 Invalid authentication credentials` | Token present but unresolved — wrong prefix, expired JWT, or session lost on restart (sessions are in-memory) |
+| `401 Invalid authentication credentials` | Token present but unresolved — wrong prefix, expired JWT, session past its 24 h TTL, or (no Redis) a session lost on restart / minted by another worker. Grep the backend log for `SessionStore` to see which backend each worker chose |
 | Login works but `/users` returns 403 | Caller's `User.permissions` lacks `"admin"` |
 | Practitioner login "not found" | `find_practitioner` searches HAPI by ID / `family` / NPI `identifier`, `active=true` only — confirm the Practitioner exists and is active |
 | Logout doesn't invalidate a JWT | By design — JWT mode has no server-side revocation; only in-memory sessions can be dropped |

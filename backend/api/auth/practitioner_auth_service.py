@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.hapi_fhir_client import HAPIFHIRClient
 from .models import User, TokenResponse, SimpleAuthResponse
+from .session_store import SessionStore
 from .config import JWT_ENABLED, JWT_ACCESS_TOKEN_EXPIRE_DELTA
 from .jwt_handler import create_access_token
 from api.services.audit_event_service import AuditEventService
@@ -36,7 +37,10 @@ class PractitionerAuthService:
 
     def __init__(self):
         self.hapi_client = HAPIFHIRClient()
-        self.active_sessions: Dict[str, Dict[str, Any]] = {}
+        # Shared across uvicorn workers when REDIS_URL is set (session_store.py).
+        self.active_sessions: SessionStore = SessionStore(
+            "practitioner", ttl_seconds=int(timedelta(hours=24).total_seconds())
+        )
 
     async def find_practitioner(self, identifier: str) -> Optional[Dict[str, Any]]:
         """
@@ -299,13 +303,13 @@ class PractitionerAuthService:
             # Development mode - return session token
             session_token = f"practitioner-session-{secrets.token_urlsafe(32)}"
 
-            # Store session
-            self.active_sessions[session_token] = {
-                "user": user,
+            # Store session (user as a dict so it round-trips through Redis)
+            await self.active_sessions.put(session_token, {
+                "user": user.dict(),
                 "created_at": datetime.utcnow(),
                 "expires_at": datetime.utcnow() + timedelta(hours=24),
                 "ip_address": ip_address
-            }
+            })
 
             return SimpleAuthResponse(
                 user=user.dict(),
@@ -322,16 +326,17 @@ class PractitionerAuthService:
         Returns:
             User object or None
         """
-        session = self.active_sessions.get(session_token)
+        session = await self.active_sessions.get(session_token)
         if not session:
             return None
 
-        # Check expiration
+        # Check expiration (the store's TTL also enforces it in Redis)
         if datetime.utcnow() > session["expires_at"]:
-            del self.active_sessions[session_token]
+            await self.active_sessions.delete(session_token)
             return None
 
-        return session["user"]
+        user = session["user"]
+        return user if isinstance(user, User) else User(**user)
 
     async def logout(self, session_token: str) -> bool:
         """
@@ -343,10 +348,7 @@ class PractitionerAuthService:
         Returns:
             True if session was found and invalidated
         """
-        if session_token in self.active_sessions:
-            del self.active_sessions[session_token]
-            return True
-        return False
+        return await self.active_sessions.delete(session_token)
 
 
 # Global instance for dependency injection

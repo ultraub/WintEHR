@@ -17,6 +17,14 @@ permissions:
   contents: read
 
 jobs:
+  # Agent skills (.agents/skills/) are instructions agents act on, so a stale
+  # path in one sends an agent to the wrong place. Standard library only.
+  skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 scripts/check-skills.py
+
   backend:
     runs-on: ubuntu-latest
     defaults:
