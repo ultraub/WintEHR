@@ -128,6 +128,14 @@ that renders or navigates the strip — `ClinicalTabs`, `useKeyboardNavigation`,
 `KeyboardShortcutsDialog`, the workspace's hidden-tab fallback — uses the
 hook, never `CLINICAL_TABS` directly. Summary can never be hidden.
 
+One level down, `workspace/sectionRegistry.js` lists the panels INSIDE tabs
+(Chart Review's eight panels are builtin sections; Imaging studies and the
+Flowsheet module are `hostable`), `useEffectiveSections(tabId)` applies the
+policy's per-tab `sections` layer, and `HostedSectionPanel` renders a
+section placed on a foreign tab (lazy, own data by `patientId`, heavy ones
+start collapsed). Chart Review renders `chartSections` from the hook; other
+tabs still hard-wire their panels until converted.
+
 Pluggable modules (`src/modules/` — see `docs/MODULES.md`) contribute tabs
 through their manifests (placed via `insertAfter`, else appended) and
 top-level **pages**: one `pages` entry yields the route in

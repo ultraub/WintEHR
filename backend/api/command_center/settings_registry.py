@@ -164,7 +164,7 @@ DEFINITIONS: Dict[str, SettingDefinition] = {
         SettingDefinition(
             key="ui.tabs.policy",
             type="json",
-            default={"org": {"hidden": [], "order": [], "default": None}, "roles": {}, "contexts": {}},
+            default={"org": {"hidden": [], "order": [], "default": None, "sections": {}}, "roles": {}, "contexts": {}},
             tier="live",
             label="Chart workspace tabs",
             description="Which chart tabs are shown, in what order, and which opens first — for the whole "

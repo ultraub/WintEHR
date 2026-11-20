@@ -14,14 +14,22 @@ const CATALOG = [
   { id: 'inbox', label: 'Inbox', color: '#444' },
 ];
 
+const SECTIONS = [
+  { id: 'order-history', label: 'Order history', host: 'orders', builtin: true, hostable: false },
+  { id: 'order-sets', label: 'Order sets', host: 'orders', builtin: true, hostable: false },
+  { id: 'flowsheet', label: 'Flowsheet', host: 'administration', builtin: false, hostable: true },
+];
+
 vi.mock('../../sdk', async () => {
   const policy = await vi.importActual('../../../components/clinical/workspace/tabPolicy');
   return {
     api: { get: vi.fn(), put: vi.fn(), delete: vi.fn() },
     useAuth: vi.fn(),
     loadClinicalTabCatalog: vi.fn(() => Promise.resolve(CATALOG)),
+    loadClinicalSectionCatalog: vi.fn(() => Promise.resolve(SECTIONS)),
     refreshTabPolicy: vi.fn(() => Promise.resolve()),
     resolveEffectiveTabs: policy.resolveEffectiveTabs,
+    resolveEffectiveSections: policy.resolveEffectiveSections,
     ALWAYS_VISIBLE_TABS: policy.ALWAYS_VISIBLE,
     EMPTY_TAB_POLICY: policy.EMPTY_TAB_POLICY,
   };
@@ -102,4 +110,36 @@ it('is read-only without the system permission', async () => {
   expect(screen.getByText(/needs the/)).toBeInTheDocument();
   expect(screen.getByLabelText('Orders visible for nurse')).toBeDisabled();
   expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+});
+
+// --- sections (slice 7b) ----------------------------------------------------------
+
+it('expands a tab to its sections, hides one for a role, and adds a hostable section for the organization', async () => {
+  useAuth.mockReturnValue({ user: { permissions: ['admin', 'system'] } });
+  api.get.mockResolvedValue(policyResponse({}));
+  api.put.mockImplementation((_url, body) => Promise.resolve({ data: { value: body.value, source: 'database', updated_by: 'demo-admin' } }));
+
+  render(<TabPolicyPanel />);
+  await screen.findByLabelText('Orders visible for nurse');
+  fireEvent.click(screen.getByRole('button', { name: 'Expand Orders sections' }));
+
+  const docsForNurse = screen.getByLabelText('Order history on Orders for nurse');
+  expect(docsForNurse).toBeChecked();
+  fireEvent.click(docsForNurse);
+  expect(docsForNurse).not.toBeChecked();
+  expect(within(screen.getByTestId('preview-nurse-orders')).queryByText('Order history')).not.toBeInTheDocument();
+  expect(within(screen.getByTestId('preview-__org__-orders')).getByText('Order history')).toBeInTheDocument();
+
+  // Add the hostable Flowsheet section to Orders for everyone.
+  fireEvent.mouseDown(screen.getByLabelText('Add a section to Orders'));
+  fireEvent.click(await screen.findByRole('option', { name: /Flowsheet/ }));
+  expect(screen.getByLabelText('Flowsheet on Orders for Organization')).toBeChecked();
+  expect(screen.getByLabelText('Flowsheet on Orders for nurse')).toBeDisabled();
+  expect(within(screen.getByTestId('preview-nurse-orders')).getByText('Flowsheet')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1));
+  const body = api.put.mock.calls[0][1].value;
+  expect(body.roles.nurse.sections.orders.hidden).toEqual(['order-history']);
+  expect(body.org.sections.orders.added).toEqual(['flowsheet']);
 });

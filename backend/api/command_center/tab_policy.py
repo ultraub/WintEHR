@@ -3,10 +3,15 @@
 The policy is one JSON document stored as the `ui.tabs.policy` setting:
 
     {
-      "org":      {"hidden": [...tab ids], "order": [...tab ids], "default": "summary"},
+      "org":      {"hidden": [...tab ids], "order": [...tab ids], "default": "summary",
+                   "sections": {"chart-review": {"hidden": [...], "order": [...], "added": [...]}}},
       "roles":    {"nurse": {...same shape...}, "pharmacist": {...}},
       "contexts": {"inpatient": {...same shape...}}
     }
+
+`sections` (slice 7b) governs the panels INSIDE a tab: hide its own, reorder,
+or `add` a hostable section from another tab or module (e.g. put the
+Flowsheet on Chart Review). Section ids are frontend facts too.
 
 Layers narrow or reorder what the layer above allows (org → role →
 context); the frontend resolves them (src/components/clinical/workspace/
@@ -26,7 +31,8 @@ from typing import Any, Dict, List, Optional
 from .settings_registry import SettingValueError
 
 ALWAYS_VISIBLE = ("summary",)
-LAYER_FIELDS = ("hidden", "order", "default")
+LAYER_FIELDS = ("hidden", "order", "default", "sections")
+SECTION_FIELDS = ("hidden", "order", "added")
 
 
 def _id_list(value: Any, where: str) -> List[str]:
@@ -57,7 +63,35 @@ def _layer(value: Any, where: str) -> Dict[str, Any]:
         raise SettingValueError(f"{where}.default must be a tab id or null")
     if default in hidden:
         raise SettingValueError(f"{where}.default ({default}) is also hidden")
-    return {"hidden": hidden, "order": order, "default": default.strip() if default else None}
+    return {
+        "hidden": hidden,
+        "order": order,
+        "default": default.strip() if default else None,
+        "sections": _sections(value.get("sections"), f"{where}.sections"),
+    }
+
+
+def _sections(value: Any, where: str) -> Dict[str, Dict[str, List[str]]]:
+    """Per-tab section specs: {tab id: {hidden, order, added}} (slice 7b)."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise SettingValueError(f"{where} must be an object keyed by tab id")
+    out: Dict[str, Dict[str, List[str]]] = {}
+    for tab_id, spec in value.items():
+        if not isinstance(tab_id, str) or not tab_id.strip():
+            raise SettingValueError(f"{where}: tab ids must be non-empty strings")
+        if spec is None:
+            spec = {}
+        if not isinstance(spec, dict):
+            raise SettingValueError(f"{where}.{tab_id} must be an object with hidden / order / added")
+        unknown = set(spec) - set(SECTION_FIELDS)
+        if unknown:
+            raise SettingValueError(f"{where}.{tab_id}: unknown field(s) {sorted(unknown)}")
+        entry = {field: _id_list(spec.get(field), f"{where}.{tab_id}.{field}") for field in SECTION_FIELDS}
+        if entry["hidden"] or entry["order"] or entry["added"]:
+            out[tab_id.strip()] = entry
+    return out
 
 
 def _named_layers(value: Any, where: str) -> Dict[str, Dict[str, Any]]:
