@@ -124,3 +124,7 @@ FHIR query.
 | FHIR call from a page 404s | Backend prefix mismatch — re-derive from `backend/api/routers/__init__.py`. |
 | Patient query returns nothing for a valid id | Raw `useParams()` id used un-decoded — run it through `decodeFhirId`. |
 | Auth token not attached to a request | Used raw `fetch` instead of the `services/api.js` axios instance. |
+
+> `Settings.js` is the user-facing page (Appearance, Display, Profile). System
+> health, build info and admin settings moved to the Command Center module
+> (`src/modules/command-center/`, route `/command-center`).

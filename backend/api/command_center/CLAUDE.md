@@ -76,5 +76,6 @@ module's deltas are here.
 | `COMMAND_CENTER_JOB_LOG_DIR` | Job logs (default `/app/data/jobs`, on the `./data` bind mount) |
 | `COMMAND_CENTER_JOB_HEARTBEAT` | Seconds between heartbeats while a job runs (default 5); a job is `lost` after 12 missed beats |
 | `COMMAND_CENTER_PROBE_TIMEOUT` | Env fallback for `system.probe_timeout_seconds` (default 8) |
+| `HAPI_FHIR_TIMEOUT` | Env fallback for `system.hapi_timeout_seconds` (default 30; read at startup by `services/hapi_fhir_client.py` and the `/fhir` proxy) |
 | `WINTEHR_VERSION`, `WINTEHR_GIT_COMMIT` | Reported in `build` when the image sets them |
 | `TERMINOLOGY_DB_PATH`, `REDIS_URL`, `DICOM_QIDO_URL`, `CATALOG_SCAN_MAX_RESOURCES`, `UMLS_API_KEY` | Read by probes, or shadowed by a registered setting |

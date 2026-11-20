@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 # HAPI FHIR server configuration
 HAPI_FHIR_BASE_URL = os.getenv('HAPI_FHIR_URL', 'http://hapi-fhir:8080/fhir')
+# Per-request timeout for every HAPI call the backend makes (seconds). Read once
+# at import, so it is a restart-tier setting (system.hapi_timeout_seconds).
+HAPI_FHIR_TIMEOUT = float(os.getenv('HAPI_FHIR_TIMEOUT', '30'))
 
 
 
@@ -72,7 +75,7 @@ class HAPIFHIRClient:
             base_url: Optional override for HAPI FHIR base URL
         """
         self.base_url = base_url or HAPI_FHIR_BASE_URL
-        self.timeout = 30.0
+        self.timeout = HAPI_FHIR_TIMEOUT
 
     async def search(
         self,
