@@ -13,7 +13,6 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from api.auth.models import User
-from api.auth.service import get_current_user
 
 from .jobs_service import JobsError, JobsService, default_jobs_service
 from .models import (
@@ -39,19 +38,9 @@ ROLES_SETTING = "auth.roles"
 router = APIRouter(prefix="/api/command-center", tags=["Command Center"])
 
 
-def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    if "admin" not in current_user.permissions:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return current_user
-
-
-def require_system(current_user: User = Depends(get_current_user)) -> User:
-    if "system" not in current_user.permissions:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="System administrator access required",
-        )
-    return current_user
+# The two permission gates live in api/auth/permissions.py so other admin
+# surfaces (SMART app registration) use the same ones; re-exported here.
+from api.auth.permissions import require_admin, require_system  # noqa: E402,F401
 
 
 def get_settings_service() -> SettingsService:

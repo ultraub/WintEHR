@@ -43,6 +43,8 @@ const HEALTH_COLOR = { healthy: 'success', degraded: 'warning', unhealthy: 'erro
 
 const detailOf = (err, fallback) => err?.response?.data?.detail || err?.message || fallback;
 const EMPTY_FORM = { name: '', service_type: 'cds_hooks', base_url: '', auth_type: 'none', description: '' };
+const EMPTY_SMART_FORM = { name: '', client_type: 'public', redirect_uris: '', scopes: 'launch launch/patient patient/*.read openid fhirUser', launch_uri: '' };
+const splitList = (text) => text.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean);
 
 const AppsPanel = () => {
   const { user } = useAuth();
@@ -54,6 +56,8 @@ const AppsPanel = () => {
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [smartForm, setSmartForm] = useState(EMPTY_SMART_FORM);
+  const [issuedSecret, setIssuedSecret] = useState(null); // { client_id, client_secret } shown once
 
   const load = useCallback(async () => {
     setError(null);
@@ -108,6 +112,28 @@ const AppsPanel = () => {
 
   const healthCheck = (service) =>
     run(`Health check ran for ${service.name}.`, () => api.post(`/api/external-services/${service.id}/health-check`));
+
+  const registerSmart = () =>
+    run('SMART app registered.', async () => {
+      const response = await api.post('/api/smart/apps', {
+        name: smartForm.name.trim(),
+        client_type: smartForm.client_type,
+        redirect_uris: splitList(smartForm.redirect_uris),
+        scopes: splitList(smartForm.scopes),
+        launch_uri: smartForm.launch_uri.trim() || null,
+      });
+      if (response.data?.client_secret) setIssuedSecret({ client_id: response.data.client_id, client_secret: response.data.client_secret });
+      setSmartForm(EMPTY_SMART_FORM);
+    });
+
+  const rotateSmart = (app) =>
+    run(`Secret rotated for ${app.name}.`, async () => {
+      const response = await api.post(`/api/smart/apps/${app.client_id}/rotate-secret`);
+      setIssuedSecret({ client_id: app.client_id, client_secret: response.data.client_secret });
+    });
+
+  const setSmartActive = (app, is_active) =>
+    run(`${app.name} ${is_active ? 'activated' : 'deactivated'}.`, () => api.put(`/api/smart/apps/${app.client_id}`, { is_active }));
 
   const remove = (service) =>
     run(`${service.name} deleted.`, async () => {
@@ -182,26 +208,55 @@ const AppsPanel = () => {
           <Paper variant="outlined" sx={{ p: 2, borderRadius: 1, mt: 2 }}>
             <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>SMART on FHIR apps</Typography>
             <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-              Registered with the authorization server at startup (demo apps). Registering new apps from here, with
-              client secrets, is the next slice.
+              Demo apps are defined in code. Apps registered here are stored persistently and usable on every
+              backend worker within seconds; a confidential app's secret is shown exactly once.
             </Typography>
+            {issuedSecret && (
+              <Alert severity="warning" sx={{ mb: 1 }} onClose={() => setIssuedSecret(null)} data-testid="issued-secret">
+                <Typography variant="body2">
+                  Client secret for <code>{issuedSecret.client_id}</code> — copy it now; it will not be shown again.
+                </Typography>
+                <Typography component="code" sx={{ display: 'block', wordBreak: 'break-all', mt: 0.5 }}>{issuedSecret.client_secret}</Typography>
+              </Alert>
+            )}
             {smartApps.length === 0 ? (
               <Typography variant="body2" color="text.secondary">No SMART apps registered.</Typography>
             ) : (
               <Table size="small">
                 <TableHead>
-                  <TableRow><TableCell>App</TableCell><TableCell>Client ID</TableCell><TableCell>Scopes</TableCell><TableCell>Active</TableCell></TableRow>
+                  <TableRow><TableCell>App</TableCell><TableCell>Client ID</TableCell><TableCell>Type</TableCell><TableCell>Active</TableCell>{canEdit && <TableCell />}</TableRow>
                 </TableHead>
                 <TableBody>
                   {smartApps.map((a) => (
                     <TableRow key={a.client_id} hover>
                       <TableCell>
                         <Typography variant="body2" fontWeight={600}>{a.name}</Typography>
-                        <Typography variant="caption" color="text.secondary">{a.launch_uri || a.description || ''}</Typography>
+                        <Typography variant="caption" color="text.secondary">{(a.scopes || []).join(' ')}</Typography>
                       </TableCell>
                       <TableCell><code>{a.client_id}</code></TableCell>
-                      <TableCell><Typography variant="caption">{(a.scopes || []).join(' ')}</Typography></TableCell>
+                      <TableCell>
+                        <Chip size="small" variant="outlined" label={a.client_type || 'public'} sx={{ borderRadius: 1 }} />
+                        {a.source === 'demo' && <Chip size="small" label="demo" sx={{ ml: 0.5, borderRadius: 1 }} />}
+                      </TableCell>
                       <TableCell><Chip size="small" label={a.is_active ? 'active' : 'inactive'} color={a.is_active ? 'success' : 'default'} sx={{ borderRadius: 1 }} /></TableCell>
+                      {canEdit && (
+                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                          {a.source === 'registered' ? (
+                            <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                              {a.client_type === 'confidential' && (
+                                <Button size="small" onClick={() => rotateSmart(a)} disabled={busy} aria-label={`Rotate secret for ${a.name}`}>Rotate secret</Button>
+                              )}
+                              {a.is_active ? (
+                                <Button size="small" onClick={() => setSmartActive(a, false)} disabled={busy} aria-label={`Deactivate ${a.name}`}>Deactivate</Button>
+                              ) : (
+                                <Button size="small" onClick={() => setSmartActive(a, true)} disabled={busy} aria-label={`Activate ${a.name}`}>Activate</Button>
+                              )}
+                            </Stack>
+                          ) : (
+                            <Typography variant="caption" color="text.disabled">defined in code</Typography>
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -239,6 +294,32 @@ const AppsPanel = () => {
                 <Typography variant="caption" color="text.secondary">
                   URLs must match <code>EXTERNAL_SERVICES_URL_ALLOWLIST</code> when it is set.
                 </Typography>
+              </Stack>
+            </Paper>
+
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: 1, mt: 2 }}>
+              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>Register a SMART app</Typography>
+              <Stack spacing={2}>
+                <TextField size="small" label="App name" value={smartForm.name} onChange={(e) => setSmartForm({ ...smartForm, name: e.target.value })}
+                  inputProps={{ 'aria-label': 'SMART app name' }} />
+                <FormControl size="small">
+                  <InputLabel id="smart-type-label">Client type</InputLabel>
+                  <Select labelId="smart-type-label" label="Client type" value={smartForm.client_type}
+                    onChange={(e) => setSmartForm({ ...smartForm, client_type: e.target.value })} inputProps={{ 'aria-label': 'Client type' }}>
+                    <MenuItem value="public">Public (PKCE, no secret)</MenuItem>
+                    <MenuItem value="confidential">Confidential (secret issued once)</MenuItem>
+                  </Select>
+                </FormControl>
+                <TextField size="small" label="Redirect URIs (one per line)" value={smartForm.redirect_uris} multiline minRows={2}
+                  onChange={(e) => setSmartForm({ ...smartForm, redirect_uris: e.target.value })} inputProps={{ 'aria-label': 'Redirect URIs' }} />
+                <TextField size="small" label="Scopes (space separated)" value={smartForm.scopes}
+                  onChange={(e) => setSmartForm({ ...smartForm, scopes: e.target.value })} inputProps={{ 'aria-label': 'Scopes' }} />
+                <TextField size="small" label="Launch URI (optional)" value={smartForm.launch_uri}
+                  onChange={(e) => setSmartForm({ ...smartForm, launch_uri: e.target.value })} inputProps={{ 'aria-label': 'Launch URI' }} />
+                <Button variant="contained" onClick={registerSmart}
+                  disabled={busy || !smartForm.name.trim() || splitList(smartForm.redirect_uris).length === 0 || splitList(smartForm.scopes).length === 0}>
+                  Register SMART app
+                </Button>
               </Stack>
             </Paper>
           </Grid>

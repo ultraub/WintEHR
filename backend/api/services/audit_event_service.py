@@ -57,6 +57,11 @@ class AuditEventType:
     SYSTEM_JOB_STARTED = "system.job.started"
     SYSTEM_JOB_CANCELLED = "system.job.cancelled"
 
+    # SMART app registrations (api/smart/)
+    SMART_APP_REGISTERED = "smart.app.registered"
+    SMART_APP_UPDATED = "smart.app.updated"
+    SMART_APP_SECRET_ROTATED = "smart.app.secret_rotated"
+
 
 class AuditEventService:
     """Service for logging audit events as FHIR AuditEvent resources in HAPI FHIR"""
@@ -100,6 +105,11 @@ class AuditEventService:
                 "display": "Application Activity"
             },
             "system": {
+                "system": "http://terminology.hl7.org/CodeSystem/audit-event-type",
+                "code": "110100",
+                "display": "Application Activity"
+            },
+            "smart": {
                 "system": "http://terminology.hl7.org/CodeSystem/audit-event-type",
                 "code": "110100",
                 "display": "Application Activity"
