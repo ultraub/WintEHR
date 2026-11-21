@@ -76,7 +76,7 @@ it('shows a loading state, then every component, router failures and resource co
   expect(screen.getAllByText('Terminology index')[0]).toBeInTheDocument();
   expect(screen.getByText('Imaging VNA')).toBeInTheDocument();
   expect(screen.getAllByText('degraded').length).toBeGreaterThanOrEqual(2); // header + terminology
-  expect(screen.getByText('absent')).toBeInTheDocument();
+  expect(screen.getAllByText('absent').length).toBeGreaterThan(0);
 
   // Router failure is loud, disabled module is listed.
   expect(screen.getByText('Flowsheets')).toBeInTheDocument();
