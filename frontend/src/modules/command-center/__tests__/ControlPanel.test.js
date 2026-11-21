@@ -27,6 +27,7 @@ const CONTROL = {
 const route = (overrides = {}) => (url) => {
   if (url === '/api/command-center/control') return Promise.resolve({ data: overrides.control || CONTROL });
   if (url.endsWith('/logs')) return Promise.resolve({ data: { name: 'emr-backend', lines: ['line one', 'line two'], tail: 300, truncated: false } });
+  if (url.endsWith('/update/status')) return Promise.resolve({ data: { present: false, running: false } });
   if (url.endsWith('/update-check')) return Promise.resolve({ data: overrides.update || { branch: 'master', local: 'a'.repeat(40), remote: 'b'.repeat(40), update_available: true, error: null } });
   if (url.endsWith('/config')) return Promise.resolve({ data: { nginx: 'server {}', nginx_path: 'deploy/rendered/nginx.conf', compose: 'services: {}', env_keys: ['POSTGRES_PASSWORD', 'CONTROL_PLANE_TOKEN'] } });
   return Promise.reject(new Error(`unexpected ${url}`));

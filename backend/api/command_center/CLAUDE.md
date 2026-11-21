@@ -15,7 +15,7 @@ module's deltas are here.
 
 | File | Role |
 |---|---|
-| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /ui-policy` (no auth); `GET /roles`; `GET /logs`, `GET /logs/export`; `GET /audit`; `GET /config/export` (`?download=1` for a file), `POST /config/import` (system; preview unless `apply`); `GET /modules`; `GET /control`, `GET /control/containers/{name}/logs`, `POST /control/containers/{name}/restart` (system, audited), `GET /control/update-check`, `GET /control/config`, `GET /control/host`, `GET /control/certificates`; `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
+| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /ui-policy` (no auth); `GET /roles`; `GET /logs`, `GET /logs/export`; `GET /audit`; `GET /config/export` (`?download=1` for a file), `POST /config/import` (system; preview unless `apply`); `GET /modules`; `GET /control`, `GET /control/containers/{name}/logs`, `POST /control/containers/{name}/restart` (system, audited), `GET /control/update-check`, `GET /control/update/preview` (fetches), `POST /control/update/apply` (system, audited `system.control.update`, body `{commit}` = origin's tip from the preview), `GET /control/update/status`, `GET /control/config`, `GET /control/host`, `GET /control/certificates`; `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
 | `service.py` | `CommandCenterService.status()`: runs the probes concurrently under the live-tier probe timeout, rolls them up. `roll_up` is pure. |
 | `probes.py` | One `async` probe per deployment part: `fhir`, `database`, `redis`, `terminology`, `vna`, plus `host` (disk / memory / load) and `tls` (certificate expiry) through the sidecar, `absent` when it is not configured. Exceptions and timeouts become `down`, never a 500. |
 | `readiness.py` | `readiness_checks(components, env, umls_key_set)`: the Status tab's checklist (profile, example secrets, settings key, auth mode, patients, terminology, UMLS key, Redis, control plane, disk, HTTPS, VNA) with a fix per item. Pure; the example-secret lists mirror `deploy/secrets_policy.py` and a test keeps them equal. |
@@ -27,7 +27,7 @@ module's deltas are here.
 | `logs.py` | Reads `backend.<pid>.log*` from `WINTEHR_LOG_DIR` (written by `backend/logging_setup.py`), merges workers by timestamp, attaches tracebacks to their record, filters by level / text / window; `export_logs` for the download. |
 | `module_settings.py` | Discovers `api/<pkg>/settings.py` → `SETTINGS` for every enabled module at router registration and adds them to the registry; refuses keys outside `module.<key>.`. `MODULE_SETTINGS` maps module → keys. |
 | `modules.py` | `module_inventory()`: per module key, routers, registered / failed / disabled, builtin or external, declared settings. |
-| `control_plane.py` | `ControlPlaneClient`: token-bearing httpx client for the sidecar (`control-plane/app.py`) at `CONTROL_PLANE_URL`. Unconfigured → `configured=False`; unreachable → 503; sidecar verdicts (401/403/404) pass through. `use_control_plane()` swaps it in tests. |
+| `control_plane.py` | `ControlPlaneClient`: token-bearing httpx client for the sidecar (`control-plane/app.py`) at `CONTROL_PLANE_URL`. Unconfigured → `configured=False`; unreachable → 503; sidecar verdicts (401/403/404/409) pass through. `get(path, params, timeout=)` / `post(path, json=)`. `use_control_plane()` swaps it in tests. |
 | `roles.py` | `KNOWN_PERMISSIONS` (the vocabulary the code assigns or checks), `default_roles()` from `TRAINING_USERS`, validator for the `auth.roles` setting (unknown permission → 400; `admin` must keep `admin` and `system`), `effective_permissions()`. Applied on every request by `api/auth/service.apply_role_overrides`. |
 | `tab_policy.py` | Shape validation for `ui.tabs.policy` (org / roles / contexts layers of hidden, order, default; `summary` stripped from hidden) and `known_roles()`. Tab ids are not validated here — the catalog is a frontend build artifact; the client resolver ignores unknown ids with a warning. |
 | `secrets.py` | `SecretBox`: Fernet keyed from `WINTEHR_SETTINGS_KEY` (any passphrase, SHA-256 → key). No key → secrets refuse to save (409), plain settings unaffected. |
@@ -76,7 +76,10 @@ module's deltas are here.
 - **The sidecar is the control plane; the backend never gets the socket.**
   Anything that needs Docker or the host goes through `control-plane/app.py`
   and its env allow-lists. Add an endpoint there only if it takes no
-  free-form input (no command, path, or image from the request).
+  free-form input (no command, path, or image from the request). The one
+  write to the host, update-apply, takes a 40-hex commit that must equal
+  `origin/<branch>` and runs in a helper container (`control-plane/update.sh`)
+  because the sidecar's repo mount is read-only.
 - **Overall roll-up**: `fhir` down → `down`; any other `down`/`degraded` or a
   failed router → `degraded`; else `ok`.
 

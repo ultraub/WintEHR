@@ -3,6 +3,8 @@ and unreachable behaviour, audit on restart."""
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -101,3 +103,45 @@ def test_route_gates():
             gates[(next(iter(route.methods)), route.path)] = "system" if require_system in deps else "admin" if require_admin in deps else None
     assert gates[("POST", "/api/command-center/control/containers/{name}/restart")] == "system"
     assert all(v == "admin" for k, v in gates.items() if k[0] == "GET")
+
+
+@pytest.mark.asyncio
+async def test_update_preview_apply_and_status_proxy_and_audit(monkeypatch):
+    from api.command_center.router import UpdateApplyRequest, apply_update, get_update_preview, get_update_status
+
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path, request.content))
+        if request.url.path == "/update/preview":
+            return httpx.Response(200, json={"branch": "master", "commits": [{"sha": "b" * 40}], "can_apply": True, "blockers": [], "remote": "b" * 40})
+        if request.url.path == "/update/apply":
+            return httpx.Response(202, json={"accepted": True, "updater": "id-emr-updater", "from": "a" * 40, "to": "b" * 40,
+                                             "services": ["backend-prod"], "profile": "prod"})
+        if request.url.path == "/update/status":
+            return httpx.Response(200, json={"present": True, "running": True, "lines": ["STEP 1/4: fetch"]})
+        return httpx.Response(404, json={"detail": "nope"})
+
+    client = ControlPlaneClient(base_url="http://sidecar", token="tok", transport=httpx.MockTransport(handler))
+    audited = []
+
+    class FakeAudit:
+        async def log_event(self, **kw):
+            audited.append(kw)
+
+    import api.services.audit_event_service as aes
+    monkeypatch.setattr(aes, "AuditEventService", lambda: FakeAudit())
+
+    preview = await get_update_preview(_user=_User(), cp=client)
+    assert preview["can_apply"] is True
+    result = await apply_update(UpdateApplyRequest(commit="b" * 40), user=_User(), cp=client)
+    assert result["accepted"] is True
+    assert calls[-1][0] == "POST" and json.loads(calls[-1][2]) == {"commit": "b" * 40}
+    assert audited[0]["event_type"] == "system.control.update" and audited[0]["details"]["to"] == "b" * 40
+    assert audited[0]["details"]["from"] == "a" * 40 and audited[0]["details"]["services"] == ["backend-prod"]
+    status = await get_update_status(_user=_User(), cp=client)
+    assert status["running"] is True
+    # the commit is validated before anything reaches the sidecar
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        UpdateApplyRequest(commit="main")
