@@ -63,6 +63,166 @@ class AuditEventType:
     SMART_APP_SECRET_ROTATED = "smart.app.secret_rotated"
 
 
+def _target_of(details: Dict[str, Any], fallback: str) -> str:
+    """A readable target for a details-only event: the setting key, container,
+    job kind, app or username the details name, else the event type."""
+    for key in ("key", "container", "kind", "job_id", "client_id", "app", "service", "username", "role"):
+        value = details.get(key)
+        if isinstance(value, (str, int)) and str(value):
+            return str(value)
+    return fallback
+
+
+def build_audit_event(
+    mapper: "AuditEventService",
+    event_type: str,
+    user_id: Optional[str] = None,
+    patient_id: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    resource_id: Optional[str] = None,
+    action: Optional[str] = None,
+    outcome: str = "success",
+    details: Optional[Dict[str, Any]] = None,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+) -> Dict[str, Any]:
+    """The FHIR AuditEvent resource log_event posts. Pure, so the shape is testable
+    and the Command Center's reader (api/command_center/audit.py) can rely on it."""
+    self = mapper
+    # Build FHIR AuditEvent resource
+    audit_event = {
+        "resourceType": "AuditEvent",
+        "type": self._map_event_type(event_type),
+        "action": self._map_action(action or "read"),
+        "recorded": datetime.utcnow().isoformat() + "Z",
+        "outcome": self._map_outcome(outcome),
+        "outcomeDesc": outcome,
+        "agent": []
+    }
+
+    # Add subtype for more specific event classification
+    audit_event["subtype"] = [{
+        "system": ExtensionURLs.AUDIT_EVENT_SUBTYPE_SYSTEM,
+        "code": event_type,
+        "display": event_type.replace('.', ' ').replace('_', ' ').title()
+    }]
+
+    # Add user agent
+    if user_id:
+        # Use display instead of reference to avoid validation errors
+        # when the Practitioner doesn't exist yet
+        agent = {
+            "type": {
+                "coding": [{
+                    "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
+                    "code": "AUT",
+                    "display": "Author"
+                }]
+            },
+            "who": {"display": user_id},  # Use display to avoid reference validation
+            "requestor": True
+        }
+
+        # Add network info if available
+        if ip_address:
+            agent["network"] = {
+                "address": ip_address,
+                "type": "2"  # IP Address
+            }
+
+        audit_event["agent"].append(agent)
+
+    # If no user, add system agent (a failed login has no user yet, but its
+    # source address still matters: keep the network on this agent too)
+    if not user_id:
+        system_agent = {
+            "type": {
+                "coding": [{
+                    "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
+                    "code": "CST",
+                    "display": "Custodian"
+                }]
+            },
+            "who": {
+                "display": "WintEHR System"
+            },
+            "requestor": False
+        }
+        if ip_address:
+            system_agent["network"] = {"address": ip_address, "type": "2"}
+        audit_event["agent"].append(system_agent)
+
+    # Add entities
+    audit_event["entity"] = []
+
+    # Add patient entity if provided
+    if patient_id:
+        # Use display to avoid reference validation when patient doesn't exist
+        patient_ref = {"display": patient_id}
+        # If patient_id looks like it includes "Patient/", use as reference
+        if patient_id.startswith("Patient/"):
+            patient_ref = {"display": patient_id}
+        audit_event["entity"].append({
+            "what": patient_ref,
+            "type": {
+                "system": "http://terminology.hl7.org/CodeSystem/audit-entity-type",
+                "code": "1",
+                "display": "Person"
+            },
+            "role": {
+                "system": "http://terminology.hl7.org/CodeSystem/object-role",
+                "code": "1",
+                "display": "Patient"
+            }
+        })
+
+    # Add resource entity if provided
+    if resource_type and resource_id:
+        # Use display to avoid HAPI validation when resource doesn't exist
+        resource_ref = {"display": f"{resource_type}/{resource_id}"}
+        entity = {
+            "what": resource_ref,
+            "type": {
+                "system": "http://terminology.hl7.org/CodeSystem/audit-entity-type",
+                "code": "2",
+                "display": "System Object"
+            }
+        }
+
+        # Add details if provided
+        if details:
+            entity["detail"] = [{
+                "type": "Custom",
+                "valueString": json.dumps(details)
+            }]
+
+        # Add user agent as detail
+        if user_agent:
+            if "detail" not in entity:
+                entity["detail"] = []
+            entity["detail"].append({
+                "type": "User-Agent",
+                "valueString": user_agent
+            })
+
+        audit_event["entity"].append(entity)
+
+    # Details with no resource entity (settings, jobs, restarts, failed logins)
+    # used to be dropped on the floor. Keep them on a generic entity so the
+    # Audit tab can show what changed; `what.display` is the readable target.
+    if details and not (resource_type and resource_id):
+        audit_event["entity"].append({
+            "what": {"display": _target_of(details, resource_type or event_type)},
+            "type": {
+                "system": "http://terminology.hl7.org/CodeSystem/audit-entity-type",
+                "code": "2",
+                "display": "System Object"
+            },
+            "detail": [{"type": "Custom", "valueString": json.dumps(details)}]
+        })
+    return audit_event
+
+
 class AuditEventService:
     """Service for logging audit events as FHIR AuditEvent resources in HAPI FHIR"""
 
@@ -175,119 +335,11 @@ class AuditEventService:
             ID of the created AuditEvent resource or None on error
         """
         try:
-            # Build FHIR AuditEvent resource
-            audit_event = {
-                "resourceType": "AuditEvent",
-                "type": self._map_event_type(event_type),
-                "action": self._map_action(action or "read"),
-                "recorded": datetime.utcnow().isoformat() + "Z",
-                "outcome": self._map_outcome(outcome),
-                "outcomeDesc": outcome,
-                "agent": []
-            }
-
-            # Add subtype for more specific event classification
-            audit_event["subtype"] = [{
-                "system": ExtensionURLs.AUDIT_EVENT_SUBTYPE_SYSTEM,
-                "code": event_type,
-                "display": event_type.replace('.', ' ').replace('_', ' ').title()
-            }]
-
-            # Add user agent
-            if user_id:
-                # Use display instead of reference to avoid validation errors
-                # when the Practitioner doesn't exist yet
-                agent = {
-                    "type": {
-                        "coding": [{
-                            "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
-                            "code": "AUT",
-                            "display": "Author"
-                        }]
-                    },
-                    "who": {"display": user_id},  # Use display to avoid reference validation
-                    "requestor": True
-                }
-
-                # Add network info if available
-                if ip_address:
-                    agent["network"] = {
-                        "address": ip_address,
-                        "type": "2"  # IP Address
-                    }
-
-                audit_event["agent"].append(agent)
-
-            # If no user, add system agent
-            if not user_id:
-                audit_event["agent"].append({
-                    "type": {
-                        "coding": [{
-                            "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
-                            "code": "CST",
-                            "display": "Custodian"
-                        }]
-                    },
-                    "who": {
-                        "display": "WintEHR System"
-                    },
-                    "requestor": False
-                })
-
-            # Add entities
-            audit_event["entity"] = []
-
-            # Add patient entity if provided
-            if patient_id:
-                # Use display to avoid reference validation when patient doesn't exist
-                patient_ref = {"display": patient_id}
-                # If patient_id looks like it includes "Patient/", use as reference
-                if patient_id.startswith("Patient/"):
-                    patient_ref = {"display": patient_id}
-                audit_event["entity"].append({
-                    "what": patient_ref,
-                    "type": {
-                        "system": "http://terminology.hl7.org/CodeSystem/audit-entity-type",
-                        "code": "1",
-                        "display": "Person"
-                    },
-                    "role": {
-                        "system": "http://terminology.hl7.org/CodeSystem/object-role",
-                        "code": "1",
-                        "display": "Patient"
-                    }
-                })
-
-            # Add resource entity if provided
-            if resource_type and resource_id:
-                # Use display to avoid HAPI validation when resource doesn't exist
-                resource_ref = {"display": f"{resource_type}/{resource_id}"}
-                entity = {
-                    "what": resource_ref,
-                    "type": {
-                        "system": "http://terminology.hl7.org/CodeSystem/audit-entity-type",
-                        "code": "2",
-                        "display": "System Object"
-                    }
-                }
-
-                # Add details if provided
-                if details:
-                    entity["detail"] = [{
-                        "type": "Custom",
-                        "valueString": json.dumps(details)
-                    }]
-
-                # Add user agent as detail
-                if user_agent:
-                    if "detail" not in entity:
-                        entity["detail"] = []
-                    entity["detail"].append({
-                        "type": "User-Agent",
-                        "valueString": user_agent
-                    })
-
-                audit_event["entity"].append(entity)
+            audit_event = build_audit_event(
+                self, event_type, user_id=user_id, patient_id=patient_id, resource_type=resource_type,
+                resource_id=resource_id, action=action, outcome=outcome, details=details,
+                ip_address=ip_address, user_agent=user_agent,
+            )
 
             # Create AuditEvent in HAPI FHIR
             async with httpx.AsyncClient() as client:

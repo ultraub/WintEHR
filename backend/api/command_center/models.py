@@ -218,3 +218,30 @@ class ModulesResponse(BaseModel):
     modules: List[ModuleView]
     disabled_backend: List[str]
     how_to: Dict[str, str]
+
+
+# --- audit trail (slice 12) --------------------------------------------------------------
+
+class AuditEventView(BaseModel):
+    """One FHIR AuditEvent flattened for the Audit tab (audit.py)."""
+
+    id: str
+    recorded: Optional[datetime] = None
+    event_type: str                      # subtype code, e.g. system.setting.updated
+    category: str                        # first segment of event_type
+    action: Optional[str] = None         # create / read / update / delete / execute
+    outcome: str = "success"
+    user: Optional[str] = None           # agent.who.display
+    ip: Optional[str] = None
+    patient: Optional[str] = None        # entity with the Patient role
+    entity: Optional[str] = None         # entity.what.display of the system object
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AuditResponse(BaseModel):
+    events: List[AuditEventView]
+    total: Optional[int] = None          # HAPI's count for the window before client-side filters
+    fetched: int                         # events read from HAPI before user / text filters
+    limit: int
+    truncated: bool                      # HAPI had more than `limit` in the window
+    event_types: List[str]               # distinct codes among the fetched events, for the picker

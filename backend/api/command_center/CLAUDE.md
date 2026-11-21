@@ -1,7 +1,8 @@
 # Command Center backend — module reference
 
-Admin console for a WintEHR deployment: status and settings today; jobs,
-tab policy, and module management in later slices. Module key
+Admin console for a WintEHR deployment: status with a readiness checklist,
+settings, jobs, tab policy, roles, apps, logs, audit trail, modules, and the
+control-plane sidecar. Module key
 `command-center` (frontend half: `frontend/src/modules/command-center/`).
 Plan and slice order: `docs/COMMAND_CENTER.md`.
 
@@ -14,13 +15,14 @@ module's deltas are here.
 
 | File | Role |
 |---|---|
-| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /ui-policy` (no auth); `GET /roles`; `GET /logs`, `GET /logs/export`; `GET /modules`; `GET /control`, `GET /control/containers/{name}/logs`, `POST /control/containers/{name}/restart` (system, audited), `GET /control/update-check`, `GET /control/config`, `GET /control/host`, `GET /control/certificates`; `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
+| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /ui-policy` (no auth); `GET /roles`; `GET /logs`, `GET /logs/export`; `GET /audit`; `GET /modules`; `GET /control`, `GET /control/containers/{name}/logs`, `POST /control/containers/{name}/restart` (system, audited), `GET /control/update-check`, `GET /control/config`, `GET /control/host`, `GET /control/certificates`; `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
 | `service.py` | `CommandCenterService.status()`: runs the probes concurrently under the live-tier probe timeout, rolls them up. `roll_up` is pure. |
 | `probes.py` | One `async` probe per deployment part: `fhir`, `database`, `redis`, `terminology`, `vna`, plus `host` (disk / memory / load) and `tls` (certificate expiry) through the sidecar, `absent` when it is not configured. Exceptions and timeouts become `down`, never a 500. |
 | `readiness.py` | `readiness_checks(components, env, umls_key_set)`: the Status tab's checklist (profile, example secrets, settings key, auth mode, patients, terminology, UMLS key, Redis, control plane, disk, HTTPS, VNA) with a fix per item. Pure; the example-secret lists mirror `deploy/secrets_policy.py` and a test keeps them equal. |
 | `settings_registry.py` | **Where a setting is defined**: key, type, default, tier, env var it shadows, `used_by`. Add a setting here, and only when something reads it. |
 | `settings_repository.py` | Overrides in `system.settings` (Postgres, DDL also in `postgres-init/11_system.sql`, created idempotently on first use) or in memory for tests. |
 | `settings_service.py` | Precedence database → env → default; secrets encrypted/decrypted; audit on every write; `get_setting(key)` for live-tier consumers (15 s per-process cache, env/default fallback if Postgres is down). |
+| `audit.py` | `AuditClient.read()`: FHIR `AuditEvent`s from HAPI newest first, flattened (`flatten`) for the Audit tab. Window and exact `subtype` filter in HAPI; user / category / text filter within the fetched page (the writer puts the user in `agent.who.display`, not a search param). `use_audit_client()` swaps it in tests. |
 | `logs.py` | Reads `backend.<pid>.log*` from `WINTEHR_LOG_DIR` (written by `backend/logging_setup.py`), merges workers by timestamp, attaches tracebacks to their record, filters by level / text / window; `export_logs` for the download. |
 | `module_settings.py` | Discovers `api/<pkg>/settings.py` → `SETTINGS` for every enabled module at router registration and adds them to the registry; refuses keys outside `module.<key>.`. `MODULE_SETTINGS` maps module → keys. |
 | `modules.py` | `module_inventory()`: per module key, routers, registered / failed / disabled, builtin or external, declared settings. |

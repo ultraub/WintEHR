@@ -18,11 +18,13 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from api.auth.models import User
 
+from .audit import LIMIT_DEFAULT as AUDIT_LIMIT_DEFAULT, AuditClient, default_audit_client
 from .jobs_service import JobsError, JobsService, default_jobs_service
 from .logs import LEVELS, export_logs, read_logs
 from .modules import module_inventory
 from .control_plane import ControlPlaneClient, default_control_plane
 from .models import (
+    AuditResponse,
     JobKindView,
     JobLogChunk,
     JobStartRequest,
@@ -309,6 +311,27 @@ async def get_modules(_user: User = Depends(require_admin)):
             "external": "List the module in wintehr.modules.json and run scripts/sync-modules.py, then rebuild (docs/MODULES.md).",
         },
     )
+
+
+# --- audit trail ---------------------------------------------------------------------------
+
+
+@router.get("/audit", response_model=AuditResponse)
+async def get_audit(
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    event_type: Optional[str] = None,
+    category: Optional[str] = None,
+    user: Optional[str] = None,
+    q: Optional[str] = None,
+    limit: int = AUDIT_LIMIT_DEFAULT,
+    _user: User = Depends(require_admin),
+    audit: AuditClient = Depends(default_audit_client),
+):
+    """FHIR AuditEvents newest first: who changed what, logins, restarts. Window and
+    event type filter in HAPI; user / category / text filter within the fetched page."""
+    return await audit.read(since=_parse_when(since, "since"), until=_parse_when(until, "until"),
+                            event_type=event_type, category=category, user=user, query=q, limit=limit)
 
 
 # --- control plane (sidecar) -------------------------------------------------------------
