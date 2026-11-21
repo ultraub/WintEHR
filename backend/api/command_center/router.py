@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from pydantic import BaseModel, Field
 
 from api.auth.models import User
 
@@ -415,6 +416,40 @@ async def restart_container(name: str, user: User = Depends(require_system), cp:
 @router.get("/control/update-check")
 async def get_update_check(_user: User = Depends(require_admin), cp: ControlPlaneClient = Depends(default_control_plane)):
     return await cp.get("/update-check")
+
+
+@router.get("/control/update/preview")
+async def get_update_preview(_user: User = Depends(require_admin), cp: ControlPlaneClient = Depends(default_control_plane)):
+    """Fetch origin (in the sidecar's helper) and list the commits / files / areas an update would bring.
+    `can_apply` and `blockers` say whether the fast-forward is possible."""
+    return await cp.get("/update/preview", timeout=120.0)
+
+
+class UpdateApplyRequest(BaseModel):
+    commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+
+
+@router.post("/control/update/apply", status_code=202)
+async def apply_update(body: UpdateApplyRequest, user: User = Depends(require_system), cp: ControlPlaneClient = Depends(default_control_plane)):
+    """Start the update helper: fast-forward the host checkout to `commit` (which must be origin's tip
+    at that moment) and rebuild + recreate the configured services. Images only. Audited."""
+    result = await cp.post("/update/apply", json={"commit": body.commit})
+    try:
+        from api.services.audit_event_service import AuditEventService
+
+        await AuditEventService().log_event(event_type="system.control.update", user_id=getattr(user, "id", None),
+                                            action="execute", outcome="success",
+                                            details={"from": result.get("from"), "to": result.get("to"), "services": result.get("services"),
+                                                     "profile": result.get("profile")})
+    except Exception as exc:  # noqa: BLE001 — audit must never block an admin action
+        logger.warning("Audit of update apply failed: %s", exc)
+    return result
+
+
+@router.get("/control/update/status")
+async def get_update_status(_user: User = Depends(require_admin), cp: ControlPlaneClient = Depends(default_control_plane)):
+    """State and log tail of the update helper (survives the backend's own recreation: it is a separate container)."""
+    return await cp.get("/update/status")
 
 
 @router.get("/control/config")

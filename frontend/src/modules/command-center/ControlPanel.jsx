@@ -1,9 +1,9 @@
 /**
  * ControlPanel — the control-plane sidecar's view of the deployment (slice 10):
  * container state, docker logs of any allow-listed container, restarts of the
- * restartable ones (system permission, confirmed, audited), an update check
- * against origin, and a read-only view of the rendered nginx config, the
- * compose file, and the .env variable NAMES. Everything goes through
+ * restartable ones (system permission, confirmed, audited), updates (check,
+ * preview, confirmed apply: UpdatePanel), and a read-only view of the rendered
+ * nginx config, the compose file, and the .env variable NAMES. Everything goes through
  * /api/command-center/control/...; the sidecar never faces the browser.
  */
 
@@ -36,6 +36,7 @@ import {
   Typography,
 } from '@mui/material';
 import { api, useAuth } from '../sdk';
+import UpdatePanel from './UpdatePanel';
 
 const detailOf = (err, fallback) => err?.response?.data?.detail || err?.message || fallback;
 const STATE_COLOR = { running: 'success', exited: 'error', restarting: 'warning', paused: 'warning', absent: 'default' };
@@ -56,8 +57,6 @@ const ControlPanel = ({ pollMs = 5000 }) => {
   const [logsError, setLogsError] = useState(null);
   const [pendingRestart, setPendingRestart] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [update, setUpdate] = useState(null);
-  const [checking, setChecking] = useState(false);
   const [config, setConfig] = useState(null);
 
   const loadControl = useCallback(async () => {
@@ -105,18 +104,6 @@ const ControlPanel = ({ pollMs = 5000 }) => {
       setTimeout(() => loadControl().catch(() => {}), 4000);
     } catch (err) {
       setError(detailOf(err, `Restart of ${name} failed`));
-    }
-  };
-
-  const checkUpdates = async () => {
-    setChecking(true);
-    try {
-      const response = await api.get('/api/command-center/control/update-check');
-      setUpdate(response.data);
-    } catch (err) {
-      setUpdate({ error: detailOf(err, 'Update check failed') });
-    } finally {
-      setChecking(false);
     }
   };
 
@@ -208,26 +195,7 @@ const ControlPanel = ({ pollMs = 5000 }) => {
       )}
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2 }}>
-        <Paper variant="outlined" sx={{ borderRadius: 1, p: 1.5, flex: 1 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="subtitle1">Updates</Typography>
-            <Button size="small" variant="outlined" onClick={checkUpdates} disabled={checking}>{checking ? 'Checking…' : 'Check for updates'}</Button>
-          </Stack>
-          {update && (
-            <Box sx={{ mt: 1 }} data-testid="update-result">
-              {update.error && <Alert severity="warning" sx={{ mb: 1 }}>{update.error}</Alert>}
-              {update.branch && (
-                <Typography variant="body2">
-                  Branch <code>{update.branch}</code> at <code>{(update.local || '').slice(0, 10)}</code>
-                  {update.local_subject ? ` — ${update.local_subject}` : ''}
-                </Typography>
-              )}
-              {update.update_available === true && <Alert severity="info" sx={{ mt: 1 }}>Update available: origin is at <code>{(update.remote || '').slice(0, 10)}</code>. Pull and rebuild on the host (see docs/DEPLOYMENT.md); the sidecar does not deploy.</Alert>}
-              {update.update_available === false && <Alert severity="success" sx={{ mt: 1 }}>Up to date with origin.</Alert>}
-            </Box>
-          )}
-          {!update && <Typography variant="caption" color="text.secondary">Compares the checkout on the host with <code>origin</code> (read-only, no fetch).</Typography>}
-        </Paper>
+        <UpdatePanel canAct={canAct} />
       </Stack>
 
       <Accordion variant="outlined" onChange={(_e, expanded) => expanded && loadConfig()} sx={{ borderRadius: 1 }}>

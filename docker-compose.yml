@@ -500,7 +500,7 @@ services:
 
   # Control-plane sidecar: the ONLY container with the Docker socket. Serves an
   # allow-listed API (container state, logs, restarts of named containers,
-  # update check, read-only config view) on the compose network, token-gated
+  # update check / confirmed update-apply, read-only config view) on the compose network, token-gated
   # with CONTROL_PLANE_TOKEN. The backend proxies it under
   # /api/command-center/control/... (Command Center → Control tab). Never
   # publish its port. Empty token = it refuses every request.
@@ -514,6 +514,11 @@ services:
       - CONTROL_PLANE_TOKEN=${CONTROL_PLANE_TOKEN:-}
       - CONTROL_PLANE_CONTAINERS=${CONTROL_PLANE_CONTAINERS:-emr-backend,emr-frontend,emr-nginx,emr-hapi-fhir,emr-postgres,emr-redis,emr-certbot,vna-arc,vna-db,vna-ldap}
       - CONTROL_PLANE_RESTARTABLE=${CONTROL_PLANE_RESTARTABLE:-emr-backend,emr-frontend,emr-nginx,emr-hapi-fhir,emr-redis,emr-certbot}
+      # Confirmed update-apply (Command Center → Control → Updates): which
+      # compose profile and services the update helper rebuilds. Images only;
+      # nginx config and .env are never touched.
+      - CONTROL_PLANE_COMPOSE_PROFILE=${CONTROL_PLANE_COMPOSE_PROFILE:-prod}
+      - CONTROL_PLANE_UPDATE_SERVICES=${CONTROL_PLANE_UPDATE_SERVICES:-backend-prod,frontend-prod,control-plane}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/repo:ro

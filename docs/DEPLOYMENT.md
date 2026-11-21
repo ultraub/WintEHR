@@ -597,6 +597,23 @@ in `deploy/nginx-prod.conf.template` and point `$backend` at it (then re-run
 
 ---
 
+### Updating a running deployment from the Command Center
+
+Command Center → Control → Updates. **Check** compares the host checkout with
+`origin` (no fetch). **Preview** fetches and lists the commits, files by area
+and whether a fast-forward is possible. **Apply** (`system` permission,
+confirmed) fast-forwards the host checkout to the previewed commit, runs
+`docker compose build` and `up -d --no-deps` for the services in
+`CONTROL_PLANE_UPDATE_SERVICES` (default `backend-prod,frontend-prod,control-plane`)
+under `CONTROL_PLANE_COMPOSE_PROFILE` (default `prod`), and recreates them.
+
+What it does **not** do: re-render nginx, touch `.env`, rebuild the HAPI
+overlay image, or run data loads. For those run `deploy.sh` on the host as
+below. The update runs in a helper container (`control-plane/update.sh`)
+as the repo owner, so the checkout stays usable from the shell afterwards.
+There is no automatic rollback: the previous commit is in the audit trail
+(`system.control.update`); to go back, check it out on the host and rebuild.
+
 ## Support
 
 For deployment issues:

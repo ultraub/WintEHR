@@ -33,12 +33,13 @@ class ControlPlaneClient:
         return httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout, transport=self._transport,
                                  headers={"Authorization": f"Bearer {self.token}"})
 
-    async def request(self, method: str, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    async def request(self, method: str, path: str, params: Optional[Dict[str, Any]] = None,
+                      json: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None) -> Any:
         if not self.configured:
             raise HTTPException(status_code=503, detail="Control plane is not configured: set CONTROL_PLANE_URL and CONTROL_PLANE_TOKEN and start the control-plane service")
         try:
             async with self._client() as client:
-                resp = await client.request(method, path, params=params)
+                resp = await client.request(method, path, params=params, json=json, timeout=timeout if timeout is not None else self.timeout)
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=503, detail=f"Control plane sidecar unreachable: {exc.__class__.__name__}") from exc
         if resp.status_code >= 400:
@@ -49,11 +50,11 @@ class ControlPlaneClient:
             raise HTTPException(status_code=resp.status_code, detail=f"Control plane: {detail}")
         return resp.json() if resp.content else None
 
-    async def get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
-        return await self.request("GET", path, params)
+    async def get(self, path: str, params: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None) -> Any:
+        return await self.request("GET", path, params, timeout=timeout)
 
-    async def post(self, path: str) -> Any:
-        return await self.request("POST", path)
+    async def post(self, path: str, json: Optional[Dict[str, Any]] = None) -> Any:
+        return await self.request("POST", path, json=json)
 
 
 _default_client: Optional[ControlPlaneClient] = None
