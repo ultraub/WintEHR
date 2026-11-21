@@ -1,10 +1,11 @@
 /**
  * CommandCenterPage — deployment status dashboard (module 'command-center').
  *
- * Slice 1 of docs/COMMAND_CENTER.md: read-only. Reads one endpoint,
- * GET /api/command-center/status, and shows every probed component, the
- * router registration state, and FHIR resource counts. Later slices add
- * tabs beside this one (settings, jobs, tab policy, modules).
+ * The Status tab (docs/COMMAND_CENTER.md slices 1 and 11): reads
+ * GET /api/command-center/status and shows the readiness checklist, every
+ * probed component (incl. host and certificate via the sidecar), the router
+ * registration state, and FHIR resource counts. The other tabs are the
+ * sibling *Panel components.
  *
  * All four states are handled: loading, error, empty (not admin), success.
  */
@@ -17,6 +18,10 @@ import {
   Chip,
   CircularProgress,
   Grid,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
   Paper,
   Stack,
   Tab,
@@ -28,6 +33,12 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
+import {
+  CheckCircle as OkIcon,
+  Error as FailIcon,
+  Info as InfoIcon,
+  Warning as WarnIcon,
+} from '@mui/icons-material';
 import { api, useAuth } from '../sdk';
 import JobsPanel from './JobsPanel';
 import SettingsPanel from './SettingsPanel';
@@ -51,6 +62,15 @@ const COMPONENT_LABEL = {
   redis: 'Redis',
   terminology: 'Terminology index',
   vna: 'Imaging VNA',
+  host: 'Host',
+  tls: 'HTTPS certificate',
+};
+
+const READINESS_ICON = {
+  ok: <OkIcon color="success" fontSize="small" />,
+  info: <InfoIcon color="info" fontSize="small" />,
+  warn: <WarnIcon color="warning" fontSize="small" />,
+  fail: <FailIcon color="error" fontSize="small" />,
 };
 
 const StatusChip = ({ status }) => (
@@ -67,7 +87,7 @@ const ComponentCard = ({ component }) => {
   const { name, status, detail, data } = component;
   const facts = Object.entries(data || {}).filter(
     ([key, value]) =>
-      ['string', 'number', 'boolean'].includes(typeof value) && key !== 'path' && key !== 'url',
+      ['string', 'number', 'boolean'].includes(typeof value) && value !== '' && key !== 'url' && !key.endsWith('path'),
   );
   return (
     <Paper variant="outlined" sx={{ p: 2, height: '100%', borderRadius: 1 }}>
@@ -87,6 +107,51 @@ const ComponentCard = ({ component }) => {
           {key.replace(/_/g, ' ')}: <strong>{String(value)}</strong>
         </Typography>
       ))}
+    </Paper>
+  );
+};
+
+/**
+ * The readiness checklist: what a class would trip over, with the fix. Items
+ * the backend marks `skip` (not applicable to this profile) are not shown.
+ */
+const ReadinessCard = ({ items }) => {
+  const visible = (items || []).filter((i) => i.status !== 'skip');
+  const fails = visible.filter((i) => i.status === 'fail').length;
+  const warns = visible.filter((i) => i.status === 'warn').length;
+  const summary = fails ? { label: `${fails} to fix`, color: 'error' } : warns ? { label: `${warns} to review`, color: 'warning' } : { label: 'Ready', color: 'success' };
+  return (
+    <Paper variant="outlined" sx={{ p: 2, borderRadius: 1 }} data-testid="readiness">
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+        <Typography variant="subtitle1" fontWeight={600}>
+          Readiness
+        </Typography>
+        <Chip size="small" label={summary.label} color={summary.color} sx={{ fontWeight: 600, borderRadius: 1 }} />
+      </Stack>
+      <Grid container columnSpacing={2}>
+        {visible.map((item) => (
+          <Grid item xs={12} md={6} key={item.id}>
+            <List dense disablePadding>
+              <ListItem disableGutters alignItems="flex-start" sx={{ py: 0.25 }}>
+                <ListItemIcon sx={{ minWidth: 28, mt: 0.5 }}>{READINESS_ICON[item.status] || READINESS_ICON.info}</ListItemIcon>
+                <ListItemText
+                  primary={
+                    <>
+                      <strong>{item.label}</strong>
+                      <Typography component="span" variant="body2" color="text.secondary">
+                        {' '}— {item.detail}
+                      </Typography>
+                    </>
+                  }
+                  secondary={item.fix && item.status !== 'ok' ? `Fix: ${item.fix}` : null}
+                  primaryTypographyProps={{ variant: 'body2' }}
+                  secondaryTypographyProps={{ variant: 'caption' }}
+                />
+              </ListItem>
+            </List>
+          </Grid>
+        ))}
+      </Grid>
     </Paper>
   );
 };
@@ -260,6 +325,11 @@ const CommandCenterPage = () => {
 
       {tab === 'status' && report && (
         <Grid container spacing={2}>
+          {report.readiness?.length > 0 && (
+            <Grid item xs={12}>
+              <ReadinessCard items={report.readiness} />
+            </Grid>
+          )}
           <Grid item xs={12} md={6} lg={4}>
             <RoutersCard routers={report.routers} />
           </Grid>

@@ -5,14 +5,16 @@ allow-listed API on the compose network only, authenticated with a shared
 token, and the backend proxies it under /api/command-center/control/....
 
 Why a sidecar: mounting the socket into the backend would make a demo-auth
-web app root on the host. This process does exactly five things and
-nothing an attacker could extend into a shell:
+web app root on the host. This process does a handful of read-only things plus one
+restart, and nothing an attacker could extend into a shell:
 
   GET  /containers                     state of the allow-listed containers
   GET  /containers/{name}/logs         docker logs tail of one of them
   POST /containers/{name}/restart      restart one of the restartable ones
   GET  /update-check                   local HEAD vs origin (git ls-remote; never writes)
   GET  /config                         rendered nginx.conf, docker-compose.yml, .env KEY NAMES only
+  GET  /host                           disk free on the repo's filesystem, memory, load (+ docker df on request)
+  GET  /certificates                   expiry / issuer of every cert under certbot/conf/live (openssl x509)
 
 Container names come from CONTROL_PLANE_CONTAINERS / CONTROL_PLANE_RESTARTABLE,
 not from the request. Nothing here takes a free-form command, path, or
@@ -26,6 +28,7 @@ import hmac
 import logging
 import os
 import re
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -233,3 +236,115 @@ def config_view() -> Dict[str, Any]:
 @app.get("/config", dependencies=[Depends(require_token)])
 async def get_config() -> Dict[str, Any]:
     return await asyncio.to_thread(config_view)
+
+
+# --- host and certificates, read-only --------------------------------------------------------
+
+
+def _meminfo() -> Dict[str, int]:
+    """MemTotal / MemAvailable in bytes from /proc/meminfo (host-wide: not namespaced)."""
+    out: Dict[str, int] = {}
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            key, _, rest = line.partition(":")
+            if key in ("MemTotal", "MemAvailable"):
+                out[key] = int(rest.split()[0]) * 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return out
+
+
+def host_view() -> Dict[str, Any]:
+    """Disk is measured on the repo bind mount: that is where data/, logs/, the
+    DICOM store and the terminology work dir live, i.e. the disk that fills up."""
+    target = REPO if REPO.exists() else Path("/")
+    usage = shutil.disk_usage(target)
+    mem = _meminfo()
+    try:
+        load = list(os.getloadavg())
+    except OSError:
+        load = []
+    return {
+        "disk": {"path": str(target), "total": usage.total, "used": usage.used, "free": usage.free},
+        "memory": {"total": mem.get("MemTotal"), "available": mem.get("MemAvailable")},
+        "load": load,
+        "cpus": os.cpu_count(),
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+async def docker_df() -> Dict[str, Any]:
+    """Image / container / volume / build-cache bytes from the engine. Can take
+    seconds on a busy host, so it is opt-in (`?df=1`), not part of the status probe."""
+    async with docker_client() as client:
+        resp = await client.get("/system/df", timeout=60.0)
+    resp.raise_for_status()
+    body = resp.json()
+    images = sum(int(i.get("Size") or 0) for i in body.get("Images") or [])
+    containers = sum(int(c.get("SizeRw") or 0) for c in body.get("Containers") or [])
+    volumes = sum(int(((v.get("UsageData") or {}).get("Size") or 0)) for v in body.get("Volumes") or [])
+    cache = sum(int(b.get("Size") or 0) for b in body.get("BuildCache") or [])
+    return {"images": images, "containers": containers, "volumes": volumes, "build_cache": cache}
+
+
+@app.get("/host", dependencies=[Depends(require_token)])
+async def get_host(df: bool = Query(False)) -> Dict[str, Any]:
+    body = await asyncio.to_thread(host_view)
+    if df:
+        try:
+            body["docker"] = await docker_df()
+        except Exception as exc:  # noqa: BLE001
+            body["docker"] = {"error": f"{type(exc).__name__}: {exc}"}
+    return body
+
+
+_X509_DATE = "%b %d %H:%M:%S %Y %Z"
+
+
+def cert_info(domain: str, pem: Path) -> Dict[str, Any]:
+    """What `openssl x509` says about one fullchain.pem; never the key, never the body."""
+    info: Dict[str, Any] = {"domain": domain, "path": str(pem), "subject": None, "issuer": None,
+                            "not_before": None, "not_after": None, "days_left": None, "self_signed": None, "error": None}
+    try:
+        result = subprocess.run(
+            ["openssl", "x509", "-noout", "-subject", "-issuer", "-startdate", "-enddate", "-in", str(pem)],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        info["error"] = f"openssl: {exc}"
+        return info
+    if result.returncode != 0:
+        info["error"] = (result.stderr or result.stdout).strip().splitlines()[-1:] or ["openssl x509 failed"]
+        info["error"] = info["error"][0]
+        return info
+    fields = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
+    info["subject"] = (fields.get("subject") or "").strip()
+    info["issuer"] = (fields.get("issuer") or "").strip()
+    info["self_signed"] = bool(info["subject"]) and info["subject"] == info["issuer"]
+    now = datetime.now(timezone.utc)
+    for key, field in (("not_before", "notBefore"), ("not_after", "notAfter")):
+        raw = (fields.get(field) or "").strip()
+        try:
+            when = datetime.strptime(raw, _X509_DATE).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        info[key] = when.isoformat()
+        if key == "not_after":
+            info["days_left"] = (when - now).total_seconds() / 86400
+    return info
+
+
+def certificates_view() -> Dict[str, Any]:
+    live = REPO / "certbot" / "conf" / "live"
+    certs: List[Dict[str, Any]] = []
+    if live.is_dir():
+        for entry in sorted(live.iterdir()):
+            pem = entry / "fullchain.pem"
+            if entry.is_dir() and pem.is_file():
+                certs.append(cert_info(entry.name, pem))
+    return {"certificates": certs, "path": "certbot/conf/live", "checked_at": datetime.now(timezone.utc).isoformat()}
+
+
+@app.get("/certificates", dependencies=[Depends(require_token)])
+async def get_certificates() -> Dict[str, Any]:
+    return await asyncio.to_thread(certificates_view)

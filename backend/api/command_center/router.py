@@ -359,3 +359,15 @@ async def get_update_check(_user: User = Depends(require_admin), cp: ControlPlan
 async def get_control_config(_user: User = Depends(require_admin), cp: ControlPlaneClient = Depends(default_control_plane)):
     """Rendered nginx.conf, docker-compose.yml, and .env variable NAMES (never values)."""
     return await cp.get("/config")
+
+
+@router.get("/control/host")
+async def get_control_host(df: bool = False, _user: User = Depends(require_admin), cp: ControlPlaneClient = Depends(default_control_plane)):
+    """Disk / memory / load from the sidecar; `df=true` adds docker image / volume / cache bytes (slow)."""
+    return await cp.get("/host", {"df": "1"} if df else None)
+
+
+@router.get("/control/certificates")
+async def get_control_certificates(_user: User = Depends(require_admin), cp: ControlPlaneClient = Depends(default_control_plane)):
+    """Expiry / issuer of every certificate under certbot/conf/live (never the keys)."""
+    return await cp.get("/certificates")

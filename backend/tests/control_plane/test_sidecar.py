@@ -1,5 +1,6 @@
 """The control-plane sidecar (control-plane/app.py): token gate, allow-list,
-log demux, update check, config view that never leaks .env values."""
+log demux, update check, config view that never leaks .env values, host
+metrics, certificate inspection (never the key)."""
 
 from __future__ import annotations
 
@@ -153,3 +154,34 @@ def test_config_view_exposes_env_names_never_values(sidecar):
     assert "hunter2" not in json.dumps(view) and "sekrit" not in json.dumps(view)
     (repo / "deploy" / "rendered" / "nginx.conf").unlink()
     assert module.config_view()["nginx"] is None
+
+
+def test_host_view_reports_the_repo_disk_memory_and_load(sidecar):
+    module, repo = sidecar
+    body = module.host_view()
+    assert body["disk"]["path"] == str(repo) and body["disk"]["total"] > 0 and body["disk"]["free"] >= 0
+    assert body["disk"]["total"] >= body["disk"]["free"]
+    assert isinstance(body["load"], list) and body["cpus"] >= 1
+    assert "total" in body["memory"] and "available" in body["memory"]  # None off Linux; bytes on Linux
+
+
+def test_certificates_view_reads_expiry_and_spots_self_signed(sidecar):
+    import shutil, subprocess
+    module, repo = sidecar
+    assert module.certificates_view()["certificates"] == []
+    if not shutil.which("openssl"):
+        pytest.skip("openssl CLI not available")
+    live = repo / "certbot" / "conf" / "live" / "example.test"
+    live.mkdir(parents=True)
+    (repo / "certbot" / "conf" / "live" / "README").write_text("certbot drops a README here too")
+    subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=example.test", "-days", "20",
+                    "-keyout", str(live / "privkey.pem"), "-out", str(live / "fullchain.pem")], check=True, capture_output=True)
+    certs = module.certificates_view()["certificates"]
+    assert [c["domain"] for c in certs] == ["example.test"]
+    c = certs[0]
+    assert c["self_signed"] is True and c["error"] is None
+    assert 18 < c["days_left"] < 21 and c["not_after"].endswith("+00:00")
+    assert "example.test" in c["subject"]
+    assert "PRIVATE" not in json.dumps(c)
+    (live / "fullchain.pem").write_text("not a cert")
+    assert module.certificates_view()["certificates"][0]["error"]
