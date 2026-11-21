@@ -245,3 +245,48 @@ class AuditResponse(BaseModel):
     limit: int
     truncated: bool                      # HAPI had more than `limit` in the window
     event_types: List[str]               # distinct codes among the fetched events, for the picker
+
+
+# --- configuration export / import (slice 13) ------------------------------------------------
+
+class ConfigDocument(BaseModel):
+    """The portable configuration file (config_transfer.py): every override, no secret values."""
+
+    wintehr_config: int
+    exported_at: datetime
+    exported_by: Optional[str] = None
+    source: BuildInfo
+    settings: Dict[str, Any] = Field(default_factory=dict)   # key → value, database-sourced non-secrets only
+    secrets_set: List[str] = Field(default_factory=list)      # keys of secrets that were set; values never exported
+
+
+class ConfigImportRequest(BaseModel):
+    document: Dict[str, Any]
+    replace: bool = False   # also reset overrides the file does not mention
+    apply: bool = False     # false = preview only
+
+
+ImportAction = Literal["set", "reset", "unchanged", "skip"]
+
+
+class ConfigImportItem(BaseModel):
+    key: str
+    action: ImportAction
+    current: Any = None
+    incoming: Any = None
+    tier: Optional[str] = None
+    current_source: Optional[str] = None
+    reason: Optional[str] = None           # why skipped, or the error when applying failed
+    applied: Optional[bool] = None         # None until applied; False = the write was refused
+
+
+class ConfigImportPlan(BaseModel):
+    replace: bool
+    items: List[ConfigImportItem]
+    counts: Dict[str, int]
+    restart_required: bool = False
+    rebuild_required: bool = False
+    secrets_set: List[str] = Field(default_factory=list)   # the file's secrets, for the admin to re-enter by hand
+    source: Optional[Dict[str, Any]] = None
+    exported_at: Optional[str] = None
+    applied: bool = False

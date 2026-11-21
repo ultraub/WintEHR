@@ -25,6 +25,9 @@ from .modules import module_inventory
 from .control_plane import ControlPlaneClient, default_control_plane
 from .models import (
     AuditResponse,
+    ConfigDocument,
+    ConfigImportPlan,
+    ConfigImportRequest,
     JobKindView,
     JobLogChunk,
     JobStartRequest,
@@ -39,7 +42,8 @@ from .models import (
     StatusReport,
     TabPolicyResponse,
 )
-from .service import CommandCenterService, get_command_center_service
+from .config_transfer import apply_import, export_document, plan_import
+from .service import CommandCenterService, get_command_center_service, read_build_info
 from .settings_service import SettingsError, SettingsService, default_settings_service
 from .roles import KNOWN_PERMISSIONS, LOCKED, default_roles, effective_permissions
 from .tab_policy import ALWAYS_VISIBLE, EMPTY_POLICY, known_roles
@@ -114,6 +118,41 @@ async def reset_setting(
         return await settings.reset(key, user.id)
     except SettingsError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+
+
+# --- configuration export / import ---------------------------------------------------------
+
+
+@router.get("/config/export", response_model=ConfigDocument)
+async def export_config(
+    download: bool = False,
+    user: User = Depends(require_admin),
+    settings: SettingsService = Depends(get_settings_service),
+):
+    """Every override (settings, tab policy, roles) as one JSON document. Secrets by key only."""
+    document = export_document(await settings.list(), read_build_info(), getattr(user, "id", None))
+    if not download:
+        return document
+    stamp = document.exported_at.strftime("%Y%m%dT%H%M%SZ")
+    return Response(content=document.model_dump_json(indent=2), media_type="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="wintehr-config-{stamp}.json"'})
+
+
+@router.post("/config/import", response_model=ConfigImportPlan)
+async def import_config(
+    body: ConfigImportRequest,
+    user: User = Depends(require_system),
+    settings: SettingsService = Depends(get_settings_service),
+):
+    """Preview (default) or apply a configuration document. Unknown keys and secrets are
+    skipped; `replace` also resets overrides the file does not mention. Audited as one event."""
+    try:
+        plan = plan_import(body.document, await settings.list(), settings.definitions, replace=body.replace)
+        if body.apply:
+            plan = await apply_import(plan, settings, getattr(user, "id", None))
+    except SettingsError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+    return plan
 
 
 # --- roles ----------------------------------------------------------------------------
