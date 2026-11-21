@@ -3,7 +3,7 @@
 # allow-list in app.py is the security boundary. Never publish its port.
 FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends git curl \
+RUN apt-get update && apt-get install -y --no-install-recommends git curl openssl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /srv
