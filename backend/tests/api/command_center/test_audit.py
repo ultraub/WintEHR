@@ -120,3 +120,24 @@ async def test_route_parses_the_window_and_uses_the_injected_client():
         assert exc.value.status_code == 400
     finally:
         use_audit_client(None)
+
+
+def test_writer_keeps_details_without_a_resource_entity_and_the_reader_shows_them():
+    """Settings, jobs, restarts and failed logins log details but no resource;
+    the writer used to drop those details. Round-trip through flatten()."""
+    from api.services.audit_event_service import AuditEventService, build_audit_event
+
+    svc = AuditEventService(hapi_base_url="http://hapi/fhir")
+    restart = build_audit_event(svc, "system.control.restart", user_id="demo-admin", action="execute", details={"container": "emr-certbot"})
+    row = flatten(dict(restart, id="r1"))
+    assert row.entity == "emr-certbot" and row.details == {"container": "emr-certbot"} and row.user == "demo-admin"
+
+    failed = build_audit_event(svc, "auth.login.failure", user_id=None, action="login", outcome="failure",
+                               details={"username": "nurse", "failure_reason": "bad password"}, ip_address="10.0.0.9")
+    row = flatten(dict(failed, id="f1"))
+    assert row.user == "WintEHR System" and row.entity == "nurse" and row.details["failure_reason"] == "bad password" and row.ip == "10.0.0.9"
+
+    # with a resource entity the details ride on it, exactly as before (no duplicate entity)
+    with_res = build_audit_event(svc, "fhir.resource.update", user_id="demo", resource_type="Observation", resource_id="1", details={"x": 1})
+    assert len(with_res["entity"]) == 1 and flatten(dict(with_res, id="o1")).entity == "Observation/1"
+    assert len(build_audit_event(svc, "auth.logout", user_id="demo", action="logout")["entity"]) == 0
