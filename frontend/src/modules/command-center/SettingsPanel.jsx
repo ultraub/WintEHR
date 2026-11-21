@@ -5,7 +5,8 @@
  * Every row says WHEN a change takes effect (tier) and WHERE the current
  * value comes from (source: database override, environment variable, or
  * code default). Secrets are write-only: the API never returns their value.
- * Editing needs the `system` permission; admins can read.
+ * Editing needs the `system` permission; admins can read. The bar above the
+ * table (ConfigTransfer) exports / imports every override as one file.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -27,6 +28,7 @@ import {
   Typography,
 } from '@mui/material';
 import { api, useAuth } from '../sdk';
+import ConfigTransfer from './ConfigTransfer';
 
 export const TIER_HELP = {
   live: 'Takes effect on the next request',
@@ -207,6 +209,7 @@ const SettingsPanel = () => {
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>
       )}
+      <ConfigTransfer canEdit={canEdit} onImported={load} />
       <Stack direction="row" spacing={1} sx={{ mb: 1 }} alignItems="center" useFlexGap flexWrap="wrap">
         <Typography variant="caption" color="text.secondary">Tier:</Typography>
         {Object.entries(TIER_HELP).map(([tier, help]) => (
