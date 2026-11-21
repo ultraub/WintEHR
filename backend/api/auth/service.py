@@ -123,7 +123,10 @@ class AuthService:
             session_token = f"training-session-{secrets.token_urlsafe(32)}"
             await AuthService.training_sessions.put(session_token, {
                 "user": user.dict(),
-                "created_at": datetime.utcnow()
+                "created_at": datetime.utcnow(),
+                # Shown on the Command Center's Sessions tab; never used for auth decisions.
+                "ip_address": ip_address,
+                "user_agent": user_agent,
             })
             # Log successful login
             await audit.log_login_attempt(

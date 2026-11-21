@@ -308,7 +308,8 @@ class PractitionerAuthService:
                 "user": user.dict(),
                 "created_at": datetime.utcnow(),
                 "expires_at": datetime.utcnow() + timedelta(hours=24),
-                "ip_address": ip_address
+                "ip_address": ip_address,
+                "user_agent": user_agent,
             })
 
             return SimpleAuthResponse(

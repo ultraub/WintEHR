@@ -290,3 +290,29 @@ class ConfigImportPlan(BaseModel):
     source: Optional[Dict[str, Any]] = None
     exported_at: Optional[str] = None
     applied: bool = False
+
+
+# --- active sessions (slice 15) -----------------------------------------------------------------
+
+class SessionView(BaseModel):
+    """One login as the admin sees it (sessions.py). `id` is a digest of the token, never the token."""
+
+    id: str
+    kind: Literal["training", "practitioner"]
+    user_id: Optional[str] = None
+    username: Optional[str] = None
+    name: Optional[str] = None
+    role: Optional[str] = None
+    permissions: List[str] = Field(default_factory=list)
+    created_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    ip: Optional[str] = None
+    user_agent: Optional[str] = None
+    current: bool = False          # the session making this request
+
+
+class SessionsResponse(BaseModel):
+    mode: Literal["training", "jwt"]
+    sessions: List[SessionView]
+    shared: Optional[bool] = None  # True when the store is Redis (every worker sees every session)
+    note: Optional[str] = None
