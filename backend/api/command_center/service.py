@@ -1,9 +1,10 @@
 """Command Center business logic.
 
-Module of the pluggable-module platform (docs/MODULES.md). Slice 1 is a
-read-only status report: every probe runs concurrently under one timeout,
-failures become `down` components instead of exceptions, and the report
-rolls the components up into one overall state.
+Module of the pluggable-module platform (docs/MODULES.md). The status
+report: every probe runs concurrently under one timeout, failures become
+`down` components instead of exceptions, the report rolls the components
+up into one overall state, and the readiness checklist (readiness.py)
+reads the components plus the env to say what a class would trip over.
 
 Roll-up rule (deliberately simple so the dashboard is predictable):
   - `fhir` down            → overall `down`   (nothing works without the store)
@@ -17,12 +18,13 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Mapping, Optional
 
 from services.hapi_fhir_client import HAPIFHIRClient
 
 from .models import BuildInfo, ComponentStatus, RouterStatus, StatusReport
 from .probes import Probe, default_probes
+from .readiness import UMLS_KEY_SETTING, readiness_checks
 from .settings_service import get_setting
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,15 @@ logger = logging.getLogger(__name__)
 PROBE_TIMEOUT_SETTING = "system.probe_timeout_seconds"  # live tier; resolved per report
 
 RouterStateReader = Callable[[], Dict[str, Any]]
+SecretIsSet = Callable[[str], Awaitable[bool]]
+
+
+async def secret_is_set(key: str) -> bool:
+    """Whether a secret setting has a value (never the value): the readiness checklist's one settings read."""
+    try:
+        return bool(await get_setting(key))
+    except Exception:  # noqa: BLE001 — a settings-store hiccup must not take the status report down
+        return False
 
 
 def read_router_state() -> Dict[str, Any]:
@@ -64,12 +75,16 @@ class CommandCenterService:
         probes: Optional[Dict[str, Probe]] = None,
         router_state: RouterStateReader = read_router_state,
         timeout_seconds: Optional[float] = None,
+        env: Optional[Mapping[str, str]] = None,
+        secret_is_set: SecretIsSet = secret_is_set,
     ):
         self.hapi = hapi_client or HAPIFHIRClient()
         self.probes = probes if probes is not None else default_probes(self.hapi)
         self.router_state = router_state
         # None → read the live-tier setting when the report is built.
         self.timeout_seconds = timeout_seconds
+        self.env = os.environ if env is None else env
+        self.secret_is_set = secret_is_set
 
     async def _timeout(self) -> float:
         if self.timeout_seconds is not None:
@@ -94,12 +109,14 @@ class CommandCenterService:
             await asyncio.gather(*(self._run_probe(n, p, timeout) for n, p in self.probes.items()))
         )
         routers = RouterStatus(**self.router_state())
+        readiness = readiness_checks(components, self.env, umls_key_set=await self.secret_is_set(UMLS_KEY_SETTING))
         return StatusReport(
             status=roll_up(components, routers),
             checked_at=datetime.now(timezone.utc),
             build=read_build_info(),
             routers=routers,
             components=components,
+            readiness=readiness,
         )
 
 

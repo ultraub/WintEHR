@@ -50,12 +50,33 @@ class BuildInfo(BaseModel):
     environment: Optional[str] = None
 
 
+ReadinessState = Literal["ok", "info", "warn", "fail", "skip"]
+
+
+class ReadinessItem(BaseModel):
+    """One line of the deployment readiness checklist (readiness.py).
+
+    ok    — as it should be
+    info  — a deliberate choice worth knowing (training auth, no VNA)
+    warn  — works, but a classroom will trip over it (no terminology, HTTP only)
+    fail  — needs fixing before the box is handed to users
+    skip  — not applicable to this profile (hidden by the UI)
+    """
+
+    id: str
+    label: str
+    status: ReadinessState
+    detail: str
+    fix: Optional[str] = None
+
+
 class StatusReport(BaseModel):
     status: OverallState
     checked_at: datetime
     build: BuildInfo
     routers: RouterStatus
     components: List[ComponentStatus]
+    readiness: List[ReadinessItem] = Field(default_factory=list)
 
 
 # --- settings (slice 2) -------------------------------------------------------

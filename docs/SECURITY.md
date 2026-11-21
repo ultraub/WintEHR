@@ -336,6 +336,7 @@ Kept so an auditor can see what landed after their last review.
 
 | Date | PR | Change |
 |---|---|---|
+| 2026-11-21 | #372 | Sidecar gains read-only `/host` (disk, memory, load) and `/certificates` (`openssl x509` on `certbot/conf/live`, never keys); the Status tab's readiness checklist tells admins when `POSTGRES_PASSWORD` / `JWT_SECRET_KEY` are still example values (names only, never values) |
 | 2026-11-20 | #369 | Control-plane sidecar: Docker socket in one token-gated, allow-listed container; backend proxies container logs / restarts / update check / config view (env names only) |
 | 2026-11-20 | #367 | Root logging configured; per-worker log files under `./logs` read by the Command Center (security middleware's per-request lines moved to DEBUG-equivalent) |
 | 2026-11-20 | #366 | SMART token endpoint verifies confidential clients' secrets (previously unchecked); runtime app registrations persisted with bcrypt-hashed secrets |
