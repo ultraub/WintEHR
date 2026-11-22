@@ -50,6 +50,8 @@ import { cdsActionExecutor } from '../../../services/cdsActionExecutor';
 import { cdsAlertPersistence } from '../../../services/cdsAlertPersistenceService';
 
 // Presentation modes according to CDS Hooks best practices
+import Markdown from '../../common/Markdown';
+
 export const PRESENTATION_MODES = {
   BANNER: 'banner',           // Top banner (for critical alerts)
   SIDEBAR: 'sidebar',         // Side panel
@@ -551,9 +553,7 @@ const CDSPresentation = ({
           {alert.summary}
         </Typography>
         {!compact && alert.detail && (
-          <Typography variant="body2" sx={{ mb: 1 }}>
-            {alert.detail}
-          </Typography>
+          <Markdown sx={{ mb: 1 }}>{alert.detail}</Markdown>
         )}
         {!compact && alert.source && (
           <Typography variant="caption" color="text.secondary">
@@ -740,7 +740,7 @@ const CDSPresentation = ({
             <Alert severity={getSeverityColor(currentOverride.alert.indicator)} sx={{ my: 2 }}>
               <Typography variant="subtitle2">{currentOverride.alert.summary}</Typography>
               {currentOverride.alert.detail && (
-                <Typography variant="body2">{currentOverride.alert.detail}</Typography>
+                <Markdown>{currentOverride.alert.detail}</Markdown>
               )}
             </Alert>
             {currentOverride.requiresReason && (

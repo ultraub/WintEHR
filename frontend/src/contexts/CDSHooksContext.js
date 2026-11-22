@@ -71,11 +71,21 @@ const MODE_MAPPING = {
   'drawer': PRESENTATION_MODES.DRAWER,
 };
 
+// Presentation for a card whose service has no configured mode. Only a
+// critical card may interrupt with a dialog; an informational card opening a
+// modal on every chart open trains people to dismiss alerts unread.
+function defaultModeForIndicator(indicator) {
+  if (indicator === 'critical') return PRESENTATION_MODES.POPUP;
+  if (indicator === 'warning') return PRESENTATION_MODES.BANNER;
+  return PRESENTATION_MODES.TOAST;
+}
+
 // Decorate a raw card with displayBehavior metadata derived from its
 // service's configuration. Pure transform — no I/O. Mirrors the
 // enhanceCard logic that used to live in CDSContext.executeCDSHooks.
 function decorateCard(card, service, hookType, hookConfigurations) {
-  let presentationMode = PRESENTATION_MODES.POPUP;
+  const cardIndicator = card.indicator || 'info';
+  let presentationMode = defaultModeForIndicator(cardIndicator);
   let acknowledgmentRequired = false;
   let reasonRequired = false;
   let snoozeEnabled = false;
@@ -84,10 +94,9 @@ function decorateCard(card, service, hookType, hookConfigurations) {
   const displayBehavior = hookConfig?.displayBehavior;
 
   if (displayBehavior) {
-    const cardIndicator = card.indicator || 'info';
     const indicatorOverride = displayBehavior.indicatorOverrides?.[cardIndicator];
-    const configuredMode = indicatorOverride || displayBehavior.defaultMode || 'popup';
-    presentationMode = MODE_MAPPING[configuredMode] || PRESENTATION_MODES.POPUP;
+    const configuredMode = indicatorOverride || displayBehavior.defaultMode;
+    presentationMode = MODE_MAPPING[configuredMode] || defaultModeForIndicator(cardIndicator);
     acknowledgmentRequired = displayBehavior.acknowledgment?.required || false;
     reasonRequired = displayBehavior.acknowledgment?.reasonRequired || false;
     snoozeEnabled = displayBehavior.snooze?.enabled || false;

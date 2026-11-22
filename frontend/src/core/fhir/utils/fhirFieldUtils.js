@@ -4,6 +4,8 @@
  * original and preprocessed/normalized data structures from the backend.
  */
 
+import { cleanNamePart } from '../../../utils/clinicalDisplay';
+
 /**
  * Get condition clinical status with fallback patterns
  * @param {Object} condition - FHIR Condition resource
@@ -776,7 +778,7 @@ export const getPatientDisplay = (patientOrRef, defaultValue = 'Unknown Patient'
   if (!patientOrRef) return defaultValue;
 
   // Handle reference with display
-  if (patientOrRef.display) return patientOrRef.display;
+  if (patientOrRef.display) return cleanNamePart(patientOrRef.display);
 
   // Handle reference (extract ID)
   if (patientOrRef.reference && !patientOrRef.name) {
@@ -788,13 +790,14 @@ export const getPatientDisplay = (patientOrRef, defaultValue = 'Unknown Patient'
   // Handle Patient resource
   if (patientOrRef.name?.[0]) {
     const name = patientOrRef.name[0];
-    const given = name.given?.join(' ') || '';
-    const family = name.family || '';
+    // Synthea's digit suffixes ("Laurena366") are dropped for display.
+    const given = (name.given || []).map(cleanNamePart).filter(Boolean).join(' ');
+    const family = cleanNamePart(name.family);
 
     if (given && family) return `${given} ${family}`;
     if (family) return family;
     if (given) return given;
-    if (name.text) return name.text;
+    if (name.text) return cleanNamePart(name.text);
   }
 
   return defaultValue;

@@ -39,7 +39,6 @@ import {
   Logout as LogoutIcon,
   Security as SecurityIcon,
   Settings as SettingsIcon,
-  Help as HelpIcon,
   ExpandLess,
   ExpandMore,
   Home as HomeIcon,
@@ -49,7 +48,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { shellPalette, shellGradient } from '../themes/shellPalette';
 import { buildNavigationConfig } from './navigationRegistry';
 import { MedicalThemeContext } from '../App';
-import NotificationBell from './NotificationBell';
 import QuickThemeToggle from './theme/QuickThemeToggle';
 import SearchBar from './SearchBar';
 import TransitionWrapper from './transitions/TransitionWrapper';
@@ -375,14 +373,6 @@ function LayoutV3({ children }) {
               size="medium"
               position="header"
             />
-            
-            <NotificationBell />
-            
-            <Tooltip title="Help & Support">
-              <IconButton color="inherit">
-                <HelpIcon />
-              </IconButton>
-            </Tooltip>
             
             <Tooltip title="Account">
               <IconButton onClick={handleProfileMenuOpen} color="inherit">

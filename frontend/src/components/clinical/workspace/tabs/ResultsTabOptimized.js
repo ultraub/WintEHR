@@ -6,6 +6,7 @@
  * 3. Single source of truth for each data type
  */
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { formatLabName, formatQuantity, formatUnit } from '../../../../utils/clinicalDisplay';
 import {
   Box,
   Grid,
@@ -43,7 +44,6 @@ import {
   TablePagination,
   Tabs,
   Tab,
-  Badge,
   ToggleButton,
   ToggleButtonGroup,
   Dialog,
@@ -269,15 +269,24 @@ const getResultStatus = (observation) => {
       : { icon: <LowIcon color="error" />, color: 'error', label: 'Low', isCritical: false };
   }
 
-  // No interpretation, no threshold match, no reference-range flag. For a
-  // numeric value that cleared the checks above, "Normal" would be earned —
-  // but for everything else the record asserts nothing, and the UI must not
-  // either.
-  if (observation.valueQuantity?.value !== undefined) {
+  // No interpretation, no threshold match, no reference-range flag. "Normal"
+  // is only earned when the record carried a range the value was actually
+  // compared against. Without one (most Synthea labs) the record asserts
+  // nothing, and the UI must not either.
+  const checkedRange = observation.referenceRange?.[0];
+  if (
+    observation.valueQuantity?.value !== undefined &&
+    (checkedRange?.low?.value !== undefined || checkedRange?.high?.value !== undefined)
+  ) {
     return { icon: <NormalRangeIcon />, color: 'default', label: 'Normal', isCritical: false };
   }
   return { icon: <NormalRangeIcon />, color: 'default', label: '—', isCritical: false };
 };
+
+// A result is flagged only when it carries a real finding: 'Normal' and the
+// no-assertion dash are both unflagged.
+const isFlaggedStatus = (status) =>
+  Boolean(status?.label) && status.label !== 'Normal' && status.label !== '—';
 
 // Get status icon and color for DiagnosticReport rows — reports carry a
 // workflow status (final/preliminary/...), not an observation interpretation
@@ -907,7 +916,7 @@ const ResultsTabOptimized = ({
                   `${item.result.length} result${item.result.length === 1 ? '' : 's'}` :
                   '-')) :
                 (item.valueQuantity ?
-                  `${item.valueQuantity.value} ${item.valueQuantity.unit || ''}` :
+                  formatQuantity(item.valueQuantity) :
                   item.valueString ||
                   getCodeableConceptDisplay(item.valueCodeableConcept, null) ||
                   // 'Pending' is only truthful when the record says the
@@ -920,9 +929,9 @@ const ResultsTabOptimized = ({
               const reference = refRange ?
                 (refRange.text ||
                  (refRange.low || refRange.high ?
-                  `${refRange.low?.value || ''} - ${refRange.high?.value || ''} ${refRange.low?.unit || refRange.high?.unit || ''}`.trim() :
-                  '-')) :
-                '-';
+                  `${refRange.low?.value ?? ''} – ${refRange.high?.value ?? ''} ${formatUnit(refRange.low?.unit || refRange.high?.unit)}`.trim() :
+                  '—')) :
+                '—';
 
               const date = item.effectiveDateTime || item.issued;
               
@@ -947,13 +956,13 @@ const ResultsTabOptimized = ({
                   <TableCell>
                     <Stack direction="row" spacing={1} alignItems="center">
                       {status.icon}
-                      <Typography variant="body2">
-                        {getResourceDisplayText(item)}
+                      <Typography variant="body2" title={getResourceDisplayText(item)}>
+                        {isReport ? getResourceDisplayText(item) : formatLabName(getResourceDisplayText(item))}
                       </Typography>
                     </Stack>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={!isReport && status.label !== 'Normal' ? 'bold' : 'normal'}>
+                    <Typography variant="body2" fontWeight={!isReport && isFlaggedStatus(status) ? 'bold' : 'normal'}>
                       {value}
                     </Typography>
                   </TableCell>
@@ -963,7 +972,7 @@ const ResultsTabOptimized = ({
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    {status.label && (
+                    {status.label && status.label !== '—' && (
                       <Chip 
                         label={status.label} 
                         size="small" 
@@ -1036,7 +1045,7 @@ const ResultsTabOptimized = ({
             </Typography>
             {allData.labObservations.filter(obs => getResultStatus(obs).label === 'High' || getResultStatus(obs).label === 'Low').length > 0 && (
               <Chip
-                label={`${allData.labObservations.filter(obs => getResultStatus(obs).label !== 'Normal').length} abnormal`}
+                label={`${allData.labObservations.filter(obs => isFlaggedStatus(getResultStatus(obs))).length} abnormal`}
                 size="small"
                 color="warning"
                 icon={<AbnormalIcon fontSize="small" />}
@@ -1136,7 +1145,14 @@ const ResultsTabOptimized = ({
               value={section.id}
               label={count === undefined
                 ? section.label
-                : <Badge badgeContent={count} color="primary">{section.label}</Badge>}
+                : (
+                  <Stack direction="row" spacing={0.75} alignItems="baseline">
+                    <span>{section.label}</span>
+                    <Typography component="span" variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {count}
+                    </Typography>
+                  </Stack>
+                )}
             />
           );
         })}
@@ -1190,7 +1206,7 @@ const ResultsTabOptimized = ({
                   <Grid item xs={6}>
                     <Typography variant="caption" color="text.secondary">Value</Typography>
                     <Typography variant="body2">
-                      {selectedResult.valueQuantity.value} {selectedResult.valueQuantity.unit}
+                      {selectedResult.valueQuantity.value} {formatUnit(selectedResult.valueQuantity.unit)}
                     </Typography>
                   </Grid>
                 )}

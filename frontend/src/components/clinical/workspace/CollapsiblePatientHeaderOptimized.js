@@ -59,6 +59,7 @@ import websocketService from '../../../services/websocket';
 import { useDataQualityLogger } from '../../../core/fhir/utils/dataQualityLogger';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import SlotOutlet from '../../SlotOutlet';
+import { formatMrn, formatPersonName } from '../../../utils/clinicalDisplay';
 
 // Collapse states for progressive compression
 const COLLAPSE_STATES = {
@@ -386,14 +387,14 @@ const CollapsiblePatientHeaderOptimized = ({
           reason: 'No MRN identifier, using patient ID',
           patientId: patient.id
         });
-        return patient.id;
+        return formatMrn(patient.id);
       }
       dataQuality.logFallback('patient.identifier.MRN', undefined, 'Unknown', {
         reason: 'No MRN or patient ID available'
       });
       return 'Unknown';
     }
-    return mrn.value;
+    return formatMrn(mrn.value);
   };
 
   const getAddress = (patient) => {
@@ -494,7 +495,8 @@ const CollapsiblePatientHeaderOptimized = ({
       });
       return 'Unknown Patient';
     }
-    const fullName = `${names.given?.join(' ') || ''} ${names.family || ''}`.trim();
+    const formatted = formatPersonName(names);
+    const fullName = formatted === 'Unknown' ? '' : formatted;
     if (!fullName) {
       dataQuality.logFallback('patient.name', names, 'Unknown Patient', {
         reason: 'Name parts are empty',

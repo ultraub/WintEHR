@@ -1575,7 +1575,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
           <Grid item xs={12} md={6}>
               <ClinicalResourceCard
                 title="Recent Lab Results"
-                subtitle={`${recentLabs.length} results in last 7 days`}
+                subtitle={recentLabs.length > 0 ? `${recentLabs.length} most recent` : 'No lab results'}
                 icon={<LabIcon />}
                 severity={recentLabs.some(lab => {
                   const interp = getObservationInterpretation(lab);

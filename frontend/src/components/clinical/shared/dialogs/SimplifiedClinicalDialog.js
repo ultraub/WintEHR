@@ -36,7 +36,7 @@ import {
   Save as SaveIcon,
   Send as SendIcon
 } from '@mui/icons-material';
-import { TransitionProps } from '@mui/material/transitions';
+import type { TransitionProps } from '@mui/material/transitions';
 
 // Slide transition for smoother dialog appearance
 const Transition = React.forwardRef(function Transition(

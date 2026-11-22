@@ -2,7 +2,7 @@
  * Enhanced Interaction Components for Clinical Workspace
  * Provides hover effects, ripples, tooltips, and micro-interactions
  */
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   IconButton,
@@ -389,43 +389,20 @@ export const HoverCard = ({
  */
 export const AnimatedCounter = ({ 
   value, 
-  duration = 1000,
+  duration: _duration,
   formatter,
   variant = 'h4',
   color = 'text.primary',
   ...props 
 }) => {
-  const [displayValue, setDisplayValue] = useState(0);
-  const animationRef = useRef(null);
-  
-  React.useEffect(() => {
-    if (animationRef.current) {
-      clearInterval(animationRef.current);
-    }
-    
-    const startValue = displayValue;
-    const endValue = value;
-    const increment = (endValue - startValue) / (duration / 16); // 60fps
-    
-    animationRef.current = setInterval(() => {
-      setDisplayValue(current => {
-        const next = current + increment;
-        if ((increment > 0 && next >= endValue) || (increment < 0 && next <= endValue)) {
-          clearInterval(animationRef.current);
-          return endValue;
-        }
-        return next;
-      });
-    }, 16);
-    
-    return () => {
-      if (animationRef.current) {
-        clearInterval(animationRef.current);
-      }
-    };
-  }, [value, duration]);
-  
-  const formattedValue = formatter ? formatter(displayValue) : Math.round(displayValue);
+  // Deliberately not animated. This used to count up from 0 on a 16ms
+  // interval, so the screen showed numbers that were never true ("1 condition"
+  // on the way to 9), and for seconds at a time when the browser throttled
+  // timers. A clinical count must be right in every frame it is visible.
+  // `duration` is accepted and ignored so existing call sites keep working.
+  const displayValue = value ?? 0;
+
+  const formattedValue = formatter ? formatter(displayValue) : displayValue;
   
   return (
     <Typography 

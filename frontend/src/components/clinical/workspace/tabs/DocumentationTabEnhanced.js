@@ -4,6 +4,8 @@
  * Part of the Clinical UI Improvements Initiative
  */
 import React, { useState, useEffect, useMemo, memo, useCallback } from 'react';
+import Markdown from '../../../common/Markdown';
+import { looksLikeMarkdown, stripMarkdown } from '../../../../utils/markdownText';
 import {
   Box,
   Grid,
@@ -265,7 +267,7 @@ const EnhancedNoteCard = memo(({ note, onEdit, onView, onSign, onPrint, onExport
             fontSize: density === 'compact' ? '0.8125rem' : '0.875rem'
           }}
         >
-          {note.displayContent || note.text?.div || note.text || 'No content available'}
+          {stripMarkdown(note.displayContent || note.text?.div || note.text) || 'No content available'}
         </Typography>
         
         {/* Section accordion for structured notes */}
@@ -1467,10 +1469,12 @@ const DocumentationTabEnhanced = ({
                                 mb: 1.5
                               }}
                             >
-                              {note.displayContent || 
-                               note.text?.div || 
-                               note.text || 
-                               (note.content?.[0]?.attachment?.data ? atob(note.content[0].attachment.data) : 'No content available')}
+                              {stripMarkdown(
+                                note.displayContent ||
+                                note.text?.div ||
+                                note.text ||
+                                (note.content?.[0]?.attachment?.data ? atob(note.content[0].attachment.data) : '')
+                              ) || 'No content available'}
                             </Typography>
                           )}
                           
@@ -1744,9 +1748,13 @@ const DocumentationTabEnhanced = ({
                 <Grid item xs={12}>
                   <Typography variant="subtitle2" color="text.secondary">Content</Typography>
                   <Box sx={{ mt: 1, p: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.6) : 'grey.50', maxHeight: 400, overflow: 'auto' }}>
-                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                      {selectedNoteForView.displayContent || 'No content available'}
-                    </Typography>
+                    {looksLikeMarkdown(selectedNoteForView.displayContent) ? (
+                      <Markdown>{selectedNoteForView.displayContent}</Markdown>
+                    ) : (
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                        {selectedNoteForView.displayContent || 'No content available'}
+                      </Typography>
+                    )}
                   </Box>
                 </Grid>
               </Grid>

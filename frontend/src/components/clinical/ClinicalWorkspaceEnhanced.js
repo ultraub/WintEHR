@@ -315,6 +315,10 @@ const ClinicalWorkspaceEnhanced = ({
             mode={mode}
             patientId={patientId}
             allowInteraction={true}
+            // Toasts are for informational cards; they clear themselves so
+            // they never sit over the page's own controls.
+            autoHide={mode === PRESENTATION_MODES.TOAST}
+            hideDelay={8000}
             onAlertAction={(alertId, action, data) => {
               if (action === 'dismiss' || action === 'close') {
                 // Close the popup-style host once user dismisses; other

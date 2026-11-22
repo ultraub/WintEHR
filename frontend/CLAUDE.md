@@ -166,6 +166,23 @@ tabs, routes, and nav items together.
 - Clinical UI uses **sharp corners** (`borderRadius` 0–4) and the severity
   palette from `src/themes/clinicalThemeUtils.js` — that file is the token
   source of truth.
+- **Display values go through `src/utils/clinicalDisplay.js`** — `formatPersonName`
+  / `cleanNamePart` (drops Synthea digit suffixes), `formatMrn` (UUID → short
+  form), `formatUnit` / `formatQuantity` (UCUM → readable, sensible rounding),
+  `formatLabName` (LOINC long name → short). Display only: never write a
+  formatted value back to a resource or search with one.
+- **Markdown text** (CDS card `detail`, note bodies) renders through
+  `components/common/Markdown.jsx`; clamped previews use `stripMarkdown` from
+  `utils/markdownText.js`. Do not print it raw in a `Typography`.
+- **Numbers on screen are never animated.** `AnimatedCounter`
+  renders the true value immediately; a count-up showed false counts.
+- **Unconfigured CDS cards**: only `critical` opens a dialog; `warning` is a
+  banner, `info` a self-clearing toast (`defaultModeForIndicator` in
+  `contexts/CDSHooksContext.js`).
+- **A 401 does not log the user out by itself.** `services/api.js` confirms
+  with `/api/auth/me` first, then fires `AUTH_UNAUTHORIZED_EVENT`
+  (`constants/authEvents.js`); `AuthContext` clears the user and the router
+  redirects. Never `window.location.href = '/login'`.
 - Generic React/MUI/hooks patterns are assumed known — not documented here.
 
 ---
