@@ -38,6 +38,7 @@ const EnhancedClinicalLayout = ({
   subContext = null,
   department = 'Clinic',
   shift = 'Day',
+  embedded = false,
   navigationContext = {}
 }) => {
   const theme = useTheme();
@@ -105,34 +106,41 @@ const EnhancedClinicalLayout = ({
   };
 
   return (
-    <Box sx={{ minHeight: '100vh' }}>
+    <Box sx={{ minHeight: embedded ? '100%' : '100vh' }}>
       <CssBaseline />
 
-      {/* Fixed AppBar */}
-      <ClinicalAppBar
-        onMenuToggle={handleMenuToggle}
-        onThemeToggle={toggleTheme}
-        isDarkMode={isDarkMode}
-        patient={patient}
-        loading={loading}
-        user={user}
-        department={department}
-        shift={shift}
-      />
+      {/* Standalone only: when `embedded` the app shell (LayoutV3) supplies the
+          app bar, navigation rail and account menu, and the breadcrumb is
+          dropped because the patient header directly below says the same. */}
+      {!embedded && (
+        <>
+          {/* Fixed AppBar */}
+          <ClinicalAppBar
+            onMenuToggle={handleMenuToggle}
+            onThemeToggle={toggleTheme}
+            isDarkMode={isDarkMode}
+            patient={patient}
+            loading={loading}
+            user={user}
+            department={department}
+            shift={shift}
+          />
 
-      {/* Spacer that pushes content below the fixed AppBar */}
-      <Box sx={{ height: LAYOUT_HEIGHTS.appBar }} />
+          {/* Spacer that pushes content below the fixed AppBar */}
+          <Box sx={{ height: LAYOUT_HEIGHTS.appBar }} />
 
-      {/* Breadcrumbs - in normal flow, scrolls away naturally */}
-      {!isMobile && (
-        <ClinicalBreadcrumbs
-          patient={patient}
-          activeModule={MODULES[activeModule]}
-          subContext={subContext}
-          onBookmark={handleBookmark}
-          bookmarked={bookmarked}
-          navigationContext={navigationContext}
-        />
+          {/* Breadcrumbs - in normal flow, scrolls away naturally */}
+          {!isMobile && (
+            <ClinicalBreadcrumbs
+              patient={patient}
+              activeModule={MODULES[activeModule]}
+              subContext={subContext}
+              onBookmark={handleBookmark}
+              bookmarked={bookmarked}
+              navigationContext={navigationContext}
+            />
+          )}
+        </>
       )}
 
       {/* Main content — natural page scroll, no overflow constraints */}
@@ -146,14 +154,16 @@ const EnhancedClinicalLayout = ({
           backgroundImage: theme.palette.mode === 'dark'
             ? 'linear-gradient(180deg, rgba(99,102,241,0.14) 0%, rgba(99,102,241,0.05) 200px, transparent 500px)'
             : 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.03) 200px, transparent 500px)',
-          minHeight: `calc(100vh - ${LAYOUT_HEIGHTS.appBar}px)`,
+          minHeight: embedded ? '100%' : `calc(100vh - ${LAYOUT_HEIGHTS.appBar}px)`,
         }}
       >
         {/* Sticky combined header: patient info + tabs stick together below the fixed AppBar */}
         {(patient || loading) && (
           <Box sx={{
             position: 'sticky',
-            top: LAYOUT_HEIGHTS.appBar,
+            // Embedded: the shell's content area is the scroll container, so
+            // the header sticks to its top edge, not below a fixed app bar.
+            top: embedded ? 0 : LAYOUT_HEIGHTS.appBar,
             zIndex: Z_INDEX.appBar - 1,
             backgroundColor: theme.palette.mode === 'dark'
               ? 'rgba(30, 41, 59, 0.88)'

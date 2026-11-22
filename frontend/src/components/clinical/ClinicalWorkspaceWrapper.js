@@ -10,7 +10,7 @@ import ClinicalWorkspaceEnhanced from './ClinicalWorkspaceEnhanced';
 import WorkspaceErrorBoundary from './workspace/WorkspaceErrorBoundary';
 import { parseNavigationParams } from './utils/navigationHelper';
 
-const ClinicalWorkspaceWrapper = () => {
+const ClinicalWorkspaceWrapper = ({ embedded = false }) => {
   // Get all navigation params from URL
   const [searchParams, setSearchParams] = useSearchParams();
   const navigationContext = parseNavigationParams(searchParams);
@@ -82,6 +82,7 @@ const ClinicalWorkspaceWrapper = () => {
       }}
     >
       <EnhancedClinicalLayout 
+        embedded={embedded}
         activeModule={activeModule}
         onModuleChange={handleModuleChange}
         navigationContext={navigationParams}

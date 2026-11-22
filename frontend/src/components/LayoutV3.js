@@ -2,13 +2,14 @@
  * LayoutV3 Component
  * Modern application layout with improved navigation, search, and workflow support
  */
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import {
   AppBar,
   Box,
   Drawer,
   IconButton,
+  Button,
   List,
   ListItem,
   ListItemButton,
@@ -50,9 +51,13 @@ import { buildNavigationConfig } from './navigationRegistry';
 import { MedicalThemeContext } from '../App';
 import QuickThemeToggle from './theme/QuickThemeToggle';
 import SearchBar from './SearchBar';
+import WebSocketStatus from './common/WebSocketStatus';
+import WorkflowNotificationsButton from './common/WorkflowNotificationsButton';
+import CommandPalette, { isPaletteShortcut } from './common/CommandPalette';
 import TransitionWrapper from './transitions/TransitionWrapper';
 
 const drawerWidth = 280;
+const railWidth = 64;
 
 // Navigation structure derives from navigationRegistry: core seed + pages
 // contributed by enabled modules (docs/MODULES.md). Do not hardcode nav
@@ -225,7 +230,17 @@ const BreadcrumbNavigation = ({ location }) => {
   );
 };
 
-function LayoutV3({ children }) {
+/**
+ * App shell. Every authenticated route renders inside it.
+ *   rail  — the navigation collapses to a 64px icon rail (desktop). Used by
+ *           full-width workspaces (patient chart, FHIR Explorer, UI Composer)
+ *           that need the horizontal space but should not lose the app's
+ *           navigation, search and account menu.
+ *   flush — the page owns its own padding and header; the shell adds neither
+ *           padding nor its breadcrumb.
+ */
+function LayoutV3({ children, rail = false, flush = false }) {
+  const navWidth = rail ? railWidth : drawerWidth;
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
@@ -241,6 +256,19 @@ function LayoutV3({ children }) {
   });
   // MedicalThemeContext available via useContext if needed
   useContext(MedicalThemeContext);
+
+  // Cmd/Ctrl+K opens the command palette from anywhere in the shell.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (isPaletteShortcut(event)) {
+        event.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -331,14 +359,69 @@ function LayoutV3({ children }) {
     </Box>
   );
 
+  const railDrawer = (
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', background: shellGradient }}>
+      <Tooltip title="Dashboard" placement="right">
+        <IconButton onClick={() => handleNavigation('/dashboard')} aria-label="WintEHR dashboard" sx={{ my: 1.25 }}>
+          <Box
+            component="img"
+            src="/wintehr-logo-icon.png"
+            alt=""
+            sx={{ width: 32, height: 32, objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+          />
+        </IconButton>
+      </Tooltip>
+      <Box component="nav" aria-label="Main" sx={{ flexGrow: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%' }}>
+        {Object.entries(navigationConfig).map(([key, section], sectionIndex) => (
+          <Box
+            key={key}
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              py: 0.75,
+              borderTop: sectionIndex === 0 ? 'none' : `1px solid ${shellPalette.divider}`,
+            }}
+          >
+            {section.items.map((item) => {
+              const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+              return (
+                <Tooltip key={item.path} title={item.text} placement="right">
+                  <IconButton
+                    onClick={() => handleNavigation(item.path)}
+                    aria-label={item.text}
+                    aria-current={isActive ? 'page' : undefined}
+                    sx={{
+                      my: 0.25,
+                      width: 40,
+                      height: 40,
+                      borderRadius: 1.5,
+                      color: isActive ? shellPalette.textPrimary : (item.iconColor || shellPalette.iconMuted),
+                      backgroundColor: isActive ? shellPalette.hoverBg : 'transparent',
+                      boxShadow: isActive ? `inset 3px 0 0 ${shellPalette.accent}` : 'none',
+                      '&:hover': { backgroundColor: shellPalette.hoverBg, color: shellPalette.textBright },
+                      '& svg': { fontSize: 20 },
+                    }}
+                  >
+                    {item.icon}
+                  </IconButton>
+                </Tooltip>
+              );
+            })}
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       {/* App Bar */}
       <AppBar
         position="fixed"
         sx={{
-          width: { md: `calc(100% - ${drawerWidth}px)` },
-          ml: { md: `${drawerWidth}px` },
+          width: { md: `calc(100% - ${navWidth}px)` },
+          ml: { md: `${navWidth}px` },
           bgcolor: theme.palette.mode === 'dark'
             ? 'rgba(30, 41, 59, 0.78)'
             : 'rgba(255, 255, 255, 0.72)',
@@ -363,6 +446,30 @@ function LayoutV3({ children }) {
 
           {/* Search Bar */}
           <SearchBar />
+
+          {/* Visible entry point for the command palette */}
+          <Tooltip title="Go to a page or patient">
+            <Button
+              onClick={() => setPaletteOpen(true)}
+              size="small"
+              color="inherit"
+              aria-label="Open command palette"
+              sx={{
+                ml: 1,
+                display: { xs: 'none', md: 'inline-flex' },
+                minWidth: 0,
+                px: 1,
+                color: 'text.secondary',
+                border: '1px solid',
+                borderColor: 'divider',
+                fontSize: '0.75rem',
+                fontFamily: 'inherit',
+                textTransform: 'none',
+              }}
+            >
+              {typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl K'}
+            </Button>
+          </Tooltip>
           
           <Box sx={{ flexGrow: 1 }} />
           
@@ -374,6 +481,9 @@ function LayoutV3({ children }) {
               position="header"
             />
             
+            <WebSocketStatus showLabel={false} />
+            <WorkflowNotificationsButton />
+
             <Tooltip title="Account">
               <IconButton onClick={handleProfileMenuOpen} color="inherit">
                 <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
@@ -411,7 +521,7 @@ function LayoutV3({ children }) {
       {/* Navigation Drawer */}
       <Box
         component="nav"
-        sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
+        sx={{ width: { md: navWidth }, flexShrink: { md: 0 } }}
       >
         <Drawer
           variant="temporary"
@@ -436,14 +546,14 @@ function LayoutV3({ children }) {
             display: { xs: 'none', md: 'block' },
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
-              width: drawerWidth,
+              width: navWidth,
               background: shellGradient,
               borderRight: '1px solid rgba(99, 102, 241, 0.15)',
             }
           }}
           open
         >
-          {drawer}
+          {rail ? railDrawer : drawer}
         </Drawer>
       </Box>
 
@@ -452,7 +562,7 @@ function LayoutV3({ children }) {
         component="main"
         sx={{
           flexGrow: 1,
-          width: { md: `calc(100% - ${drawerWidth}px)` },
+          width: { md: `calc(100% - ${navWidth}px)` },
           height: '100vh',
           overflow: 'hidden',
           display: 'flex',
@@ -463,18 +573,23 @@ function LayoutV3({ children }) {
         <Box sx={{
           flexGrow: 1,
           overflow: 'auto',
-          p: { xs: 2, sm: 2.5, md: 3 },
+          p: flush ? 0 : { xs: 2, sm: 2.5, md: 3 },
           backgroundImage: theme.palette.mode === 'dark'
             ? 'linear-gradient(180deg, rgba(99,102,241,0.14) 0%, rgba(99,102,241,0.05) 200px, transparent 500px)'
             : 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.03) 200px, transparent 500px)',
         }}>
-          <BreadcrumbNavigation location={location} />
+          {!flush && <BreadcrumbNavigation location={location} />}
           <TransitionWrapper transition="fade" duration={150}>
             {children}
           </TransitionWrapper>
         </Box>
       </Box>
 
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        navigationConfig={navigationConfig}
+      />
     </Box>
   );
 }

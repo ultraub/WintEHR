@@ -65,7 +65,7 @@ import { useQueryHistory } from '../hooks/useQueryHistory';
 
 // FHIR Services - using FHIRResourceContext instead of direct fhirClient
 
-function FHIRExplorerApp() {
+function FHIRExplorerApp({ embedded = false }) {
   const [currentMode, setCurrentMode] = useState(APP_MODES.DASHBOARD);
   const [currentView, setCurrentView] = useState('');
   const [loading, setLoading] = useState(false);
@@ -308,8 +308,9 @@ function FHIRExplorerApp() {
       />
       
       <FHIRExplorerErrorBoundary>
-        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', ...(embedded ? { height: '100%' } : { minHeight: '100vh' }) }}>
           <UnifiedLayout
+            embedded={embedded}
             currentMode={currentMode}
             currentView={currentView}
             onModeChange={handleModeChange}

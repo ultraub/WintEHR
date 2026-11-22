@@ -179,6 +179,13 @@ tabs, routes, and nav items together.
   tone → colour is decided once in `utils/statusDisplay.js`: "active" is
   never red. `MetricCard` / `ClinicalSummaryCard` are adapters over
   `StatTile` kept for old call sites.
+- **One shell.** `LayoutV3` wraps every authenticated route; full-width
+  workspaces use its `rail` + `flush` mode (see `src/pages/CLAUDE.md`). The
+  app bar owns search, the command palette (`components/common/CommandPalette`,
+  Cmd/Ctrl+K — pages come from the navigation config, so module pages appear
+  automatically), theme, connection status, notifications
+  (`WorkflowNotificationsButton`, fed by `ClinicalWorkflowContext`) and
+  account. Do not add a second app bar or bell inside a page.
 - **Markdown text** (CDS card `detail`, note bodies) renders through
   `components/common/Markdown.jsx`; clamped previews use `stripMarkdown` from
   `utils/markdownText.js`. Do not print it raw in a `Typography`.
