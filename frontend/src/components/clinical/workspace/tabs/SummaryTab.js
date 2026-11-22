@@ -1336,9 +1336,9 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
               title="Active Problems"
               value={stats.activeProblems}
               icon={<ProblemIcon />}
-              accentColor="#EF4444"
-              severity={stats.activeProblems > 5 ? 'high' : stats.activeProblems > 3 ? 'moderate' : 'normal'}
-              trend={stats.activeProblems > 3 ? { direction: 'up' } : null}
+              // A count of active problems is a fact, not an alarm, and the
+              // data holds no trend to draw an arrow for.
+              severity="normal"
             />
           </Grid>
           <Grid item xs={12} sm={6} md={2.4}>
@@ -1367,7 +1367,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
               value={stats.totalAllergies}
               icon={<WarningIcon />}
               accentColor="#F97316"
-              severity={stats.totalAllergies > 3 ? 'high' : stats.totalAllergies > 0 ? 'moderate' : 'normal'}
+              severity={stats.totalAllergies > 0 ? 'moderate' : 'normal'}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={2.4}>
@@ -1376,8 +1376,7 @@ const SummaryTab = ({ patientId, onNotificationUpdate, onNavigateToTab }) => {
               value={stats.overdueItems}
               icon={<CalendarIcon />}
               accentColor="#8B5CF6"
-              severity={stats.overdueItems > 0 ? 'high' : 'normal'}
-              progress={stats.overdueItems > 0 ? (stats.overdueItems / 10) * 100 : 0}
+              severity={stats.overdueItems > 0 ? 'moderate' : 'normal'}
             />
           </Grid>
         </Grid>

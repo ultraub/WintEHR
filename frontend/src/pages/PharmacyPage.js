@@ -3,6 +3,7 @@
  * Standalone pharmacy workflow management with kanban-style queue
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import PageHeader from '../components/common/PageHeader';
 import {
   Box,
   Grid,
@@ -552,18 +553,11 @@ const PharmacyPage = () => {
 
   return (
     <Box sx={{ p: 3, height: '100vh', overflow: 'auto' }}>
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold" color="primary.main">
-            🏥 Pharmacy Management
-          </Typography>
-          <Typography variant="subtitle1" color="text.secondary">
-            System-wide medication dispensing & workflow
-          </Typography>
-        </Box>
-        
-        <Stack direction="row" spacing={2}>
+      <PageHeader
+        title="Pharmacy"
+        subtitle="System-wide medication dispensing and workflow"
+        actions={(
+          <>
           <Button
             variant={activeView === 'queue' ? 'contained' : 'outlined'}
             startIcon={<PharmacyIcon />}
@@ -578,8 +572,9 @@ const PharmacyPage = () => {
           >
             Analytics
           </Button>
-        </Stack>
-      </Stack>
+          </>
+        )}
+      />
 
       {/* Queue Overview Cards */}
       <Grid container spacing={2} mb={3}>

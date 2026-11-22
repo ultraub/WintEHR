@@ -3,10 +3,10 @@
  * Comprehensive medication inventory tracking and management
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import PageHeader from '../components/common/PageHeader';
+import StatTile from '../components/common/StatTile';
 import {
   Box,
-  Card,
-  CardContent,
   Grid,
   Typography,
   Table,
@@ -35,8 +35,6 @@ import {
   Tooltip,
   LinearProgress,
   CircularProgress,
-  useTheme,
-  alpha
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -44,7 +42,6 @@ import {
   Edit as EditIcon,
   Warning as WarningIcon,
   CheckCircle as CheckIcon,
-  Inventory as InventoryIcon,
   LocalShipping as ShippingIcon,
   Print as PrintIcon,
   Download as DownloadIcon,
@@ -64,7 +61,6 @@ import {
 } from '../services/inventoryManagementService';
 
 const InventoryManagementPage = () => {
-  const theme = useTheme();
   
   // State
   const [inventory, setInventory] = useState([]);
@@ -207,19 +203,11 @@ const InventoryManagementPage = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold" color="primary.main">
-            <InventoryIcon sx={{ mr: 1, verticalAlign: 'bottom' }} />
-            Inventory Management
-          </Typography>
-          <Typography variant="subtitle1" color="text.secondary">
-            Track and manage medication inventory
-          </Typography>
-        </Box>
-        
-        <Stack direction="row" spacing={2}>
+      <PageHeader
+        title="Inventory"
+        subtitle="Track and manage medication inventory"
+        actions={(
+          <>
           <Button
             variant="outlined"
             startIcon={refreshing ? <CircularProgress size={20} /> : <RefreshIcon />}
@@ -235,81 +223,23 @@ const InventoryManagementPage = () => {
           >
             Receive Shipment
           </Button>
-        </Stack>
-      </Stack>
+          </>
+        )}
+      />
 
-      {/* Alert Summary Cards */}
+      {/* Summary tiles: colour only appears when a count is non-zero */}
       <Grid container spacing={2} mb={3}>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography color="text.secondary" variant="caption">
-                    Total Items
-                  </Typography>
-                  <Typography variant="h4" fontWeight="bold">
-                    {totalItems}
-                  </Typography>
-                </Box>
-                <InventoryIcon color="primary" sx={{ fontSize: 40 }} />
-              </Stack>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={3}>
+          <StatTile label="Total items" value={totalItems} />
         </Grid>
-        
-        <Grid item xs={12} md={3}>
-          <Card sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1) }}>
-            <CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography color="text.secondary" variant="caption">
-                    Low Stock
-                  </Typography>
-                  <Typography variant="h4" fontWeight="bold" color="warning.main">
-                    {lowStockCount}
-                  </Typography>
-                </Box>
-                <LowStockIcon color="warning" sx={{ fontSize: 40 }} />
-              </Stack>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={3}>
+          <StatTile label="Low stock" value={lowStockCount} tone="attention" />
         </Grid>
-        
-        <Grid item xs={12} md={3}>
-          <Card sx={{ bgcolor: alpha(theme.palette.error.main, 0.1) }}>
-            <CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography color="text.secondary" variant="caption">
-                    Out of Stock
-                  </Typography>
-                  <Typography variant="h4" fontWeight="bold" color="error.main">
-                    {outOfStockCount}
-                  </Typography>
-                </Box>
-                <ExpiredIcon color="error" sx={{ fontSize: 40 }} />
-              </Stack>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={3}>
+          <StatTile label="Out of stock" value={outOfStockCount} tone="critical" />
         </Grid>
-        
-        <Grid item xs={12} md={3}>
-          <Card sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1) }}>
-            <CardContent>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography color="text.secondary" variant="caption">
-                    Expiring Soon
-                  </Typography>
-                  <Typography variant="h4" fontWeight="bold" color="warning.main">
-                    {expiringCount}
-                  </Typography>
-                </Box>
-                <ExpiringIcon color="warning" sx={{ fontSize: 40 }} />
-              </Stack>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={3}>
+          <StatTile label="Expiring soon" value={expiringCount} tone="attention" />
         </Grid>
       </Grid>
 
