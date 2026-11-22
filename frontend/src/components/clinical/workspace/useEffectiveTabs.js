@@ -9,15 +9,15 @@
  * this is what is SHOWN.
  *
  * `context` is the optional workflow context (inpatient, surgical, …).
- * Nothing in the app selects one yet; the resolver supports it so the
- * policy shape does not change when a context picker arrives.
+ * Left undefined, the one chosen in the tab strip's context picker applies
+ * (`setWorkflowContext` in tabPolicyStore, remembered per browser).
  */
 
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { CLINICAL_TABS } from './clinicalTabRegistry';
 import { resolveEffectiveTabs } from './tabPolicy';
-import { ensureTabPolicyLoaded, getTabPolicySnapshot, subscribeTabPolicy } from './tabPolicyStore';
+import { ensureTabPolicyLoaded, getActiveContext, getTabPolicySnapshot, subscribeTabPolicy } from './tabPolicyStore';
 
 let warned = new Set();
 
@@ -30,16 +30,19 @@ export function useEffectiveTabs({ context } = {}) {
     ensureTabPolicyLoaded();
   }, []);
 
+  // An explicit `context` wins; otherwise the one chosen in the tab strip (tabPolicyStore).
+  const effectiveContext = context !== undefined ? context : getActiveContext();
+
   return useMemo(() => {
-    const resolved = resolveEffectiveTabs(CLINICAL_TABS, snapshot.policy, { role, context });
+    const resolved = resolveEffectiveTabs(CLINICAL_TABS, snapshot.policy, { role, context: effectiveContext });
     for (const warning of resolved.warnings) {
       if (!warned.has(warning)) {
         warned.add(warning);
         console.warn(`[tab policy] ${warning}`);
       }
     }
-    return { ...resolved, ready: snapshot.loaded, role, policy: snapshot.policy };
-  }, [snapshot, role, context]);
+    return { ...resolved, ready: snapshot.loaded, role, context: effectiveContext, contexts: snapshot.contexts, policy: snapshot.policy };
+  }, [snapshot, role, effectiveContext]);
 }
 
 /** Test helper: forget which warnings were already printed. */

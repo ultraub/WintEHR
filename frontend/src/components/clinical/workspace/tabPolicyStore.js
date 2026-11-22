@@ -10,11 +10,40 @@
 import api from '../../../services/api';
 import { EMPTY_TAB_POLICY } from './tabPolicy';
 
-let state = { policy: EMPTY_TAB_POLICY, roles: [], contexts: [], loaded: false, error: null };
+// The workflow context (inpatient, surgical, …) this browser works in. A
+// per-viewer convenience: chosen in the tab strip, remembered in
+// localStorage, applied as the policy's third layer by every consumer that
+// does not pass its own `context`. Unknown or removed contexts fall back to none.
+export const CONTEXT_STORAGE_KEY = 'wintehr.workflowContext';
+
+const readStoredContext = () => {
+  try {
+    return window.localStorage.getItem(CONTEXT_STORAGE_KEY) || null;
+  } catch {
+    return null;
+  }
+};
+
+let state = { policy: EMPTY_TAB_POLICY, roles: [], contexts: [], context: readStoredContext(), loaded: false, error: null };
 let inflight = null;
 const listeners = new Set();
 
 const notify = () => listeners.forEach((cb) => cb());
+
+/** The context in effect: the chosen one only while the policy still defines it. */
+export const getActiveContext = () => (state.context && state.contexts.includes(state.context) ? state.context : null);
+
+export function setWorkflowContext(context) {
+  const next = context || null;
+  state = { ...state, context: next };
+  try {
+    if (next) window.localStorage.setItem(CONTEXT_STORAGE_KEY, next);
+    else window.localStorage.removeItem(CONTEXT_STORAGE_KEY);
+  } catch {
+    // storage unavailable: the choice lasts for this page only
+  }
+  notify();
+}
 
 export const getTabPolicySnapshot = () => state;
 
@@ -31,6 +60,7 @@ export async function refreshTabPolicy() {
       policy: data.policy || EMPTY_TAB_POLICY,
       roles: data.roles || [],
       contexts: data.contexts || [],
+      context: state.context,
       loaded: true,
       error: null,
     };
@@ -54,7 +84,7 @@ export function ensureTabPolicyLoaded() {
 
 /** Test helper: seed the store without a network call. */
 export function __setTabPolicyForTests(next) {
-  state = { policy: EMPTY_TAB_POLICY, roles: [], contexts: [], loaded: true, error: null, ...next };
+  state = { policy: EMPTY_TAB_POLICY, roles: [], contexts: [], context: null, loaded: true, error: null, ...next };
   inflight = null;
   notify();
 }

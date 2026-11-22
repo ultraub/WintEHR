@@ -8,7 +8,7 @@ import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { CLINICAL_SECTIONS } from './sectionRegistry';
 import { resolveEffectiveSections } from './tabPolicy';
-import { ensureTabPolicyLoaded, getTabPolicySnapshot, subscribeTabPolicy } from './tabPolicyStore';
+import { ensureTabPolicyLoaded, getActiveContext, getTabPolicySnapshot, subscribeTabPolicy } from './tabPolicyStore';
 
 const warned = new Set();
 
@@ -21,8 +21,10 @@ export function useEffectiveSections(tabId, { context } = {}) {
     ensureTabPolicyLoaded();
   }, []);
 
+  const effectiveContext = context !== undefined ? context : getActiveContext();
+
   return useMemo(() => {
-    const resolved = resolveEffectiveSections(tabId, CLINICAL_SECTIONS, snapshot.policy, { role, context });
+    const resolved = resolveEffectiveSections(tabId, CLINICAL_SECTIONS, snapshot.policy, { role, context: effectiveContext });
     for (const warning of resolved.warnings) {
       const key = `${tabId}:${warning}`;
       if (!warned.has(key)) {
@@ -31,5 +33,5 @@ export function useEffectiveSections(tabId, { context } = {}) {
       }
     }
     return { ...resolved, ready: snapshot.loaded };
-  }, [tabId, snapshot, role, context]);
+  }, [tabId, snapshot, role, effectiveContext]);
 }
