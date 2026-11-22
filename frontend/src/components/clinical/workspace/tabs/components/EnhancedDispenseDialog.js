@@ -4,6 +4,7 @@
  * Part of Phase 1 Implementation: MedicationDispense Integration
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import StatusChip from '../../../shared/display/StatusChip';
 import {
   Dialog,
   DialogTitle,
@@ -475,11 +476,7 @@ const EnhancedDispenseDialog = ({
             <Typography variant="caption" color="text.secondary">
               Status
             </Typography>
-            <Chip 
-              label={medicationRequest.status} 
-              size="small"
-              color={medicationRequest.status === 'active' ? 'success' : 'default'}
-            />
+            <StatusChip status={medicationRequest.status} />
           </Grid>
           <Grid item xs={6}>
             <Typography variant="caption" color="text.secondary">

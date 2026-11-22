@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PageHeader from '../components/common/PageHeader';
 import {
   Box,
   Grid,
@@ -161,9 +162,7 @@ function Analytics() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Clinical Analytics Dashboard
-      </Typography>
+      <PageHeader title="Population Analytics" subtitle="Health trends and metrics across the patient population" />
       
       {isMockData && (
         <Alert 

@@ -3,6 +3,7 @@
  * Beautiful, modern patient summary with clinical workspace integration
  */
 import React, { useState, useEffect, useMemo } from 'react';
+import StatusChip from '../shared/display/StatusChip';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -931,12 +932,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
                               }
                             </Typography>
                             {report.status && (
-                              <Chip 
-                                label={report.status} 
-                                size="small" 
-                                color={report.status === 'final' ? 'success' : 'default'}
-                                sx={{ height: 16, fontSize: '0.7rem' }}
-                              />
+                              <StatusChip status={report.status} />
                             )}
                           </Stack>
                         }

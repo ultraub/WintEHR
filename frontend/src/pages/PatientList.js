@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import PageHeader from '../components/common/PageHeader';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
-  Typography,
   TextField,
   InputAdornment,
   IconButton,
@@ -16,7 +16,6 @@ import {
   CircularProgress,
   TablePagination,
   LinearProgress,
-  Stack
 } from '@mui/material';
 import SafeBadge from '../components/common/SafeBadge';
 import {
@@ -507,12 +506,7 @@ function PatientList() {
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <PeopleIcon color="primary" sx={{ fontSize: 32 }} />
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
-            Patients
-          </Typography>
-        </Stack>
+        <PageHeader title="Patients" sx={{ mb: 0 }} />
         <Box>
           <Tooltip title="Export patient list">
             <IconButton 

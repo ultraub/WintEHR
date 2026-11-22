@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import PageHeader from '../components/common/PageHeader';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -740,12 +741,7 @@ const EncountersPage = () => {
         justifyContent="space-between"
         sx={{ mb: 2 }}
       >
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <EncounterIcon color="primary" sx={{ fontSize: 32 }} />
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
-            Encounters
-          </Typography>
-        </Stack>
+        <PageHeader title="Encounters" sx={{ mb: 0 }} />
         <Stack direction="row" spacing={1}>
           <Tooltip title="Refresh encounters">
             <IconButton

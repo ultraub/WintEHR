@@ -8,6 +8,9 @@
  * - Clinical alerts and recommendations
  */
 import React, { useState, useMemo, useCallback } from 'react';
+import { cleanNamePart } from '../../../../utils/clinicalDisplay';
+import StatTile from '../../../common/StatTile';
+import StatusChip from '../../shared/display/StatusChip';
 import {
   Box,
   Card,
@@ -33,7 +36,6 @@ import {
   Collapse,
   useTheme,
   alpha,
-  Avatar,
   AvatarGroup,
   Menu,
   MenuItem,
@@ -46,8 +48,6 @@ import ClinicalEmptyState from '../../shared/ClinicalEmptyState';
 // Enhanced UX components
 import {
   InteractiveButton,
-  InteractiveChip,
-  AnimatedCounter
 } from './components/EnhancedInteractions';
 import {
   Refresh as RefreshIcon,
@@ -69,9 +69,7 @@ import {
   DateRange as DateRangeIcon,
   Assessment as AssessmentIcon,
   Favorite as HeartIcon,
-  MonitorHeart as MonitorIcon,
   Psychology as PsychologyIcon,
-  BugReport as BugIcon,
   Assignment as AssignmentIcon,
   Description as DescriptionIcon,
   PictureAsPdf as PictureAsPdfIcon,
@@ -114,7 +112,6 @@ import {
   getSmoothTransition,
   getColoredShadow
 } from '../../../../themes/clinicalThemeUtils';
-import { clinicalTokens } from '../../../../themes/clinicalTheme';
 import { cdsAlertPersistence } from '../../../../services/cdsAlertPersistenceService';
 
 const ChartReviewTabOptimized = ({
@@ -563,24 +560,10 @@ const ChartReviewTabOptimized = ({
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography variant="h6" sx={{ fontWeight: 600 }}>Conditions</Typography>
                           {stats.conditions.active > 0 && (
-                            <Chip 
-                              label={`${stats.conditions.active} Active`} 
-                              size="small" 
-                              color="error"
-                              sx={{
-                                fontWeight: 600
-                              }}
-                            />
+                            <StatusChip status="active" label={`${stats.conditions.active} active`} showDot={false} />
                           )}
                           {stats.conditions.resolved > 0 && (
-                            <Chip 
-                              label={`${stats.conditions.resolved} Resolved`} 
-                              size="small" 
-                              color="success"
-                              sx={{
-                                fontWeight: 600
-                              }}
-                            />
+                            <StatusChip status="resolved" label={`${stats.conditions.resolved} resolved`} showDot={false} />
                           )}
                         </Stack>
                         <InteractiveButton
@@ -679,14 +662,7 @@ const ChartReviewTabOptimized = ({
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography variant="h6" sx={{ fontWeight: 600 }}>Medications</Typography>
-                          <Chip 
-                            label={`${processedData.activeMedications.length} Active`} 
-                            size="small" 
-                            color="primary"
-                            sx={{
-                                        fontWeight: 600
-                            }}
-                          />
+                          <StatusChip status="active" label={`${processedData.activeMedications.length} active`} showDot={false} />
                         </Stack>
                         <InteractiveButton
                           startIcon={<AddIcon />}
@@ -1291,11 +1267,7 @@ const ChartReviewTabOptimized = ({
                                       {formatClinicalDate(encounter.period?.start)}
                                     </Typography>
                                   </Box>
-                                  <Chip 
-                                    label={encounter.status} 
-                                    size="small"
-                                    color={encounter.status === 'in-progress' ? 'primary' : 'default'}
-                                  />
+                                  <StatusChip status={encounter.status} />
                                 </Stack>
                               </Paper>
                             ))}
@@ -1397,199 +1369,49 @@ const ChartReviewTabOptimized = ({
         {viewMode === 'dashboard' && (
           <ClinicalLoadingState.FadeIn>
             <Box>
-              {/* Summary Cards with modern gradients */}
+              {/* Summary tiles. Counts are facts, so they stay neutral; only
+                  a critical allergy earns colour. */}
               <Grid container spacing={1} sx={{ mb: 2 }}>
-                <Grid item xs={12} md={3}>
-                  <Card sx={{ 
-                    height: '100%',
-                    backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.error.main, 0.08) : clinicalTokens.severity.high.bg,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.error.main,
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      boxShadow: theme.shadows[2]
-                    }
-                  }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Box>
-                          <Typography color="text.secondary" variant="caption">
-                            {showInactive ? 'All Conditions' : 'Active Conditions'}
-                          </Typography>
-                          <AnimatedCounter 
-                            value={showInactive ? processedData.filteredConditions.length : processedData.activeConditions.length}
-                            variant="h3"
-                            duration={800}
-                          />
-                          <Stack spacing={0.5} mt={1}>
-                            <Stack direction="row" spacing={0.5}>
-                              {stats.conditions.active > 0 && (
-                                <Chip 
-                                  label={`${stats.conditions.active} Active`} 
-                                  size="small" 
-                                  sx={{ 
-                                    fontSize: '0.6875rem',
-                                    backgroundColor: alpha(theme.palette.error.main, 0.1),
-                                    color: theme.palette.error.main,
-                                    fontWeight: 600
-                                  }} 
-                                />
-                              )}
-                              {stats.conditions.resolved > 0 && (
-                                <Chip 
-                                  label={`${stats.conditions.resolved} Resolved`} 
-                                  size="small" 
-                                  sx={{ 
-                                    fontSize: '0.6875rem',
-                                    backgroundColor: alpha(theme.palette.success.main, 0.1),
-                                    color: theme.palette.success.main,
-                                    fontWeight: 600
-                                  }} 
-                                />
-                              )}
-                            </Stack>
-                          </Stack>
-                        </Box>
-                        <Avatar sx={{ 
-                          bgcolor: alpha(theme.palette.error.main, 0.1),
-                          transition: 'all 0.2s ease',
-                          '&:hover': {
-                            bgcolor: alpha(theme.palette.error.main, 0.2)
-                          }
-                        }}>
-                          <HealingIcon color="error" />
-                        </Avatar>
-                      </Stack>
-                    </CardContent>
-                  </Card>
+                <Grid item xs={6} md={3}>
+                  <StatTile
+                    label={showInactive ? 'All conditions' : 'Active conditions'}
+                    value={showInactive ? processedData.filteredConditions.length : processedData.activeConditions.length}
+                    chips={[
+                      ...(stats.conditions.active > 0 ? [{ label: 'active', count: stats.conditions.active }] : []),
+                      ...(stats.conditions.resolved > 0 ? [{ label: 'resolved', count: stats.conditions.resolved }] : []),
+                    ]}
+                  />
                 </Grid>
-                
-                <Grid item xs={12} md={3}>
-                  <Card sx={{ 
-                    height: '100%',
-                    backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.08) : alpha(theme.palette.primary.main, 0.04),
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.primary.main,
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      boxShadow: theme.shadows[2]
-                    }
-                  }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Box>
-                          <Typography color="text.secondary" variant="caption">
-                            {showInactive ? 'All Medications' : 'Active Medications'}
-                          </Typography>
-                          <AnimatedCounter 
-                            value={showInactive ? processedData.filteredMedications.length : processedData.activeMedications.length}
-                            variant="h3"
-                            duration={800}
-                          />
-                          <Stack direction="row" spacing={0.5} mt={1}>
-                            {processedData.medicationsByIntent.order?.length > 0 && (
-                              <InteractiveChip 
-                                label={`${processedData.medicationsByIntent.order.length} Orders`}
-                                size="small"
-                                color="primary"
-                                hoverEffect="scale"
-                                tooltip="Active medication orders"
-                              />
-                            )}
-                          </Stack>
-                        </Box>
-                        <Avatar sx={{ 
-                          bgcolor: alpha(theme.palette.primary.main, 0.1),
-                          transition: 'all 0.2s ease',
-                          '&:hover': {
-                            bgcolor: alpha(theme.palette.primary.main, 0.2)
-                          }
-                        }}>
-                          <MedicationIcon color="primary" />
-                        </Avatar>
-                      </Stack>
-                    </CardContent>
-                  </Card>
+                <Grid item xs={6} md={3}>
+                  <StatTile
+                    label={showInactive ? 'All medications' : 'Active medications'}
+                    value={showInactive ? processedData.filteredMedications.length : processedData.activeMedications.length}
+                    chips={processedData.medicationsByIntent.order?.length > 0
+                      ? [{ label: 'orders', count: processedData.medicationsByIntent.order.length }]
+                      : []}
+                  />
                 </Grid>
-                
-                <Grid item xs={12} md={3}>
-                  <Card sx={{ 
-                    height: '100%',
-                    backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.warning.main, 0.08) : clinicalTokens.severity.moderate.bg,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.warning.main,
-                    '&:hover': {
-                      boxShadow: theme.shadows[1]
-                    }
-                  }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Box>
-                          <Typography color="text.secondary" variant="caption">
-                            Allergies
-                          </Typography>
-                          <Typography variant="h3" fontWeight="bold">
-                            {processedData.filteredAllergies.length}
-                          </Typography>
-                          {processedData.criticalAllergies.length > 0 && (
-                            <Stack direction="row" alignItems="center" mt={1}>
-                              <WarningIcon color="error" fontSize="small" />
-                              <Typography variant="caption" color="error" ml={0.5}>
-                                {processedData.criticalAllergies.length} Critical
-                              </Typography>
-                            </Stack>
-                          )}
-                        </Box>
-                        <Avatar sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1) }}>
-                          <BugIcon color="warning" />
-                        </Avatar>
-                      </Stack>
-                    </CardContent>
-                  </Card>
+                <Grid item xs={6} md={3}>
+                  <StatTile
+                    label="Allergies"
+                    value={processedData.filteredAllergies.length}
+                    tone={processedData.criticalAllergies.length > 0 ? 'critical' : 'neutral'}
+                    chips={processedData.criticalAllergies.length > 0
+                      ? [{ label: 'critical', count: processedData.criticalAllergies.length, tone: 'critical' }]
+                      : []}
+                  />
                 </Grid>
-                
-                <Grid item xs={12} md={3}>
-                  <Card sx={{ 
-                    height: '100%',
-                    backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.success.main, 0.08) : clinicalTokens.severity.low.bg,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.success.main,
-                    '&:hover': {
-                      boxShadow: theme.shadows[1]
-                    }
-                  }}>
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Box>
-                          <Typography color="text.secondary" variant="caption">
-                            Recent Vitals
-                          </Typography>
-                          <Typography variant="h3" fontWeight="bold">
-                            {processedData.recentVitals.length}
-                          </Typography>
-                          {processedData.recentVitals[0] && (
-                            <Typography variant="caption" color="text.secondary" mt={1}>
-                              Last: {formatClinicalDate(processedData.recentVitals[0].effectiveDateTime || processedData.recentVitals[0].issued, 'monthDay')}
-                            </Typography>
-                          )}
-                        </Box>
-                        <Avatar sx={{ bgcolor: alpha(theme.palette.success.main, 0.1) }}>
-                          <MonitorIcon color="success" />
-                        </Avatar>
-                      </Stack>
-                    </CardContent>
-                  </Card>
+                <Grid item xs={6} md={3}>
+                  <StatTile
+                    label="Recent vitals"
+                    value={processedData.recentVitals.length}
+                    caption={processedData.recentVitals[0]
+                      ? `Last: ${formatClinicalDate(processedData.recentVitals[0].effectiveDateTime || processedData.recentVitals[0].issued, 'monthDay')}`
+                      : undefined}
+                  />
                 </Grid>
               </Grid>
-              
+
               {/* Main Content Grid */}
               <Grid container spacing={3}>
                 {chartSections.map((section) => (
@@ -1718,8 +1540,8 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
   // Additional FHIR fields for enhanced clinical utility
   const bodySite = condition.bodySite?.[0]?.text || condition.bodySite?.[0]?.coding?.[0]?.display || null;
   const category = condition.category?.[0]?.coding?.[0]?.display || condition.category?.[0]?.text || null;
-  const asserter = condition.asserter?.display;
-  const recorder = condition.recorder?.display;
+  const asserter = cleanNamePart(condition.asserter?.display) || undefined;
+  const recorder = cleanNamePart(condition.recorder?.display) || undefined;
   const recordedDate = condition.recordedDate;
   const abatementDate = condition.abatementDateTime || condition.abatementAge?.value;
   const evidence = condition.evidence?.[0]?.detail?.[0]?.display || condition.evidence?.[0]?.code?.[0]?.text || null;
@@ -1744,10 +1566,6 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
                       clinicalStatus === 'remission' ? 'Remission' :
                       clinicalStatus === 'recurrence' ? 'Recurrence' : clinicalStatus;
 
-  const statusColor = clinicalStatus === 'active' ? 'error' :
-                      clinicalStatus === 'resolved' ? 'success' :
-                      clinicalStatus === 'remission' ? 'info' :
-                      clinicalStatus === 'recurrence' ? 'warning' : 'default';
 
   const onsetDisplay = condition.onsetDateTime ?
     formatClinicalDate(condition.onsetDateTime) :
@@ -1815,13 +1633,7 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
               {conditionName}
             </Typography>
             {clinicalStatus && (
-              <Chip
-                label={statusLabel}
-                size="small"
-                variant="outlined"
-                color={statusColor}
-                sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
-              />
+              <StatusChip status={clinicalStatus} label={statusLabel} sx={{ flexShrink: 0 }} />
             )}
           </Stack>
 
@@ -1869,7 +1681,7 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNav
   const isActive = ['active', 'on-hold'].includes(medication.status);
   
   // Additional FHIR fields for enhanced clinical utility
-  const requester = medication.requester?.display;
+  const requester = cleanNamePart(medication.requester?.display) || undefined;
   const reasonReference = medication.reasonReference?.[0]?.display;
   const courseOfTherapy = medication.courseOfTherapyType?.text || medication.courseOfTherapyType?.coding?.[0]?.display || null;
   const dispenseRequest = medication.dispenseRequest;
@@ -1890,10 +1702,6 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNav
                       medication.status === 'cancelled' ? 'Cancelled' :
                       medication.status === 'entered-in-error' ? 'Error' : medication.status;
 
-  const statusColor = medication.status === 'active' ? 'primary' :
-                      medication.status === 'completed' ? 'success' :
-                      medication.status === 'stopped' ? 'error' :
-                      medication.status === 'on-hold' ? 'warning' : 'default';
 
   const medCodeLabel = medicationCode && (
     medicationSystem?.includes('rxnorm') ? `RxNorm ${medicationCode}` :
@@ -1961,13 +1769,7 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNav
               {medicationDisplay}
             </Typography>
             {medication.status && (
-              <Chip
-                label={statusLabel}
-                size="small"
-                variant="outlined"
-                color={statusColor}
-                sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
-              />
+              <StatusChip status={medication.status} label={statusLabel} sx={{ flexShrink: 0 }} />
             )}
           </Stack>
 
@@ -2047,8 +1849,8 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
   const severity = allergy.reaction?.[0]?.severity;
   
   // Additional FHIR fields for enhanced clinical utility
-  const asserter = allergy.asserter?.display;
-  const recorder = allergy.recorder?.display;
+  const asserter = cleanNamePart(allergy.asserter?.display) || undefined;
+  const recorder = cleanNamePart(allergy.recorder?.display) || undefined;
   const lastOccurrence = allergy.lastOccurrence;
   const clinicalStatus = allergy.clinicalStatus?.coding?.[0]?.code;
   const verificationStatus = allergy.verificationStatus?.coding?.[0]?.code;
@@ -2197,8 +1999,6 @@ const EnhancedImmunizationCard = ({ immunization, onEdit, isAlternate = false })
   const statusLabel = status === 'completed' ? 'Completed' :
                      status === 'not-done' ? 'Not Done' :
                      status === 'entered-in-error' ? 'Error' : status;
-  const statusColor = status === 'completed' ? 'success' :
-                      status === 'not-done' ? 'warning' : 'default';
 
   const dateDisplay = formatClinicalDate(immunization.occurrenceDateTime, 'standard', null);
   const protocol = immunization.protocolApplied?.[0];
@@ -2249,13 +2049,7 @@ const EnhancedImmunizationCard = ({ immunization, onEdit, isAlternate = false })
             >
               {vaccineDisplay}
             </Typography>
-            <Chip
-              label={statusLabel}
-              size="small"
-              variant="outlined"
-              color={statusColor}
-              sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
-            />
+            <StatusChip status={status} label={statusLabel} sx={{ flexShrink: 0 }} />
           </Stack>
 
           {/* Line 2: date · dose info · site */}
@@ -2296,11 +2090,6 @@ const EnhancedProcedureCard = ({ procedure, onEdit, isAlternate = false }) => {
                      status === 'stopped' ? 'Stopped' :
                      status === 'on-hold' ? 'On Hold' :
                      status === 'entered-in-error' ? 'Error' : status;
-  const statusColor = status === 'completed' ? 'success' :
-                      status === 'in-progress' ? 'info' :
-                      status === 'preparation' ? 'info' :
-                      status === 'not-done' ? 'warning' :
-                      status === 'stopped' ? 'error' : 'default';
 
   const dateDisplay = formatClinicalDate(
     procedure.performedDateTime || procedure.performedPeriod?.start,
@@ -2354,13 +2143,7 @@ const EnhancedProcedureCard = ({ procedure, onEdit, isAlternate = false }) => {
             >
               {procedureDisplay}
             </Typography>
-            <Chip
-              label={statusLabel}
-              size="small"
-              variant="outlined"
-              color={statusColor}
-              sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
-            />
+            <StatusChip status={status} label={statusLabel} sx={{ flexShrink: 0 }} />
           </Stack>
 
           {/* Line 2: date · performer · body site */}
@@ -2400,10 +2183,6 @@ const EnhancedCarePlanCard = ({ carePlan, onEdit, isAlternate = false }) => {
                      status === 'on-hold' ? 'On Hold' :
                      status === 'unknown' ? 'Unknown' :
                      status === 'entered-in-error' ? 'Error' : status;
-  const statusColor = status === 'active' ? 'primary' :
-                      status === 'completed' ? 'success' :
-                      status === 'draft' ? 'info' :
-                      status === 'revoked' ? 'error' : 'default';
 
   const periodDisplay = carePlan.period ? (
     `${formatClinicalDate(carePlan.period.start)}${carePlan.period.end ? ` - ${formatClinicalDate(carePlan.period.end)}` : ''}`
@@ -2453,13 +2232,7 @@ const EnhancedCarePlanCard = ({ carePlan, onEdit, isAlternate = false }) => {
             >
               {title}
             </Typography>
-            <Chip
-              label={statusLabel}
-              size="small"
-              variant="outlined"
-              color={statusColor}
-              sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
-            />
+            <StatusChip status={status} label={statusLabel} sx={{ flexShrink: 0 }} />
           </Stack>
 
           {/* Line 2: period · description (truncated) */}
@@ -2502,9 +2275,6 @@ const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
   const statusLabel = status === 'current' ? 'Current' :
                      status === 'superseded' ? 'Superseded' :
                      status === 'entered-in-error' ? 'Error' : status;
-  const statusColor = status === 'current' ? 'primary' :
-                      status === 'superseded' ? 'warning' :
-                      status === 'entered-in-error' ? 'error' : 'default';
 
   const dateDisplay = formatClinicalDate(document.date, 'withTime', null);
   const authorDisplay = document.author?.[0]?.display || null;
@@ -2553,13 +2323,7 @@ const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
             >
               {title}
             </Typography>
-            <Chip
-              label={statusLabel}
-              size="small"
-              variant="outlined"
-              color={statusColor}
-              sx={{ fontWeight: 500, height: 22, flexShrink: 0 }}
-            />
+            <StatusChip status={status} label={statusLabel} sx={{ flexShrink: 0 }} />
           </Stack>
 
           {/* Line 2: date · author · content type + size */}

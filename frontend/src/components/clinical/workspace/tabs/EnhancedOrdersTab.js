@@ -3,6 +3,7 @@
  * Comprehensive CPOE system with advanced FHIR R4 search capabilities
  */
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import StatusChip from '../../shared/display/StatusChip';
 import {
   Box,
   Grid,
@@ -150,16 +151,11 @@ const OrderCard = ({ order, selected, onSelect, onAction, getRelatedOrders, isAl
               <Typography variant="body2" fontWeight="medium">
                 {title}
               </Typography>
-              <Chip
-                label={order.status === 'draft' ? 'unsigned' : order.status}
-                size="small"
-                color={
-                  order.status === 'active' ? 'success'
-                  : order.status === 'cancelled' ? 'error'
-                  : order.status === 'draft' ? 'warning'
-                  : 'default'
-                }
-                sx={{ height: 18, borderRadius: 0, fontSize: '0.7rem' }}
+              <StatusChip
+                status={order.status}
+                // An unsigned order is waiting on the clinician, so it asks for attention.
+                label={order.status === 'draft' ? 'Unsigned' : undefined}
+                tone={order.status === 'draft' ? 'attention' : undefined}
               />
               {order.priority && order.priority !== 'routine' && (
                 <Chip 
@@ -1587,12 +1583,7 @@ const EnhancedOrdersTab = ({
               <Stack spacing={2}>
                 <Box>
                   <Typography variant="subtitle2" color="text.secondary">Status</Typography>
-                  <Chip 
-                    label={selectedResult.status} 
-                    size="small" 
-                    color={selectedResult.status === 'active' ? 'success' : 'default'}
-                    sx={{ fontWeight: 'bold', borderRadius: '4px' }}
-                  />
+                  <StatusChip status={selectedResult.status} />
                 </Box>
                 {selectedResult.priority && (
                   <Box>

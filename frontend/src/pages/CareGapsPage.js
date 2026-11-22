@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import StatTile from '../components/common/StatTile';
+import PageHeader from '../components/common/PageHeader';
 import {
   Box,
   Typography,
@@ -12,14 +14,9 @@ import {
   LinearProgress,
   Divider
 } from '@mui/material';
-import SafeBadge from '../components/common/SafeBadge';
 import {
-  Timeline as CareGapIcon,
-  Notifications as AlertIcon,
   Refresh as RefreshIcon,
   Info as InfoIcon,
-  CheckCircle as CompletedIcon,
-  Warning as GapIcon
 } from '@mui/icons-material';
 import ClinicalLoadingState from '../components/clinical/shared/ClinicalLoadingState';
 import ClinicalEmptyState from '../components/clinical/shared/ClinicalEmptyState';
@@ -99,12 +96,11 @@ const CareGapsPage = () => {
   return (
     <Box>
       <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
-        <SafeBadge badgeContent={highPriorityGaps} color="error">
-          <CareGapIcon color="primary" />
-        </SafeBadge>
-        <Typography variant="h4" component="h1">
-          Care Gaps Analysis
-        </Typography>
+        <PageHeader
+          title="Care Gaps"
+          subtitle={highPriorityGaps > 0 ? `${highPriorityGaps} high-priority gap${highPriorityGaps === 1 ? '' : 's'}` : undefined}
+          sx={{ mb: 0, flexGrow: 1 }}
+        />
         <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchCareGaps}>
           Refresh
         </Button>
@@ -115,64 +111,19 @@ const CareGapsPage = () => {
         Completion percentages reflect actual FHIR resource queries for immunizations, observations, and procedures.
       </Alert>
 
-      {/* Summary Cards */}
+      {/* Summary tiles */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h3" color="primary">
-                {totalPatients}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Total Patients
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} sm={3}>
+          <StatTile label="Total patients" value={totalPatients} />
         </Grid>
-        <Grid item xs={12} sm={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-                <GapIcon color="error" />
-                <Typography variant="h3" color="error.main">
-                  {highPriorityGaps}
-                </Typography>
-              </Stack>
-              <Typography variant="body2" color="text.secondary">
-                High Priority Gaps (&lt;50%)
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} sm={3}>
+          <StatTile label="High priority" value={highPriorityGaps} tone="critical" caption="Under 50% complete" />
         </Grid>
-        <Grid item xs={12} sm={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-                <AlertIcon color="warning" />
-                <Typography variant="h3" color="warning.main">
-                  {mediumPriorityGaps}
-                </Typography>
-              </Stack>
-              <Typography variant="body2" color="text.secondary">
-                Medium Priority (50-75%)
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} sm={3}>
+          <StatTile label="Medium priority" value={mediumPriorityGaps} tone="attention" caption="50–75% complete" />
         </Grid>
-        <Grid item xs={12} sm={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-                <CompletedIcon color="success" />
-                <Typography variant="h3" color="success.main">
-                  {lowPriorityGaps}
-                </Typography>
-              </Stack>
-              <Typography variant="body2" color="text.secondary">
-                On Track (&gt;75%)
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} sm={3}>
+          <StatTile label="On track" value={lowPriorityGaps} caption="Over 75% complete" />
         </Grid>
       </Grid>
 
