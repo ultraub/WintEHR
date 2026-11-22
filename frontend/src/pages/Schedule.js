@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import DialogFrame from '../components/common/DialogFrame';
 import StatTile from '../components/common/StatTile';
 import PageHeader from '../components/common/PageHeader';
 import {
@@ -11,10 +12,6 @@ import {
   Alert,
   Stack,
   Grid,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
   Select,
   MenuItem,
@@ -560,14 +557,14 @@ function NewAppointmentDialog({ open, onClose, onSave, providers, selectedDate }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 0 } }}>
-      <DialogTitle sx={{ pb: 1 }}>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <AddIcon color="primary" />
-          <Typography variant="h6">New Appointment</Typography>
-        </Stack>
-      </DialogTitle>
-      <DialogContent dividers>
+    <DialogFrame
+      open={open}
+      onClose={onClose}
+      title="New appointment"
+      size="sm"
+      busy={saving}
+      primaryAction={{ label: saving ? 'Booking…' : 'Book appointment', onClick: handleSave }}
+    >
         <Stack spacing={2.5} sx={{ pt: 1 }}>
           {formError && <Alert severity="error" sx={{ borderRadius: 0 }}>{formError}</Alert>}
 
@@ -705,20 +702,7 @@ function NewAppointmentDialog({ open, onClose, onSave, providers, selectedDate }
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 0 } }}
           />
         </Stack>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, py: 1.5 }}>
-        <Button onClick={onClose} sx={{ borderRadius: 0 }}>Cancel</Button>
-        <Button
-          variant="contained"
-          onClick={handleSave}
-          disabled={saving}
-          startIcon={saving ? <CircularProgress size={16} /> : <AddIcon />}
-          sx={{ borderRadius: 0 }}
-        >
-          {saving ? 'Booking...' : 'Book Appointment'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    </DialogFrame>
   );
 }
 

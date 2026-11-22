@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import DialogFrame from '../components/common/DialogFrame';
 import PageHeader from '../components/common/PageHeader';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -268,21 +269,18 @@ const NewEncounterDialog = ({ open, onClose, onCreated }) => {
   };
 
   return (
-    <Dialog
+    <DialogFrame
       open={open}
       onClose={handleClose}
-      maxWidth="sm"
-      fullWidth
-      PaperProps={{ sx: { borderRadius: 0 } }}
-      aria-labelledby="new-encounter-dialog-title"
+      title="New encounter"
+      size="sm"
+      busy={saving}
+      primaryAction={{
+        label: saving ? 'Creating…' : 'Start encounter',
+        onClick: handleCreate,
+        disabled: !selectedPatient,
+      }}
     >
-      <DialogTitle id="new-encounter-dialog-title" sx={{ pb: 1 }}>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <EncounterIcon color="primary" />
-          <Typography variant="h6" component="span">New Encounter</Typography>
-        </Stack>
-      </DialogTitle>
-      <DialogContent dividers>
         <Stack spacing={2.5} sx={{ pt: 1 }}>
           {dialogError && (
             <Alert severity="error" onClose={() => setDialogError(null)}>
@@ -383,21 +381,7 @@ const NewEncounterDialog = ({ open, onClose, onCreated }) => {
             fullWidth
           />
         </Stack>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={handleClose} disabled={saving}>
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleCreate}
-          disabled={saving || !selectedPatient}
-          startIcon={saving ? <CircularProgress size={18} /> : <AddIcon />}
-        >
-          {saving ? 'Creating...' : 'Start Encounter'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    </DialogFrame>
   );
 };
 

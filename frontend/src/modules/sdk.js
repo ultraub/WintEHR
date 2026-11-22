@@ -67,3 +67,19 @@ export const loadClinicalSectionCatalog = () =>
 // One hue per clinical domain; module accents are registered here too.
 export { categoricalAccents } from '../themes/categoricalAccents';
 export { getSeverityColor } from '../themes/clinicalThemeUtils';
+
+// Shared UI primitives and display formatters. Modules must use these rather
+// than hand-rolling a dialog shell, stat tile, page title or status chip, so
+// a module's screens look like the rest of the app (see frontend/CLAUDE.md).
+export { default as DialogFrame } from '../components/common/DialogFrame';
+export { default as PageHeader } from '../components/common/PageHeader';
+export { default as StatTile } from '../components/common/StatTile';
+export { default as StatusChip } from '../components/clinical/shared/display/StatusChip';
+export {
+  formatLabName,
+  formatMrn,
+  formatNumericValue,
+  formatPersonName,
+  formatQuantity,
+  formatUnit,
+} from '../utils/clinicalDisplay';

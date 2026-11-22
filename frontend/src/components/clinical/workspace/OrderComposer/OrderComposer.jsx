@@ -363,9 +363,11 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
       <Dialog
         open={open}
         onClose={signing ? undefined : onClose}
-        maxWidth="xl"
+        // lg, not xl: at full width the form fields stretched far past a
+        // readable length and the drafts pane was mostly empty space.
+        maxWidth="lg"
         fullWidth
-        PaperProps={{ sx: { height: '92vh' } }}
+        PaperProps={{ sx: { height: '88vh', borderRadius: 1.5 } }}
       >
         <DialogTitle
           sx={{
@@ -422,6 +424,10 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
               bgcolor: 'background.default',
             }}
           >
+            {/* Order tabs lay their fields out in a <Stack useFlexGap>; a plain
+                spacing Stack zeroes its children's margins, which cancels a
+                Grid container's negative margin and shifted every Grid row
+                16px right of the full-width fields. */}
             <ActiveTabComp />
           </Box>
 
@@ -431,7 +437,7 @@ const OrderComposerInner = ({ open, onClose, patientId, onSigned, initialTab }) 
           <Box
             sx={{
               flex: 2,
-              minWidth: 380,
+              minWidth: 340,
               display: 'flex',
               flexDirection: 'column',
             }}

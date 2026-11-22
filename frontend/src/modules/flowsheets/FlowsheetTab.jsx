@@ -16,10 +16,7 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
+  InputAdornment,
   Stack,
   TextField,
   ToggleButton,
@@ -30,7 +27,7 @@ import {
 import { Add as AddIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 
-import { api, buildUrl, useAuth } from '../sdk';
+import { api, buildUrl, useAuth, DialogFrame, formatUnit } from '../sdk';
 
 const TEMPLATE_ID = 'vitals';
 const ROW_HEADER_WIDTH = 170;
@@ -246,9 +243,9 @@ const FlowsheetTab = ({ patientId, currentPatient }) => {
                     <Typography variant="body2" noWrap sx={{ fontSize: '0.8rem', fontWeight: 600 }}>
                       {row.label}
                     </Typography>
-                    {row.unit && (
+                    {formatUnit(row.unit) && (
                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                        {row.unit}
+                        {formatUnit(row.unit)}
                       </Typography>
                     )}
                   </Box>
@@ -295,39 +292,38 @@ const FlowsheetTab = ({ patientId, currentPatient }) => {
       )}
 
       {/* Chart-vitals dialog */}
-      <Dialog open={dialogOpen} onClose={saving ? undefined : () => setDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Chart vitals</DialogTitle>
-        <DialogContent>
-          <Stack spacing={1.5} sx={{ mt: 0.5 }}>
-            {saveError && <Alert severity="error">{saveError}</Alert>}
-            {(data?.rows || []).map((row) => (
-              <TextField
-                key={row.key}
-                label={`${row.label}${row.unit ? ` (${row.unit})` : ''}`}
-                value={draft[row.key] ?? ''}
-                onChange={(e) => setDraft((d) => ({ ...d, [row.key]: e.target.value }))}
-                size="small"
-                inputProps={{ inputMode: 'decimal' }}
-              />
-            ))}
-            <Typography variant="caption" color="text.secondary">
-              Leave fields blank to skip them. Each value is recorded as a FHIR
-              Observation timestamped now.
-            </Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={saving}
-            startIcon={saving ? <CircularProgress size={14} color="inherit" /> : null}
-          >
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <DialogFrame
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        title="Chart vitals"
+        subtitle="Recorded now. Leave a field blank to skip it."
+        size="sm"
+        busy={saving}
+        primaryAction={{ label: 'Save', onClick: handleSave }}
+      >
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          {saveError && <Alert severity="error">{saveError}</Alert>}
+          {/* Two columns; each field carries its label above and its unit
+              inside the field, so a typed value is never left unlabelled. */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+            {(data?.rows || []).map((row) => {
+              const unit = formatUnit(row.unit);
+              return (
+                <TextField
+                  key={row.key}
+                  label={row.label}
+                  value={draft[row.key] ?? ''}
+                  onChange={(e) => setDraft((d) => ({ ...d, [row.key]: e.target.value }))}
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ inputMode: 'decimal' }}
+                  InputProps={unit ? { endAdornment: <InputAdornment position="end">{unit}</InputAdornment> } : undefined}
+                />
+              );
+            })}
+          </Box>
+        </Stack>
+      </DialogFrame>
     </Box>
   );
 };

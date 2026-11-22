@@ -3,9 +3,12 @@
  * Comprehensive medication inventory tracking and management
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import DialogFrame from '../components/common/DialogFrame';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import PageHeader from '../components/common/PageHeader';
 import StatTile from '../components/common/StatTile';
 import {
+  Autocomplete,
   Box,
   Grid,
   Typography,
@@ -23,10 +26,6 @@ import {
   InputAdornment,
   Chip,
   Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   FormControl,
   InputLabel,
   Select,
@@ -50,7 +49,7 @@ import {
   AccessTime as ExpiringIcon,
   Error as ExpiredIcon
 } from '@mui/icons-material';
-import { format } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 
 // Import inventory service
 import { 
@@ -417,29 +416,57 @@ const InventoryManagementPage = () => {
       </TableContainer>
 
       {/* Receive Shipment Dialog */}
-      <Dialog
+      <DialogFrame
         open={receiveDialogOpen}
         onClose={() => setReceiveDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
+        title="Receive shipment"
+        size="sm"
+        primaryAction={{
+          label: 'Receive shipment',
+          onClick: handleReceiveShipment,
+          disabled: !shipmentForm.medicationCode || !shipmentForm.quantity || !shipmentForm.lotNumber,
+        }}
       >
-        <DialogTitle>Receive Shipment</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 2 }}>
-            <TextField
-              fullWidth
-              label="Medication Code (RxNorm)"
-              value={shipmentForm.medicationCode}
-              onChange={(e) => setShipmentForm({ ...shipmentForm, medicationCode: e.target.value })}
-              required
-            />
-            <TextField
-              fullWidth
-              label="Medication Name"
-              value={shipmentForm.medicationName}
-              onChange={(e) => setShipmentForm({ ...shipmentForm, medicationName: e.target.value })}
-              required
-            />
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          {/* Pick a stocked medication and its RxNorm code is filled in; a
+              new medication can still be typed, with its code entered below. */}
+          <Autocomplete
+            freeSolo
+            options={inventory}
+            getOptionLabel={(option) => (typeof option === 'string' ? option : option.name || '')}
+            isOptionEqualToValue={(option, value) => option.code === value.code}
+            inputValue={shipmentForm.medicationName}
+            onInputChange={(event, value, reason) => {
+              if (reason === 'input' || reason === 'clear') {
+                setShipmentForm((form) => ({ ...form, medicationName: value }));
+              }
+            }}
+            onChange={(event, option) => {
+              if (option && typeof option !== 'string') {
+                setShipmentForm((form) => ({ ...form, medicationName: option.name, medicationCode: option.code }));
+              }
+            }}
+            renderOption={(props, option) => (
+              <li {...props} key={option.code}>
+                <Box>
+                  <Typography variant="body2">{option.name}</Typography>
+                  <Typography variant="caption" color="text.secondary">RxNorm {option.code}</Typography>
+                </Box>
+              </li>
+            )}
+            renderInput={(params) => (
+              <TextField {...params} label="Medication" required helperText="Search stocked medications, or type a new one" />
+            )}
+          />
+          <TextField
+            fullWidth
+            label="RxNorm code"
+            value={shipmentForm.medicationCode}
+            onChange={(e) => setShipmentForm({ ...shipmentForm, medicationCode: e.target.value })}
+            required
+            inputProps={{ inputMode: 'numeric' }}
+          />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
               fullWidth
               label="Quantity"
@@ -447,23 +474,27 @@ const InventoryManagementPage = () => {
               value={shipmentForm.quantity}
               onChange={(e) => setShipmentForm({ ...shipmentForm, quantity: e.target.value })}
               required
+              inputProps={{ min: 1 }}
             />
             <TextField
               fullWidth
-              label="Lot Number"
+              label="Lot number"
               value={shipmentForm.lotNumber}
               onChange={(e) => setShipmentForm({ ...shipmentForm, lotNumber: e.target.value })}
               required
             />
-            <TextField
-              fullWidth
-              label="Expiration Date"
-              type="date"
-              value={shipmentForm.expirationDate}
-              onChange={(e) => setShipmentForm({ ...shipmentForm, expirationDate: e.target.value })}
-              InputLabelProps={{ shrink: true }}
-              required
-            />
+          </Stack>
+          <DatePicker
+            label="Expiration date"
+            disablePast
+            value={shipmentForm.expirationDate ? parseISO(shipmentForm.expirationDate) : null}
+            onChange={(date) => setShipmentForm({
+              ...shipmentForm,
+              expirationDate: date && isValid(date) ? format(date, 'yyyy-MM-dd') : '',
+            })}
+            slotProps={{ textField: { fullWidth: true, required: true } }}
+          />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
               fullWidth
               label="Manufacturer"
@@ -472,23 +503,13 @@ const InventoryManagementPage = () => {
             />
             <TextField
               fullWidth
-              label="Invoice Number"
+              label="Invoice number"
               value={shipmentForm.invoiceNumber}
               onChange={(e) => setShipmentForm({ ...shipmentForm, invoiceNumber: e.target.value })}
             />
           </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setReceiveDialogOpen(false)}>Cancel</Button>
-          <Button
-            onClick={handleReceiveShipment}
-            variant="contained"
-            disabled={!shipmentForm.medicationCode || !shipmentForm.quantity || !shipmentForm.lotNumber}
-          >
-            Receive Shipment
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Stack>
+      </DialogFrame>
     </Box>
   );
 };
