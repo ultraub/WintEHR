@@ -116,6 +116,10 @@ jobs:
                 if (m.severity === 2) console.log(f.filePath + ':' + m.line + ' [' + m.ruleId + '] ' + m.message);
               process.exit(1);
             }"
+      - name: "design ratchet (hardcoded colours and hand-built dialogs may not increase)"
+        # Counts legacy patterns against frontend/scripts/design-ratchet.json
+        # and fails only when a count rises. See the script header.
+        run: npm run lint:design
       - name: "vitest (baseline: 0 failed / 539 total)"
         run: |
           # The suite is fully green: 539 tests, 0 failed. The failed budget

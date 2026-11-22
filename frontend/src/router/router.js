@@ -89,7 +89,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/patients/:id/clinical',
-    element: page(<ClinicalWorkspaceWrapper embedded />, { layout: 'rail' })
+    element: page(<ClinicalWorkspaceWrapper />, { layout: 'rail' })
   },
   {
     path: '/patients/:id/timeline',

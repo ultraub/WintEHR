@@ -163,9 +163,11 @@ tabs, routes, and nav items together.
   call with no loading indicator or `catch` is a review failure.
 - Get data via contexts (`useFHIRResource`) or `fhirClient` directly — not via
   raw `axios`/`fetch` to `/fhir/...`.
-- Clinical UI uses **sharp corners** (`borderRadius` 0–4) and the severity
-  palette from `src/themes/clinicalThemeUtils.js` — that file is the token
-  source of truth.
+- **Colour comes from the theme, never a hex literal** outside `src/themes/`
+  (`src/themes/README.md` says what lives where). `npm run lint:design` is a
+  ratchet run in CI: it counts hex literals and hand-built `<Dialog>`s and
+  fails when either count rises. When you remove some, run it with
+  `-- --update` and commit the lower baseline.
 - **Display values go through `src/utils/clinicalDisplay.js`** — `formatPersonName`
   / `cleanNamePart` (drops Synthea digit suffixes), `formatMrn` (UUID → short
   form), `formatUnit` / `formatQuantity` (UCUM → readable, sensible rounding),
