@@ -26,9 +26,8 @@ export const validateConfiguration = () => {
       errors.push('REACT_APP_FHIR_ENDPOINT not set');
     }
 
-    if (!import.meta.env.REACT_APP_WS_URL) {
-      errors.push('REACT_APP_WS_URL not set');
-    }
+    // No WebSocket check: the address is derived from the page's host
+    // (config/apiConfig.js buildWebSocketConfig), so there is nothing to set.
   }
 
   if (errors.length > 0) {
@@ -51,9 +50,9 @@ export const getConfigurationStatus = () => {
     environment: process.env.NODE_ENV,
     hasApiUrl: !!import.meta.env.REACT_APP_API_URL,
     hasFhirEndpoint: !!import.meta.env.REACT_APP_FHIR_ENDPOINT,
-    hasWsUrl: !!import.meta.env.REACT_APP_WS_URL,
+    hasWsUrlOverride: !!import.meta.env.REACT_APP_WEBSOCKET_URL,
     apiUrl: import.meta.env.REACT_APP_API_URL || 'not set',
     fhirEndpoint: import.meta.env.REACT_APP_FHIR_ENDPOINT || 'not set',
-    wsUrl: import.meta.env.REACT_APP_WS_URL || 'not set'
+    wsUrl: import.meta.env.REACT_APP_WEBSOCKET_URL || 'derived from page host'
   };
 };

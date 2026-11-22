@@ -183,7 +183,6 @@ HAPI_ADMIN_TOKEN=<generate-with-secrets.token_urlsafe(50)>
 # Production URLs (auto-configured if using --domain flag)
 REACT_APP_API_URL=https://wintehr.yourdomain.com
 REACT_APP_FHIR_ENDPOINT=https://wintehr.yourdomain.com/fhir/R4
-REACT_APP_WS_URL=wss://wintehr.yourdomain.com/ws
 ```
 
 ```bash
