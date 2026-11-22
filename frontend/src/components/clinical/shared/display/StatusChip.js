@@ -1,179 +1,73 @@
 /**
- * StatusChip Component
- * Reusable status indicator with theme-aware colors and consistent styling
+ * StatusChip
+ * The one way to draw a status. Colour comes from the status's tone
+ * (utils/statusDisplay.js), never from the call site, so "Active" looks the
+ * same on a condition, a prescription, an order and an appointment.
+ *
+ * Quiet by design: a soft tint and a small dot, no solid fills, no pulsing.
+ *
+ * Props: `status` (any FHIR or app status string), `label` (override the
+ * humanised text), `tone` (override the mapped tone — rarely right),
+ * `size` ('small' | 'medium'), `showDot`.
+ * `variant`, `showIcon`, `urgency`, `clinicalContext` and `department` from
+ * the previous implementation are accepted and ignored.
  */
 import React from 'react';
-import { Chip, useTheme } from '@mui/material';
-import {
-  CheckCircle as ActiveIcon,
-  Pause as InactiveIcon,
-  Schedule as PendingIcon,
-  TaskAlt as CompletedIcon,
-  Cancel as CancelledIcon,
-  Edit as DraftIcon,
-  PlayArrow as InProgressIcon
-} from '@mui/icons-material';
-import { 
-  getClinicalContext, 
-  getStatusColor, 
-  getClinicalAnimation 
-} from '../../../../themes/clinicalThemeUtils';
+import { Box, useTheme } from '@mui/material';
+import { getStatusLabel, getStatusTone, getToneColors } from '../../../../utils/statusDisplay';
 
-const StatusChip = ({ 
-  status, 
-  variant = 'clinical', 
-  size = 'small', 
-  showIcon = true,
-  clinicalContext,
-  department,
-  urgency = 'normal',
-  ...props 
+const StatusChip = ({
+  status,
+  label,
+  tone,
+  size = 'small',
+  showDot = true,
+  sx,
+  // legacy props, intentionally unused
+  variant: _variant,
+  showIcon: _showIcon,
+  urgency: _urgency,
+  clinicalContext: _clinicalContext,
+  department: _department,
+  ...props
 }) => {
   const theme = useTheme();
-  
-  // Get clinical context for enhanced theming
-  const context = clinicalContext || getClinicalContext(
-    window.location.pathname,
-    new Date().getHours(),
-    department
+  const resolvedTone = tone || getStatusTone(status);
+  const colors = getToneColors(theme, resolvedTone);
+  const small = size === 'small';
+
+  return (
+    <Box
+      component="span"
+      data-tone={resolvedTone}
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.75,
+        height: small ? 22 : 26,
+        px: small ? 1 : 1.25,
+        borderRadius: 1,
+        backgroundColor: colors.bg,
+        color: colors.fg,
+        fontSize: small ? '0.75rem' : '0.8125rem',
+        fontWeight: 500,
+        lineHeight: 1,
+        whiteSpace: 'nowrap',
+        verticalAlign: 'middle',
+        ...sx,
+      }}
+      {...props}
+    >
+      {showDot && (
+        <Box
+          component="span"
+          aria-hidden
+          sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: colors.dot, flexShrink: 0 }}
+        />
+      )}
+      {label || getStatusLabel(status)}
+    </Box>
   );
-  
-  // Enhanced clinical context with urgency
-  const enhancedContext = {
-    ...context,
-    urgency
-  };
-
-  // Get status configuration
-  const getStatusConfig = (status) => {
-    const normalizedStatus = status?.toLowerCase();
-    
-    const statusConfigs = {
-      active: {
-        color: getStatusColor(theme, 'active', enhancedContext),
-        icon: <ActiveIcon />,
-        label: 'Active'
-      },
-      inactive: {
-        color: getStatusColor(theme, 'inactive', enhancedContext),
-        icon: <InactiveIcon />,
-        label: 'Inactive'
-      },
-      pending: {
-        color: getStatusColor(theme, 'pending', enhancedContext),
-        icon: <PendingIcon />,
-        label: 'Pending'
-      },
-      completed: {
-        color: getStatusColor(theme, 'completed', enhancedContext),
-        icon: <CompletedIcon />,
-        label: 'Completed'
-      },
-      cancelled: {
-        color: getStatusColor(theme, 'cancelled', enhancedContext),
-        icon: <CancelledIcon />,
-        label: 'Cancelled'
-      },
-      draft: {
-        color: getStatusColor(theme, 'draft', enhancedContext),
-        icon: <DraftIcon />,
-        label: 'Draft'
-      },
-      'in-progress': {
-        color: getStatusColor(theme, 'inProgress', enhancedContext),
-        icon: <InProgressIcon />,
-        label: 'In Progress'
-      }
-    };
-
-    return statusConfigs[normalizedStatus] || {
-      color: theme.palette.grey[500],
-      icon: null,
-      label: status || 'Unknown'
-    };
-  };
-
-  const statusConfig = getStatusConfig(status);
-  
-  // Get clinical animation
-  const hoverAnimation = getClinicalAnimation(theme, 'hover', enhancedContext);
-
-  // Get chip color based on variant
-  const getChipColor = () => {
-    if (variant === 'clinical') {
-      return 'default';
-    }
-    
-    // Map clinical status to MUI chip colors
-    const normalizedStatus = status?.toLowerCase();
-    const colorMapping = {
-      active: 'success',
-      completed: 'info',
-      pending: 'warning',
-      cancelled: 'error',
-      'in-progress': 'primary'
-    };
-    
-    return colorMapping[normalizedStatus] || 'default';
-  };
-
-  const chipProps = {
-    size,
-    label: statusConfig.label,
-    icon: showIcon ? statusConfig.icon : undefined,
-    ...props
-  };
-
-  if (variant === 'clinical') {
-    // Clean solid color styling using theme palette
-    const solidColorMap = {
-      active: theme.palette.success.main,
-      completed: theme.palette.primary.main,
-      pending: theme.palette.warning.main,
-      cancelled: theme.palette.error.main,
-      'in-progress': theme.palette.primary.dark,
-      draft: theme.palette.grey[500],
-      inactive: theme.palette.grey[600]
-    };
-    
-    const backgroundColor = solidColorMap[status?.toLowerCase()] || theme.palette.grey[500];
-    
-    chipProps.sx = {
-      backgroundColor: backgroundColor,
-      color: theme.palette.common.white,
-      border: 'none',
-      fontWeight: 500,
-      fontSize: size === 'small' ? '0.75rem' : '0.875rem',
-      height: size === 'small' ? '24px' : '32px',
-      '& .MuiChip-icon': {
-        color: theme.palette.common.white,
-        fontSize: size === 'small' ? '16px' : '20px'
-      },
-      '& .MuiChip-deleteIcon': {
-        color: theme.palette.common.white
-      },
-      transition: `all ${hoverAnimation.duration}ms ${hoverAnimation.easing}`,
-      '&:hover': {
-        backgroundColor: backgroundColor,
-        filter: 'brightness(0.9)'
-      },
-      // Add urgency indicator
-      ...(urgency === 'urgent' && {
-        animation: 'pulse 2s infinite',
-        '@keyframes pulse': {
-          '0%': { opacity: 1 },
-          '50%': { opacity: 0.7 },
-          '100%': { opacity: 1 }
-        }
-      }),
-      ...props.sx
-    };
-  } else {
-    // Use standard MUI chip colors
-    chipProps.color = getChipColor();
-  }
-
-  return <Chip {...chipProps} />;
 };
 
 export default React.memo(StatusChip);

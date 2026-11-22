@@ -171,6 +171,14 @@ tabs, routes, and nav items together.
   form), `formatUnit` / `formatQuantity` (UCUM → readable, sensible rounding),
   `formatLabName` (LOINC long name → short). Display only: never write a
   formatted value back to a resource or search with one.
+- **Shared UI primitives live in `components/common/`** — use them, do not
+  hand-roll another: `StatTile` (headline numbers; a `tone` only shows when
+  the value is non-zero), `DialogFrame` (one header, three widths, Cancel
+  then primary), `PageHeader` (text-only page title + actions), and
+  `components/clinical/shared/display/StatusChip` for every status. Status →
+  tone → colour is decided once in `utils/statusDisplay.js`: "active" is
+  never red. `MetricCard` / `ClinicalSummaryCard` are adapters over
+  `StatTile` kept for old call sites.
 - **Markdown text** (CDS card `detail`, note bodies) renders through
   `components/common/Markdown.jsx`; clamped previews use `stripMarkdown` from
   `utils/markdownText.js`. Do not print it raw in a `Typography`.

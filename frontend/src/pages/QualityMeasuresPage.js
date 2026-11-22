@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import PageHeader from '../components/common/PageHeader';
+import StatTile from '../components/common/StatTile';
 import {
   Box,
   Typography,
   Card,
   CardContent,
   Alert,
-  Button,
   Stack,
   Grid,
   LinearProgress,
@@ -13,11 +14,6 @@ import {
   Divider
 } from '@mui/material';
 import {
-  Assessment as QualityIcon,
-  TrendingUp as TrendIcon,
-  GetApp as ExportIcon,
-  CheckCircle as MetIcon,
-  Cancel as NotMetIcon,
   Info as InfoIcon,
   Refresh as RefreshIcon
 } from '@mui/icons-material';
@@ -93,67 +89,26 @@ const QualityMeasuresPage = () => {
 
   return (
     <Box>
-      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
-        <QualityIcon color="primary" />
-        <Typography variant="h4" component="h1">
-          Quality Measures
-        </Typography>
-        <Button variant="contained" startIcon={<ExportIcon />} disabled>
-          Export Report
-        </Button>
-        <Button variant="outlined" startIcon={<TrendIcon />} disabled>
-          View Trends
-        </Button>
-      </Stack>
+      <PageHeader
+        title="Quality Measures"
+        subtitle="Calculated live from the synthetic patient data in HAPI FHIR"
+      />
 
       <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 3 }}>
         Quality measures are calculated in real-time from Synthea synthetic patient data stored in HAPI FHIR.
         Numerator and denominator values reflect actual FHIR resource queries.
       </Alert>
 
-      {/* Summary Cards */}
+      {/* Summary tiles */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={4}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h3" color="primary">
-                {summary?.overall_score?.toFixed(1) || 0}%
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Overall Quality Score
-              </Typography>
-            </CardContent>
-          </Card>
+          <StatTile label="Overall quality score" value={(summary?.overall_score ?? 0).toFixed(1)} unit="%" />
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-                <MetIcon color="success" />
-                <Typography variant="h3" color="success.main">
-                  {summary?.measures_met || 0}
-                </Typography>
-              </Stack>
-              <Typography variant="body2" color="text.secondary">
-                Measures Met
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} sm={4}>
+          <StatTile label="Measures met" value={summary?.measures_met ?? 0} tone="positive" />
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-                <NotMetIcon color="error" />
-                <Typography variant="h3" color="error.main">
-                  {summary?.measures_not_met || 0}
-                </Typography>
-              </Stack>
-              <Typography variant="body2" color="text.secondary">
-                Measures Not Met
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} sm={4}>
+          <StatTile label="Measures not met" value={summary?.measures_not_met ?? 0} tone="attention" />
         </Grid>
       </Grid>
 
