@@ -186,6 +186,13 @@ tabs, routes, and nav items together.
   automatically), theme, connection status, notifications
   (`WorkflowNotificationsButton`, fed by `ClinicalWorkflowContext`) and
   account. Do not add a second app bar or bell inside a page.
+- **Charts.** Counts by named category use `components/common/BarList`
+  (ranked horizontal bars, one hue, every row labelled) — not a pie or donut,
+  and never when categories overlap. Whole-number counts over time are bars,
+  not a smoothed area. No trend figure without history behind it.
+- **Themes.** Two are offered (`themePresets` in `themes/medicalTheme.js`):
+  Standard and High contrast, each in light and dark. Do not add a theme to
+  the picker without committing to keep every screen checked in it.
 - **Markdown text** (CDS card `detail`, note bodies) renders through
   `components/common/Markdown.jsx`; clamped previews use `stripMarkdown` from
   `utils/markdownText.js`. Do not print it raw in a `Typography`.

@@ -159,6 +159,7 @@ const MARGrid = ({
         <Box
           sx={{
             width: ROW_HEADER_WIDTH,
+            flexShrink: 0,
             position: 'sticky',
             left: 0,
             bgcolor: 'background.paper',
@@ -178,8 +179,9 @@ const MARGrid = ({
           <Box
             key={i}
             sx={{
-              flex: '0 0 auto',
-              width: density === 'compact' ? 32 : density === 'spacious' ? 64 : 48,
+              // Same sizing as MARCell so header and body columns line up.
+              flex: `1 0 ${density === 'compact' ? 32 : density === 'spacious' ? 64 : 48}px`,
+              minWidth: density === 'compact' ? 32 : density === 'spacious' ? 64 : 48,
               borderRight: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
               px: 0.5,
               py: 0.5,

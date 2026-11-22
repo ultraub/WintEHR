@@ -114,7 +114,10 @@ const MARCell = ({
     return (
       <Box
         sx={{
-          width: dims.w,
+          // Columns share the spare width instead of leaving most of the grid
+          // empty; dims.w is the minimum, below which the grid scrolls.
+          flex: `1 0 ${dims.w}px`,
+          minWidth: dims.w,
           height: dims.h,
           borderRight: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
         }}
@@ -161,7 +164,10 @@ const MARCell = ({
         onClick={() => onClick?.(scheduledRow, state)}
         onKeyDown={(e) => { if (e.key === 'Enter') onClick?.(scheduledRow, state); }}
         sx={{
-          width: dims.w,
+          // Columns share the spare width instead of leaving most of the grid
+          // empty; dims.w is the minimum, below which the grid scrolls.
+          flex: `1 0 ${dims.w}px`,
+          minWidth: dims.w,
           height: dims.h,
           display: 'flex',
           alignItems: 'center',

@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import BarList from '../components/common/BarList';
 import StatTile from '../components/common/StatTile';
 import PageHeader from '../components/common/PageHeader';
 import {
@@ -57,8 +58,6 @@ import {
   Line,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
   Cell,
   RadarChart,
   Radar,
@@ -70,8 +69,7 @@ import {
   Tooltip as ChartTooltip,
   Legend,
   ResponsiveContainer,
-  Area,
-  AreaChart
+  CartesianGrid,
 } from 'recharts';
 
 // Service imports
@@ -89,15 +87,6 @@ import QuickReferenceWidget from '../components/dashboard/widgets/QuickReference
 function Dashboard() {
   const theme = useTheme();
 
-  // Theme-derived chart colors
-  const chartColors = [
-    theme.palette.primary.main,
-    theme.palette.success.main,
-    theme.palette.warning.main,
-    theme.palette.error.main,
-    theme.palette.info.main,
-    theme.palette.secondary.main,
-  ];
   const navigate = useNavigate();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
@@ -164,6 +153,15 @@ function Dashboard() {
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
   };
+
+  // Encounter series for the chart. The average is computed here from the
+  // series itself; the rounded figure from the API showed "0 per day" for
+  // any population with fewer than one encounter a day.
+  const encounterSeries = trendingData?.dailyTrend || [];
+  const encounterTotal = encounterSeries.reduce((sum, day) => sum + (day.encounters || 0), 0);
+  const encounterAverage = encounterSeries.length
+    ? (encounterTotal / encounterSeries.length).toFixed(1)
+    : '0';
 
   // Render loading state
   if (loading && !refreshing) {
@@ -270,133 +268,93 @@ function Dashboard() {
               />
             </Grid>
 
-            {/* Encounter Trends Chart */}
+            {/* Encounters per day. Counts are whole numbers on separate days, so
+                they are bars: a smoothed area drew values that never happened. */}
             <Grid item xs={12} md={8}>
-              <Paper sx={{ p: 2, height: 300 }}>
-                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                  Patient Encounters - Last 30 Days
-                </Typography>
-                <Box sx={{ width: '100%', height: 220 }}>
-                  <ResponsiveContainer>
-                    <AreaChart data={trendingData?.dailyTrend || []}>
-                      <defs>
-                        <linearGradient id="colorEncounters" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0.1}/>
-                        </linearGradient>
-                      </defs>
-                      <XAxis 
-                        dataKey="dayOfWeek" 
-                        stroke={theme.palette.text.secondary}
-                        style={{ fontSize: '0.75rem' }}
-                      />
-                      <YAxis 
-                        stroke={theme.palette.text.secondary}
-                        style={{ fontSize: '0.75rem' }}
-                      />
-                      <ChartTooltip
-                        contentStyle={{
-                          backgroundColor: theme.palette.background.paper,
-                          border: `1px solid ${theme.palette.divider}`,
-                          borderRadius: 12,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.10)'
-                        }}
-                        labelFormatter={(value, data) => {
-                          if (data && data[0]?.payload?.date) {
-                            return format(new Date(data[0].payload.date), 'MMM d, yyyy');
-                          }
-                          return value;
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="encounters"
-                        stroke={theme.palette.primary.main}
-                        strokeWidth={2}
-                        fillOpacity={1}
-                        fill="url(#colorEncounters)"
-                        animationDuration={1000}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </Box>
-                <Box display="flex" justifyContent="space-between" mt={2}>
-                  <Typography variant="body2" color="text.secondary">
-                    Average: {trendingData?.averagePerDay || 0} encounters/day
+              <Paper sx={{ p: 2, height: 320 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="baseline">
+                  <Typography variant="subtitle1" fontWeight="bold">
+                    Encounters per day, last 30 days
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Total: {trendingData?.totalEncounters || 0} encounters
+                  <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {encounterTotal} total · {encounterAverage} per day
                   </Typography>
-                </Box>
+                </Stack>
+                {encounterSeries.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                    No encounters recorded in the last 30 days.
+                  </Typography>
+                ) : (
+                  <Box sx={{ width: '100%', height: 250, mt: 1 }}>
+                    <ResponsiveContainer>
+                      <BarChart data={encounterSeries} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+                        <CartesianGrid vertical={false} stroke={theme.palette.divider} />
+                        <XAxis
+                          dataKey="date"
+                          tickFormatter={(value) => {
+                            const date = new Date(value);
+                            return Number.isNaN(date.getTime()) ? '' : format(date, 'MMM d');
+                          }}
+                          interval={6}
+                          tickLine={false}
+                          axisLine={{ stroke: theme.palette.divider }}
+                          tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
+                        />
+                        <YAxis
+                          allowDecimals={false}
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
+                        />
+                        <ChartTooltip
+                          cursor={{ fill: theme.palette.action.hover }}
+                          contentStyle={{
+                            backgroundColor: theme.palette.background.paper,
+                            border: `1px solid ${theme.palette.divider}`,
+                            borderRadius: 6,
+                            boxShadow: 'none',
+                            fontSize: 12,
+                          }}
+                          labelFormatter={(value) => {
+                            const date = new Date(value);
+                            return Number.isNaN(date.getTime()) ? value : format(date, 'EEE, MMM d');
+                          }}
+                          formatter={(value) => [value, 'Encounters']}
+                        />
+                        <Bar
+                          dataKey="encounters"
+                          fill={theme.palette.primary.main}
+                          radius={[3, 3, 0, 0]}
+                          maxBarSize={16}
+                          isAnimationActive={false}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Box>
+                )}
               </Paper>
             </Grid>
 
-            {/* Chronic Disease Distribution */}
+            {/* Chronic conditions. A patient can be on several registers, so
+                these are not slices of one whole: ranked bars, not a donut. */}
             <Grid item xs={12} md={4}>
-              <Paper sx={{ p: 2, height: 300 }}>
-                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                  Chronic Disease Registry
-                </Typography>
-                <Box sx={{ width: '100%', height: 220 }}>
-                  <ResponsiveContainer>
-                    <PieChart>
-                      <Pie
-                        data={chronicDiseaseStats?.diseases || []}
-                        dataKey="count"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={40}
-                        outerRadius={70}
-                        paddingAngle={2}
-                        animationBegin={0}
-                        animationDuration={800}
-                      >
-                        {(chronicDiseaseStats?.diseases || []).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
-                        ))}
-                      </Pie>
-                      <ChartTooltip
-                        contentStyle={{
-                          backgroundColor: theme.palette.background.paper,
-                          border: `1px solid ${theme.palette.divider}`,
-                          borderRadius: 12,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.10)'
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <Box sx={{ textAlign: 'center', mt: -15, position: 'relative' }}>
-                    <Typography variant="h5" fontWeight="bold">
-                      {chronicDiseaseStats?.totalPatients || 0}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Total Patients
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ mt: 2 }}>
-                  <Grid container spacing={1}>
-                    {(chronicDiseaseStats?.diseases || []).slice(0, 6).map((disease, index) => (
-                      <Grid item xs={6} key={disease.name}>
-                        <Box display="flex" alignItems="center">
-                          <Box
-                            sx={{
-                              width: 12,
-                              height: 12,
-                              borderRadius: '50%',
-                              backgroundColor: chartColors[index % chartColors.length],
-                              mr: 1
-                            }}
-                          />
-                          <Typography variant="caption" noWrap>
-                            {disease.icon} {disease.name}: {disease.count}
-                          </Typography>
-                        </Box>
-                      </Grid>
-                    ))}
-                  </Grid>
-                </Box>
+              <Paper sx={{ p: 2, height: 320, overflow: 'auto' }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1.5 }}>
+                  <Typography variant="subtitle1" fontWeight="bold">
+                    Chronic disease registry
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                    of {chronicDiseaseStats?.totalPatients || 0} patients
+                  </Typography>
+                </Stack>
+                <BarList
+                  items={(chronicDiseaseStats?.diseases || []).map((disease) => ({
+                    label: disease.name,
+                    value: disease.count,
+                  }))}
+                  max={chronicDiseaseStats?.totalPatients || undefined}
+                  emptyText="No chronic conditions recorded."
+                />
               </Paper>
             </Grid>
 
