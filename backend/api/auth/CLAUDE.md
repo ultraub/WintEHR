@@ -26,7 +26,7 @@ examples referencing `secure_auth_service.py`, they are stale.
 
 | Service | File | When active | What it actually does |
 |---|---|---|---|
-| `AuthService` | `service.py` | Always, for `/api/auth/*` | Checks `TRAINING_USERS` dict; password must equal the literal `"password"`. Session tokens in the shared `SessionStore` (or a JWT when `JWT_ENABLED=true`). |
+| `AuthService` | `service.py` | Always, for `/api/auth/*` | `resolve_login_user`: built-in `TRAINING_USERS` take the literal `"password"`; custom users from the Command Center's `auth.users` setting (`api/command_center/users.py`) take their bcrypt hash; disabled users never log in and `get_current_user` refuses them on their next request (`user_disabled`, read live). Session tokens in the shared `SessionStore` (or a JWT when `JWT_ENABLED=true`). |
 | `PractitionerAuthService` | `practitioner_auth_service.py` | Always, for `/practitioners/*` routes only | Logs in as a real FHIR `Practitioner` from HAPI; **no password check at all**; sessions in the shared `SessionStore` |
 
 ### Sessions are shared across uvicorn workers (`session_store.py`)

@@ -2,7 +2,7 @@
 Authentication service layer
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 import secrets
 from fastapi import Depends, HTTPException, status, Header, Request
@@ -34,33 +34,10 @@ class AuthService:
         self.db = db
     
     async def authenticate_user(self, username: str, password: str) -> Optional[User]:
-        """Authenticate user based on current mode"""
-        if not JWT_ENABLED:
-            # Training mode - simple authentication
-            if username in TRAINING_USERS and password == TRAINING_PASSWORD:
-                user_data = TRAINING_USERS[username]
-                return User(**user_data)
-            return None
-        else:
-            # Production mode - JWT authentication
-            # CRITICAL SECURITY ISSUE: This must be fixed before production use!
-            # TODO: Implement proper user database with hashed passwords
-            # Current implementation accepts hardcoded training password which is a major security vulnerability
-            
-            # WARNING: The code below is for DEMO ONLY and must be replaced with:
-            # 1. User table in database with hashed passwords (bcrypt)
-            # 2. Proper password verification against hashed passwords
-            # 3. User role and permission management
-            # 4. Account lockout after failed attempts
-            # 5. Password complexity requirements
-            
-            if username in TRAINING_USERS:
-                # SECURITY VULNERABILITY: Using plain text password comparison
-                # This MUST be replaced with bcrypt password hash verification
-                if password == TRAINING_PASSWORD:
-                    user_data = TRAINING_USERS[username]
-                    return User(**user_data)
-            return None
+        """Authenticate user: the built-in training users (literal training password)
+        plus the Command Center's custom users (bcrypt); disabled users never log in.
+        Same rule in both modes — JWT mode only changes what the login returns."""
+        return await resolve_login_user(username, password)
     
     async def login(self, username: str, password: str, request: Optional[Request] = None) -> Dict[str, Any]:
         """Process login and return appropriate response"""
@@ -149,9 +126,8 @@ class AuthService:
             if not payload:
                 return None
             username = payload.get("sub")
-            if username and username in TRAINING_USERS:
-                return User(**TRAINING_USERS[username])
-            return None
+            record = await user_record_live(username) if username else None
+            return User(**_user_fields(record)) if record and not record.get("disabled") else None
         else:
             # Check training session (shared store — see session_store.py)
             session = await AuthService.training_sessions.get(token)
@@ -199,6 +175,60 @@ class AuthService:
             AuthService.failed_attempts[ip_address].append(datetime.utcnow())
 
 
+# --- the user directory: built-in training users + the Command Center's `auth.users` ----------
+
+
+def _user_fields(record: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in record.items() if k != "disabled"}
+
+
+async def users_doc() -> Dict[str, Any]:
+    """The live `auth.users` setting; {} when the settings store is unavailable, so
+    the built-in logins keep working whatever happens to Postgres."""
+    try:
+        from api.command_center.settings_service import get_setting
+
+        return dict(await get_setting("auth.users") or {})
+    except Exception:  # noqa: BLE001 — identity must never depend on the settings store
+        return {}
+
+
+async def user_record_live(username: str) -> Optional[Dict[str, Any]]:
+    from api.command_center.users import user_record
+
+    return user_record(username, await users_doc())
+
+
+async def resolve_login_user(username: str, password: str) -> Optional[User]:
+    """Built-in users take the training password; custom users their bcrypt hash."""
+    doc = await users_doc()
+    if username in TRAINING_USERS:
+        if (doc.get(username) or {}).get("disabled"):
+            return None
+        return User(**TRAINING_USERS[username]) if password == TRAINING_PASSWORD else None
+    from api.command_center.users import user_record
+
+    record = user_record(username, doc)
+    if record is None or record.get("disabled"):
+        return None
+    if not verify_password(password, (doc.get(username) or {}).get("password_hash", "")):
+        return None
+    return User(**_user_fields(record))
+
+
+async def user_disabled(username: str) -> bool:
+    """Checked on every authenticated request so disabling a user ends their session now."""
+    doc = await users_doc()
+    return bool((doc.get(username) or {}).get("disabled"))
+
+
+async def enabled_usernames() -> List[str]:
+    doc = await users_doc()
+    names = [u for u in TRAINING_USERS if not (doc.get(u) or {}).get("disabled")]
+    names += sorted(u for u, spec in doc.items() if u not in TRAINING_USERS and isinstance(spec, dict) and not spec.get("disabled"))
+    return names
+
+
 # Dependency to get auth service
 async def get_auth_service(db: AsyncSession = Depends(get_db_session)) -> AuthService:
     """Get auth service instance"""
@@ -243,6 +273,12 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if await user_disabled(user.username):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="This login has been disabled by an administrator",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

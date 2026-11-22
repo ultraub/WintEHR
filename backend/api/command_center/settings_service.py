@@ -149,7 +149,7 @@ class SettingsService:
         await self._audit(
             "system.setting.updated", user_id, definition,
             {"key": definition.key, "tier": definition.tier, "action": "update",
-             **({} if definition.is_secret else {"value": value})},
+             **({} if definition.is_secret or not definition.audit_value else {"value": value})},
         )
         return self._view(definition, value, "database", row)
 

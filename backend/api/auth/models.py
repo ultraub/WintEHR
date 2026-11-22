@@ -44,3 +44,4 @@ class AuthConfig(BaseModel):
     mode: str  # "training" or "production"
     jwt_enabled: bool
     available_users: Optional[List[str]] = None  # Only in training mode
+    users: Optional[List[Dict[str, Any]]] = None  # [{username, name, role}] for the login picker

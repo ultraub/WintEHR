@@ -316,3 +316,41 @@ class SessionsResponse(BaseModel):
     sessions: List[SessionView]
     shared: Optional[bool] = None  # True when the store is Redis (every worker sees every session)
     note: Optional[str] = None
+
+
+# --- user management (slice 16) ------------------------------------------------------------------
+
+class UserView(BaseModel):
+    """One login as the Users tab sees it (users.py). Never carries the password hash."""
+
+    username: str
+    id: str
+    name: str
+    email: str
+    role: str
+    department: Optional[str] = None
+    permissions: List[str] = Field(default_factory=list)
+    permissions_explicit: bool = False   # custom user with its own list (else the role's defaults)
+    source: Literal["builtin", "custom"]
+    disabled: bool = False
+    protected: bool = False              # admin: cannot be disabled or deleted
+
+
+class UserCreate(BaseModel):
+    username: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]{1,31}$")
+    name: str = Field(min_length=1, max_length=120)
+    role: str = Field(min_length=1, max_length=40)
+    password: str = Field(min_length=4, max_length=72)
+    email: Optional[str] = None
+    department: Optional[str] = None
+    permissions: Optional[List[str]] = None
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    role: Optional[str] = Field(default=None, min_length=1, max_length=40)
+    password: Optional[str] = Field(default=None, min_length=4, max_length=72)
+    email: Optional[str] = None
+    department: Optional[str] = None
+    permissions: Optional[List[str]] = None
+    disabled: Optional[bool] = None
