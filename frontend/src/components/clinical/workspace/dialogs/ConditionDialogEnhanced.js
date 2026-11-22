@@ -956,23 +956,25 @@ const ConditionDialogEnhanced = ({
       {/* Dialog Title */}
       <DialogTitle
         sx={{
-          bgcolor: theme.palette.primary.main,
-          color: 'primary.contrastText',
+          // Neutral header, the same as every other dialog: a coloured band
+          // made each resource type look like a different application.
           py: 2,
+          borderBottom: 1,
+          borderColor: 'divider',
         }}
       >
         <Stack direction="row" alignItems="center" justifyContent="space-between">
           <Stack direction="row" alignItems="center" spacing={2}>
             <Avatar
               sx={{
-                bgcolor: alpha(theme.palette.common.white, 0.2),
-                color: 'inherit',
+                bgcolor: 'action.hover',
+                color: 'text.secondary',
               }}
             >
               <ConditionIcon />
             </Avatar>
             <Typography variant="h6">
-              {condition ? 'Edit Condition' : 'Add New Condition'}
+              {condition ? 'Edit condition' : 'Add condition'}
             </Typography>
           </Stack>
           <IconButton
@@ -981,7 +983,7 @@ const ConditionDialogEnhanced = ({
             onClick={handleClose}
             sx={{
               '&:hover': {
-                bgcolor: alpha(theme.palette.common.white, 0.1),
+                bgcolor: 'action.hover',
               },
             }}
           >

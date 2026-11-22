@@ -166,7 +166,12 @@ const QuickAdminPopover = ({
       onClose={submitting ? undefined : onClose}
       anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-      slotProps={{ paper: { sx: { width: 360, p: 2 } } }}
+      // Recording a dose is a commitment, so the grid behind is dimmed while
+      // the form is open (a Popover's backdrop is invisible by default).
+      slotProps={{
+        paper: { sx: { width: 360, p: 2 } },
+        root: { slotProps: { backdrop: { invisible: false, sx: { backgroundColor: 'rgba(15, 23, 42, 0.28)' } } } },
+      }}
     >
       <Stack spacing={1.5}>
         <Box>
@@ -193,10 +198,16 @@ const QuickAdminPopover = ({
         {error && <Alert severity="error">{error}</Alert>}
 
         <RadioGroup
-          row
+          aria-label="Outcome"
           value={action}
           onChange={(e) => setAction(e.target.value)}
-          sx={{ '& .MuiFormControlLabel-root': { mr: 1, '& .MuiTypography-root': { fontSize: '0.8rem' } } }}
+          // Two even columns: a wrapping row left the options ragged.
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            columnGap: 1,
+            '& .MuiFormControlLabel-root': { mr: 0, '& .MuiTypography-root': { fontSize: '0.8rem' } },
+          }}
         >
           {ACTIONS.map((a) => (
             // PRN doesn't make sense as "hold" — disable for PRN context

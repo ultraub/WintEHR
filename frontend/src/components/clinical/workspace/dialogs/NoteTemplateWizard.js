@@ -3,11 +3,8 @@
  * Guides users through template selection based on visit type and clinical context
  */
 import React, { useState, useEffect } from 'react';
+import DialogFrame from '../../../common/DialogFrame';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Button,
   Stack,
   Typography,
@@ -27,7 +24,6 @@ import {
   Step,
   StepLabel,
   StepContent,
-  IconButton,
   Tooltip
 } from '@mui/material';
 import {
@@ -36,9 +32,7 @@ import {
   Assessment as AssessmentIcon,
   EventNote as PlanIcon,
   MedicalServices as PhysicalIcon,
-  ArrowForward as NextIcon,
   ArrowBack as BackIcon,
-  Close as CloseIcon,
   Psychology as WellnessIcon,
   LocalHospital as AcuteIcon,
   Favorite as ChronicIcon,
@@ -487,17 +481,23 @@ const NoteTemplateWizard = ({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        <Stack direction="row" alignItems="center" justifyContent="space-between">
-          <Typography variant="h6">Note Template Wizard</Typography>
-          <IconButton onClick={onClose} size="small">
-            <CloseIcon />
-          </IconButton>
-        </Stack>
-      </DialogTitle>
-
-      <DialogContent>
+    <DialogFrame
+      open={open}
+      onClose={onClose}
+      title="Choose a note template"
+      size="md"
+      // The steps are taller than the dialog; the ruled, scrolling body makes
+      // that obvious instead of clipping the last step.
+      dividers
+      footerStart={(
+        <Button disabled={activeStep === 0} onClick={handleBack} startIcon={<BackIcon />} color="inherit">
+          Back
+        </Button>
+      )}
+      primaryAction={activeStep < steps.length - 1
+        ? { label: 'Next', onClick: handleNext, disabled: !canProceed() }
+        : { label: 'Use template', onClick: handleComplete, disabled: !selectedTemplate }}
+    >
         <Box sx={{ mt: 2 }}>
           <Stepper activeStep={activeStep} orientation="vertical">
             {steps.map((step, index) => (
@@ -518,39 +518,7 @@ const NoteTemplateWizard = ({
             </Alert>
           )}
         </Box>
-      </DialogContent>
-
-      <DialogActions>
-        <Button onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          disabled={activeStep === 0}
-          onClick={handleBack}
-          startIcon={<BackIcon />}
-        >
-          Back
-        </Button>
-        {activeStep < steps.length - 1 ? (
-          <Button
-            variant="contained"
-            onClick={handleNext}
-            disabled={!canProceed()}
-            endIcon={<NextIcon />}
-          >
-            Next
-          </Button>
-        ) : (
-          <Button
-            variant="contained"
-            onClick={handleComplete}
-            disabled={!selectedTemplate}
-          >
-            Use Template
-          </Button>
-        )}
-      </DialogActions>
-    </Dialog>
+    </DialogFrame>
   );
 };
 

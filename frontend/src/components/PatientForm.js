@@ -1,16 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
-  Button,
   Grid,
   MenuItem,
   Box
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import DialogFrame from './common/DialogFrame';
 import { format, parseISO } from 'date-fns';
 
 const OMB_RACE_CATEGORIES = [
@@ -130,9 +126,18 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{patient ? 'Edit Patient' : 'Add New Patient'}</DialogTitle>
-      <DialogContent dividers sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
+    <DialogFrame
+      open={open}
+      onClose={onClose}
+      title={patient ? 'Edit patient' : 'New patient'}
+      size="md"
+      dividers
+      busy={submitting}
+      primaryAction={{
+        label: submitting ? 'Saving…' : (patient ? 'Save changes' : 'Create patient'),
+        onClick: handleSubmit,
+      }}
+    >
         <Box sx={{ mt: 2 }}>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
@@ -303,14 +308,7 @@ const PatientForm = ({ open, onClose, onSubmit, patient = null }) => {
             </Grid>
           </Grid>
         </Box>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained" color="primary" disabled={submitting}>
-          {submitting ? 'Saving...' : (patient ? 'Update' : 'Create')}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    </DialogFrame>
   );
 };
 

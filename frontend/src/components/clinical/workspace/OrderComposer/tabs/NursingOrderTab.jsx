@@ -151,7 +151,7 @@ const NursingOrderTab = () => {
   }, [canAdd, patientId, template, orderText, frequency, instructions, priority, diagnoses, addDraft]);
 
   return (
-    <Stack spacing={2} sx={{ p: 2 }}>
+    <Stack spacing={2} useFlexGap sx={{ p: 2, maxWidth: 880 }}>
       {error && <Alert severity="error">{error}</Alert>}
 
       <Autocomplete
