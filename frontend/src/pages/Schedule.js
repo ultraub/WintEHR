@@ -302,8 +302,8 @@ function DailyScheduleView({ appointments, onStatusChange }) {
               {/* Time label */}
               <Box
                 sx={{
-                  width: 80,
-                  minWidth: 80,
+                  width: 88,
+                  minWidth: 88,
                   px: 1.5,
                   py: 1,
                   display: 'flex',
@@ -315,7 +315,13 @@ function DailyScheduleView({ appointments, onStatusChange }) {
               >
                 <Typography
                   variant="caption"
-                  sx={{ fontWeight: isHourBoundary ? 600 : 400, color: isHourBoundary ? 'text.primary' : 'text.secondary' }}
+                  sx={{
+                    fontWeight: isHourBoundary ? 600 : 400,
+                    color: isHourBoundary ? 'text.primary' : 'text.secondary',
+                    // "10:00 AM" broke onto two lines in the 80px column
+                    whiteSpace: 'nowrap',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
                 >
                   {formatTimeDisplay(slot)}
                 </Typography>
@@ -1044,6 +1050,12 @@ const Schedule = () => {
         </Alert>
       ) : filteredAppointments.length === 0 && !loading ? (
         <Box>
+          {/* Said above the grid: below it, the message sat under 18 empty
+              rows and off the bottom of the screen. */}
+          <Alert severity="info" sx={{ mb: 2 }}>
+            No appointments scheduled for this {viewMode === 'week' ? 'week' : 'date'}.
+            Use New Appointment to book one.
+          </Alert>
           {viewMode === 'day' ? (
             <DailyScheduleView appointments={[]} onStatusChange={handleStatusChange} />
           ) : (
@@ -1054,10 +1066,6 @@ const Schedule = () => {
               onDateClick={handleWeekDayClick}
             />
           )}
-          <Alert severity="info" sx={{ mt: 2, borderRadius: 0 }}>
-            No appointments scheduled for this {viewMode === 'week' ? 'week' : 'date'}.
-            Click "New Appointment" to book one.
-          </Alert>
         </Box>
       ) : (
         viewMode === 'day' ? (

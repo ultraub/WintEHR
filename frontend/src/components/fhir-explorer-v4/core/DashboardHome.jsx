@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import StatTile from '../../common/StatTile';
 import {
   Box,
   Grid,
@@ -34,12 +35,9 @@ import {
   Badge,
   Alert,
   AlertTitle,
-  Fade,
   Zoom,
-  useTheme
 } from '@mui/material';
 import {
-  TrendingUp as TrendingUpIcon,
   People as PeopleIcon,
   LocalHospital as HospitalIcon,
   Science as ScienceIcon,
@@ -52,7 +50,6 @@ import {
   PlayArrow as PlayIcon,
   Bookmark as BookmarkIcon,
   TipsAndUpdates as TipsIcon,
-  AutoAwesome as AutoAwesomeIcon,
   Explore as ExploreIcon,
   Build as BuildIcon,
   Visibility as VisibilityIcon,
@@ -140,76 +137,6 @@ const SAMPLE_QUERIES = [
     color: '#f44336'
   }
 ];
-
-/**
- * Statistics card component
- */
-const StatCard = ({ title, value, change, icon, color, loading = false }) => {
-  const theme = useTheme();
-  
-  return (
-    <Card 
-      sx={{ 
-        height: '100%',
-        background: `linear-gradient(135deg, ${alpha(color, 0.1)} 0%, ${alpha(color, 0.05)} 100%)`,
-        border: 1,
-        borderColor: alpha(color, 0.2),
-        transition: 'all 0.2s ease-in-out',
-        '&:hover': {
-          transform: 'translateY(-2px)',
-          boxShadow: `0 8px 24px ${alpha(color, 0.15)}`
-        }
-      }}
-    >
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              {title}
-            </Typography>
-            {loading ? (
-              <CircularProgress size={24} />
-            ) : (
-              <Typography variant="h4" sx={{ fontWeight: 700, color }}>
-                {value?.toLocaleString() || '0'}
-              </Typography>
-            )}
-            {change && (
-              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                <TrendingUpIcon 
-                  sx={{ 
-                    fontSize: 16, 
-                    color: change > 0 ? 'success.main' : 'error.main',
-                    mr: 0.5 
-                  }} 
-                />
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    color: change > 0 ? 'success.main' : 'error.main',
-                    fontWeight: 500 
-                  }}
-                >
-                  {change > 0 ? '+' : ''}{change}% this week
-                </Typography>
-              </Box>
-            )}
-          </Box>
-          <Avatar 
-            sx={{ 
-              bgcolor: alpha(color, 0.1),
-              color,
-              width: 56,
-              height: 56 
-            }}
-          >
-            {icon}
-          </Avatar>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-};
 
 /**
  * Quick action card component
@@ -377,7 +304,6 @@ const RecentActivity = ({ queryHistory }) => {
 function DashboardHome({ onNavigate, fhirData, queryHistory, theme }) {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({});
-  const [welcomeVisible, setWelcomeVisible] = useState(true);
 
   // Calculate statistics from FHIR data
   const calculatedStats = useMemo(() => {
@@ -436,79 +362,21 @@ function DashboardHome({ onNavigate, fhirData, queryHistory, theme }) {
 
   return (
     <Box>
-      {/* Welcome section */}
-      {welcomeVisible && (
-        <Fade in timeout={800}>
-          <Alert 
-            severity="info" 
-            sx={{ mb: 3 }}
-            onClose={() => setWelcomeVisible(false)}
-            icon={<AutoAwesomeIcon />}
-          >
-            <AlertTitle>Welcome to FHIR Explorer v4!</AlertTitle>
-            Your next-generation healthcare data discovery platform. Explore FHIR resources, 
-            build intelligent queries, and visualize healthcare data like never before.
-          </Alert>
-        </Fade>
-      )}
-
-      {/* Statistics overview */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Zoom in timeout={600} style={{ transitionDelay: '100ms' }}>
-            <div>
-              <StatCard
-                title="Total Resources"
-                value={calculatedStats.totalResources}
-                change={12}
-                icon={<AssessmentIcon />}
-                color="#6366F1"
-                loading={loading}
-              />
-            </div>
-          </Zoom>
+      {/* Counts of what this page has loaded from the server, not server
+          totals, so they are labelled that way. No trend figures: there is
+          no history behind them. */}
+      <Grid container spacing={2} sx={{ mb: 4 }}>
+        <Grid item xs={6} md={3}>
+          <StatTile label="Resources loaded" value={calculatedStats.totalResources} caption="Sample held in this session" loading={loading} />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Zoom in timeout={600} style={{ transitionDelay: '200ms' }}>
-            <div>
-              <StatCard
-                title="Patients"
-                value={calculatedStats.totalPatients}
-                change={5}
-                icon={<PeopleIcon />}
-                color="#6366F1"
-                loading={loading}
-              />
-            </div>
-          </Zoom>
+        <Grid item xs={6} md={3}>
+          <StatTile label="Patients" value={calculatedStats.totalPatients} caption="In the loaded sample" loading={loading} />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Zoom in timeout={600} style={{ transitionDelay: '300ms' }}>
-            <div>
-              <StatCard
-                title="Observations"
-                value={calculatedStats.recentObservations}
-                change={8}
-                icon={<ScienceIcon />}
-                color="#4caf50"
-                loading={loading}
-              />
-            </div>
-          </Zoom>
+        <Grid item xs={6} md={3}>
+          <StatTile label="Observations" value={calculatedStats.recentObservations} caption="In the loaded sample" loading={loading} />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Zoom in timeout={600} style={{ transitionDelay: '400ms' }}>
-            <div>
-              <StatCard
-                title="Conditions"
-                value={calculatedStats.activeConditions}
-                change={-2}
-                icon={<AssessmentIcon />}
-                color="#f44336"
-                loading={loading}
-              />
-            </div>
-          </Zoom>
+        <Grid item xs={6} md={3}>
+          <StatTile label="Conditions" value={calculatedStats.activeConditions} caption="In the loaded sample" loading={loading} />
         </Grid>
       </Grid>
 

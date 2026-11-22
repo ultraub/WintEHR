@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import BarList from '../components/common/BarList';
 import PageHeader from '../components/common/PageHeader';
 import {
   Box,
@@ -10,12 +11,9 @@ import {
   Alert,
   Tab,
   Tabs,
-  useTheme,
 } from '@mui/material';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../services/api';
 import ClinicalLoadingState from '../components/clinical/shared/ClinicalLoadingState';
-import { getChartColors } from '../themes/chartColors';
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -31,10 +29,11 @@ function TabPanel({ children, value, index, ...other }) {
   );
 }
 
+// "57 (39%)": the count, and its share of the population when known.
+const formatShare = (count, total) =>
+  (total > 0 ? `${count} (${Math.round((count / total) * 100)}%)` : String(count));
+
 function Analytics() {
-  const theme = useTheme();
-  const chartColors = getChartColors(theme);
-  const COLORS = chartColors.palette.slice(0, 6);
 
   const [tabValue, setTabValue] = useState(0);
   const [demographics, setDemographics] = useState(null);
@@ -178,9 +177,6 @@ function Analytics() {
         </Alert>
       )}
       
-      <Typography variant="body1" color="text.secondary" paragraph>
-        Population health analytics and clinical quality measures demonstrating healthcare informatics concepts.
-      </Typography>
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
@@ -196,27 +192,18 @@ function Analytics() {
             <Grid item xs={12} md={6}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="h6" gutterBottom>
-                  Gender Distribution
+                  Gender
                 </Typography>
                 {demographics.gender_distribution && demographics.gender_distribution.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={demographics.gender_distribution}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        fill={COLORS[0]}
-                        dataKey="count"
-                        label={(entry) => `${entry.gender}: ${entry.percentage}%`}
-                      >
-                        {demographics.gender_distribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <BarList
+                    items={demographics.gender_distribution.map((entry) => ({
+                      label: entry.gender,
+                      value: entry.count,
+                      hint: `${entry.gender}: ${entry.count} patients (${entry.percentage}%)`,
+                    }))}
+                    max={demographics.total_patients || undefined}
+                    formatValue={(value) => formatShare(value, demographics.total_patients)}
+                  />
                 ) : (
                   <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>No gender distribution data available</Typography>
                 )}
@@ -226,25 +213,18 @@ function Analytics() {
             <Grid item xs={12} md={6}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="h6" gutterBottom>
-                  Age Distribution
+                  Age
                 </Typography>
                 {demographics.age_distribution ? (
-                  <Grid container spacing={2}>
-                    {Object.entries(demographics.age_distribution).map(([group, data]) => (
-                      <Grid item xs={6} key={group}>
-                        <Card>
-                          <CardContent>
-                            <Typography variant="h4" color="primary">
-                              {data?.count ?? 0}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {group.replace('_', ' ')} ({data?.percentage ?? 0}%)
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    ))}
-                  </Grid>
+                  <BarList
+                    sort="none"
+                    items={Object.entries(demographics.age_distribution).map(([group, data]) => ({
+                      label: group.replace(/_/g, ' '),
+                      value: data?.count ?? 0,
+                    }))}
+                    max={demographics.total_patients || undefined}
+                    formatValue={(value) => formatShare(value, demographics.total_patients)}
+                  />
                 ) : (
                   <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>No age distribution data available</Typography>
                 )}
@@ -254,17 +234,15 @@ function Analytics() {
             <Grid item xs={12}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="h6" gutterBottom>
-                  Race/Ethnicity Distribution
+                  Race and ethnicity
                 </Typography>
                 {demographics.race_distribution && demographics.race_distribution.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={demographics.race_distribution}>
-                        <XAxis dataKey="race" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="count" fill={COLORS[0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <BarList
+                    items={demographics.race_distribution.map((entry) => ({ label: entry.race, value: entry.count }))}
+                    max={demographics.total_patients || undefined}
+                    formatValue={(value) => formatShare(value, demographics.total_patients)}
+                    labelWidth="30%"
+                  />
                 ) : (
                   <Typography variant="body1" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
                     No race/ethnicity data available. This data needs to be imported from patient records.
@@ -282,16 +260,19 @@ function Analytics() {
             <Grid item xs={12}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="h6" gutterBottom>
-                  Chronic Disease Prevalence
+                  Chronic disease prevalence
                 </Typography>
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={diseasePrevalence.conditions.filter(c => c.count > 0).sort((a, b) => b.prevalence_rate - a.prevalence_rate)}>
-                    <XAxis dataKey="condition" angle={-45} textAnchor="end" height={100} />
-                    <YAxis label={{ value: 'Prevalence Rate (%)', angle: -90, position: 'insideLeft' }} />
-                    <Tooltip />
-                    <Bar dataKey="prevalence_rate" fill={COLORS[1]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <BarList
+                  items={diseasePrevalence.conditions
+                    .filter((c) => c.count > 0)
+                    .map((c) => ({
+                      label: c.condition,
+                      value: c.prevalence_rate,
+                      hint: `${c.condition}: ${c.count} patients (${c.prevalence_rate}%)`,
+                    }))}
+                  formatValue={(value) => `${value}%`}
+                  labelWidth="30%"
+                />
               </Paper>
             </Grid>
 
@@ -335,16 +316,15 @@ function Analytics() {
             <Grid item xs={12} md={8}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="h6" gutterBottom>
-                  Most Prescribed Medications
+                  Most prescribed medications
                 </Typography>
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={medicationPatterns.top_medications}>
-                    <XAxis dataKey="medication" angle={-45} textAnchor="end" height={100} />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey={medicationPatterns.top_medications?.[0]?.prescription_count !== undefined ? 'prescription_count' : 'count'} fill={COLORS[3]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <BarList
+                  items={(medicationPatterns.top_medications || []).map((m) => ({
+                    label: m.medication,
+                    value: m.prescription_count ?? m.count ?? 0,
+                  }))}
+                  labelWidth="45%"
+                />
               </Paper>
             </Grid>
 

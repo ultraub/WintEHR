@@ -18,7 +18,9 @@ import { alpha, useTheme } from '@mui/material/styles';
 
 import { formatRelativeDate } from '../../../../core/fhir/utils/dateFormatUtils';
 
-const ROW_WIDTH = 200;
+// Wide enough for a full drug name with strength and form; 200px cut most
+// of them off ("Amoxicillin 250 MG / Clavul…").
+const ROW_WIDTH = 280;
 
 const MedRowHeader = ({ row, density = 'comfortable', onClickMedication }) => {
   const theme = useTheme();
@@ -42,13 +44,14 @@ const MedRowHeader = ({ row, density = 'comfortable', onClickMedication }) => {
     <Box
       sx={{
         width: ROW_WIDTH,
+        flexShrink: 0,
         height: rowHeight,
         px: 1,
         py: 0.25,
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        // The row is a fixed-height lane in a grid; anything the 200px rail
+        // The row is a fixed-height lane in a grid; anything the rail
         // can't fit must clip, not bleed over neighboring rows (long
         // dose_text like "100 mg · PO (by mouth) · Twice daily" used to
         // wrap and garble the whole rail).
@@ -75,11 +78,14 @@ const MedRowHeader = ({ row, density = 'comfortable', onClickMedication }) => {
           sx={{
             fontWeight: 600,
             fontSize: density === 'compact' ? '0.72rem' : '0.8rem',
+            // One line (the row is a fixed-height lane); the full name is in
+            // the title for the rare one that still does not fit.
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
             flex: 1,
           }}
+          title={sample.medication_display}
         >
           {sample.medication_display}
         </Typography>

@@ -2054,58 +2054,29 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
   return theme;
 };
 
-// Theme presets
+// Theme presets: the themes a user can pick.
+//
+// Two themes, each in light and dark mode, give the three looks the app
+// supports: standard light, standard dark and high contrast. There used to
+// be ten; every extra theme multiplied the surface that had to be checked
+// for contrast and consistency, and none was maintained. The other palettes
+// are still defined above but are no longer offered.
 export const themePresets = {
   professional: {
-    name: 'Professional Medical',
-    description: 'Clean, professional medical interface',
+    name: 'Standard',
+    description: 'The default WintEHR look',
     preview: '#6366F1'
   },
-  dark: {
-    name: 'Dark Medical',
-    description: 'Dark theme optimized for medical professionals',
-    preview: '#42A5F5'
-  },
   accessible: {
-    name: 'High Contrast',
-    description: 'Maximum accessibility and contrast',
+    name: 'High contrast',
+    description: 'Stronger contrast for readability',
     preview: '#0066CC'
-  },
-  warm: {
-    name: 'Warm Clinical',
-    description: 'Warm, approachable clinical interface',
-    preview: '#7C3AED'
-  },
-  ocean: {
-    name: 'Ocean Health',
-    description: 'Calming blues and teals for therapeutic environments',
-    preview: '#0891B2'
-  },
-  forest: {
-    name: 'Forest Wellness',
-    description: 'Natural greens promoting healing and wellness',
-    preview: '#15803D'
-  },
-  sunrise: {
-    name: 'Sunrise Care',
-    description: 'Warm oranges and yellows for optimistic healthcare',
-    preview: '#EA580C'
-  },
-  midnight: {
-    name: 'Midnight Shift',
-    description: 'Ultra-dark theme for night shift workers',
-    preview: '#1A237E'
-  },
-  monochrome: {
-    name: 'Monochrome Clinical',
-    description: 'Grayscale theme for minimal color distraction',
-    preview: '#475569'
-  },
-  pediatric: {
-    name: 'Pediatric Friendly',
-    description: 'Bright, cheerful colors for pediatric departments',
-    preview: '#DB2777'
   }
 };
+
+export const DEFAULT_THEME = 'professional';
+
+/** A stored theme that is no longer offered falls back to the default. */
+export const resolveThemeName = (name) => (name && themePresets[name] ? name : DEFAULT_THEME);
 
 export default createMedicalTheme;

@@ -5,7 +5,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
-import { createMedicalTheme } from './themes/medicalTheme';
+import { createMedicalTheme, resolveThemeName } from './themes/medicalTheme';
 import { getClinicalContext, applyDepartmentTheme, applyShiftTheme } from './themes/clinicalThemeUtils';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AppProviders } from './providers/AppProviders';
@@ -22,7 +22,8 @@ export const MedicalThemeContext = React.createContext();
 // Inner App component that can use routing hooks
 function ThemedApp() {
   const [currentTheme, setCurrentTheme] = useState(() => {
-    return localStorage.getItem('medicalTheme') || 'professional';
+    // A previously saved theme that has since been retired resolves to the default.
+    return resolveThemeName(localStorage.getItem('medicalTheme'));
   });
   
   const [currentMode, setCurrentMode] = useState(() => {
