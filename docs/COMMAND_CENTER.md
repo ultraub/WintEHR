@@ -63,6 +63,7 @@ reads it; `live` means the consumer calls `get_setting()` at use time.
 | 15 | Active sessions | Sessions tab: every live training / practitioner login from the shared `SessionStore` (both namespaces, newest first, caller's own marked; a session is addressed by a 16-hex digest of its token, never the token), with IP and user agent recorded at login. Revoke one or every session of a user (`system`, confirmed, audited `system.session.revoked`); the user's next request is a 401. JWT mode has nothing to list and says so. `GET /api/command-center/sessions`, `DELETE /sessions/{id}`, `DELETE /sessions?user_id=`. **Shipped.** | 1 |
 | 16 | User management | Users tab over the `auth.users` setting (json, live): custom logins (name, role, department, email, bcrypt password hash; permissions default to the role's) and disabled built-ins. `admin` can never be disabled or deleted; nobody can disable or delete themselves. Login (`api/auth/service.resolve_login_user`) and every request (`get_current_user` → `user_disabled`) read it live, so disabling takes effect on the next request; the login page's picker lists enabled users with their names. The setting's value is redacted from the audit trail (`audit_value=False`); `system.user.created / updated / deleted` name the user, never the hash. `GET / POST /api/command-center/users`, `PUT / DELETE /users/{username}`. **Shipped.** | 2, 8a |
 | 17 | Health history | Every status report is recorded in `system.status_history` (when, overall, each component's state, source) and a sampler takes one every `COMMAND_CENTER_SAMPLE_SECONDS` (300; 0 disables), elected per tick across workers through a Redis lock, pruned after `COMMAND_CENTER_HISTORY_DAYS` (7). `GET /api/command-center/status/history?hours=` returns the samples, uptime per component and incidents (runs of degraded / down, ongoing flagged). Status tab → History card: strip of samples with tooltips, legend, uptime table, incident list, 6 h to 7 d window (`status_history.py`, `HistoryCard.jsx`). **Shipped.** | 1 |
+| 18 | Workflow contexts | The policy's third layer gets its UI: the Tabs tab adds / removes context columns (`contexts.<name>`, same shape as a role layer, narrows on top of the role) with previews, and the chart tab strip shows a **Context** picker whenever the policy defines any (`WorkflowContextPicker`); the choice is remembered per browser (`tabPolicyStore.setWorkflowContext`, localStorage) and `useEffectiveTabs` / `useEffectiveSections` apply it unless a caller passes its own `context`. A context the policy no longer defines silently stops applying. **Shipped.** | 7 |
 
 Definition of done per slice: backend tests in `backend/tests/api/command_center/`,
 frontend tests beside the components, the module `CLAUDE.md` current, and a
@@ -81,7 +82,7 @@ layered policy where each layer can only narrow or reorder the one above it:
 | Platform registry | code + module manifests | `clinicalTabRegistry.js`, `registry.generated.js` |
 | Organization policy | `system` admin | settings key `ui.tabs.org` |
 | Role policy | `admin` | `ui.tabs.role.<role>` |
-| Workflow context | `admin` | `ui.tabs.context.<context>` (inpatient, surgical, …) |
+| Workflow context | `admin` | `contexts.<name>` in the same document (inpatient, surgical, …); the user picks one in the tab strip |
 | User preference | the user | per-user, later |
 
 Rules: unknown tab ids are ignored with a warning; Summary can never be
@@ -94,7 +95,8 @@ are a frontend fact). `src/components/clinical/workspace/tabPolicy.js` is
 the pure resolver, `tabPolicyStore.js` the per-page cache of
 `GET /api/command-center/ui-policy` (no auth: it only says what is hidden),
 `useEffectiveTabs.js` the hook. The registry stays the catalog of what
-exists; the hook is what is shown.
+exists; the hook is what is shown. The chosen workflow context lives in
+the store too (`setWorkflowContext`, per browser) and feeds both hooks.
 
 ---
 

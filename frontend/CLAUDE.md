@@ -126,7 +126,11 @@ The registry is what EXISTS; what a user SEES is `useEffectiveTabs()`
 policy (organization / role / context layers, `ui.tabs.policy`). Anything
 that renders or navigates the strip — `ClinicalTabs`, `useKeyboardNavigation`,
 `KeyboardShortcutsDialog`, the workspace's hidden-tab fallback — uses the
-hook, never `CLINICAL_TABS` directly. Summary can never be hidden.
+hook, never `CLINICAL_TABS` directly. Summary can never be hidden. The
+policy's third layer, the workflow context, is chosen by the user in the
+tab strip (`workspace/WorkflowContextPicker.jsx`, shown only when the
+policy defines contexts) and kept in `tabPolicyStore` (localStorage); both
+hooks apply it unless the caller passes `{ context }` explicitly.
 
 One level down, `workspace/sectionRegistry.js` lists the panels INSIDE tabs
 (Chart Review's eight panels and the sub-tabs of Results, Pharmacy and Care

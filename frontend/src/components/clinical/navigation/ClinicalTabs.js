@@ -17,6 +17,7 @@ import { alpha } from '@mui/material/styles';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import { LAYOUT_HEIGHTS, Z_INDEX } from '../theme/clinicalThemeConstants';
 import { useEffectiveTabs } from '../workspace/useEffectiveTabs';
+import WorkflowContextPicker from '../workspace/WorkflowContextPicker';
 
 // Horizontal tab strip — the tabs the tab POLICY leaves visible for this
 // user (useEffectiveTabs), in policy order; the registry is the catalog.
@@ -169,6 +170,8 @@ const ClinicalTabs = ({
           }}
         />
         
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
         <Tabs
           value={activeIndex}
           onChange={handleChange}
@@ -231,6 +234,9 @@ const ClinicalTabs = ({
           />
         ))}
       </Tabs>
+          </Box>
+          <WorkflowContextPicker dense={dense} />
+        </Box>
       </Box>
     </Box>
   );

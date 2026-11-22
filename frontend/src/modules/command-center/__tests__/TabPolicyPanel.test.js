@@ -143,3 +143,28 @@ it('expands a tab to its sections, hides one for a role, and adds a hostable sec
   expect(body.roles.nurse.sections.orders.hidden).toEqual(['order-history']);
   expect(body.org.sections.orders.added).toEqual(['flowsheet']);
 });
+
+
+it('adds a workflow context column, narrows a tab in it, previews it, and removes it', async () => {
+  useAuth.mockReturnValue({ user: { permissions: ['admin', 'system'] } });
+  api.get.mockResolvedValue(policyResponse({ org: { hidden: [] }, roles: {}, contexts: {} }));
+  api.put.mockImplementation((_url, body) => Promise.resolve({ data: { value: body.value, source: 'database', updated_by: 'demo-admin' } }));
+  render(<TabPolicyPanel />);
+  expect(await screen.findByText(/None defined yet/)).toBeInTheDocument();
+  const addButton = screen.getByRole('button', { name: 'Add context' });
+  expect(addButton).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('New context'), { target: { value: 'Surgical' } });
+  fireEvent.click(addButton);
+  expect(await screen.findByLabelText('Remove context surgical')).toBeInTheDocument();
+  expect(screen.getByTestId('preview-ctx:surgical')).toHaveTextContent('context surgical');
+  fireEvent.click(screen.getByLabelText('Inbox visible for surgical'));
+  expect(screen.getByTestId('preview-ctx:surgical')).not.toHaveTextContent('Inbox');
+  expect(screen.getByTestId('preview-__org__')).toHaveTextContent('Inbox');
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(api.put).toHaveBeenCalled());
+  const saved = api.put.mock.calls[0][1].value;
+  expect(saved.contexts.surgical.hidden).toEqual(['inbox']);
+  fireEvent.click(screen.getByLabelText('Remove context surgical'));
+  expect(screen.queryByTestId('preview-ctx:surgical')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+});

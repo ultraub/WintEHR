@@ -14,7 +14,7 @@ vi.mock('../../../../contexts/AuthContext', () => ({ useAuth: vi.fn() }));
 import api from '../../../../services/api';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useEffectiveTabs, __resetTabPolicyWarnings } from '../useEffectiveTabs';
-import { __setTabPolicyForTests, refreshTabPolicy } from '../tabPolicyStore';
+import { __setTabPolicyForTests, refreshTabPolicy, setWorkflowContext, getActiveContext } from '../tabPolicyStore';
 import { CLINICAL_TABS } from '../clinicalTabRegistry';
 
 const Probe = () => {
@@ -72,4 +72,26 @@ it('a failed policy fetch leaves the chart fully visible', async () => {
   await waitFor(() => expect(screen.getByTestId('ready').textContent).toBe('true'));
   expect(screen.getByTestId('tabs').textContent.split(',')).toHaveLength(CLINICAL_TABS.length);
   expect(screen.getByTestId('hidden').textContent).toBe('');
+});
+
+
+it('applies the workflow context chosen in the store on top of the role, and ignores one the policy no longer defines', async () => {
+  useAuth.mockReturnValue({ user: { role: 'nurse' } });
+  __setTabPolicyForTests({
+    policy: { org: { hidden: [] }, roles: { nurse: { hidden: ['orders'] } }, contexts: { surgical: { hidden: ['pharmacy'], default: 'imaging' } } },
+    roles: ['nurse'], contexts: ['surgical'],
+  });
+  render(<Probe />);
+  expect(screen.getByTestId('hidden').textContent.split(',')).toEqual(['orders']);
+  act(() => setWorkflowContext('surgical'));
+  expect(getActiveContext()).toBe('surgical');
+  await waitFor(() => expect(screen.getByTestId('hidden').textContent.split(',').sort()).toEqual(['orders', 'pharmacy']));
+  expect(screen.getByTestId('default').textContent).toBe('imaging');
+  expect(window.localStorage.getItem('wintehr.workflowContext')).toBe('surgical');
+  // the policy drops the context: the choice no longer applies but is kept for when it returns
+  act(() => __setTabPolicyForTests({ policy: { org: { hidden: [] }, roles: { nurse: { hidden: ['orders'] } }, contexts: {} }, roles: ['nurse'], contexts: [], context: 'surgical' }));
+  expect(getActiveContext()).toBeNull();
+  await waitFor(() => expect(screen.getByTestId('hidden').textContent.split(',')).toEqual(['orders']));
+  act(() => setWorkflowContext(null));
+  expect(window.localStorage.getItem('wintehr.workflowContext')).toBeNull();
 });

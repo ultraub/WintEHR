@@ -2,9 +2,11 @@
  * TabPolicyPanel — which chart tabs each role sees, and which sections each
  * tab contains (slices 7 and 7b).
  *
- * A matrix of tabs × (Organization, each role): a ticked cell means the tab
- * is visible; the Organization column applies to everyone and a role column
- * can only hide more. Each column also picks the default (first) tab. A tab
+ * A matrix of tabs × (Organization, each role, each workflow context): a
+ * ticked cell means the tab is visible; the Organization column applies to
+ * everyone, a role column can only hide more, and a context column (slice
+ * 18: inpatient, surgical, … chosen by the user in the tab strip) narrows
+ * further on top of the role. Each column also picks the default (first) tab. A tab
  * row expands to its SECTIONS (the panels inside it) with the same
  * per-column checkboxes, plus an "Add section" picker that places a
  * hostable section from another tab or module on it (Flowsheet inside
@@ -35,10 +37,11 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
-import { ExpandMore as ExpandMoreIcon, ChevronRight as ChevronRightIcon } from '@mui/icons-material';
+import { ExpandMore as ExpandMoreIcon, ChevronRight as ChevronRightIcon, Close as CloseIcon } from '@mui/icons-material';
 import {
   ALWAYS_VISIBLE_TABS,
   EMPTY_TAB_POLICY,
@@ -63,8 +66,10 @@ const normalizeLayer = (l) => ({ ...emptyLayer(), ...(l || {}), sections: { ...(
 const normalize = (policy) => ({
   org: normalizeLayer(policy?.org),
   roles: Object.fromEntries(Object.entries(policy?.roles || {}).map(([r, l]) => [r, normalizeLayer(l)])),
-  contexts: policy?.contexts || {},
+  contexts: Object.fromEntries(Object.entries(policy?.contexts || {}).map(([c, l]) => [c, normalizeLayer(l)])),
 });
+
+const CONTEXT_ID = /^[a-z0-9][a-z0-9-]{1,31}$/;
 
 /** Drop empty section specs so the saved document stays small. */
 const compact = (policy) => {
@@ -74,7 +79,11 @@ const compact = (policy) => {
     );
     return { ...layer, sections };
   };
-  return { org: clean(policy.org), roles: Object.fromEntries(Object.entries(policy.roles).map(([r, l]) => [r, clean(l)])), contexts: policy.contexts };
+  return {
+    org: clean(policy.org),
+    roles: Object.fromEntries(Object.entries(policy.roles).map(([r, l]) => [r, clean(l)])),
+    contexts: Object.fromEntries(Object.entries(policy.contexts).map(([c, l]) => [c, clean(l)])),
+  };
 };
 
 const TabPolicyPanel = () => {
@@ -88,6 +97,7 @@ const TabPolicyPanel = () => {
   const [draft, setDraft] = useState(null);
   const [meta, setMeta] = useState({});
   const [expanded, setExpanded] = useState({});
+  const [newContext, setNewContext] = useState('');
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -116,20 +126,44 @@ const TabPolicyPanel = () => {
     load();
   }, [load]);
 
+  const contextNames = useMemo(() => Object.keys(draft?.contexts || {}).sort(), [draft]);
   const columns = useMemo(
-    () => [{ key: ORG, label: 'Organization', role: null }, ...roles.map((r) => ({ key: r, label: r, role: r }))],
-    [roles],
+    () => [
+      { key: ORG, label: 'Organization', role: null, context: null },
+      ...roles.map((r) => ({ key: r, label: r, role: r, context: null })),
+      ...contextNames.map((c) => ({ key: `ctx:${c}`, label: c, role: null, context: c })),
+    ],
+    [roles, contextNames],
   );
 
-  const layerFor = (policy, key) => (key === ORG ? policy.org : policy.roles[key] || emptyLayer());
+  const layerFor = (policy, key) => {
+    if (key === ORG) return policy.org;
+    if (key.startsWith('ctx:')) return policy.contexts[key.slice(4)] || emptyLayer();
+    return policy.roles[key] || emptyLayer();
+  };
 
   const setLayer = (key, updater) =>
     setDraft((prev) => {
-      const next = { ...prev, org: { ...prev.org }, roles: { ...prev.roles } };
+      const next = { ...prev, org: { ...prev.org }, roles: { ...prev.roles }, contexts: { ...prev.contexts } };
       const updated = updater({ ...layerFor(prev, key), sections: { ...layerFor(prev, key).sections } });
       if (key === ORG) next.org = updated;
+      else if (key.startsWith('ctx:')) next.contexts[key.slice(4)] = updated;
       else next.roles[key] = updated;
       return next;
+    });
+
+  const addContext = () => {
+    const name = newContext.trim().toLowerCase();
+    if (!CONTEXT_ID.test(name) || draft.contexts[name]) return;
+    setDraft((prev) => ({ ...prev, contexts: { ...prev.contexts, [name]: emptyLayer() } }));
+    setNewContext('');
+  };
+
+  const removeContext = (name) =>
+    setDraft((prev) => {
+      const contexts = { ...prev.contexts };
+      delete contexts[name];
+      return { ...prev, contexts };
     });
 
   const setSectionSpec = (key, tabId, updater) =>
@@ -316,7 +350,18 @@ const TabPolicyPanel = () => {
               <TableCell>Tab</TableCell>
               {columns.map((c) => (
                 <TableCell key={c.key} align="center" sx={{ textTransform: c.role ? 'capitalize' : 'none' }}>
-                  {c.label}
+                  {c.context ? (
+                    <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
+                      <Tooltip title="Workflow context: applies on top of the role when a user picks it in the chart">
+                        <Chip size="small" label={c.label} variant="outlined" sx={{ borderRadius: 1 }} />
+                      </Tooltip>
+                      {canEdit && (
+                        <IconButton size="small" onClick={() => removeContext(c.context)} disabled={busy} aria-label={`Remove context ${c.context}`}>
+                          <CloseIcon fontSize="inherit" />
+                        </IconButton>
+                      )}
+                    </Stack>
+                  ) : c.label}
                 </TableCell>
               ))}
             </TableRow>
@@ -366,7 +411,7 @@ const TabPolicyPanel = () => {
               <TableCell><strong>Opens on</strong></TableCell>
               {columns.map((c) => {
                 const layer = layerFor(draft, c.key);
-                const preview = resolveEffectiveTabs(catalog, draft, { role: c.role });
+                const preview = resolveEffectiveTabs(catalog, draft, { role: c.role, context: c.context });
                 const id = `default-${c.key}`;
                 return (
                   <TableCell key={c.key} align="center">
@@ -375,7 +420,7 @@ const TabPolicyPanel = () => {
                       <Select labelId={`${id}-label`} id={id} label="Default" value={layer.default || ''}
                         onChange={(e) => setDefault(c.key, e.target.value)}
                         inputProps={{ 'aria-label': `Default tab for ${c.label}` }}>
-                        <MenuItem value="">{c.role ? 'Inherit' : 'First visible'}</MenuItem>
+                        <MenuItem value="">{c.role || c.context ? 'Inherit' : 'First visible'}</MenuItem>
                         {preview.tabs.map((t) => (
                           <MenuItem key={t.id} value={t.id}>{t.label}</MenuItem>
                         ))}
@@ -389,15 +434,33 @@ const TabPolicyPanel = () => {
         </Table>
       </Paper>
 
-      <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>Preview</Typography>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 2 }} useFlexGap flexWrap="wrap">
+        <Typography variant="subtitle2">Workflow contexts</Typography>
+        <Typography variant="caption" color="text.secondary">
+          A context (inpatient, surgical, clinic…) is a column a user can switch on from the chart's tab strip; it narrows what their role already shows.
+          {contextNames.length === 0 && ' None defined yet.'}
+        </Typography>
+        {canEdit && (
+          <Stack direction="row" spacing={1} alignItems="center">
+            <TextField size="small" label="New context" value={newContext} onChange={(e) => setNewContext(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addContext(); } }}
+              inputProps={{ 'aria-label': 'New context' }} helperText={newContext && !CONTEXT_ID.test(newContext.trim().toLowerCase()) ? 'lowercase letters, digits, dashes' : ' '} sx={{ minWidth: 180 }} />
+            <Button size="small" variant="outlined" onClick={addContext} disabled={busy || !CONTEXT_ID.test(newContext.trim().toLowerCase()) || Boolean(draft.contexts[newContext.trim().toLowerCase()])} sx={{ mb: 2.5 }}>
+              Add context
+            </Button>
+          </Stack>
+        )}
+      </Stack>
+
+      <Typography variant="subtitle2" sx={{ mt: 1, mb: 1 }}>Preview</Typography>
       <Stack spacing={1}>
         {columns.map((c) => {
-          const preview = resolveEffectiveTabs(catalog, draft, { role: c.role });
+          const preview = resolveEffectiveTabs(catalog, draft, { role: c.role, context: c.context });
           return (
             <Box key={c.key} data-testid={`preview-${c.key}`}>
               <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
                 <Typography variant="caption" sx={{ minWidth: 110, textTransform: c.role ? 'capitalize' : 'none' }}>
-                  {c.label}
+                  {c.context ? `context ${c.label}` : c.label}
                 </Typography>
                 {preview.tabs.map((t) => (
                   <Chip key={t.id} size="small" label={t.label} variant={t.id === preview.defaultTab ? 'filled' : 'outlined'}
@@ -405,7 +468,7 @@ const TabPolicyPanel = () => {
                 ))}
               </Stack>
               {preview.tabs.filter((t) => expanded[t.id] && hasSections(t.id)).map((t) => {
-                const sec = resolveEffectiveSections(t.id, sections, draft, { role: c.role });
+                const sec = resolveEffectiveSections(t.id, sections, draft, { role: c.role, context: c.context });
                 return (
                   <Stack key={t.id} direction="row" spacing={0.5} alignItems="center" useFlexGap flexWrap="wrap" sx={{ pl: 14, mt: 0.5 }}
                     data-testid={`preview-${c.key}-${t.id}`}>
