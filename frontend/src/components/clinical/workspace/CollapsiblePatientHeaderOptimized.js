@@ -283,6 +283,18 @@ const CollapsiblePatientHeaderOptimized = ({
         const scrollDistance = Math.abs(scrollTop - lastStateChangeRef.current);
         lastScrollTopRef.current = scrollTop;
         
+        // At the very top the header is always fully open. Without this a
+        // single jump to the top (Home key, tab change) could stop in the
+        // compact state, because expanding needed a further "up" scroll
+        // event that never comes once scrollTop is already 0.
+        if (scrollTop <= 4) {
+          if (currentState !== COLLAPSE_STATES.EXPANDED) {
+            setCollapseState(COLLAPSE_STATES.EXPANDED);
+            lastStateChangeRef.current = scrollTop;
+          }
+          return;
+        }
+
         // Only change state if we've scrolled enough distance (prevents micro-movements)
         if (scrollDistance < 10) return;
         

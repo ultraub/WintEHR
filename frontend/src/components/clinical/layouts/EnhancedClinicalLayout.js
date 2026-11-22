@@ -34,7 +34,22 @@ const EnhancedClinicalLayout = ({
   const patientId = rawPatientId ? decodeFhirId(rawPatientId).toLowerCase() : rawPatientId;
   const { isMobile, isTablet, isDesktop } = useResponsive();
   
+  // The element that actually scrolls is the app shell's content box, an
+  // ancestor of this layout. The patient header collapses as it scrolls, and
+  // it was listening on this layout's own <main>, which never scrolls, so the
+  // header never collapsed. Resolved in a layout effect so it is set before
+  // the header's own (passive) effect attaches its listener.
+  const mainRef = React.useRef(null);
   const scrollContainerRef = React.useRef(null);
+  React.useLayoutEffect(() => {
+    let node = mainRef.current?.parentElement;
+    while (node && node !== document.body) {
+      const overflowY = window.getComputedStyle(node).overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll') break;
+      node = node.parentElement;
+    }
+    scrollContainerRef.current = node && node !== document.body ? node : null;
+  }, []);
   
   const { publish } = useClinicalWorkflow();
   
@@ -63,7 +78,9 @@ const EnhancedClinicalLayout = ({
   const handleModuleChange = (moduleId) => {
     if (onModuleChange) {
       onModuleChange(moduleId);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Back to the top of the new tab. The shell's content box scrolls, not
+      // the window, so window.scrollTo did nothing here.
+      (scrollContainerRef.current || window).scrollTo({ top: 0 });
 
       // Publish navigation event
       publish('navigation.module.changed', {
@@ -84,7 +101,7 @@ const EnhancedClinicalLayout = ({
       {/* Main content — natural page scroll, no overflow constraints */}
       <Box
         component="main"
-        ref={scrollContainerRef}
+        ref={mainRef}
         sx={{
           backgroundColor: theme.palette.mode === 'dark'
             ? theme.palette.background.default
