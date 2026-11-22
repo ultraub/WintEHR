@@ -51,6 +51,8 @@ class SettingDefinition:
     maximum: Optional[float] = None
     # json settings: structural validator, returns the normalized document.
     validator: Optional[Callable[[Any], Any]] = None
+    # False: the value is left out of the audit event (it holds password hashes).
+    audit_value: bool = True
 
     @property
     def is_secret(self) -> bool:
@@ -173,6 +175,18 @@ DEFINITIONS: Dict[str, SettingDefinition] = {
             validator=lambda doc: _normalize_tab_policy(doc),
         ),
         SettingDefinition(
+            key="auth.users",
+            type="json",
+            default={},
+            tier="live",
+            label="Users",
+            description="Custom logins (bcrypt password hashes) and disabled built-in users. Read at login and on "
+                        "every request, so disabling takes effect immediately. Edited on the Command Center's Users tab.",
+            used_by="api/auth/service.resolve_login_user and get_current_user (user_disabled)",
+            validator=lambda doc: _normalize_users(doc),
+            audit_value=False,
+        ),
+        SettingDefinition(
             key="auth.roles",
             type="json",
             default={},
@@ -185,6 +199,12 @@ DEFINITIONS: Dict[str, SettingDefinition] = {
         ),
     ]
 }
+
+
+def _normalize_users(doc):
+    from .users import normalize_users  # local import: users imports SettingValueError from here
+
+    return normalize_users(doc)
 
 
 def _normalize_roles(doc):

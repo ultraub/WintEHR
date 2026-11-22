@@ -78,7 +78,9 @@ const Login = () => {
     try {
       const response = await api.get('/api/auth/config');
       const availableUsers = response.data.available_users || [];
-
+      // Display names come from the backend (built-in and Command Center custom users);
+      // the static map is only a fallback for an older backend.
+      const byUsername = Object.fromEntries((response.data.users || []).map((u) => [u.username, u]));
       const userDisplayNames = {
         'demo': 'Dr. Demo User',
         'nurse': 'Nurse Jane Smith',
@@ -89,7 +91,7 @@ const Login = () => {
       const formattedProviders = availableUsers.map(username => ({
         id: username,
         username: username,
-        display_name: userDisplayNames[username] || username
+        display_name: byUsername[username]?.name || userDisplayNames[username] || username
       }));
 
       setProviders(formattedProviders);

@@ -41,12 +41,16 @@ from .models import (
     SessionsResponse,
     SettingUpdate,
     SettingView,
+    UserCreate,
+    UserUpdate,
+    UserView,
     StatusReport,
     TabPolicyResponse,
 )
 from .config_transfer import apply_import, export_document, plan_import
 from .service import CommandCenterService, get_command_center_service, read_build_info
 from .sessions import SessionsService, default_sessions_service
+from .users import UsersService
 from .settings_service import SettingsError, SettingsService, default_settings_service
 from .roles import KNOWN_PERMISSIONS, LOCKED, default_roles, effective_permissions
 from .tab_policy import ALWAYS_VISIBLE, EMPTY_POLICY, known_roles
@@ -170,6 +174,10 @@ async def get_roles(
     view = next((v for v in await settings.list() if v.key == ROLES_SETTING), None)
     overrides = view.value if view and isinstance(view.value, dict) else {}
     defaults = default_roles()
+    users_doc = next((v.value for v in await settings.list() if v.key == "auth.users"), None) or {}
+    for username, spec in users_doc.items():
+        if isinstance(spec, dict) and spec.get("role"):
+            defaults.setdefault(spec["role"], {"permissions": [], "users": []})["users"].append(username)
     names = sorted(set(defaults) | set(overrides))
     roles = []
     for name in names:
@@ -279,6 +287,48 @@ async def cancel_job(
         return await jobs.cancel(job_id, user.id)
     except JobsError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+
+
+# --- users ----------------------------------------------------------------------------------
+
+
+def get_users_service(settings: SettingsService = Depends(get_settings_service)) -> UsersService:
+    return UsersService(settings)
+
+
+@router.get("/users", response_model=List[UserView])
+async def list_users(_user: User = Depends(require_admin), users: UsersService = Depends(get_users_service)):
+    """Built-in training users plus the custom users in `auth.users`; never a password hash."""
+    return await users.list()
+
+
+@router.post("/users", response_model=UserView, status_code=201)
+async def create_user(body: UserCreate, user: User = Depends(require_system), users: UsersService = Depends(get_users_service)):
+    """Add a custom login (password stored as a bcrypt hash). Audited `system.user.created`."""
+    try:
+        return await users.create(body, getattr(user, "id", None))
+    except SettingsError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+
+
+@router.put("/users/{username}", response_model=UserView)
+async def update_user(username: str, body: UserUpdate, user: User = Depends(require_system), users: UsersService = Depends(get_users_service)):
+    """Change a custom user, reset its password, or disable / enable any user (built-ins: disabled only).
+    You cannot disable yourself; `admin` can never be disabled. Audited."""
+    try:
+        return await users.update(username, body, getattr(user, "id", None), acting_username=getattr(user, "username", None))
+    except SettingsError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+
+
+@router.delete("/users/{username}", status_code=204)
+async def delete_user(username: str, user: User = Depends(require_system), users: UsersService = Depends(get_users_service)):
+    """Remove a custom user (built-ins can only be disabled). Their sessions end on the next request. Audited."""
+    try:
+        await users.delete(username, getattr(user, "id", None), acting_username=getattr(user, "username", None))
+    except SettingsError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+    return Response(status_code=204)
 
 
 # --- active sessions -------------------------------------------------------------------
