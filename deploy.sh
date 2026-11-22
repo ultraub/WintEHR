@@ -335,7 +335,6 @@ if [ "$PROFILE" = "prod" ]; then
             -e "s|^REACT_APP_FHIR_ENDPOINT=.*|REACT_APP_FHIR_ENDPOINT=https://$CURRENT_DOMAIN/fhir/R4|" \
             -e "s|^REACT_APP_EMR_API=.*|REACT_APP_EMR_API=https://$CURRENT_DOMAIN/api/emr|" \
             -e "s|^REACT_APP_CLINICAL_CANVAS_API=.*|REACT_APP_CLINICAL_CANVAS_API=https://$CURRENT_DOMAIN/api/clinical-canvas|" \
-            -e "s|^REACT_APP_WS_URL=.*|REACT_APP_WS_URL=wss://$CURRENT_DOMAIN/ws|" \
             .env
         rm -f .env.bak
 

@@ -460,7 +460,6 @@ services:
         - REACT_APP_EMR_API=${REACT_APP_EMR_API:-https://${DOMAIN:-localhost}/api/emr}
         - REACT_APP_CLINICAL_CANVAS_API=${REACT_APP_CLINICAL_CANVAS_API:-https://${DOMAIN:-localhost}/api/clinical-canvas}
         - REACT_APP_API_URL=${REACT_APP_API_URL:-https://${DOMAIN:-localhost}}
-        - REACT_APP_WS_URL=${REACT_APP_WS_URL:-wss://${DOMAIN:-localhost}/ws}
     container_name: emr-frontend
     profiles: ["prod"]
     restart: ${RESTART_POLICY:-unless-stopped}

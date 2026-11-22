@@ -4,7 +4,6 @@ FROM node:20-alpine as build
 # Accept build arguments
 ARG REACT_APP_API_URL
 ARG REACT_APP_FHIR_ENDPOINT
-ARG REACT_APP_WS_URL
 
 WORKDIR /app
 
@@ -21,7 +20,6 @@ COPY . .
 # Set environment variables for build
 ENV REACT_APP_API_URL=${REACT_APP_API_URL}
 ENV REACT_APP_FHIR_ENDPOINT=${REACT_APP_FHIR_ENDPOINT}
-ENV REACT_APP_WS_URL=${REACT_APP_WS_URL}
 ENV NODE_ENV=production
 
 # Build the application with production URLs baked in
