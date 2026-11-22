@@ -27,6 +27,7 @@ from .control_plane import ControlPlaneClient, default_control_plane
 from .models import (
     AuditResponse,
     ConfigDocument,
+    HistoryResponse,
     ConfigImportPlan,
     ConfigImportRequest,
     JobKindView,
@@ -50,6 +51,7 @@ from .models import (
 from .config_transfer import apply_import, export_document, plan_import
 from .service import CommandCenterService, get_command_center_service, read_build_info
 from .sessions import SessionsService, default_sessions_service
+from .status_history import StatusHistoryService, default_status_history
 from .users import UsersService
 from .settings_service import SettingsError, SettingsService, default_settings_service
 from .roles import KNOWN_PERMISSIONS, LOCKED, default_roles, effective_permissions
@@ -86,6 +88,16 @@ async def get_status(
 ):
     """Deployment status: routers, FHIR store, database, Redis, terminology index, VNA."""
     return await service.status()
+
+
+@router.get("/status/history", response_model=HistoryResponse)
+async def get_status_history(
+    hours: int = 24,
+    _user: User = Depends(require_admin),
+    history: StatusHistoryService = Depends(default_status_history),
+):
+    """Status samples in the window (1 h to 7 days): uptime per component and incidents."""
+    return await history.history(hours)
 
 
 # --- settings -------------------------------------------------------------------

@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+import logging
 import os
 
 # Import database lifecycle functions
@@ -118,6 +119,14 @@ from api.websocket.connection_pool import connection_pool
 async def startup_event():
     await init_db()
     connection_pool.start_background_tasks()
+    # Command Center health history: one sampler loop per worker, elected per tick
+    # (api/command_center/status_history.py). COMMAND_CENTER_SAMPLE_SECONDS=0 disables.
+    try:
+        from api.command_center.status_history import start_sampler
+
+        start_sampler()
+    except Exception as exc:  # noqa: BLE001 — a missing module must not stop the app
+        logging.getLogger("main").warning("Status sampler not started: %s", exc)
 
 # Shutdown event
 @app.on_event("shutdown")

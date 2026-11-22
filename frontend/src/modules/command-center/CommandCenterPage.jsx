@@ -1,10 +1,10 @@
 /**
  * CommandCenterPage — deployment status dashboard (module 'command-center').
  *
- * The Status tab (docs/COMMAND_CENTER.md slices 1 and 11): reads
+ * The Status tab (docs/COMMAND_CENTER.md slices 1, 11 and 17): reads
  * GET /api/command-center/status and shows the readiness checklist, every
- * probed component (incl. host and certificate via the sidecar), the router
- * registration state, and FHIR resource counts. The other tabs are the
+ * probed component (incl. host and certificate via the sidecar), the status
+ * history (HistoryCard), the router registration state, and FHIR resource counts. The other tabs are the
  * sibling *Panel components.
  *
  * All four states are handled: loading, error, empty (not admin), success.
@@ -41,6 +41,7 @@ import {
 } from '@mui/icons-material';
 import { api, useAuth } from '../sdk';
 import JobsPanel from './JobsPanel';
+import HistoryCard from './HistoryCard';
 import SettingsPanel from './SettingsPanel';
 import TabPolicyPanel from './TabPolicyPanel';
 import RolesPanel from './RolesPanel';
@@ -347,6 +348,9 @@ const CommandCenterPage = () => {
               <ComponentCard component={component} />
             </Grid>
           ))}
+          <Grid item xs={12}>
+            <HistoryCard refreshKey={report.checked_at} />
+          </Grid>
           <Grid item xs={12} md={6}>
             <Paper variant="outlined" sx={{ p: 2, borderRadius: 1 }}>
               <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>

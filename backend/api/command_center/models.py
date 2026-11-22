@@ -354,3 +354,32 @@ class UserUpdate(BaseModel):
     department: Optional[str] = None
     permissions: Optional[List[str]] = None
     disabled: Optional[bool] = None
+
+
+# --- health history (slice 17) --------------------------------------------------------------------
+
+class HistorySample(BaseModel):
+    t: datetime
+    overall: OverallState
+    components: Dict[str, str]           # name → ok / degraded / down / absent
+    source: str = "request"              # request (someone opened the Status tab) or sampler
+
+
+class HistoryIncident(BaseModel):
+    component: str
+    status: str                          # degraded or down
+    first_seen: datetime
+    last_seen: datetime
+    samples: int
+    ongoing: bool = False                # still not healthy at the newest sample
+
+
+class HistoryResponse(BaseModel):
+    hours: int
+    since: datetime
+    samples: List[HistorySample]
+    uptime: Dict[str, float]             # component → % of samples ok or absent
+    overall_uptime: Optional[float] = None
+    incidents: List[HistoryIncident]
+    sample_seconds: int
+    retention_days: int

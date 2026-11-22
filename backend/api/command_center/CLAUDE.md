@@ -1,7 +1,7 @@
 # Command Center backend — module reference
 
-Admin console for a WintEHR deployment: status with a readiness checklist,
-settings (with export / import), jobs, tab policy, roles, users, apps, logs,
+Admin console for a WintEHR deployment: status with a readiness checklist
+and a history, settings (with export / import), jobs, tab policy, roles, users, apps, logs,
 audit trail, active sessions, modules, and the control-plane sidecar (with
 confirmed update-apply). Module key
 `command-center` (frontend half: `frontend/src/modules/command-center/`).
@@ -16,8 +16,9 @@ module's deltas are here.
 
 | File | Role |
 |---|---|
-| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /ui-policy` (no auth); `GET /roles`; `GET /logs`, `GET /logs/export`; `GET /audit`; `GET /users`, `POST /users`, `PUT /users/{username}`, `DELETE /users/{username}` (system, audited); `GET /sessions`, `DELETE /sessions/{id}` and `DELETE /sessions?user_id=` (system, audited); `GET /config/export` (`?download=1` for a file), `POST /config/import` (system; preview unless `apply`); `GET /modules`; `GET /control`, `GET /control/containers/{name}/logs`, `POST /control/containers/{name}/restart` (system, audited), `GET /control/update-check`, `GET /control/update/preview` (fetches), `POST /control/update/apply` (system, audited `system.control.update`, body `{commit}` = origin's tip from the preview), `GET /control/update/status`, `GET /control/config`, `GET /control/host`, `GET /control/certificates`; `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
+| `router.py` | `/api/command-center/...`. Reads depend on `require_admin` (`admin` permission); writes on `require_system` (`system`). Routes: `GET /status`, `GET /status/history?hours=`; `GET /settings`, `PUT` / `DELETE /settings/{key}`; `GET /ui-policy` (no auth); `GET /roles`; `GET /logs`, `GET /logs/export`; `GET /audit`; `GET /users`, `POST /users`, `PUT /users/{username}`, `DELETE /users/{username}` (system, audited); `GET /sessions`, `DELETE /sessions/{id}` and `DELETE /sessions?user_id=` (system, audited); `GET /config/export` (`?download=1` for a file), `POST /config/import` (system; preview unless `apply`); `GET /modules`; `GET /control`, `GET /control/containers/{name}/logs`, `POST /control/containers/{name}/restart` (system, audited), `GET /control/update-check`, `GET /control/update/preview` (fetches), `POST /control/update/apply` (system, audited `system.control.update`, body `{commit}` = origin's tip from the preview), `GET /control/update/status`, `GET /control/config`, `GET /control/host`, `GET /control/certificates`; `GET /jobs/kinds`, `GET /jobs`, `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log?offset=`, `POST /jobs/{id}/cancel`. |
 | `service.py` | `CommandCenterService.status()`: runs the probes concurrently under the live-tier probe timeout, rolls them up. `roll_up` is pure. |
+| `status_history.py` | `system.status_history` (Sql / Memory repositories, DDL also in `postgres-init/11_system.sql`), `summarize()` (pure: uptime per component, incidents), `StatusHistoryService.record()` called by every `status()` (never raises), the sampler (`run_sampler` started from `main.py`, `sampler_tick` elected per tick via the `status:sampler` Redis lock, freshness check first). `use_status_history()` swaps it in tests; `CommandCenterService(history=None)` records nothing. |
 | `probes.py` | One `async` probe per deployment part: `fhir`, `database`, `redis`, `terminology`, `vna`, plus `host` (disk / memory / load) and `tls` (certificate expiry) through the sidecar, `absent` when it is not configured. Exceptions and timeouts become `down`, never a 500. |
 | `readiness.py` | `readiness_checks(components, env, umls_key_set)`: the Status tab's checklist (profile, example secrets, settings key, auth mode, patients, terminology, UMLS key, Redis, control plane, disk, HTTPS, VNA) with a fix per item. Pure; the example-secret lists mirror `deploy/secrets_policy.py` and a test keeps them equal. |
 | `settings_registry.py` | **Where a setting is defined**: key, type, default, tier, env var it shadows, `used_by`; `audit_value=False` keeps a json value (password hashes) out of the audit event. Add a setting here, and only when something reads it. |
@@ -97,6 +98,7 @@ module's deltas are here.
 | `COMMAND_CENTER_JOB_HEARTBEAT` | Seconds between heartbeats while a job runs (default 5); a job is `lost` after 12 missed beats |
 | `LOG_LEVEL`, `WINTEHR_LOG_DIR`, `LOG_RETENTION_DAYS` | Backend logging (`logging_setup.py`): level, where the per-worker files go (default `/app/logs`, the `./logs` bind mount), how long they are kept (7 days) |
 | `CONTROL_PLANE_URL`, `CONTROL_PLANE_TOKEN` | Where the sidecar is (compose default `http://control-plane:9000`) and the shared token; both empty = Control tab says not configured |
+| `COMMAND_CENTER_SAMPLE_SECONDS`, `COMMAND_CENTER_HISTORY_DAYS` | Status sampler interval (default 300; 0 disables) and history retention (default 7 days) |
 | `COMMAND_CENTER_PROBE_TIMEOUT` | Env fallback for `system.probe_timeout_seconds` (default 8) |
 | `HAPI_FHIR_TIMEOUT` | Env fallback for `system.hapi_timeout_seconds` (default 30; read at startup by `services/hapi_fhir_client.py` and the `/fhir` proxy) |
 | `WINTEHR_VERSION`, `WINTEHR_GIT_COMMIT` | Reported in `build` when the image sets them |

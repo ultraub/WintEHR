@@ -6,6 +6,9 @@ report: every probe runs concurrently under one timeout, failures become
 up into one overall state, and the readiness checklist (readiness.py)
 reads the components plus the env to say what a class would trip over.
 
+Every report is also recorded by status_history.py (slice 17) so the
+Status tab can show the last day, not just the last probe.
+
 Roll-up rule (deliberately simple so the dashboard is predictable):
   - `fhir` down            → overall `down`   (nothing works without the store)
   - any other down/degraded, or any failed router → overall `degraded`
@@ -77,6 +80,7 @@ class CommandCenterService:
         timeout_seconds: Optional[float] = None,
         env: Optional[Mapping[str, str]] = None,
         secret_is_set: SecretIsSet = secret_is_set,
+        history: Any = "default",
     ):
         self.hapi = hapi_client or HAPIFHIRClient()
         self.probes = probes if probes is not None else default_probes(self.hapi)
@@ -85,6 +89,8 @@ class CommandCenterService:
         self.timeout_seconds = timeout_seconds
         self.env = os.environ if env is None else env
         self.secret_is_set = secret_is_set
+        # "default" → the process-wide history service; None → do not record (tests, the sampler records itself).
+        self.history = history
 
     async def _timeout(self) -> float:
         if self.timeout_seconds is not None:
@@ -110,7 +116,7 @@ class CommandCenterService:
         )
         routers = RouterStatus(**self.router_state())
         readiness = readiness_checks(components, self.env, umls_key_set=await self.secret_is_set(UMLS_KEY_SETTING))
-        return StatusReport(
+        report = StatusReport(
             status=roll_up(components, routers),
             checked_at=datetime.now(timezone.utc),
             build=read_build_info(),
@@ -118,6 +124,14 @@ class CommandCenterService:
             components=components,
             readiness=readiness,
         )
+        history = self.history
+        if history == "default":
+            from .status_history import default_status_history
+
+            history = default_status_history()
+        if history is not None:
+            await history.record(report)
+        return report
 
 
 def roll_up(components: list[ComponentStatus], routers: RouterStatus) -> str:
