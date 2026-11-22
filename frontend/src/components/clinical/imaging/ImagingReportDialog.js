@@ -3,12 +3,12 @@
  * Modern imaging report creation/editing using the new BaseResourceDialog pattern
  */
 import React, { useState, useEffect } from 'react';
+import StatusChip from '../shared/display/StatusChip';
 import {
   Box,
   Typography,
   Paper,
   Stack,
-  Chip,
   IconButton
 } from '@mui/material';
 import {
@@ -25,7 +25,6 @@ import {
   createDiagnosticReportResource,
   updateDiagnosticReportResource,
   getStudyDetails,
-  getStatusColor,
   getReportCodeFromStudy
 } from './config/diagnosticReportDialogConfig';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
@@ -171,11 +170,7 @@ const ImagingReportDialog = ({
             </Typography>
           </Box>
           {existingReport && (
-            <Chip 
-              label={existingReport.status} 
-              size="small" 
-              color={getStatusColor(existingReport.status)}
-            />
+            <StatusChip status={existingReport.status} />
           )}
         </Stack>
         

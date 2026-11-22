@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import StatusChip from '../../shared/display/StatusChip';
 import {
   Box,
   Typography,
@@ -1195,7 +1196,7 @@ const CarePlanTabEnhanced = ({
                             title={planCondition}
                             subheader={
                               <Stack direction="row" spacing={1} alignItems="center">
-                                <Chip label={plan.status} size="small" color="primary" sx={{ borderRadius: '4px' }} />
+                                <StatusChip status={plan.status} />
                                 {plan.period?.start && (
                                   <Typography variant="caption" color="text.secondary">
                                     Since {formatClinicalDate(plan.period.start)}
@@ -1303,7 +1304,7 @@ const CarePlanTabEnhanced = ({
                               <Stack direction="row" spacing={1} alignItems="center">
                                 <MedicalIcon color="action" fontSize="small" />
                                 <Typography variant="body2">{planCondition}</Typography>
-                                <Chip label={plan.status} size="small" variant="outlined" sx={{ borderRadius: '4px' }} />
+                                <StatusChip status={plan.status} />
                               </Stack>
                               <Typography variant="caption" color="text.secondary">
                                 {plan.period?.start && plan.period?.end

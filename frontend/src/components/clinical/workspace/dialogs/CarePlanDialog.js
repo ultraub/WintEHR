@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import StatusChip from '../../shared/display/StatusChip';
 import {
   Dialog,
   DialogTitle,
@@ -192,11 +193,7 @@ const CarePlanDialog = ({ open, onClose, carePlan, patientId, onSaved }) => {
                     {carePlan.title || 'Care Plan'}
                   </Typography>
                   <Stack direction="row" spacing={1} mb={2}>
-                    <Chip
-                      label={carePlan.status}
-                      color={carePlan.status === 'active' ? 'success' : 'default'}
-                      size="small"
-                    />
+                    <StatusChip status={carePlan.status} />
                     {carePlan.intent && (
                       <Chip label={carePlan.intent} size="small" variant="outlined" />
                     )}
@@ -264,11 +261,7 @@ const CarePlanDialog = ({ open, onClose, carePlan, patientId, onSaved }) => {
                           {activity.detail?.description || activity.detail?.code?.text || 'Activity'}
                         </Typography>
                         {activity.detail?.status && (
-                          <Chip
-                            label={activity.detail.status}
-                            size="small"
-                            sx={{ mt: 1 }}
-                          />
+                          <StatusChip status={activity.detail.status} sx={{ mt: 1 }} />
                         )}
                       </Paper>
                     ))}

@@ -4,6 +4,7 @@
  * @since 2025-01-27
  */
 import React, { useState, useMemo, useEffect } from 'react';
+import StatusChip from '../../shared/display/StatusChip';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
@@ -1345,15 +1346,7 @@ const EncounterSummaryDialogEnhanced = ({ open, onClose, encounter, patientId })
                       }
                     />
                     <ListItemSecondaryAction>
-                      <Chip
-                        label={med.status}
-                        size="small"
-                        color={
-                          med.status === 'active' ? 'success' :
-                          med.status === 'on-hold' ? 'warning' :
-                          med.status === 'stopped' ? 'error' : 'default'
-                        }
-                      />
+                      <StatusChip status={med.status} />
                     </ListItemSecondaryAction>
                   </ListItem>
                 ))}
@@ -1391,15 +1384,7 @@ const EncounterSummaryDialogEnhanced = ({ open, onClose, encounter, patientId })
                             <Typography variant="subtitle1" fontWeight="medium">
                               {proc.code?.text || proc.code?.coding?.[0]?.display || 'Procedure'}
                             </Typography>
-                            <Chip
-                              label={proc.status}
-                              size="small"
-                              color={
-                                proc.status === 'completed' ? 'success' :
-                                proc.status === 'in-progress' ? 'warning' :
-                                proc.status === 'not-done' ? 'error' : 'default'
-                              }
-                            />
+                            <StatusChip status={proc.status} />
                           </Stack>
                           
                           {proc.performedDateTime && (

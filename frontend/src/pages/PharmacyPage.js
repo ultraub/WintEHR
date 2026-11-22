@@ -3,6 +3,7 @@
  * Standalone pharmacy workflow management with kanban-style queue
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import StatTile from '../components/common/StatTile';
 import PageHeader from '../components/common/PageHeader';
 import {
   Box,
@@ -17,20 +18,15 @@ import {
   Select,
   MenuItem,
   InputLabel,
-  Card,
-  CardContent,
   Stack,
   Chip,
   Alert,
   CircularProgress,
-  useTheme,
-  alpha,
   Tooltip,
   SpeedDial,
   SpeedDialAction,
   SpeedDialIcon
 } from '@mui/material';
-import SafeBadge from '../components/common/SafeBadge';
 import {
   LocalPharmacy as PharmacyIcon,
   Search as SearchIcon,
@@ -39,11 +35,6 @@ import {
   Print as PrintIcon,
   Inventory as InventoryIcon,
   Add as AddIcon,
-  Schedule as PendingIcon,
-  VerifiedUser as VerifyIcon,
-  LocalShipping as DispenseIcon,
-  CheckCircle as ReadyIcon,
-  Assignment as OrderIcon,
   Timeline as AnalyticsIcon,
   Settings as SettingsIcon,
   Close as CloseIcon
@@ -103,7 +94,6 @@ const QUEUE_COLUMNS = {
 };
 
 const PharmacyPage = () => {
-  const theme = useTheme();
   const { isLoading } = useFHIRResource();
   const { subscribe, publish } = useClinicalWorkflow();
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
@@ -576,86 +566,22 @@ const PharmacyPage = () => {
         )}
       />
 
-      {/* Queue Overview Cards */}
+      {/* Queue overview: the stages of the dispensing workflow, in order */}
       <Grid container spacing={2} mb={3}>
-        <Grid item xs={12} sm={6} md={2.4}>
-          <Card sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1), border: `1px solid ${theme.palette.warning.main}` }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <SafeBadge badgeContent={queueStats.newOrders} color="warning" max={99}>
-                <PendingIcon color="warning" sx={{ fontSize: 32 }} />
-              </SafeBadge>
-              <Typography variant="h6" color="warning.main" mt={1}>
-                New Orders
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Awaiting review
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={2.4}>
+          <StatTile label="New orders" value={queueStats.newOrders} caption="Awaiting review" tone="attention" />
         </Grid>
-        
-        <Grid item xs={12} sm={6} md={2.4}>
-          <Card sx={{ bgcolor: alpha(theme.palette.info.main, 0.1), border: `1px solid ${theme.palette.info.main}` }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <SafeBadge badgeContent={queueStats.verification} color="info" max={99}>
-                <VerifyIcon color="info" sx={{ fontSize: 32 }} />
-              </SafeBadge>
-              <Typography variant="h6" color="info.main" mt={1}>
-                Verification
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Under review
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={2.4}>
+          <StatTile label="Verification" value={queueStats.verification} caption="Under review" />
         </Grid>
-        
-        <Grid item xs={12} sm={6} md={2.4}>
-          <Card sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), border: `1px solid ${theme.palette.primary.main}` }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <SafeBadge badgeContent={queueStats.dispensing} color="primary" max={99}>
-                <DispenseIcon color="primary" sx={{ fontSize: 32 }} />
-              </SafeBadge>
-              <Typography variant="h6" color="primary.main" mt={1}>
-                Dispensing
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Being filled
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={2.4}>
+          <StatTile label="Dispensing" value={queueStats.dispensing} caption="Being filled" />
         </Grid>
-        
-        <Grid item xs={12} sm={6} md={2.4}>
-          <Card sx={{ bgcolor: alpha(theme.palette.success.main, 0.1), border: `1px solid ${theme.palette.success.main}` }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <SafeBadge badgeContent={queueStats.ready} color="success" max={99}>
-                <ReadyIcon color="success" sx={{ fontSize: 32 }} />
-              </SafeBadge>
-              <Typography variant="h6" color="success.main" mt={1}>
-                Ready
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                For pickup
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={6} md={2.4}>
+          <StatTile label="Ready" value={queueStats.ready} caption="For pickup" />
         </Grid>
-        
-        <Grid item xs={12} sm={6} md={2.4}>
-          <Card sx={{ bgcolor: alpha(theme.palette.grey[500], 0.1), border: `1px solid ${theme.palette.grey[500]}` }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <SafeBadge badgeContent={queueStats.total} color="primary" max={999}>
-                <OrderIcon color="action" sx={{ fontSize: 32 }} />
-              </SafeBadge>
-              <Typography variant="h6" color="text.primary" mt={1}>
-                Total
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                All prescriptions
-              </Typography>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} md={2.4}>
+          <StatTile label="Total" value={queueStats.total} caption="All prescriptions" />
         </Grid>
       </Grid>
 

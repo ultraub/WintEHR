@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import StatTile from '../components/common/StatTile';
+import PageHeader from '../components/common/PageHeader';
 import {
   Box,
   Paper,
@@ -9,8 +11,6 @@ import {
   Alert,
   Stack,
   Grid,
-  Card,
-  CardContent,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -136,35 +136,20 @@ function TodaysSummary({ appointments }) {
     return { total, checkedIn, completed, noShows, cancelled, booked };
   }, [appointments]);
 
+  // Only a missed appointment is worth colour, and only when there is one.
   const cards = [
-    { label: 'Total',      value: stats.total,     color: '#6366F1', bgColor: '#eef2ff' },
-    { label: 'Booked',     value: stats.booked,    color: '#6366F1', bgColor: '#eef2ff' },
-    { label: 'Checked In', value: stats.checkedIn, color: '#ed6c02', bgColor: '#fff3e0' },
-    { label: 'Completed',  value: stats.completed, color: '#2e7d32', bgColor: '#e8f5e9' },
-    { label: 'No Shows',   value: stats.noShows,   color: '#d32f2f', bgColor: '#fbe9e7' }
+    { label: 'Total', value: stats.total },
+    { label: 'Booked', value: stats.booked },
+    { label: 'Checked in', value: stats.checkedIn },
+    { label: 'Completed', value: stats.completed },
+    { label: 'No shows', value: stats.noShows, tone: 'attention' }
   ];
 
   return (
     <Grid container spacing={1.5}>
       {cards.map((c) => (
         <Grid item xs={6} sm={4} md key={c.label}>
-          <Card
-            sx={{
-              borderRadius: 0,
-              borderLeft: `4px solid ${c.color}`,
-              bgcolor: c.bgColor
-            }}
-            elevation={0}
-          >
-            <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
-              <Typography variant="h5" sx={{ fontWeight: 700, color: c.color }}>
-                {c.value}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {c.label}
-              </Typography>
-            </CardContent>
-          </Card>
+          <StatTile label={c.label} value={c.value} tone={c.tone} />
         </Grid>
       ))}
     </Grid>
@@ -958,12 +943,7 @@ const Schedule = () => {
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Page header */}
-      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-        <ScheduleIcon color="primary" sx={{ fontSize: 32 }} />
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
-          Provider Schedule
-        </Typography>
-      </Stack>
+      <PageHeader title="Schedule" sx={{ mb: 2 }} />
 
       {/* Toolbar: date navigation, view toggle, provider filter, actions */}
       <Paper sx={{ mb: 2, p: 1.5, borderRadius: 0, border: '1px solid', borderColor: 'divider' }}>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import PageHeader from '../components/common/PageHeader';
 import {
   Box,
   Typography,
@@ -247,10 +248,7 @@ const AuditTrailPage = () => {
     <Box>
       {/* Header */}
       <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
-        <AuditIcon color="primary" />
-        <Typography variant="h4" component="h1">
-          Audit Trail
-        </Typography>
+        <PageHeader title="Audit Trail" sx={{ mb: 0 }} />
         <Box sx={{ flexGrow: 1 }} />
         <Tooltip title="Refresh audit data">
           <IconButton onClick={fetchAuditData} color="primary">

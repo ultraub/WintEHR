@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import StatusChip from '../shared/display/StatusChip';
 import {
   Box,
   Grid,
@@ -95,17 +96,6 @@ const MedicationItem = ({
     return dosageText || dosage.text || 'See instructions';
   };
 
-  const getStatusColor = () => {
-    switch (medication.status) {
-      case 'active': return 'success';
-      case 'completed': return 'info';
-      case 'stopped': return 'error';
-      case 'on-hold': return 'warning';
-      case 'draft': return 'default';
-      default: return 'default';
-    }
-  };
-
   const getSourceIcon = () => {
     switch (source) {
       case 'home': return <HomeIcon color="primary" />;
@@ -156,11 +146,7 @@ const MedicationItem = ({
                 {getDosageInfo()}
               </Typography>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
-                <Chip 
-                  label={medication.status}
-                  size="small"
-                  color={getStatusColor()}
-                />
+                <StatusChip status={medication.status} />
                 <Chip 
                   label={getSourceLabel()}
                   size="small"

@@ -4,11 +4,11 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import StatTile from '../components/common/StatTile';
+import PageHeader from '../components/common/PageHeader';
 import {
   Box,
   Grid,
-  Card,
-  CardContent,
   Typography,
   IconButton,
   Chip,
@@ -24,7 +24,6 @@ import {
   Divider,
   LinearProgress,
   Stack,
-  Avatar,
   AvatarGroup,
   Skeleton,
   List,
@@ -38,9 +37,7 @@ import {
   Calculate as CalculateIcon,
   TrendingUp as TrendingUpIcon,
   Warning as WarningIcon,
-  People as PeopleIcon,
   Medication as MedicationIcon,
-  Assignment as AssignmentIcon,
   Timeline as TimelineIcon,
   Search as SearchIcon,
   Refresh as RefreshIcon,
@@ -191,17 +188,11 @@ function Dashboard() {
       {/* Header */}
       <Box sx={{ p: 3, pb: 0 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Box>
-            <Stack direction="row" spacing={1.5} alignItems="center">
-              <DashboardIcon color="primary" sx={{ fontSize: 32 }} />
-              <Typography variant="h4" fontWeight="bold">
-                Clinical Dashboard
-              </Typography>
-            </Stack>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              {format(new Date(), 'EEEE, MMMM d, yyyy')} • Welcome back, {user?.name || 'Doctor'}
-            </Typography>
-          </Box>
+          <PageHeader
+            title="Dashboard"
+            subtitle={`${format(new Date(), 'EEEE, MMMM d, yyyy')} · ${user?.name || 'Clinician'}`}
+            sx={{ mb: 0 }}
+          />
           <Box>
             <Tooltip title="Refresh data">
               <IconButton onClick={handleRefresh} disabled={refreshing}>
@@ -254,114 +245,29 @@ function Dashboard() {
         {/* Overview Tab */}
         {activeTab === 0 && (
           <Grid container spacing={2}>
-            {/* Key Metrics Cards */}
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ 
-                height: 120, 
-                background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`,
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-              }}>
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Box>
-                      <Typography color="text.secondary" variant="caption" display="block">
-                        Total Patients
-                      </Typography>
-                      <Typography variant="h4" fontWeight="bold">
-                        {populationStats?.totalPatients || 0}
-                      </Typography>
-                      <Typography variant="caption" color="success.main">
-                        <ArrowUpIcon sx={{ fontSize: 12, verticalAlign: 'middle' }} />
-                        12%
-                      </Typography>
-                    </Box>
-                    <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
-                      <PeopleIcon />
-                    </Avatar>
-                  </Box>
-                </CardContent>
-              </Card>
+            {/* Key metrics */}
+            <Grid item xs={6} md={3}>
+              <StatTile label="Total patients" value={populationStats?.totalPatients ?? 0} />
             </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ 
-                height: 120,
-                background: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.1)} 0%, ${alpha(theme.palette.success.main, 0.05)} 100%)`,
-                border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`
-              }}>
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Box>
-                      <Typography color="text.secondary" variant="caption" display="block">
-                        Active Conditions
-                      </Typography>
-                      <Typography variant="h4" fontWeight="bold">
-                        {populationStats?.activeConditions || 0}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        All patients
-                      </Typography>
-                    </Box>
-                    <Avatar sx={{ bgcolor: 'success.main', width: 40, height: 40 }}>
-                      <AssignmentIcon />
-                    </Avatar>
-                  </Box>
-                </CardContent>
-              </Card>
+            <Grid item xs={6} md={3}>
+              <StatTile label="Active conditions" value={populationStats?.activeConditions ?? 0} caption="All patients" />
             </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ 
-                height: 120,
-                background: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.1)} 0%, ${alpha(theme.palette.warning.main, 0.05)} 100%)`,
-                border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`
-              }}>
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Box>
-                      <Typography color="text.secondary" variant="caption" display="block">
-                        Active Medications
-                      </Typography>
-                      <Typography variant="h4" fontWeight="bold">
-                        {populationStats?.activeMedications || 0}
-                      </Typography>
-                      <Typography variant="caption" color="warning.main">
-                        {medicationSafety?.polypharmacy?.count || 0} polypharm
-                      </Typography>
-                    </Box>
-                    <Avatar sx={{ bgcolor: 'warning.main', width: 40, height: 40 }}>
-                      <MedicationIcon />
-                    </Avatar>
-                  </Box>
-                </CardContent>
-              </Card>
+            <Grid item xs={6} md={3}>
+              <StatTile
+                label="Active medications"
+                value={populationStats?.activeMedications ?? 0}
+                chips={(medicationSafety?.polypharmacy?.count || 0) > 0
+                  ? [{ label: 'polypharmacy', count: medicationSafety.polypharmacy.count, tone: 'attention' }]
+                  : []}
+              />
             </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ 
-                height: 120,
-                background: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.1)} 0%, ${alpha(theme.palette.error.main, 0.05)} 100%)`,
-                border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`
-              }}>
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Box>
-                      <Typography color="text.secondary" variant="caption" display="block">
-                        Care Gaps
-                      </Typography>
-                      <Typography variant="h4" fontWeight="bold">
-                        {careGaps?.gaps?.filter(g => g.percentage < 80).length || 0}
-                      </Typography>
-                      <Typography variant="caption" color="error.main">
-                        Action needed
-                      </Typography>
-                    </Box>
-                    <Avatar sx={{ bgcolor: 'error.main', width: 40, height: 40 }}>
-                      <WarningIcon />
-                    </Avatar>
-                  </Box>
-                </CardContent>
-              </Card>
+            <Grid item xs={6} md={3}>
+              <StatTile
+                label="Care gaps"
+                value={careGaps?.gaps?.filter(g => g.percentage < 80).length ?? 0}
+                tone="attention"
+                caption="Measures under 80%"
+              />
             </Grid>
 
             {/* Encounter Trends Chart */}
