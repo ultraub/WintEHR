@@ -4,6 +4,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import {
+  Box,
   Chip,
   CircularProgress,
   Tooltip,
@@ -78,6 +79,24 @@ const WebSocketStatus = ({ size = 'small', showLabel = true }) => {
 
   const status = getStatus();
   
+  // Icon-only form for app bars: no chip outline, the tooltip carries the text.
+  if (!showLabel) {
+    const iconColor = status.color === 'default'
+      ? theme.palette.text.disabled
+      : theme.palette[status.color]?.main;
+    return (
+      <Tooltip title={`${status.label}. ${status.tooltip}`} arrow>
+        <Box
+          role="img"
+          aria-label={status.label}
+          sx={{ display: 'inline-flex', alignItems: 'center', px: 0.5, color: iconColor }}
+        >
+          {status.icon}
+        </Box>
+      </Tooltip>
+    );
+  }
+
   return (
     <Tooltip title={status.tooltip} arrow>
       <Chip

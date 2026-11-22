@@ -39,9 +39,15 @@ const routeFallback = (
 );
 
 // Wrap a lazy page in Suspense; optionally in the app chrome + auth guard.
+// layout: true  — full shell (sidebar, padded content)
+//         'rail' — same shell with the navigation collapsed to an icon rail
+//                  and no content padding, for full-width workspaces that
+//                  bring their own header (the patient chart)
+//         false — no shell (unauthenticated or self-contained pages)
 const page = (element, { layout = true, protect = true } = {}) => {
   let node = <Suspense fallback={routeFallback}>{element}</Suspense>;
-  if (layout) node = <LayoutV3>{node}</LayoutV3>;
+  if (layout === 'rail') node = <LayoutV3 rail flush>{node}</LayoutV3>;
+  else if (layout) node = <LayoutV3>{node}</LayoutV3>;
   if (protect) node = <ProtectedRoute>{node}</ProtectedRoute>;
   return node;
 };
@@ -83,7 +89,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/patients/:id/clinical',
-    element: page(<ClinicalWorkspaceWrapper />, { layout: false })
+    element: page(<ClinicalWorkspaceWrapper embedded />, { layout: 'rail' })
   },
   {
     path: '/patients/:id/timeline',
@@ -118,11 +124,11 @@ export const router = createBrowserRouter([
     element: page(<InventoryManagementPage />)
   },
   {
-    // No LayoutV3 (the explorer owns its shell) and no extra AppProviders —
-    // App.js already wraps the whole RouterProvider in AppProviders, so the
-    // previous nested copy double-mounted every context for this route.
+    // Inside the app shell (icon rail). The explorer keeps its own section
+    // drawer and toolbar as in-page navigation. No extra AppProviders —
+    // App.js already wraps the whole RouterProvider in them.
     path: '/fhir-explorer',
-    element: page(<FHIRExplorerApp />, { layout: false })
+    element: page(<FHIRExplorerApp embedded />, { layout: 'rail' })
   },
   {
     path: '/fhir-explorer/query-studio-enhanced',
@@ -130,7 +136,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/ui-composer',
-    element: page(<UIComposerMain />, { layout: false })
+    element: page(<UIComposerMain />, { layout: 'rail' })
   },
   // Redirect old CDS path to avoid conflicts with API endpoints
   {

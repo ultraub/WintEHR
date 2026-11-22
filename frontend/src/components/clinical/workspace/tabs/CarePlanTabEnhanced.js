@@ -85,7 +85,6 @@ import {
   ViewList as ListView,
   ViewModule as CardView,
   AccountTree as TreeView,
-  Target as TargetIcon,
   EmojiEvents as AchievementIcon,
   ShowChart as ChartIcon,
   ArrowUpward as UpIcon,

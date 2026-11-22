@@ -39,7 +39,6 @@ import {
   Save as SaveIcon,
   Folder as FolderIcon,
   Close as CloseIcon,
-  Dashboard as DashboardIcon,
   Code as CodeIcon,
   Timeline as TimelineIcon,
   Feedback as FeedbackIcon,
@@ -256,7 +255,8 @@ const UIComposerContent = () => {
   }, [currentRequest, currentSpec, isLoading, showCostEstimator]);
   
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    // Fills the app shell's content area (the route renders inside LayoutV3).
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Claude Status Banner */}
       {!claudeStatus.available && !claudeStatus.checking && (
         <Alert 
@@ -279,11 +279,11 @@ const UIComposerContent = () => {
       )}
       
       {/* Header */}
-      <AppBar position="static" elevation={1}>
-        <Toolbar>
-          <DashboardIcon sx={{ mr: 2 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Clinical UI Composer
+      {/* In-page toolbar: the shell above already provides the app bar */}
+      <AppBar position="static" elevation={0} color="default" sx={{ bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
+        <Toolbar variant="dense">
+          <Typography variant="h6" component="h1" sx={{ flexGrow: 1, fontWeight: 600 }}>
+            UI Composer
           </Typography>
           {claudeStatus.available && (
             <Tooltip title="Claude Code is connected">

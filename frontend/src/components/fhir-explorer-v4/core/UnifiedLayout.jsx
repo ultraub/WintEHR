@@ -58,7 +58,7 @@ import {
   Hub as HubIcon,
   Schema as SchemaIcon,
   Chat as ChatIcon,
-  Playground as PlaygroundIcon,
+  Science as PlaygroundIcon,
   BarChart as ChartIcon,
   AccountTree as NetworkIcon,
   Storage as DataIcon,
@@ -162,7 +162,8 @@ const AppHeader = ({
   onMenuToggle, 
   isMobile,
   dataLoading,
-  showDrawerToggle = false
+  showDrawerToggle = false,
+  embedded = false
 }) => {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState(null);
@@ -186,10 +187,14 @@ const AppHeader = ({
 
   return (
     <AppBar 
-      position="fixed" 
+      // Embedded in the app shell this is an in-flow sub-toolbar, not a
+      // second fixed app bar over the shell's own.
+      position={embedded ? 'static' : 'fixed'}
       elevation={0}
       sx={{
-        zIndex: (theme) => theme.zIndex.drawer + 1,
+        zIndex: (theme) => (embedded ? 'auto' : theme.zIndex.drawer + 1),
+        color: 'text.primary',
+        flexShrink: 0,
         bgcolor: 'background.paper',
         borderBottom: 1,
         borderColor: 'divider',
@@ -209,7 +214,7 @@ const AppHeader = ({
         />
       )}
       
-      <Toolbar sx={{ px: { xs: 1, sm: 3 } }}>
+      <Toolbar variant={embedded ? 'dense' : 'regular'} sx={{ px: { xs: 1, sm: 3 } }}>
         {/* Menu toggle for mobile and desktop (when showDrawerToggle is true) */}
         {(isMobile || (!isMobile && showDrawerToggle)) && (
           <IconButton
@@ -221,15 +226,17 @@ const AppHeader = ({
           </IconButton>
         )}
 
-        {/* Back to main app */}
-        <Tooltip title="Back to WintEHR">
-          <IconButton
-            onClick={() => navigate('/')}
-            sx={{ mr: 1, color: 'text.secondary' }}
-          >
-            <HomeIcon />
-          </IconButton>
-        </Tooltip>
+        {/* Back to main app — the shell's rail does this when embedded */}
+        {!embedded && (
+          <Tooltip title="Back to WintEHR">
+            <IconButton
+              onClick={() => navigate('/')}
+              sx={{ mr: 1, color: 'text.secondary' }}
+            >
+              <HomeIcon />
+            </IconButton>
+          </Tooltip>
+        )}
 
         {/* Logo and title */}
         <Box sx={{ display: 'flex', alignItems: 'center', mr: 3 }}>
@@ -272,48 +279,53 @@ const AppHeader = ({
         {/* Spacer */}
         <Box sx={{ flexGrow: 1 }} />
 
-        {/* Actions */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {/* Desktop drawer toggle button */}
-          {!isMobile && showDrawerToggle && (
-            <Tooltip title="Toggle Navigation">
-              <IconButton onClick={onMenuToggle} color="inherit">
-                <MenuIcon />
+        {/* Actions: theme, notifications and account come from the app shell
+            when embedded, so they are not repeated here. */}
+        {!embedded && (
+          <>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* Desktop drawer toggle button */}
+            {!isMobile && showDrawerToggle && (
+              <Tooltip title="Toggle Navigation">
+                <IconButton onClick={onMenuToggle} color="inherit">
+                  <MenuIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+
+            {/* Theme toggle */}
+            <QuickThemeToggle 
+              showLabel={false}
+              size="medium"
+              position="header"
+            />
+
+            {/* Notifications */}
+            <Tooltip title="Notifications">
+              <IconButton onClick={handleNotificationsOpen} color="inherit">
+                <Badge badgeContent={3} color="error">
+                  <NotificationsIcon />
+                </Badge>
               </IconButton>
             </Tooltip>
-          )}
 
-          {/* Theme toggle */}
-          <QuickThemeToggle 
-            showLabel={false}
-            size="medium"
-            position="header"
-          />
-
-          {/* Notifications */}
-          <Tooltip title="Notifications">
-            <IconButton onClick={handleNotificationsOpen} color="inherit">
-              <Badge badgeContent={3} color="error">
-                <NotificationsIcon />
-              </Badge>
-            </IconButton>
-          </Tooltip>
-
-          {/* User menu */}
-          <Tooltip title="User menu">
-            <IconButton onClick={handleUserMenuOpen} sx={{ ml: 1 }}>
-              <Avatar 
-                sx={{ 
-                  width: 32, 
-                  height: 32,
-                  bgcolor: 'primary.main'
-                }}
-              >
-                <PersonIcon fontSize="small" />
-              </Avatar>
-            </IconButton>
-          </Tooltip>
-        </Box>
+            {/* User menu */}
+            <Tooltip title="User menu">
+              <IconButton onClick={handleUserMenuOpen} sx={{ ml: 1 }}>
+                <Avatar 
+                  sx={{ 
+                    width: 32, 
+                    height: 32,
+                    bgcolor: 'primary.main'
+                  }}
+                >
+                  <PersonIcon fontSize="small" />
+                </Avatar>
+              </IconButton>
+            </Tooltip>
+          </Box>
+          </>
+        )}
 
         {/* User menu dropdown */}
         <Menu
@@ -386,7 +398,8 @@ const NavigationDrawer = ({
   onModeChange, 
   onClose,
   isMobile,
-  permanent = false 
+  permanent = false,
+  embedded = false
 }) => {
   const [expandedModes, setExpandedModes] = useState({
     [APP_MODES.DISCOVERY]: true,
@@ -604,8 +617,12 @@ const NavigationDrawer = ({
     <Drawer
       variant="permanent"
       open={open}
+      sx={embedded ? { flexShrink: 0, height: '100%' } : undefined}
       PaperProps={{
         sx: {
+          // In the shell the drawer sits in the page flow beside the content
+          // instead of being fixed to the viewport edge.
+          ...(embedded && { position: 'relative', height: '100%' }),
           width: open ? DRAWER_WIDTH : MINI_DRAWER_WIDTH,
           transition: (theme) => theme.transitions.create('width', {
             easing: theme.transitions.easing.sharp,
@@ -618,7 +635,7 @@ const NavigationDrawer = ({
         }
       }}
     >
-      <Toolbar /> {/* Spacer for AppBar */}
+      {!embedded && <Toolbar />} {/* Spacer for the fixed AppBar */}
       {drawerContent}
     </Drawer>
   );
@@ -681,7 +698,8 @@ function UnifiedLayout({
   isMobile,
   fhirData,
   dataLoading,
-  autoCollapse = false
+  autoCollapse = false,
+  embedded = false
 }) {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [desktopDrawerOpen, setDesktopDrawerOpen] = useState(true); // Default to expanded
@@ -704,28 +722,65 @@ function UnifiedLayout({
     }
   }, [onModeChange, autoCollapse, isMobile]);
 
+  const header = (
+    <AppHeader
+      onMenuToggle={isMobile ? handleMobileDrawerToggle : handleDesktopDrawerToggle}
+      isMobile={isMobile}
+      dataLoading={dataLoading}
+      showDrawerToggle={true}
+      embedded={embedded}
+    />
+  );
+
+  const drawer = (
+    <NavigationDrawer
+      open={isMobile ? mobileDrawerOpen : desktopDrawerOpen}
+      currentMode={currentMode}
+      currentView={currentView}
+      onModeChange={handleModeChange}
+      onClose={() => setMobileDrawerOpen(false)}
+      isMobile={isMobile}
+      embedded={embedded}
+    />
+  );
+
+  const content = (
+    <Box
+      sx={{
+        flex: 1,
+        minWidth: 0,
+        overflow: 'auto',
+        bgcolor: 'background.default',
+        p: { xs: 1, sm: 2, md: 3 }
+      }}
+      className="fhir-content-scroll"
+    >
+      <BreadcrumbNavigation currentMode={currentMode} currentView={currentView} />
+      {children}
+    </Box>
+  );
+
+  // Inside the app shell: header, then drawer and content side by side, all
+  // in normal flow and filling the shell's content area.
+  if (embedded) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+        {header}
+        <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          {drawer}
+          <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            {content}
+          </Box>
+        </Box>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
-      {/* Header */}
-      <AppHeader
-        onMenuToggle={isMobile ? handleMobileDrawerToggle : handleDesktopDrawerToggle}
-        isMobile={isMobile}
-        dataLoading={dataLoading}
-        showDrawerToggle={true}
-      />
-
-      {/* Navigation drawer */}
-      <NavigationDrawer
-        open={isMobile ? mobileDrawerOpen : desktopDrawerOpen}
-        currentMode={currentMode}
-        currentView={currentView}
-        onModeChange={handleModeChange}
-        onClose={() => setMobileDrawerOpen(false)}
-        isMobile={isMobile}
-      />
-
-      {/* Main content */}
-      <Box 
+      {header}
+      {drawer}
+      <Box
         component="main"
         sx={{
           flexGrow: 1,
@@ -741,25 +796,7 @@ function UnifiedLayout({
         }}
       >
         <Toolbar /> {/* Spacer for AppBar */}
-        
-        <Box 
-          sx={{ 
-            flex: 1, 
-            overflow: 'auto',
-            bgcolor: 'background.default',
-            p: { xs: 1, sm: 2, md: 3 }
-          }}
-          className="fhir-content-scroll"
-        >
-          {/* Breadcrumb navigation */}
-          <BreadcrumbNavigation 
-            currentMode={currentMode} 
-            currentView={currentView} 
-          />
-          
-          {/* Page content */}
-          {children}
-        </Box>
+        {content}
       </Box>
     </Box>
   );

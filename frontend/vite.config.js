@@ -174,7 +174,10 @@ export default defineConfig(async ({ mode }) => {
         },
         // (no '/dicom' entry — the DICOM router lives at /api/dicom and
         // flows through the '/api' proxy like everything else)
-        '/fhir': {
+        // Anchored: a bare '/fhir' prefix also matched the SPA route
+        // '/fhir-explorer', so a direct load of that page was proxied to the
+        // FHIR host instead of serving the app.
+        '^/fhir(/|$|\\?)': {
           target: hapiFhirTarget,
           changeOrigin: true,
           timeout: 90000,

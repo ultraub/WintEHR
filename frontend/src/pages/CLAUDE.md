@@ -29,13 +29,22 @@ before editing, or you will fix a screen nobody sees.
 
 ### Layout wrapping (a route-level decision)
 
-Most authenticated pages are wrapped by `LayoutV3` (app chrome) inside
-`ProtectedRoute`. Three routes deliberately skip `LayoutV3` because they own
-their full-viewport shell: `/patients/:id/clinical` (`ClinicalWorkspaceWrapper`),
-`/fhir-explorer` (wrapped in its own `AppProviders`), and `/ui-composer`.
-`/smart-demo` is unauthenticated (no `ProtectedRoute`). When adding a route,
-decide layout wrapping at `router.js` — pages do not render `LayoutV3`
-themselves.
+Every authenticated route renders inside `LayoutV3` (app bar with patient
+search, command palette, theme, notifications, account; navigation). The
+`page()` helper in `router.js` takes `layout`:
+
+- `true` (default) — full sidebar, padded content.
+- `'rail'` — `<LayoutV3 rail flush>`: navigation collapses to a 64px icon rail
+  and the page owns its padding and header. Used by the full-width
+  workspaces: `/patients/:id/clinical` (`ClinicalWorkspaceWrapper embedded`),
+  `/fhir-explorer` (`FHIRExplorerApp embedded`) and `/ui-composer`.
+- `false` — no shell. Only `/login`, `/smart-callback` and `/smart-demo`
+  (the last is unauthenticated and simulates a third-party app, so it must not wear the
+  EHR's chrome).
+
+A page rendered under `'rail'` must fill its container with `height: '100%'`,
+never `100vh`, and must not render its own fixed app bar: the shell's content
+box is the scroll container. Pages do not render `LayoutV3` themselves.
 
 ---
 
@@ -119,7 +128,8 @@ FHIR query.
 | Symptom | Look at |
 |---|---|
 | Edited a FHIR Explorer screen, nothing changed | You edited `FHIRExplorerEnhanced.js` (dead). Live code is `components/fhir-explorer-v4/`. |
-| New page renders without app chrome | Route in `router.js` missing the `LayoutV3` wrapper. |
+| New page renders without app chrome | Route in `router.js` passes `layout: false`. |
+| Direct load of `/fhir-explorer` is blank in dev only | Vite proxy key for `/fhir` lost its anchor (`^/fhir(/|$|\\?)`) and is capturing the SPA route. |
 | Page reachable without login | Route missing `ProtectedRoute` wrapper in `router.js`. |
 | FHIR call from a page 404s | Backend prefix mismatch — re-derive from `backend/api/routers/__init__.py`. |
 | Patient query returns nothing for a valid id | Raw `useParams()` id used un-decoded — run it through `decodeFhirId`. |
