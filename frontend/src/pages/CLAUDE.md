@@ -6,7 +6,7 @@ layout, and data fetching, then delegate to clinical components and contexts.
 
 **Inherits** root + `frontend/CLAUDE.md` + `frontend/src/CLAUDE.md` patterns
 (`fhirClient` is the FHIR client, contexts for shared state, relative imports,
-handle loading/error/empty, env-agnostic URLs, sharp-corner clinical UI).
+handle loading/error/empty, env-agnostic URLs, colour from the theme).
 Only page-layer deltas are below.
 
 ---
@@ -36,7 +36,7 @@ search, command palette, theme, notifications, account; navigation). The
 - `true` (default) — full sidebar, padded content.
 - `'rail'` — `<LayoutV3 rail flush>`: navigation collapses to a 64px icon rail
   and the page owns its padding and header. Used by the full-width
-  workspaces: `/patients/:id/clinical` (`ClinicalWorkspaceWrapper embedded`),
+  workspaces: `/patients/:id/clinical` (`ClinicalWorkspaceWrapper`),
   `/fhir-explorer` (`FHIRExplorerApp embedded`) and `/ui-composer`.
 - `false` — no shell. Only `/login`, `/smart-callback` and `/smart-demo`
   (the last is unauthenticated and simulates a third-party app, so it must not wear the

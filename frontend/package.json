@@ -57,6 +57,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src --max-warnings 0",
     "lint:fix": "eslint src --fix",
+    "lint:design": "node scripts/check-design-ratchet.mjs",
     "analyze": "ANALYZE=true npm run build",
     "serve": "npx serve -s build"
   },

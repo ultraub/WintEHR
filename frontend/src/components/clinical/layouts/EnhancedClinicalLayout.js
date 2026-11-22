@@ -3,33 +3,20 @@
  * Improved clinical workspace layout with integrated navigation
  * Now uses horizontal tab navigation matching older design
  */
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Box,
   useTheme,
-  CssBaseline,
-  Drawer
+  CssBaseline
 } from '@mui/material';
 import { useParams } from 'react-router-dom';
-import ClinicalAppBar from '../navigation/ClinicalAppBar';
 import ClinicalTabs from '../navigation/ClinicalTabs';
-import ClinicalBreadcrumbs from '../navigation/ClinicalBreadcrumbs';
 import CollapsiblePatientHeaderOptimized from '../workspace/CollapsiblePatientHeaderOptimized';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
-import { useAuth } from '../../../contexts/AuthContext';
 import { usePatientData } from '../../../hooks/usePatientData';
 import { useResponsive } from '../../../hooks/useResponsive';
-import { MedicalThemeContext } from '../../../App';
-import { LAYOUT_HEIGHTS, Z_INDEX } from '../theme/clinicalThemeConstants';
-import { CLINICAL_TABS } from '../workspace/clinicalTabRegistry';
+import { Z_INDEX } from '../theme/clinicalThemeConstants';
 import { decodeFhirId } from '../../../core/navigation/navigationUtils';
-
-// Module configuration — id → {id, label, index}, derived from the single
-// tab registry. `index` is the registry's array position, so tab order
-// is owned in one place.
-const MODULES = Object.fromEntries(
-  CLINICAL_TABS.map((t, index) => [t.id, { id: t.id, label: t.label, index }]),
-);
 
 const EnhancedClinicalLayout = ({
   children,
@@ -38,7 +25,6 @@ const EnhancedClinicalLayout = ({
   subContext = null,
   department = 'Clinic',
   shift = 'Day',
-  embedded = false,
   navigationContext = {}
 }) => {
   const theme = useTheme();
@@ -46,14 +32,8 @@ const EnhancedClinicalLayout = ({
   // compartment in the FHIR cache (split-brain with pages that decode).
   const { id: rawPatientId } = useParams();
   const patientId = rawPatientId ? decodeFhirId(rawPatientId).toLowerCase() : rawPatientId;
-  const { user } = useAuth();
-  const { currentMode, onModeChange } = React.useContext(MedicalThemeContext);
-  const isDarkMode = currentMode === 'dark';
-  const toggleTheme = () => onModeChange(isDarkMode ? 'light' : 'dark');
   const { isMobile, isTablet, isDesktop } = useResponsive();
   
-  const [bookmarked, setBookmarked] = useState(false);
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const scrollContainerRef = React.useRef(null);
   
   const { publish } = useClinicalWorkflow();
@@ -79,11 +59,6 @@ const EnhancedClinicalLayout = ({
     refreshPatientData
   } = usePatientData(patientId);
 
-  // Handle menu toggle for mobile drawer
-  const handleMenuToggle = () => {
-    setMobileDrawerOpen(!mobileDrawerOpen);
-  };
-
   // Handle module navigation
   const handleModuleChange = (moduleId) => {
     if (onModuleChange) {
@@ -99,50 +74,13 @@ const EnhancedClinicalLayout = ({
     }
   };
 
-  // Handle bookmark
-  const handleBookmark = () => {
-    setBookmarked(!bookmarked);
-    // Would save to user preferences
-  };
-
   return (
-    <Box sx={{ minHeight: embedded ? '100%' : '100vh' }}>
+    <Box sx={{ minHeight: '100%' }}>
       <CssBaseline />
 
-      {/* Standalone only: when `embedded` the app shell (LayoutV3) supplies the
-          app bar, navigation rail and account menu, and the breadcrumb is
-          dropped because the patient header directly below says the same. */}
-      {!embedded && (
-        <>
-          {/* Fixed AppBar */}
-          <ClinicalAppBar
-            onMenuToggle={handleMenuToggle}
-            onThemeToggle={toggleTheme}
-            isDarkMode={isDarkMode}
-            patient={patient}
-            loading={loading}
-            user={user}
-            department={department}
-            shift={shift}
-          />
-
-          {/* Spacer that pushes content below the fixed AppBar */}
-          <Box sx={{ height: LAYOUT_HEIGHTS.appBar }} />
-
-          {/* Breadcrumbs - in normal flow, scrolls away naturally */}
-          {!isMobile && (
-            <ClinicalBreadcrumbs
-              patient={patient}
-              activeModule={MODULES[activeModule]}
-              subContext={subContext}
-              onBookmark={handleBookmark}
-              bookmarked={bookmarked}
-              navigationContext={navigationContext}
-            />
-          )}
-        </>
-      )}
-
+      {/* The app shell (LayoutV3, rail mode) supplies the app bar, navigation
+          and account menu. There is no breadcrumb: the patient header
+          directly below already names the patient. */}
       {/* Main content — natural page scroll, no overflow constraints */}
       <Box
         component="main"
@@ -154,16 +92,16 @@ const EnhancedClinicalLayout = ({
           backgroundImage: theme.palette.mode === 'dark'
             ? 'linear-gradient(180deg, rgba(99,102,241,0.14) 0%, rgba(99,102,241,0.05) 200px, transparent 500px)'
             : 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.03) 200px, transparent 500px)',
-          minHeight: embedded ? '100%' : `calc(100vh - ${LAYOUT_HEIGHTS.appBar}px)`,
+          minHeight: '100%',
         }}
       >
         {/* Sticky combined header: patient info + tabs stick together below the fixed AppBar */}
         {(patient || loading) && (
           <Box sx={{
             position: 'sticky',
-            // Embedded: the shell's content area is the scroll container, so
-            // the header sticks to its top edge, not below a fixed app bar.
-            top: embedded ? 0 : LAYOUT_HEIGHTS.appBar,
+            // The shell's content area is the scroll container, so the header
+            // sticks to its top edge.
+            top: 0,
             zIndex: Z_INDEX.appBar - 1,
             backgroundColor: theme.palette.mode === 'dark'
               ? 'rgba(30, 41, 59, 0.88)'
@@ -240,43 +178,6 @@ const EnhancedClinicalLayout = ({
           })}
         </Box>
       </Box>
-
-      {/* Mobile Navigation Drawer */}
-      {isMobile && (
-        <Drawer
-          anchor="bottom"
-          open={mobileDrawerOpen}
-          onClose={() => setMobileDrawerOpen(false)}
-          sx={{
-            '& .MuiDrawer-paper': {
-              maxHeight: '60vh',
-              borderTopLeftRadius: 16,
-              borderTopRightRadius: 16,
-            },
-          }}
-        >
-          <Box sx={{ p: 2 }}>
-            <Box sx={{
-              width: 40,
-              height: 4,
-              backgroundColor: 'grey.300',
-              borderRadius: 2,
-              mx: 'auto',
-              mb: 2
-            }} />
-            <ClinicalTabs
-              activeTab={activeModule}
-              onTabChange={(moduleId) => {
-                handleModuleChange(moduleId);
-                setMobileDrawerOpen(false);
-              }}
-              variant="fullWidth"
-              orientation="vertical"
-              showIcons={true}
-            />
-          </Box>
-        </Drawer>
-      )}
     </Box>
   );
 };
