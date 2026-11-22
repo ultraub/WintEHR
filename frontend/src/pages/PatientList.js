@@ -34,6 +34,7 @@ import { fhirClient } from '../core/fhir/services/fhirClient';
 import PatientForm from '../components/PatientForm';
 import { getPatientDetailUrl } from '../core/navigation/navigationUtils';
 import { debounce } from 'lodash';
+import { cleanNamePart, formatMrn } from '../utils/clinicalDisplay';
 
 function PatientList() {
   const navigate = useNavigate();
@@ -60,7 +61,9 @@ function PatientList() {
       headerName: 'MRN',
       width: 120,
       renderCell: (params) => (
-        <Chip label={params.value} size="small" color="primary" variant="outlined" />
+        <Tooltip title={params.value || ''}>
+          <Chip label={formatMrn(params.value)} size="small" variant="outlined" sx={{ fontFamily: 'monospace' }} />
+        </Tooltip>
       ),
     },
     {
@@ -216,8 +219,8 @@ function PatientList() {
         return {
           id: fhirPatient.id,
           mrn: mrn,
-          first_name: name.given?.join(' ') || '',
-          last_name: name.family || '',
+          first_name: (name.given || []).map(cleanNamePart).filter(Boolean).join(' '),
+          last_name: cleanNamePart(name.family),
           date_of_birth: fhirPatient.birthDate,
           gender: fhirPatient.gender,
           phone: phone || '',
@@ -309,8 +312,8 @@ function PatientList() {
         return {
           id: fhirPatient.id,
           mrn: mrn,
-          first_name: name.given?.join(' ') || '',
-          last_name: name.family || '',
+          first_name: (name.given || []).map(cleanNamePart).filter(Boolean).join(' '),
+          last_name: cleanNamePart(name.family),
           date_of_birth: fhirPatient.birthDate,
           gender: fhirPatient.gender,
           phone: phone || '',

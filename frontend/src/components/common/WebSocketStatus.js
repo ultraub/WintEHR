@@ -2,7 +2,7 @@
  * WebSocket Status Indicator Component
  * Shows real-time connection status with reconnection feedback
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Chip,
   CircularProgress,
@@ -22,6 +22,13 @@ const WebSocketStatus = ({ size = 'small', showLabel = true }) => {
   const theme = useTheme();
   const { wsConnected, wsReconnecting } = useClinicalWorkflow();
   const { isConfigured } = websocketService.getConnectionState();
+  // Red is reserved for a connection that was live in this session and then
+  // dropped. Never having connected (no real-time service on this deployment)
+  // is a neutral state, not an alarm that sits in the header all day.
+  const [everConnected, setEverConnected] = useState(false);
+  useEffect(() => {
+    if (wsConnected) setEverConnected(true);
+  }, [wsConnected]);
 
   // Determine status
   const getStatus = () => {
@@ -52,14 +59,23 @@ const WebSocketStatus = ({ size = 'small', showLabel = true }) => {
       };
     }
 
+    if (!everConnected) {
+      return {
+        icon: <DisconnectedIcon fontSize={size} />,
+        label: 'Live updates off',
+        color: 'default',
+        tooltip: 'Real-time updates are unavailable. Refresh to see changes made elsewhere.'
+      };
+    }
+
     return {
       icon: <DisconnectedIcon fontSize={size} />,
       label: 'Disconnected',
       color: 'error',
-      tooltip: 'Real-time updates unavailable'
+      tooltip: 'Real-time connection lost. Refresh to see changes made elsewhere.'
     };
   };
-  
+
   const status = getStatus();
   
   return (
@@ -71,7 +87,7 @@ const WebSocketStatus = ({ size = 'small', showLabel = true }) => {
         color={status.color}
         variant="outlined"
         sx={{
-          borderWidth: 2,
+          borderWidth: 1,
           backgroundColor: alpha(
             (theme.palette[status.color]?.main || theme.palette.grey[500]),
             0.1

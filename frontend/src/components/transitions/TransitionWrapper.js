@@ -1,40 +1,46 @@
 /**
  * TransitionWrapper Component
- * Wraps page content with transition animations
- * 
+ * Fades page content in on route change.
+ *
+ * The content's resting opacity is always 1. The fade is a one-shot Web
+ * Animation played on top of that, so nothing can leave the page invisible:
+ * the previous version held opacity at 0 until a requestAnimationFrame
+ * callback fired, and browsers pause those in background tabs, which left
+ * pages blank for seconds. Skipped entirely under prefers-reduced-motion.
+ *
  * @since 2025-01-21
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Box, Fade } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { Box } from '@mui/material';
+
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const TransitionWrapper = ({ children, transition = 'fade', duration = 150 }) => {
   const location = useLocation();
-  const theme = useTheme();
-  const [show, setShow] = useState(false);
+  const ref = useRef(null);
 
   useEffect(() => {
-    // One animation frame instead of a 50ms timer: the old hide→wait→fade
-    // cycle added ~350ms of artificial latency to every navigation.
-    setShow(false);
-    const raf = requestAnimationFrame(() => setShow(true));
-    return () => cancelAnimationFrame(raf);
-  }, [location.pathname]);
+    const node = ref.current;
+    if (transition !== 'fade' || !node || typeof node.animate !== 'function') return undefined;
+    if (prefersReducedMotion()) return undefined;
+    const animation = node.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration,
+      easing: 'ease-out',
+    });
+    return () => animation.cancel();
+  }, [location.pathname, transition, duration]);
 
-  // Apply transition based on type
-  if (transition === 'fade') {
-    return (
-      <Fade in={show} timeout={duration}>
-        <Box sx={{ width: '100%', height: '100%' }}>
-          {children}
-        </Box>
-      </Fade>
-    );
-  }
+  if (transition !== 'fade') return children;
 
-  // Default to no transition
-  return children;
+  return (
+    <Box ref={ref} sx={{ width: '100%', height: '100%' }}>
+      {children}
+    </Box>
+  );
 };
 
 export default TransitionWrapper;

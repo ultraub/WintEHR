@@ -4,6 +4,7 @@
  */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import { AUTH_UNAUTHORIZED_EVENT } from '../constants/authEvents';
 
 const AuthContext = createContext(undefined);
 
@@ -21,21 +22,41 @@ export const AuthProvider = ({ children }) => {
 
   const checkSession = useCallback(async () => {
     const token = localStorage.getItem('auth_token');
-    if (token) {
-      // For now, just use cached user data since auth endpoints are not implemented
-      // TODO: Implement proper FHIR auth endpoints
-      const cachedUser = localStorage.getItem('auth_user');
-      if (cachedUser) {
-        try {
-          setUser(JSON.parse(cachedUser));
-        } catch (e) {
-          
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('auth_user');
-        }
+    const cachedUser = localStorage.getItem('auth_user');
+    let parsed = null;
+    if (token && cachedUser) {
+      try {
+        parsed = JSON.parse(cachedUser);
+      } catch (e) {
+        parsed = null;
       }
     }
+    if (!parsed) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      setLoading(false);
+      return;
+    }
+    // Confirm the cached session with the backend before trusting it. A stale
+    // token used to look signed in until the first strict endpoint returned
+    // 401 and threw the user out mid-task. A 401 here is handled by the api
+    // interceptor (AUTH_UNAUTHORIZED_EVENT); any other failure (backend down,
+    // network) keeps the cached user so the app still opens.
+    setUser(parsed);
+    try {
+      await api.get('/api/auth/me');
+    } catch (e) {
+      // see comment above
+    }
     setLoading(false);
+  }, []);
+
+  // The api layer reports a confirmed-dead session; drop the user so
+  // ProtectedRoute redirects to /login through the router.
+  useEffect(() => {
+    const onUnauthorized = () => setUser(null);
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
   }, []);
 
   // Check for existing session on mount

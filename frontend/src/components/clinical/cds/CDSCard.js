@@ -40,6 +40,7 @@ import {
   Feedback as FeedbackIcon
 } from '@mui/icons-material';
 import { cdsHooksClient } from '../../../services/cdsHooksClient';
+import Markdown from '../../common/Markdown';
 
 // Indicator icons and colors
 const INDICATOR_CONFIG = {
@@ -299,9 +300,7 @@ const CDSCard = ({
           <Collapse in={expanded}>
             {card.detail && (
               <Box mb={2}>
-                <Typography variant="body2" color="text.secondary">
-                  {card.detail}
-                </Typography>
+                <Markdown color="text.secondary">{card.detail}</Markdown>
               </Box>
             )}
 

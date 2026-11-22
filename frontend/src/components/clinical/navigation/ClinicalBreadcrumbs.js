@@ -56,8 +56,7 @@ const ClinicalBreadcrumbs = ({
       label: getPatientDisplay(patient),
       icon: PatientIcon,
       path: `/clinical/${patient.id}?tab=${activeModule?.id || 'summary'}`,
-      clickable: true,
-      chip: patient.identifier?.[0]?.value
+      clickable: true
     }] : []),
     ...(activeModule ? [{
       label: activeModule.label,
