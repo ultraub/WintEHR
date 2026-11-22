@@ -51,3 +51,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS system_jobs_one_active
     ON system.jobs ((TRUE)) WHERE status IN ('queued', 'running');
 
 CREATE INDEX IF NOT EXISTS system_jobs_created_at ON system.jobs (created_at DESC);
+
+-- Command Center health history (docs/COMMAND_CENTER.md, slice 17): one row per
+-- status report (on request or from the sampler), pruned after
+-- COMMAND_CENTER_HISTORY_DAYS (7). Same DDL applied idempotently by
+-- SqlStatusHistoryRepository.ensure_schema().
+
+CREATE TABLE IF NOT EXISTS system.status_history (
+    id          BIGSERIAL PRIMARY KEY,
+    checked_at  TIMESTAMPTZ NOT NULL,
+    overall     TEXT NOT NULL,                 -- ok|degraded|down
+    components  TEXT NOT NULL,                 -- JSON: {component: ok|degraded|down|absent}
+    source      TEXT NOT NULL DEFAULT 'request' -- request|sampler
+);
+
+CREATE INDEX IF NOT EXISTS system_status_history_checked_at ON system.status_history (checked_at DESC);
