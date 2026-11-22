@@ -14,7 +14,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from pydantic import BaseModel, Field
 
 from api.auth.models import User
@@ -38,6 +38,7 @@ from .models import (
     ModulesResponse,
     RoleView,
     RolesResponse,
+    SessionsResponse,
     SettingUpdate,
     SettingView,
     StatusReport,
@@ -45,6 +46,7 @@ from .models import (
 )
 from .config_transfer import apply_import, export_document, plan_import
 from .service import CommandCenterService, get_command_center_service, read_build_info
+from .sessions import SessionsService, default_sessions_service
 from .settings_service import SettingsError, SettingsService, default_settings_service
 from .roles import KNOWN_PERMISSIONS, LOCKED, default_roles, effective_permissions
 from .tab_policy import ALWAYS_VISIBLE, EMPTY_POLICY, known_roles
@@ -277,6 +279,48 @@ async def cancel_job(
         return await jobs.cancel(job_id, user.id)
     except JobsError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+
+
+# --- active sessions -------------------------------------------------------------------
+
+
+def _bearer(authorization: Optional[str]) -> Optional[str]:
+    if authorization and authorization.lower().startswith("bearer "):
+        return authorization.split(" ", 1)[1].strip() or None
+    return None
+
+
+@router.get("/sessions", response_model=SessionsResponse)
+async def list_sessions(
+    authorization: Optional[str] = Header(default=None),
+    _user: User = Depends(require_admin),
+    sessions: SessionsService = Depends(default_sessions_service),
+):
+    """Every live training / practitioner session (never the tokens), newest first; `current` marks the caller's."""
+    return await sessions.list(current_token=_bearer(authorization))
+
+
+@router.delete("/sessions/{sid}", status_code=200)
+async def revoke_session(
+    sid: str,
+    user: User = Depends(require_system),
+    sessions: SessionsService = Depends(default_sessions_service),
+):
+    """Revoke one session by its id (the digest from the list). Audited. Revoking your own logs you out."""
+    removed = await sessions.revoke(sid, getattr(user, "id", None))
+    if not removed:
+        raise HTTPException(status_code=404, detail="No such session (it may have expired or been revoked already)")
+    return {"revoked": removed}
+
+
+@router.delete("/sessions", status_code=200)
+async def revoke_user_sessions(
+    user_id: str,
+    user: User = Depends(require_system),
+    sessions: SessionsService = Depends(default_sessions_service),
+):
+    """Revoke every session of one user. Audited."""
+    return {"revoked": await sessions.revoke_user(user_id, getattr(user, "id", None))}
 
 
 # --- backend logs -------------------------------------------------------------------
