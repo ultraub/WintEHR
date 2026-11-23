@@ -1281,7 +1281,7 @@ const DocumentationTabEnhanced = ({
             flexShrink: 0, 
             borderRight: 1, 
             borderColor: 'divider',
-            backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.8) : 'grey.50'
+            backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.8) : 'action.hover'
           }}>
             <Box sx={{ p: 1, minHeight: 300, overflow: 'auto' }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
@@ -1747,7 +1747,7 @@ const DocumentationTabEnhanced = ({
                 </Grid>
                 <Grid item xs={12}>
                   <Typography variant="subtitle2" color="text.secondary">Content</Typography>
-                  <Box sx={{ mt: 1, p: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.6) : 'grey.50', maxHeight: 400, overflow: 'auto' }}>
+                  <Box sx={{ mt: 1, p: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.6) : 'action.hover', maxHeight: 400, overflow: 'auto' }}>
                     {looksLikeMarkdown(selectedNoteForView.displayContent) ? (
                       <Markdown>{selectedNoteForView.displayContent}</Markdown>
                     ) : (

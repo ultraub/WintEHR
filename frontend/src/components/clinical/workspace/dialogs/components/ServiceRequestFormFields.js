@@ -559,7 +559,7 @@ const ServiceRequestFormFields = ({
 
       {/* Order Preview */}
       {(safeFormData.selectedTest || safeFormData.customTest) && safeFormData.indication && (
-        <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
+        <Box sx={{ p: 2, backgroundColor: 'action.hover', borderRadius: 1 }}>
           <Typography variant="subtitle2" gutterBottom>
             Order Preview:
           </Typography>

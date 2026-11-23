@@ -562,7 +562,7 @@ const QualityMeasurePrompts = ({
                 </Box>
               )}
 
-              <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Box sx={{ mt: 3, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                 <Typography variant="caption" color="text.secondary">
                   Generated content preview (first 200 characters):
                 </Typography>

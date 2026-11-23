@@ -227,8 +227,8 @@ const ScopeCategory = ({ title, scopes, expanded, onToggle }) => {
           cursor: 'pointer',
           py: 1,
           px: 1,
-          bgcolor: 'grey.50',
-          '&:hover': { bgcolor: 'grey.100' }
+          bgcolor: 'action.hover',
+          '&:hover': { bgcolor: 'action.selected' }
         }}
         onClick={onToggle}
       >

@@ -6,14 +6,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import BarList from '../components/common/BarList';
 import StatTile from '../components/common/StatTile';
-import PageHeader from '../components/common/PageHeader';
+import { getToneColors } from '../utils/statusDisplay';
+import { buildAttentionItems, describeToday, greetingFor, CARE_TARGET, FAR_BELOW } from '../utils/dashboardAttention';
+import { avatarColorFor, initialsOf } from '../utils/avatarColor';
+import { useAuroraPalette, avatarInk } from '../themes/auroraPalette';
+import AuroraHero from '../components/common/AuroraHero';
+import ProgressRing from '../components/common/ProgressRing';
+import SectionCard from '../components/common/SectionCard';
+import { describeConditions } from '../utils/populationSummaries';
 import {
   Box,
   Grid,
   Typography,
   IconButton,
   Chip,
-  CircularProgress,
   Alert,
   Tabs,
   Tab,
@@ -21,59 +27,31 @@ import {
   useTheme,
   alpha,
   Tooltip,
-  Button,
   Divider,
   LinearProgress,
   Stack,
-  AvatarGroup,
   Skeleton,
   List,
   ListItem,
-  ListItemText
+  ListItemText,
+  ButtonBase
 } from '@mui/material';
 import {
-  Dashboard as DashboardIcon,
-  LocalHospital as HospitalIcon,
-  Science as ScienceIcon,
-  Calculate as CalculateIcon,
-  TrendingUp as TrendingUpIcon,
-  Warning as WarningIcon,
-  Medication as MedicationIcon,
-  Timeline as TimelineIcon,
-  Search as SearchIcon,
   Refresh as RefreshIcon,
   ArrowUpward as ArrowUpIcon,
   ArrowDownward as ArrowDownIcon,
-  CheckCircle as CheckIcon,
-  Cancel as CancelIcon,
-  Favorite as HeartIcon,
-  Psychology as BrainIcon,
-  AirlineSeatFlat as BedIcon,
-  Vaccines as VaccineIcon
+  ChevronRight as ChevronRightIcon,
+  Vaccines as VaccinesIcon,
+  PriorityHigh as PriorityHighIcon,
+  EventNote as EventNoteIcon,
+  MonitorHeart as MonitorHeartIcon,
+  People as PeopleIcon,
+  Medication as MedicationIcon
 } from '@mui/icons-material';
-
-// Chart imports
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  Cell,
-  RadarChart,
-  Radar,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  XAxis,
-  YAxis,
-  Tooltip as ChartTooltip,
-  Legend,
-  ResponsiveContainer,
-  CartesianGrid,
-} from 'recharts';
 
 // Service imports
 import dashboardDataService from '../services/dashboard/dashboardDataService';
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
@@ -82,10 +60,10 @@ import { format } from 'date-fns';
 import ClinicalCalculatorWidget from '../components/dashboard/widgets/ClinicalCalculatorWidget';
 import PatientListWidget from '../components/dashboard/widgets/PatientListWidget';
 import CareGapsWidget from '../components/dashboard/widgets/CareGapsWidget';
-import QuickReferenceWidget from '../components/dashboard/widgets/QuickReferenceWidget';
 
 function Dashboard() {
   const theme = useTheme();
+  const auroraPalette = useAuroraPalette();
 
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -101,6 +79,8 @@ function Dashboard() {
   const [medicationSafety, setMedicationSafety] = useState(null);
   const [trendingData, setTrendingData] = useState(null);
   const [qualityMetrics, setQualityMetrics] = useState(null);
+  const [population, setPopulation] = useState(null);
+  const [recentEncounters, setRecentEncounters] = useState(null);
 
   // Fetch all dashboard data
   const fetchDashboardData = useCallback(async () => {
@@ -114,15 +94,27 @@ function Dashboard() {
         gapsData,
         medicationData,
         trendsData,
-        metricsData
+        metricsData,
+        encountersData
       ] = await Promise.all([
         dashboardDataService.getPopulationStats(),
         dashboardDataService.getChronicDiseaseStats(),
         dashboardDataService.getCareGaps(),
         dashboardDataService.getMedicationSafetyStats(),
         dashboardDataService.getTrendingData(30),
-        dashboardDataService.getQualityMetrics()
+        dashboardDataService.getQualityMetrics(),
+        dashboardDataService.getRecentEncounters(30)
       ]);
+
+      // The same snapshot the Analytics page draws, so the two pages agree.
+      // It belongs to an optional module: without it the overview falls back
+      // to the registry counts above.
+      try {
+        const response = await api.get('/api/analytics/population');
+        setPopulation(response.data);
+      } catch (snapshotError) {
+        setPopulation(null);
+      }
 
       setPopulationStats(populationData);
       setChronicDiseaseStats(chronicData);
@@ -130,6 +122,7 @@ function Dashboard() {
       setMedicationSafety(medicationData);
       setTrendingData(trendsData);
       setQualityMetrics(metricsData);
+      setRecentEncounters(encountersData);
 
     } catch (err) {
       console.error('Dashboard data fetch error:', err);
@@ -163,261 +156,393 @@ function Dashboard() {
     ? (encounterTotal / encounterSeries.length).toFixed(1)
     : '0';
 
+  // Care measures only count when someone is eligible for them.
+  const measuredGaps = (careGaps?.gaps || []).filter((gap) => gap.eligible > 0);
+  const measuresOnTarget = measuredGaps.filter((gap) => gap.percentage >= CARE_TARGET).length;
+  // Prefer the snapshot's count (distinct drugs, living patients) when present.
+  const polypharmacy = population
+    ? { count: population.medications.polypharmacy.patients, threshold: population.medications.threshold }
+    : medicationSafety?.polypharmacy;
+  const attentionItems = buildAttentionItems({ careGaps, medicationSafety: { polypharmacy }, recentEncounters });
+  const topDiagnoses = (population?.conditions?.items || [])
+    .filter((item) => item.kind === 'diagnosis')
+    .slice(0, 8);
+
+  const outstandingCare = measuredGaps.reduce((sum, gap) => sum + Math.max(0, gap.eligible - gap.completed), 0);
+  const encounterPeak = Math.max(1, ...encounterSeries.map((day) => day.encounters || 0));
+  const todaySummary = describeToday({ careGaps, recentEncounters });
+
+  // Tiles on the deep ground: a soft shadow at dusk, a thin outline at night.
+  const tileSx = {
+    borderColor: auroraPalette.cardBorder,
+    borderRadius: 1.75,
+    boxShadow: auroraPalette.cardShadow,
+  };
+  const latestEncounters = (recentEncounters?.encounters || []).slice(0, 5);
+
   // Render loading state
   if (loading && !refreshing) {
+    const bone = { bgcolor: auroraPalette.groundRaised, borderRadius: 2.25 };
     return (
-      <Box sx={{ p: 3 }}>
-        <Grid container spacing={3}>
+      <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+        <Skeleton variant="rectangular" height={250} sx={bone} />
+        <Grid container spacing={2} sx={{ mt: 1 }}>
           {[1, 2, 3, 4].map((i) => (
-            <Grid item xs={12} md={6} lg={3} key={i}>
-              <Skeleton variant="rectangular" height={120} />
+            <Grid item xs={6} md={3} key={i}>
+              <Skeleton variant="rectangular" height={96} sx={bone} />
             </Grid>
           ))}
-          <Grid item xs={12}>
-            <Skeleton variant="rectangular" height={400} />
-          </Grid>
+          <Grid item xs={12} md={7}><Skeleton variant="rectangular" height={300} sx={bone} /></Grid>
+          <Grid item xs={12} md={5}><Skeleton variant="rectangular" height={300} sx={bone} /></Grid>
         </Grid>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-      <Box sx={{ p: 3, pb: 0 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <PageHeader
-            title="Dashboard"
-            subtitle={`${format(new Date(), 'EEEE, MMMM d, yyyy')} · ${user?.name || 'Clinician'}`}
-            sx={{ mb: 0 }}
-          />
-          <Box>
-            <Tooltip title="Refresh data">
-              <IconButton onClick={handleRefresh} disabled={refreshing}>
-                <RefreshIcon sx={{
-                  animation: refreshing ? 'spin 1s linear infinite' : 'none',
-                  '@keyframes spin': {
-                    '0%': { transform: 'rotate(0deg)' },
-                    '100%': { transform: 'rotate(360deg)' }
-                  }
-                }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Box>
+    <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+      {/* The page sits on the deep ground (router: ground 'deep'), so anything
+          set directly on it uses auroraPalette's on-ground colours. */}
+      <AuroraHero
+        eyebrow={format(new Date(), 'EEEE, MMMM d, yyyy')}
+        title={user?.name ? `${greetingFor()},` : greetingFor()}
+        highlight={user?.name}
+        summary={todaySummary}
+      />
 
-        {/* Navigation Tabs */}
-        <Paper sx={{ borderRadius: 2, mb: 3 }}>
-          <Tabs
-            value={activeTab}
-            onChange={handleTabChange}
-            variant="scrollable"
-            scrollButtons="auto"
-            sx={{
-              '& .MuiTab-root': {
-                minHeight: 64,
-                textTransform: 'none',
-                fontSize: '0.95rem',
-                fontWeight: 500
-              }
-            }}
-          >
-            <Tab icon={<DashboardIcon />} label="Overview" />
-            <Tab icon={<HospitalIcon />} label="Population Health" />
-            <Tab icon={<CalculateIcon />} label="Clinical Tools" />
-            <Tab icon={<WarningIcon />} label="Safety & Alerts" />
-            <Tab icon={<TrendingUpIcon />} label="Analytics" />
-          </Tabs>
-        </Paper>
-      </Box>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mt: 1.5, mb: 2 }}>
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          variant="scrollable"
+          scrollButtons="auto"
+          aria-label="Dashboard sections"
+          sx={{
+            minHeight: 44,
+            '& .MuiTab-root': {
+              minHeight: 44,
+              textTransform: 'none',
+              fontSize: '0.9375rem',
+              fontWeight: 500,
+              color: auroraPalette.onGroundSoft,
+              opacity: 0.8,
+              '&.Mui-selected': { color: auroraPalette.onGround, opacity: 1, fontWeight: 600 },
+              '&.Mui-focusVisible': { outline: `2px solid ${auroraPalette.onGroundAccent}`, outlineOffset: -2 },
+            },
+            '& .MuiTabs-indicator': { backgroundColor: auroraPalette.onGroundAccent, height: 3, borderRadius: 2 },
+            '& .MuiTabs-scrollButtons': { color: auroraPalette.onGroundSoft },
+          }}
+        >
+          <Tab label="Overview" />
+          <Tab label="Population Health" />
+          <Tab label="Clinical Tools" />
+          <Tab label="Safety & Alerts" />
+        </Tabs>
+        <Tooltip title="Refresh data">
+          <span>
+            <IconButton onClick={handleRefresh} disabled={refreshing} aria-label="Refresh data" sx={{ color: auroraPalette.onGroundSoft }}>
+              <RefreshIcon sx={{
+                animation: refreshing ? 'spin 1s linear infinite' : 'none',
+                '@keyframes spin': {
+                  '0%': { transform: 'rotate(0deg)' },
+                  '100%': { transform: 'rotate(360deg)' }
+                }
+              }} />
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Stack>
 
       {/* Error Alert */}
       {error && (
-        <Alert severity="error" sx={{ mx: 3, mb: 2 }} onClose={() => setError(null)}>
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
       {/* Tab Content */}
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
+      <Box>
         {/* Overview Tab */}
         {activeTab === 0 && (
-          <Grid container spacing={2}>
-            {/* Key metrics */}
-            <Grid item xs={6} md={3}>
-              <StatTile label="Total patients" value={populationStats?.totalPatients ?? 0} />
-            </Grid>
-            <Grid item xs={6} md={3}>
-              <StatTile label="Active conditions" value={populationStats?.activeConditions ?? 0} caption="All patients" />
-            </Grid>
+          <Grid container spacing={2.5}>
+            {/* Headline numbers. Each opens the page behind it. */}
             <Grid item xs={6} md={3}>
               <StatTile
-                label="Active medications"
-                value={populationStats?.activeMedications ?? 0}
-                chips={(medicationSafety?.polypharmacy?.count || 0) > 0
-                  ? [{ label: 'polypharmacy', count: medicationSafety.polypharmacy.count, tone: 'attention' }]
-                  : []}
+                label="Patients"
+                value={populationStats?.totalPatients ?? 0}
+                caption={population?.patients?.deceased_excluded
+                  ? `${population.patients.total} living · ${population.patients.deceased_excluded} deceased`
+                  : undefined}
+                icon={<PeopleIcon />}
+                onClick={() => navigate('/patients')}
+                sx={tileSx}
               />
             </Grid>
             <Grid item xs={6} md={3}>
               <StatTile
-                label="Care gaps"
-                value={careGaps?.gaps?.filter(g => g.percentage < 80).length ?? 0}
-                tone="attention"
-                caption="Measures under 80%"
+                label="Encounters, last 30 days"
+                value={encounterTotal}
+                caption={(
+                  <Stack direction="row" alignItems="flex-end" spacing={1}>
+                    <span>{encounterAverage} per day</span>
+                    {/* one mark per day, oldest first */}
+                    <Box
+                      role="img"
+                      aria-label={`${encounterTotal} encounters across the last ${encounterSeries.length} days`}
+                      sx={{ flexGrow: 1, display: 'flex', alignItems: 'flex-end', gap: '2px', height: 18 }}
+                    >
+                      {encounterSeries.map((day) => (
+                        <Box
+                          key={day.date}
+                          sx={{
+                            flex: '1 1 0',
+                            borderRadius: '1px',
+                            height: day.encounters > 0 ? `${Math.max(30, (day.encounters / encounterPeak) * 100)}%` : '2px',
+                            backgroundColor: day.encounters > 0 ? 'primary.main' : 'divider',
+                          }}
+                        />
+                      ))}
+                    </Box>
+                  </Stack>
+                )}
+                icon={<EventNoteIcon />}
+                onClick={() => navigate('/encounters')}
+                sx={tileSx}
+              />
+            </Grid>
+            <Grid item xs={6} md={3}>
+              <StatTile
+                label="Active medication orders"
+                value={populationStats?.activeMedications ?? 0}
+                caption={`${(populationStats?.activeConditions ?? 0).toLocaleString()} active conditions on record`}
+                icon={<MedicationIcon />}
+                onClick={() => navigate('/pharmacy')}
+                sx={tileSx}
+              />
+            </Grid>
+            <Grid item xs={6} md={3}>
+              <StatTile
+                label="Care measures on target"
+                value={measuredGaps.length ? `${measuresOnTarget} of ${measuredGaps.length}` : null}
+                caption={`Target ${CARE_TARGET}% of eligible patients`}
+                tone={measuresOnTarget < measuredGaps.length ? 'attention' : 'neutral'}
+                toneWhenZero
+                icon={<VaccinesIcon />}
+                onClick={() => navigate('/care-gaps')}
+                sx={tileSx}
               />
             </Grid>
 
-            {/* Encounters per day. Counts are whole numbers on separate days, so
-                they are bars: a smoothed area drew values that never happened. */}
-            <Grid item xs={12} md={8}>
-              <Paper sx={{ p: 2, height: 320 }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="baseline">
-                  <Typography variant="subtitle1" fontWeight="bold">
-                    Encounters per day, last 30 days
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {encounterTotal} total · {encounterAverage} per day
-                  </Typography>
-                </Stack>
-                {encounterSeries.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                    No encounters recorded in the last 30 days.
+            {/* Preventive care: each measure as a ring against the target. */}
+            <Grid item xs={12} md={7}>
+              <SectionCard
+                title="Preventive care"
+                icon={<VaccinesIcon />}
+                note={`Target ${CARE_TARGET}% of eligible patients`}
+                action={{ label: 'Care gaps', onClick: () => navigate('/care-gaps') }}
+                footer={measuredGaps.length > 0
+                  ? `${outstandingCare.toLocaleString()} screenings and tests outstanding across ${measuredGaps.length} measures`
+                  : undefined}
+              >
+                {measuredGaps.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    No care measures have eligible patients yet.
                   </Typography>
                 ) : (
-                  <Box sx={{ width: '100%', height: 250, mt: 1 }}>
-                    <ResponsiveContainer>
-                      <BarChart data={encounterSeries} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
-                        <CartesianGrid vertical={false} stroke={theme.palette.divider} />
-                        <XAxis
-                          dataKey="date"
-                          tickFormatter={(value) => {
-                            const date = new Date(value);
-                            return Number.isNaN(date.getTime()) ? '' : format(date, 'MMM d');
-                          }}
-                          interval={6}
-                          tickLine={false}
-                          axisLine={{ stroke: theme.palette.divider }}
-                          tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
-                        />
-                        <YAxis
-                          allowDecimals={false}
-                          tickLine={false}
-                          axisLine={false}
-                          tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
-                        />
-                        <ChartTooltip
-                          cursor={{ fill: theme.palette.action.hover }}
-                          contentStyle={{
-                            backgroundColor: theme.palette.background.paper,
-                            border: `1px solid ${theme.palette.divider}`,
-                            borderRadius: 6,
-                            boxShadow: 'none',
-                            fontSize: 12,
-                          }}
-                          labelFormatter={(value) => {
-                            const date = new Date(value);
-                            return Number.isNaN(date.getTime()) ? value : format(date, 'EEE, MMM d');
-                          }}
-                          formatter={(value) => [value, 'Encounters']}
-                        />
-                        <Bar
-                          dataKey="encounters"
-                          fill={theme.palette.primary.main}
-                          radius={[3, 3, 0, 0]}
-                          maxBarSize={16}
-                          isAnimationActive={false}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 1.5 }}>
+                    {[...measuredGaps].sort((x, y) => y.percentage - x.percentage).map((gap) => {
+                      const onTarget = gap.percentage >= CARE_TARGET;
+                      const farBelow = gap.percentage < FAR_BELOW;
+                      return (
+                        <Box key={gap.measure} sx={{ borderRadius: 2, backgroundColor: 'action.hover', py: 1.5, px: 0.5 }}>
+                          <ProgressRing
+                            value={gap.percentage}
+                            label={gap.measure}
+                            caption={`${gap.completed} of ${gap.eligible}`}
+                            status={onTarget ? 'On target' : farBelow ? 'Far below' : 'Below target'}
+                            tone={onTarget ? 'positive' : farBelow ? 'critical' : 'attention'}
+                            size={116}
+                            onClick={() => navigate('/care-gaps')}
+                          />
+                        </Box>
+                      );
+                    })}
                   </Box>
                 )}
-              </Paper>
+              </SectionCard>
             </Grid>
 
-            {/* Chronic conditions. A patient can be on several registers, so
-                these are not slices of one whole: ranked bars, not a donut. */}
-            <Grid item xs={12} md={4}>
-              <Paper sx={{ p: 2, height: 320, overflow: 'auto' }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1.5 }}>
-                  <Typography variant="subtitle1" fontWeight="bold">
-                    Chronic disease registry
+            {/* What is off, worst first. The one card that leads the page. */}
+            <Grid item xs={12} md={5}>
+              <SectionCard
+                title="Needs attention"
+                icon={<PriorityHighIcon />}
+                note={attentionItems.length > 0 ? `${attentionItems.length} to review, worst first` : 'Nothing to review'}
+                lead
+              >
+                {attentionItems.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    Nothing is far below target and no patient stands out.
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                    of {chronicDiseaseStats?.totalPatients || 0} patients
-                  </Typography>
-                </Stack>
-                <BarList
-                  items={(chronicDiseaseStats?.diseases || []).map((disease) => ({
-                    label: disease.name,
-                    value: disease.count,
-                  }))}
-                  max={chronicDiseaseStats?.totalPatients || undefined}
-                  emptyText="No chronic conditions recorded."
-                />
-              </Paper>
+                ) : (
+                  <Stack component="ul" spacing={1} sx={{ listStyle: 'none', m: 0, p: 0 }}>
+                    {attentionItems.map((item) => {
+                      const colors = getToneColors(theme, item.tone);
+                      return (
+                        <Box component="li" key={item.id}>
+                          <ButtonBase
+                            onClick={() => navigate(item.to)}
+                            focusRipple
+                            sx={{
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              textAlign: 'left',
+                              gap: 1.75,
+                              minHeight: 72,
+                              p: 1.25,
+                              borderRadius: 2,
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              transition: 'border-color 150ms, background-color 150ms',
+                              '&:hover': { backgroundColor: 'action.hover', borderColor: colors.border },
+                            }}
+                          >
+                            <Box
+                              aria-hidden
+                              sx={{
+                                flex: '0 0 48px',
+                                height: 48,
+                                borderRadius: 1.5,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontFamily: theme.typography.fontFamilyMonospace,
+                                fontWeight: 700,
+                                fontSize: '1rem',
+                                letterSpacing: '-0.04em',
+                                color: colors.fg,
+                                backgroundColor: colors.bg,
+                              }}
+                            >
+                              {item.badge}
+                            </Box>
+                            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                              <Typography sx={{ fontWeight: 600, fontSize: '0.9375rem' }}>{item.title}</Typography>
+                              <Typography variant="body2" color="text.secondary">{item.detail}</Typography>
+                            </Box>
+                            <ChevronRightIcon fontSize="small" sx={{ color: 'text.secondary', flexShrink: 0 }} />
+                          </ButtonBase>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </SectionCard>
             </Grid>
 
-            {/* Quick Actions */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                  Quick Actions
-                </Typography>
-                <Grid container spacing={1}>
-                  <Grid item>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      startIcon={<SearchIcon />}
-                      onClick={() => navigate('/patients')}
-                    >
-                      Find Patient
-                    </Button>
-                  </Grid>
-                  <Grid item>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="secondary"
-                      startIcon={<CalculateIcon />}
-                      onClick={() => setActiveTab(2)}
-                    >
-                      Calculators
-                    </Button>
-                  </Grid>
-                  <Grid item>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<MedicationIcon />}
-                      onClick={() => navigate('/pharmacy')}
-                    >
-                      Pharmacy
-                    </Button>
-                  </Grid>
-                  <Grid item>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<ScienceIcon />}
-                      onClick={() => navigate('/fhir-explorer')}
-                    >
-                      FHIR Explorer
-                    </Button>
-                  </Grid>
-                  <Grid item>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<TimelineIcon />}
-                      onClick={() => setActiveTab(4)}
-                    >
-                      Analytics
-                    </Button>
-                  </Grid>
-                </Grid>
-              </Paper>
+            {/* Who has been seen lately. */}
+            <Grid item xs={12} md={5}>
+              <SectionCard
+                title="Recent encounters"
+                icon={<EventNoteIcon />}
+                note={`${encounterTotal} in the last 30 days`}
+                action={{ label: 'All encounters', onClick: () => navigate('/encounters') }}
+              >
+                {latestEncounters.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    {recentEncounters?.error
+                      ? 'Recent encounters could not be loaded.'
+                      : 'No encounters recorded in the last 30 days.'}
+                  </Typography>
+                ) : (
+                  <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
+                    {latestEncounters.map((encounter, index) => (
+                      <Box component="li" key={encounter.id} sx={{ borderTop: index === 0 ? 'none' : '1px solid', borderColor: 'divider' }}>
+                        <ButtonBase
+                          onClick={() => navigate(encounter.patientId ? `/patients/${encodeURIComponent(encounter.patientId)}` : '/encounters')}
+                          focusRipple
+                          sx={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            textAlign: 'left',
+                            gap: 1.75,
+                            minHeight: 58,
+                            py: 0.5,
+                            borderRadius: 1,
+                            '&:hover': { backgroundColor: 'action.hover' },
+                          }}
+                        >
+                          <Box
+                            aria-hidden
+                            sx={{
+                              flex: '0 0 40px',
+                              height: 40,
+                              borderRadius: '50%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 600,
+                              fontSize: '0.8125rem',
+                              color: avatarInk,
+                              backgroundColor: avatarColorFor(encounter.patientName),
+                            }}
+                          >
+                            {initialsOf(encounter.patientName)}
+                          </Box>
+                          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                            <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }} noWrap>{encounter.patientName}</Typography>
+                            <Typography variant="body2" color="text.secondary" noWrap>
+                              {encounter.reason ? `${encounter.type} · ${encounter.reason}` : encounter.type}
+                            </Typography>
+                          </Box>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ flexShrink: 0, fontFamily: theme.typography.fontFamilyMonospace, fontWeight: 600 }}
+                          >
+                            {encounter.date ? format(new Date(encounter.date), 'MMM d') : ''}
+                          </Typography>
+                        </ButtonBase>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </SectionCard>
+            </Grid>
+
+            {/* Conditions. A patient can have several, so these are not slices
+                of one whole: ranked bars, not a donut. */}
+            <Grid item xs={12} md={7}>
+              <SectionCard
+                title={population ? 'Most common diagnoses' : 'Chronic disease registry'}
+                icon={<MonitorHeartIcon />}
+                note={population
+                  ? `Share of ${population.patients.total} living patients`
+                  : `Of ${chronicDiseaseStats?.totalPatients || 0} patients`}
+                action={{ label: 'Explore', onClick: () => navigate('/analytics') }}
+                footer={population ? describeConditions(population.conditions, population.patients.total) : undefined}
+              >
+                {population ? (
+                  <BarList
+                    items={topDiagnoses.map((item) => ({ label: item.name, value: item.patients }))}
+                    max={population.patients.total || undefined}
+                    formatValue={(value) => `${value} (${Math.round((value / (population.patients.total || 1)) * 100)}%)`}
+                    labelWidth="40%"
+                    emptyText="No active diagnoses recorded."
+                  />
+                ) : (
+                  <BarList
+                    items={(chronicDiseaseStats?.diseases || []).map((disease) => ({
+                      label: disease.name,
+                      value: disease.count,
+                    }))}
+                    max={chronicDiseaseStats?.totalPatients || undefined}
+                    emptyText="No chronic conditions recorded."
+                  />
+                )}
+              </SectionCard>
             </Grid>
           </Grid>
         )}
@@ -671,135 +796,6 @@ function Dashboard() {
                     </Typography>
                   </Alert>
                 )}
-              </Paper>
-            </Grid>
-          </Grid>
-        )}
-
-        {/* Analytics Tab */}
-        {activeTab === 4 && (
-          <Grid container spacing={2}>
-            {/* Encounter Types */}
-            <Grid item xs={12} lg={6}>
-              <Paper sx={{ p: 2, height: 350 }}>
-                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                  Encounter Types Distribution
-                </Typography>
-                <Box sx={{ width: '100%', height: 280 }}>
-                  <ResponsiveContainer>
-                    <BarChart 
-                      data={trendingData?.encounterTypes || []}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
-                    >
-                      <XAxis 
-                        dataKey="type" 
-                        angle={-30}
-                        textAnchor="end"
-                        interval={0}
-                        tick={{ fontSize: 11 }}
-                      />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <ChartTooltip />
-                      <Bar dataKey="count" fill={theme.palette.primary.main} radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Box>
-              </Paper>
-            </Grid>
-
-            {/* Care Gap Performance */}
-            <Grid item xs={12} lg={6}>
-              <Paper sx={{ p: 2, height: 350 }}>
-                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                  Preventive Care Performance
-                </Typography>
-                <Box sx={{ width: '100%', height: 280 }}>
-                  <ResponsiveContainer>
-                    <BarChart
-                      data={careGaps?.gaps?.map(gap => ({
-                        ...gap,
-                        displayPercentage: gap.percentage || 0
-                      })) || []}
-                      layout="vertical"
-                      margin={{ top: 20, right: 30, left: 100, bottom: 20 }}
-                    >
-                      <XAxis 
-                        type="number" 
-                        domain={[0, 100]}
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(value) => `${value}%`}
-                      />
-                      <YAxis 
-                        dataKey="measure" 
-                        type="category"
-                        tick={{ fontSize: 11 }}
-                        width={90}
-                      />
-                      <ChartTooltip formatter={(value) => `${value}%`} />
-                      <Bar dataKey="displayPercentage" radius={[0, 8, 8, 0]}>
-                        {(careGaps?.gaps || []).map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={entry.percentage >= 80 ? theme.palette.success.main : 
-                                  entry.percentage >= 60 ? theme.palette.warning.main : 
-                                  theme.palette.error.main} 
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Box>
-              </Paper>
-            </Grid>
-
-            {/* Additional Analytics */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                  Key Performance Indicators
-                </Typography>
-                <Grid container spacing={2} sx={{ mt: 1 }}>
-                  <Grid item xs={6} sm={3}>
-                    <Box textAlign="center">
-                      <Typography variant="h4" fontWeight="bold" color="primary">
-                        {trendingData?.averagePerDay || 0}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Avg Encounters/Day
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <Box textAlign="center">
-                      <Typography variant="h4" fontWeight="bold" color="success.main">
-                        {careGaps?.gaps?.filter(g => g.percentage >= 80).length || 0}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Quality Targets Met
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <Box textAlign="center">
-                      <Typography variant="h4" fontWeight="bold" color="warning.main">
-                        {medicationSafety?.polypharmacy?.count || 0}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Polypharmacy Patients
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <Box textAlign="center">
-                      <Typography variant="h4" fontWeight="bold" color="info.main">
-                        {Math.round((careGaps?.gaps?.reduce((sum, g) => sum + g.percentage, 0) || 0) / (careGaps?.gaps?.length || 1))}%
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Overall Compliance
-                      </Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
               </Paper>
             </Grid>
           </Grid>

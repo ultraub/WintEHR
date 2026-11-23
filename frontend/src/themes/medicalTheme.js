@@ -3,6 +3,7 @@
  * Professional color schemes and typography for healthcare applications
  */
 import { createTheme } from '@mui/material/styles';
+import { auroraFor } from './auroraPalette';
 
 // Base typography configuration
 const baseTypography = {
@@ -19,6 +20,8 @@ const baseTypography = {
     '"Segoe UI Emoji"',
     '"Segoe UI Symbol"'
   ].join(','),
+  // Clinical values, counts and dates: one numeral style everywhere.
+  fontFamilyMonospace: '"JetBrains Mono", "SF Mono", Monaco, monospace',
   
   // Medical-specific font stacks
   monospace: [
@@ -146,11 +149,18 @@ const professionalMedicalPalette = {
     dark: '#4F46E5',
     contrastText: '#FFFFFF'
   },
+  // Positive is a teal, from the same family as the shell's indigo and the
+  // aurora's ribbon, rather than a grass green that sat apart from both.
   success: {
-    main: '#388E3C',
-    light: '#81C784',
-    dark: '#1B5E20',
+    main: '#0F8A7E',
+    light: '#5ED6BF',
+    dark: '#0B5F57',
     contrastText: '#FFFFFF'
+  },
+  // Two categorical series colours for charts (checked for colour-vision
+  // separation and 3:1 against the paper surface; see themes/README.md).
+  chart: {
+    series: ['#6366F1', '#EB6834']
   },
   background: {
     default: '#FAFAF9',
@@ -303,10 +313,14 @@ const darkMedicalPalette = {
     contrastText: '#FFFFFF'
   },
   success: {
-    main: '#86EFAC',
-    light: '#BBF7D0',
-    dark: '#16A34A',
+    main: '#5ED6BF',
+    light: '#A7F0E1',
+    dark: '#0F8A7E',
     contrastText: '#000000'
+  },
+  // Chart series, stepped for the dark paper surface.
+  chart: {
+    series: ['#7479F2', '#D95926']
   },
   background: {
     default: '#1A1A2E', // Warm dark with slight indigo undertone
@@ -472,6 +486,10 @@ const accessiblePalette = {
     dark: '#006600',
     contrastText: '#FFFFFF'
   },
+  // Chart series for High contrast.
+  chart: {
+    series: ['#0066CC', '#C2470A']
+  },
   background: {
     default: '#FFFFFF',
     paper: '#FFFFFF',
@@ -598,6 +616,26 @@ const accessiblePalette = {
 const getComponentOverrides = (palette) => ({
   MuiCssBaseline: {
     styleOverrides: {
+      // Switching between light and dark cross-fades instead of snapping.
+      // App.js sets this class on <html> for the length of the fade.
+      '.theme-switching, .theme-switching *, .theme-switching *::before, .theme-switching *::after': {
+        transition: 'background-color 350ms ease, color 350ms ease, border-color 350ms ease, box-shadow 350ms ease, fill 350ms ease, stroke 350ms ease !important',
+      },
+      '@media (prefers-reduced-motion: reduce)': {
+        '.theme-switching, .theme-switching *, .theme-switching *::before, .theme-switching *::after': {
+          transition: 'none !important',
+        },
+      },
+      // Brand colour in the small places: selection, caret, focus ring.
+      '::selection': {
+        backgroundColor: `color-mix(in srgb, ${palette.primary.main} ${palette.mode === 'dark' ? 45 : 24}%, transparent)`,
+      },
+      'input, textarea, [contenteditable]': {
+        caretColor: palette.primary.main,
+      },
+      ':focus-visible': {
+        outlineColor: palette.primary.main,
+      },
       body: {
         scrollbarWidth: 'thin',
         scrollbarColor: `${palette.action.active} transparent`,
@@ -622,9 +660,7 @@ const getComponentOverrides = (palette) => ({
     styleOverrides: {
       root: {
         borderRadius: 8,
-        border: palette.mode === 'dark'
-          ? '1px solid rgba(99,102,241,0.12)'
-          : '1px solid #E7E5E4',
+        border: `1px solid ${palette.divider}`,
         transition: 'box-shadow 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
       }
     }
@@ -653,6 +689,14 @@ const getComponentOverrides = (palette) => ({
         transition: 'all 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
           boxShadow: '0 1px 3px rgba(28, 25, 23, 0.08)'
+        },
+        // a button gives slightly when pressed
+        '&:active': {
+          transform: 'translateY(1px)'
+        },
+        '@media (prefers-reduced-motion: reduce)': {
+          transition: 'none',
+          '&:active': { transform: 'none' }
         }
       },
       contained: {
@@ -740,7 +784,7 @@ const getComponentOverrides = (palette) => ({
       paper: {
         borderRadius: 16,
         ...(palette.mode === 'dark' && {
-          backgroundImage: 'linear-gradient(180deg, rgba(99,102,241,0.06) 0%, transparent 200px)',
+          backgroundImage: `linear-gradient(180deg, color-mix(in srgb, ${palette.primary.main} 7%, transparent) 0%, transparent 200px)`,
         }),
       }
     }
@@ -783,7 +827,7 @@ const getComponentOverrides = (palette) => ({
 });
 
 // Create theme function
-export const createMedicalTheme = (themeName = 'professional', mode = 'light') => {
+export const createMedicalTheme = (themeName = 'professional', mode = 'light', phase) => {
   // Two themes are offered (see themePresets): Standard and High contrast,
   // each in light and dark. An unknown or retired name resolves to Standard.
   const highContrast = themeName === 'accessible';
@@ -802,7 +846,19 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
       palette.divider = '#666666';
     }
   } else {
-    palette = highContrast ? accessiblePalette : professionalMedicalPalette;
+    // Deep copy for the same reason: the phase overrides below must not be
+    // written into the shared light palette.
+    palette = structuredClone(highContrast ? accessiblePalette : professionalMedicalPalette);
+  }
+
+  // The time-of-day phase (themes/auroraPalette.js) tints the Standard
+  // theme's surfaces, so cards on every page take the phase's character.
+  // High contrast keeps its own surfaces and only carries the phase name.
+  const phaseTheme = phase ? auroraFor(phase).theme : null;
+  if (phaseTheme && !highContrast) {
+    Object.entries(phaseTheme).forEach(([key, value]) => {
+      palette[key] = value && typeof value === 'object' ? { ...palette[key], ...value } : value;
+    });
   }
 
   // Ensure mode is set correctly
@@ -810,6 +866,8 @@ export const createMedicalTheme = (themeName = 'professional', mode = 'light') =
 
   const theme = createTheme({
     palette,
+    // read by useAuroraPalette(); undefined on a theme built without one
+    phase,
     typography: baseTypography,
     shape: {
       borderRadius: 8

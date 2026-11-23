@@ -256,7 +256,7 @@ Component Stack: ${this.state.errorInfo?.componentStack}
                   variant="outlined"
                   sx={{
                     p: 2,
-                    bgcolor: 'grey.50',
+                    bgcolor: 'action.hover',
                     maxHeight: 400,
                     overflow: 'auto'
                   }}

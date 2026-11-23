@@ -42,6 +42,10 @@ search, command palette, theme, notifications, account; navigation). The
   (the last is unauthenticated and simulates a third-party app, so it must not wear the
   EHR's chrome).
 
+`page()` also takes `ground: 'deep'` (default `'default'`), which puts the
+page on the aurora ground and drops the shell breadcrumb; see "The deep
+ground" in `frontend/CLAUDE.md` before using it. Only `/dashboard` does.
+
 A page rendered under `'rail'` must fill its container with `height: '100%'`,
 never `100vh`, and must not render its own fixed app bar: the shell's content
 box is the scroll container. Pages do not render `LayoutV3` themselves.
@@ -58,11 +62,11 @@ box is the scroll container. Pages do not render `LayoutV3` themselves.
 | `/patients/:id/clinical` | (`ClinicalWorkspaceWrapper`, not in `pages/`) | The clinical workspace. |
 | `/patients/:id/timeline` | `PatientTimelinePage.js` | Thin wrapper over `FHIRResourceTimeline`. |
 | `/patients/:id/medication-reconciliation` | `MedicationReconciliationPage.js` | Thin wrapper over `MedicationReconciliation`. |
-| `/dashboard` | `Dashboard.js` | Clinical dashboard. `/clinical` redirects here. |
+| `/dashboard` | `Dashboard.js` | Clinical dashboard. `/clinical` redirects here. On the deep ground. The overview's summary sentence and "Needs attention" list are built by `utils/dashboardAttention.js`. |
 | `/encounters` | `EncountersPage.js` | |
 | `/pharmacy` | `PharmacyPage.js` | Standalone pharmacy queue (kanban). |
 | `/inventory` | `InventoryManagementPage.js` | Medication inventory. |
-| `/analytics` | `Analytics.js` | Charts via `recharts`. |
+| `/analytics` | `Analytics.js` | One request (`/api/analytics/population`); a picked condition shows its cohort. No mock-data fallback: a failed load shows an error with Retry. |
 | `/quality` | `QualityMeasuresPage.js` | |
 | `/care-gaps` | `CareGapsPage.js` | |
 | `/schedule` | `Schedule.js` | |

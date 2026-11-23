@@ -325,7 +325,7 @@ const FeedbackInterface = () => {
       </Collapse>
       
       {/* Tips */}
-      <Box sx={{ mt: 2, p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
+      <Box sx={{ mt: 2, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
         <Typography variant="caption" color="text.secondary" gutterBottom>
           Tips for better feedback:
         </Typography>

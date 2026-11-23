@@ -2471,7 +2471,7 @@ const CalendarHeatmapComponent = ({ data, processedEvents, heatmapView, setHeatm
                               borderRadius: '2px',
                               cursor: dayData.count > 0 ? 'pointer' : 'default',
                               border: 1,
-                              borderColor: isDarkMode ? 'grey.900' : 'grey.100',
+                              borderColor: 'divider',
                               transition: 'all 0.2s',
                               '&:hover': dayData.count > 0 ? {
                                 transform: 'scale(1.3)',

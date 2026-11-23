@@ -122,7 +122,7 @@ const MedicationItem = ({
         mb: 1, 
         border: isSelected ? 2 : 1, 
         borderColor: isSelected ? 'primary.main' : 'divider',
-        bgcolor: comparisonMode ? 'grey.50' : 'background.paper'
+        bgcolor: comparisonMode ? 'action.hover' : 'background.paper'
       }}
     >
       <CardContent sx={{ pb: showActions ? 1 : 2 }}>

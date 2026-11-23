@@ -263,7 +263,7 @@ function DailyScheduleView({ appointments, onStatusChange }) {
   return (
     <Paper sx={{ borderRadius: 0, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
       {/* Header */}
-      <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider' }}>
+      <Box sx={{ px: 2, py: 1, bgcolor: 'action.hover', borderBottom: '1px solid', borderColor: 'divider' }}>
         <Stack direction="row" spacing={1} alignItems="center">
           <ScheduleIcon fontSize="small" color="primary" />
           <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
@@ -294,8 +294,8 @@ function DailyScheduleView({ appointments, onStatusChange }) {
                 display: 'flex',
                 minHeight: 56,
                 borderBottom: '1px solid',
-                borderColor: isHourBoundary ? 'divider' : 'grey.100',
-                bgcolor: idx % 2 === 0 ? 'background.paper' : 'grey.50',
+                borderColor: 'divider',
+                bgcolor: idx % 2 === 0 ? 'background.paper' : 'action.hover',
                 '&:hover': { bgcolor: 'action.hover' }
               }}
             >
@@ -310,7 +310,7 @@ function DailyScheduleView({ appointments, onStatusChange }) {
                   alignItems: 'flex-start',
                   borderRight: '1px solid',
                   borderColor: 'divider',
-                  bgcolor: 'grey.50'
+                  bgcolor: 'action.hover'
                 }}
               >
                 <Typography
@@ -388,11 +388,11 @@ function WeeklyScheduleView({ selectedDate, appointments, onStatusChange, onDate
                 sx={{
                   px: 1.5,
                   py: 1,
-                  bgcolor: today ? 'primary.main' : 'grey.50',
+                  bgcolor: today ? 'primary.main' : 'action.hover',
                   borderBottom: '1px solid',
                   borderColor: 'divider',
                   cursor: 'pointer',
-                  '&:hover': { bgcolor: today ? 'primary.dark' : 'grey.100' }
+                  '&:hover': { bgcolor: today ? 'primary.dark' : 'action.selected' }
                 }}
               >
                 <Typography
@@ -416,7 +416,7 @@ function WeeklyScheduleView({ selectedDate, appointments, onStatusChange, onDate
                     fontSize: '0.7rem',
                     fontWeight: 600,
                     borderRadius: 0,
-                    bgcolor: today ? 'rgba(255,255,255,0.2)' : 'grey.200',
+                    bgcolor: today ? 'rgba(255,255,255,0.2)' : 'action.selected',
                     color: today ? 'primary.contrastText' : 'text.secondary'
                   }}
                 />

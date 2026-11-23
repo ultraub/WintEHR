@@ -208,7 +208,7 @@ const ImagingReportDialog = ({
             <Typography variant="body2" sx={{ 
               maxHeight: 100, 
               overflow: 'auto',
-              bgcolor: 'grey.50',
+              bgcolor: 'action.hover',
               p: 1,
               borderRadius: 1
             }}>
@@ -225,7 +225,7 @@ const ImagingReportDialog = ({
             <Typography variant="body2" sx={{ 
               maxHeight: 100, 
               overflow: 'auto',
-              bgcolor: 'grey.50',
+              bgcolor: 'action.hover',
               p: 1,
               borderRadius: 1
             }}>
@@ -242,7 +242,7 @@ const ImagingReportDialog = ({
             <Typography variant="body2" sx={{ 
               maxHeight: 100, 
               overflow: 'auto',
-              bgcolor: 'grey.50',
+              bgcolor: 'action.hover',
               p: 1,
               borderRadius: 1
             }}>

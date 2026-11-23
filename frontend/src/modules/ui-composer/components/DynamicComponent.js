@@ -247,7 +247,7 @@ const DynamicComponent = ({
                       <Paper 
                         sx={{ 
                           p: 1, 
-                          bgcolor: 'grey.100', 
+                          bgcolor: 'action.selected', 
                           fontFamily: 'monospace',
                           fontSize: '0.75rem',
                           maxHeight: 200,

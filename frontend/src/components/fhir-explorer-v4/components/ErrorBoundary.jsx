@@ -96,7 +96,7 @@ class FHIRExplorerErrorBoundary extends React.Component {
                 <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                   Error Message:
                 </Typography>
-                <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                <Paper variant="outlined" sx={{ p: 2, bgcolor: 'action.hover' }}>
                   <Typography 
                     variant="body2" 
                     sx={{ fontFamily: 'monospace', color: 'error.main' }}

@@ -251,7 +251,7 @@ const QuestionnaireDialog = ({ open, onClose, questionnaire, patientId, encounte
               <Box
                 sx={{
                   p: 2,
-                  backgroundColor: 'grey.50',
+                  backgroundColor: 'action.hover',
                   border: '1px solid',
                   borderColor: 'divider',
                   borderRadius: 0,

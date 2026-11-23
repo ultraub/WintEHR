@@ -1822,7 +1822,7 @@ function RelationshipMapper({ selectedResource, onResourceSelect, useFHIRData })
                 flexDirection: 'column',
                 alignItems: 'center', 
                 justifyContent: 'center',
-                bgcolor: 'rgba(255,255,255,0.9)',
+                bgcolor: 'background.paper',
                 zIndex: 10
               }}>
                 <CircularProgress size={48} sx={{ mb: 2 }} />

@@ -94,7 +94,7 @@ const ProgressiveContainer = ({ componentType, props, loadingPhase = 'skeleton' 
               left: 0,
               right: 0,
               bottom: 0,
-              bgcolor: 'rgba(255, 255, 255, 0.8)',
+              bgcolor: 'background.paper',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -129,7 +129,7 @@ const ChartSkeleton = ({ props }) => {
               variant="rectangular"
               width={40}
               height={Math.random() * 150 + 50}
-              sx={{ bgcolor: 'grey.200' }}
+              sx={{ bgcolor: 'action.selected' }}
             />
           ))}
         </Box>

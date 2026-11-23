@@ -1156,7 +1156,7 @@ const PharmacyTab = ({
                           borderColor: 'divider',
                           borderLeft: 4,
                           borderLeftColor: config.color,
-                          backgroundColor: index % 2 === 0 ? 'grey.50' : 'background.paper',
+                          backgroundColor: index % 2 === 0 ? 'action.hover' : 'background.paper',
                           '&:hover': {
                             backgroundColor: 'action.hover',
                             transform: 'translateX(2px)',

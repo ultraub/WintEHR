@@ -148,7 +148,7 @@ const ChartPreview = ({ props, dataBinding }) => {
             Chart Type: {chartType} • Data: {dataBinding.resourceType}
           </Typography>
         )}
-        <Box sx={{ height: 300, position: 'relative', bgcolor: 'grey.50', borderRadius: 1 }}>
+        <Box sx={{ height: 300, position: 'relative', bgcolor: 'action.hover', borderRadius: 1 }}>
           {/* Placeholder chart visualization */}
           <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 2 }}>
             <Stack direction="row" spacing={1} alignItems="flex-end" justifyContent="space-around">

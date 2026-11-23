@@ -44,10 +44,10 @@ const routeFallback = (
 //                  and no content padding, for full-width workspaces that
 //                  bring their own header (the patient chart)
 //         false — no shell (unauthenticated or self-contained pages)
-const page = (element, { layout = true, protect = true } = {}) => {
+const page = (element, { layout = true, protect = true, ground = 'default' } = {}) => {
   let node = <Suspense fallback={routeFallback}>{element}</Suspense>;
   if (layout === 'rail') node = <LayoutV3 rail flush>{node}</LayoutV3>;
-  else if (layout) node = <LayoutV3>{node}</LayoutV3>;
+  else if (layout) node = <LayoutV3 ground={ground}>{node}</LayoutV3>;
   if (protect) node = <ProtectedRoute>{node}</ProtectedRoute>;
   return node;
 };
@@ -105,7 +105,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/dashboard',
-    element: page(<Dashboard />)
+    element: page(<Dashboard />, { ground: 'deep' })
   },
   {
     path: '/clinical',

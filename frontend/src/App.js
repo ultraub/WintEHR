@@ -6,6 +6,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { createMedicalTheme, resolveThemeName } from './themes/medicalTheme';
+import { PHASES, modeForPhase, phaseForHour } from './themes/auroraPalette';
 import { getClinicalContext, applyDepartmentTheme, applyShiftTheme } from './themes/clinicalThemeUtils';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AppProviders } from './providers/AppProviders';
@@ -26,9 +27,38 @@ function ThemedApp() {
     return resolveThemeName(localStorage.getItem('medicalTheme'));
   });
   
-  const [currentMode, setCurrentMode] = useState(() => {
-    return localStorage.getItem('medicalMode') || 'light';
+  // Time of day: 'auto' follows the clock through sunrise, day, sunset and
+  // night; any one phase can be pinned instead. An older saved light/dark
+  // choice maps to day/night.
+  const [phaseSetting, setPhaseSetting] = useState(() => {
+    const saved = localStorage.getItem('medicalPhase');
+    if (saved === 'auto' || PHASES.includes(saved)) return saved;
+    const legacyMode = localStorage.getItem('medicalMode');
+    if (legacyMode === 'dark') return 'night';
+    if (legacyMode === 'light') return 'day';
+    return 'auto';
   });
+  const [clockPhase, setClockPhase] = useState(() => phaseForHour(new Date().getHours()));
+  useEffect(() => {
+    const tick = () => setClockPhase(phaseForHour(new Date().getHours()));
+    const timer = window.setInterval(tick, 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const phase = phaseSetting === 'auto' ? clockPhase : phaseSetting;
+  // Daytime is the light phase; the other three are dark.
+  const currentMode = modeForPhase(phase);
+
+  // Cross-fade the whole screen whenever the phase changes, whether the
+  // user picked it or the clock moved on (see `.theme-switching`).
+  const lastPhase = React.useRef(phase);
+  React.useLayoutEffect(() => {
+    if (lastPhase.current === phase) return undefined;
+    lastPhase.current = phase;
+    const root = document.documentElement;
+    root.classList.add('theme-switching');
+    const timer = window.setTimeout(() => root.classList.remove('theme-switching'), 600);
+    return () => window.clearTimeout(timer);
+  }, [phase]);
   
   const [department, setDepartment] = useState(() => {
     return localStorage.getItem('medicalDepartment') || 'general';
@@ -57,7 +87,7 @@ function ThemedApp() {
   
   // Create theme with clinical context enhancements
   const theme = useMemo(() => {
-    let baseTheme = createMedicalTheme(currentTheme, currentMode);
+    let baseTheme = createMedicalTheme(currentTheme, currentMode, phase);
     
     if (clinicalContext && autoDetectContext) {
       // Apply department-specific theme enhancements
@@ -68,7 +98,7 @@ function ThemedApp() {
     }
     
     return baseTheme;
-  }, [currentTheme, currentMode, clinicalContext, autoDetectContext]);
+  }, [currentTheme, currentMode, phase, clinicalContext, autoDetectContext]);
   
   // Stable handlers (they close over nothing but setState, which is stable)
   // + memoized context value: an inline object here re-rendered every
@@ -78,10 +108,15 @@ function ThemedApp() {
     localStorage.setItem('medicalTheme', themeName);
   }, []);
 
-  const handleModeChange = React.useCallback((mode) => {
-    setCurrentMode(mode);
-    localStorage.setItem('medicalMode', mode);
+  const handlePhaseSettingChange = React.useCallback((setting) => {
+    setPhaseSetting(setting);
+    localStorage.setItem('medicalPhase', setting);
   }, []);
+
+  // Kept for callers that still think in light and dark.
+  const handleModeChange = React.useCallback((mode) => {
+    handlePhaseSettingChange(mode === 'dark' ? 'night' : 'day');
+  }, [handlePhaseSettingChange]);
 
   const handleDepartmentChange = React.useCallback((dept) => {
     setDepartment(dept);
@@ -96,6 +131,9 @@ function ThemedApp() {
   const themeContextValue = useMemo(() => ({
     currentTheme,
     currentMode,
+    phase,
+    phaseSetting,
+    onPhaseSettingChange: handlePhaseSettingChange,
     department,
     clinicalContext,
     autoDetectContext,
@@ -104,7 +142,7 @@ function ThemedApp() {
     onDepartmentChange: handleDepartmentChange,
     onAutoDetectChange: handleAutoDetectChange
   }), [
-    currentTheme, currentMode, department, clinicalContext, autoDetectContext,
+    currentTheme, currentMode, phase, phaseSetting, handlePhaseSettingChange, department, clinicalContext, autoDetectContext,
     handleThemeChange, handleModeChange, handleDepartmentChange, handleAutoDetectChange
   ]);
 

@@ -1026,7 +1026,7 @@ const ConditionDialogEnhanced = ({
         sx={{
           px: 3,
           py: 2,
-          bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[50],
+          bgcolor: theme.palette.action.hover,
           borderTop: `1px solid ${theme.palette.divider}`,
         }}
       >

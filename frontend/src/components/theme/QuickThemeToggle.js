@@ -18,6 +18,8 @@ import {
   Switch,
   Stack,
   Fade,
+  ToggleButton,
+  ToggleButtonGroup,
   useTheme,
   alpha
 } from '@mui/material';
@@ -29,7 +31,10 @@ import {
   LocalHospital as MedicalIcon,
   Accessibility as AccessibilityIcon,
   AutoAwesome as AutoIcon,
+  BrightnessAuto as AutoModeIcon,
+  WbTwilight as TwilightIcon,
 } from '@mui/icons-material';
+import { PHASES, PHASE_LABELS } from '../../themes/auroraPalette';
 import { MedicalThemeContext } from '../../App';
 
 const QuickThemeToggle = ({ 
@@ -43,6 +48,9 @@ const QuickThemeToggle = ({
     currentMode = 'light',
     currentTheme = 'professional',
     autoDetectContext = false,
+    phase = currentMode === 'dark' ? 'night' : 'day',
+    phaseSetting = phase,
+    onPhaseSettingChange,
     onModeChange,
     onThemeChange,
     onAutoDetectChange
@@ -59,10 +67,20 @@ const QuickThemeToggle = ({
     setAnchorEl(null);
   };
 
+  // The header button steps through: follow the clock, daytime, night.
+  // Sunrise and sunset can be pinned from the menu.
+  const nextSetting = phaseSetting === 'auto' ? 'day' : phaseSetting === 'day' ? 'night' : 'auto';
   const handleModeToggle = () => {
-    const newMode = currentMode === 'light' ? 'dark' : 'light';
-    onModeChange?.(newMode);
+    if (onPhaseSettingChange) onPhaseSettingChange(nextSetting);
+    else onModeChange?.(currentMode === 'light' ? 'dark' : 'light');
   };
+  const settingLabel = (setting) => (setting === 'auto' ? 'follow the time of day' : PHASE_LABELS[setting].toLowerCase());
+  const toggleTitle = phaseSetting === 'auto'
+    ? `Following the time of day (${PHASE_LABELS[phase].toLowerCase()} now). Switch to ${settingLabel(nextSetting)}`
+    : `${PHASE_LABELS[phase]}. Switch to ${settingLabel(nextSetting)}`;
+  const toggleIcon = phaseSetting === 'auto'
+    ? <AutoModeIcon />
+    : phase === 'night' ? <DarkModeIcon /> : phase === 'day' ? <LightModeIcon /> : <TwilightIcon />;
 
   const handleThemeSelect = (themeName) => {
     onThemeChange?.(themeName);
@@ -81,7 +99,7 @@ const QuickThemeToggle = ({
 
   // Quick toggle button (dark/light mode)
   const quickToggleButton = (
-    <Tooltip title={`Switch to ${currentMode === 'light' ? 'dark' : 'light'} mode`}>
+    <Tooltip title={toggleTitle}>
       <IconButton
         onClick={handleModeToggle}
         size={size}
@@ -90,13 +108,13 @@ const QuickThemeToggle = ({
           backgroundColor: alpha(theme.palette.primary.main, 0.08),
           '&:hover': {
             backgroundColor: alpha(theme.palette.primary.main, 0.12),
-            transform: 'rotate(180deg)',
           },
           transition: 'all 0.3s ease-in-out',
           mr: 1
         }}
+        aria-label={toggleTitle}
       >
-        {currentMode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
+        {toggleIcon}
       </IconButton>
     </Tooltip>
   );
@@ -208,19 +226,27 @@ const QuickThemeToggle = ({
 
         <Divider sx={{ my: 1 }} />
 
-        {/* Mode Quick Switch */}
+        {/* Time of day: follow the clock, or pin one phase */}
         <Box sx={{ px: 2, py: 1.5 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="body2">
-              Dark Mode
-            </Typography>
-            <Switch
-              checked={currentMode === 'dark'}
-              onChange={handleModeToggle}
-              size="small"
-              color="primary"
-            />
-          </Stack>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Time of day
+          </Typography>
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={phaseSetting}
+            onChange={(event, value) => { if (value) onPhaseSettingChange?.(value); }}
+            aria-label="Time of day"
+            sx={{ flexWrap: 'wrap' }}
+          >
+            <ToggleButton value="auto">Auto</ToggleButton>
+            {PHASES.map((name) => (
+              <ToggleButton key={name} value={name}>{PHASE_LABELS[name]}</ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.75 }}>
+            Auto follows the clock: sunrise 5–8, daytime 8–5, sunset 5–8, then night.
+          </Typography>
         </Box>
       </Menu>
     </>
