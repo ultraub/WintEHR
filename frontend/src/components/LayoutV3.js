@@ -393,14 +393,14 @@ function LayoutV3({ children, rail = false, flush = false }) {
                     aria-current={isActive ? 'page' : undefined}
                     sx={{
                       my: 0.25,
-                      width: 40,
-                      height: 40,
+                      width: 44,
+                      height: 44,
                       borderRadius: 1.5,
                       color: isActive ? shellPalette.textPrimary : (item.iconColor || shellPalette.iconMuted),
                       backgroundColor: isActive ? shellPalette.hoverBg : 'transparent',
                       boxShadow: isActive ? `inset 3px 0 0 ${shellPalette.accent}` : 'none',
                       '&:hover': { backgroundColor: shellPalette.hoverBg, color: shellPalette.textBright },
-                      '& svg': { fontSize: 20 },
+                      '& svg': { fontSize: 24 },
                     }}
                   >
                     {item.icon}

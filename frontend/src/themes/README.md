@@ -31,7 +31,11 @@ Do not add one to `themePresets` without taking that on.
    `StatusChip` / `StatTile` draw it.
 2. **Everything else**: the MUI palette (`theme.palette.*`,
    `'text.secondary'`, `'divider'`, `'action.hover'`).
-3. **A hex literal** belongs only in this directory.
+3. **Chart series**: `theme.palette.chart.series` holds two categorical
+   colours per palette (used by `PopulationPyramid`). Each pair was checked
+   for colour-vision separation and 3:1 contrast against the paper surface;
+   re-check before changing one. A single-series chart uses `primary.main`.
+4. **A hex literal** belongs only in this directory.
    `npm run lint:design` counts hex literals elsewhere and fails when the
    count rises.
 

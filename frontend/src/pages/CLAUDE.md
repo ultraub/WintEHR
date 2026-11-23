@@ -58,11 +58,11 @@ box is the scroll container. Pages do not render `LayoutV3` themselves.
 | `/patients/:id/clinical` | (`ClinicalWorkspaceWrapper`, not in `pages/`) | The clinical workspace. |
 | `/patients/:id/timeline` | `PatientTimelinePage.js` | Thin wrapper over `FHIRResourceTimeline`. |
 | `/patients/:id/medication-reconciliation` | `MedicationReconciliationPage.js` | Thin wrapper over `MedicationReconciliation`. |
-| `/dashboard` | `Dashboard.js` | Clinical dashboard. `/clinical` redirects here. |
+| `/dashboard` | `Dashboard.js` | Clinical dashboard. `/clinical` redirects here. The overview's "Needs attention" list is built by `utils/dashboardAttention.js`. |
 | `/encounters` | `EncountersPage.js` | |
 | `/pharmacy` | `PharmacyPage.js` | Standalone pharmacy queue (kanban). |
 | `/inventory` | `InventoryManagementPage.js` | Medication inventory. |
-| `/analytics` | `Analytics.js` | Charts via `recharts`. |
+| `/analytics` | `Analytics.js` | One request (`/api/analytics/population`); a picked condition shows its cohort. No mock-data fallback: a failed load shows an error with Retry. |
 | `/quality` | `QualityMeasuresPage.js` | |
 | `/care-gaps` | `CareGapsPage.js` | |
 | `/schedule` | `Schedule.js` | |

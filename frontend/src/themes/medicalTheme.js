@@ -152,6 +152,11 @@ const professionalMedicalPalette = {
     dark: '#1B5E20',
     contrastText: '#FFFFFF'
   },
+  // Two categorical series colours for charts (checked for colour-vision
+  // separation and 3:1 against the paper surface; see themes/README.md).
+  chart: {
+    series: ['#6366F1', '#EB6834']
+  },
   background: {
     default: '#FAFAF9',
     paper: '#FFFFFF',
@@ -307,6 +312,10 @@ const darkMedicalPalette = {
     light: '#BBF7D0',
     dark: '#16A34A',
     contrastText: '#000000'
+  },
+  // Chart series, stepped for the dark paper surface.
+  chart: {
+    series: ['#7479F2', '#D95926']
   },
   background: {
     default: '#1A1A2E', // Warm dark with slight indigo undertone
@@ -471,6 +480,10 @@ const accessiblePalette = {
     light: '#33CC33',
     dark: '#006600',
     contrastText: '#FFFFFF'
+  },
+  // Chart series for High contrast.
+  chart: {
+    series: ['#0066CC', '#C2470A']
   },
   background: {
     default: '#FFFFFF',

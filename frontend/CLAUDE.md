@@ -190,8 +190,16 @@ tabs, routes, and nav items together.
   account. Do not add a second app bar or bell inside a page.
 - **Charts.** Counts by named category use `components/common/BarList`
   (ranked horizontal bars, one hue, every row labelled) — not a pie or donut,
-  and never when categories overlap. Whole-number counts over time are bars,
-  not a smoothed area. No trend figure without history behind it.
+  and never when categories overlap. An ordered set of groups (age bands,
+  count buckets) uses `ColumnBars`; age by sex uses `PopulationPyramid`.
+  Two-series colours come from `theme.palette.chart.series`, never a literal.
+  Whole-number counts over time are bars, not a smoothed area. No trend
+  figure without history behind it.
+- **Population figures count living patients, once each.** The Analytics
+  page and the dashboard's diagnosis and polypharmacy figures all read one
+  snapshot, `GET /api/analytics/population` (`backend/api/analytics/service.py`),
+  so they agree. Do not add a second population aggregate computed another
+  way; extend the snapshot.
 - **Themes.** Two are offered (`themePresets` in `themes/medicalTheme.js`):
   Standard and High contrast, each in light and dark. Do not add a theme to
   the picker without committing to keep every screen checked in it.

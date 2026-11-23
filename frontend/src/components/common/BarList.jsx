@@ -15,6 +15,8 @@
  *   formatValue  (value) => string
  *   color        bar colour; defaults to the theme's primary
  *   emptyText    shown when there is nothing to draw
+ *   onSelect     (row) => void; makes each row a button
+ *   selected     label of the selected row (shown with a tinted background)
  */
 import React from 'react';
 import { Box, Tooltip, Typography } from '@mui/material';
@@ -27,6 +29,8 @@ const BarList = ({
   color,
   emptyText = 'No data',
   labelWidth = '38%',
+  onSelect,
+  selected,
 }) => {
   const rows = sort === 'desc' ? [...items].sort((a, b) => (b.value || 0) - (a.value || 0)) : items;
   const scaleMax = max ?? Math.max(0, ...rows.map((row) => row.value || 0));
@@ -36,7 +40,7 @@ const BarList = ({
   }
 
   return (
-    <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0, display: 'grid', rowGap: 1 }}>
+    <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0, display: 'grid', rowGap: onSelect ? 0 : 1 }}>
       {rows.map((row) => {
         const value = row.value || 0;
         const percent = scaleMax > 0 ? (value / scaleMax) * 100 : 0;
@@ -49,15 +53,37 @@ const BarList = ({
           >
             <Box
               component="li"
+              {...(onSelect ? {
+                role: 'button',
+                tabIndex: 0,
+                'aria-pressed': selected === row.label,
+                onClick: () => onSelect(row),
+                onKeyDown: (event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onSelect(row);
+                  }
+                },
+              } : {})}
               sx={{
                 display: 'grid',
                 gridTemplateColumns: `minmax(0, ${labelWidth}) minmax(0, 1fr) auto`,
                 alignItems: 'center',
                 columnGap: 1.5,
                 '&:hover .barlist-fill': { opacity: 0.8 },
+                ...(onSelect && {
+                  cursor: 'pointer',
+                  mx: -1,
+                  px: 1,
+                  py: 0.5,
+                  borderRadius: 1,
+                  backgroundColor: selected === row.label ? 'action.selected' : 'transparent',
+                  '&:hover': { backgroundColor: selected === row.label ? 'action.selected' : 'action.hover' },
+                  '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 },
+                }),
               }}
             >
-              <Typography variant="body2" noWrap>{row.label}</Typography>
+              <Typography variant="body2" noWrap sx={{ fontWeight: onSelect && selected === row.label ? 600 : 400 }}>{row.label}</Typography>
               <Box sx={{ height: 10, borderRadius: 1, backgroundColor: 'action.hover', overflow: 'hidden' }}>
                 <Box
                   className="barlist-fill"

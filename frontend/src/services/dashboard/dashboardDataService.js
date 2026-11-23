@@ -151,7 +151,9 @@ class DashboardDataService {
       ] = await Promise.all([
         fhirClient.search('Patient', { _summary: 'count' }),
         fhirClient.search('Immunization', {
-          'vaccine-code': '88', // Influenza vaccine
+          // CVX influenza codes. Synthea records the seasonal injectable as
+          // 140; searching for 88 alone ("influenza, unspecified") found none.
+          'vaccine-code': '88,140,141,150,153,155,158,161,168,171,185,186',
           date: `ge${oneYearAgo.toISOString()}`,
           _summary: 'count'
         }),
@@ -437,28 +439,28 @@ class DashboardDataService {
       const safetyStats = [
         { 
           category: 'Anticoagulants', 
-          count: anticoagulants.total || Math.floor(total * 0.15),
+          count: anticoagulants.total || 0,
           icon: '💊',
           risk: 'high',
           description: 'Warfarin, Apixaban, Rivaroxaban'
         },
         { 
           category: 'Insulin', 
-          count: insulin.total || Math.floor(total * 0.08),
+          count: insulin.total || 0,
           icon: '💉',
           risk: 'high',
           description: 'All insulin formulations'
         },
         { 
           category: 'Opioids', 
-          count: opioids.total || Math.floor(total * 0.05),
+          count: opioids.total || 0,
           icon: '⚠️',
           risk: 'critical',
           description: 'Oxycodone, Morphine, Fentanyl'
         },
         { 
           category: 'Benzodiazepines', 
-          count: benzodiazepines.total || Math.floor(total * 0.04),
+          count: benzodiazepines.total || 0,
           icon: '😴',
           risk: 'high',
           description: 'Lorazepam, Alprazolam, Diazepam'

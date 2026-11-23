@@ -1,360 +1,372 @@
-import React, { useState, useEffect } from 'react';
-import BarList from '../components/common/BarList';
-import PageHeader from '../components/common/PageHeader';
+/**
+ * Population Analytics
+ * One page, three questions about the living patient population: who they
+ * are, what they have, and what they take. Everything is drawn from a single
+ * snapshot (`GET /api/analytics/population`), so every figure counts
+ * patients and is a share of the same total.
+ *
+ * Picking a condition opens its cohort: how common it is in each age group,
+ * what it is seen with, and what those patients are prescribed.
+ */
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
+  Button,
   Grid,
   Paper,
+  Skeleton,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
-  Card,
-  CardContent,
-  Alert,
-  Tab,
-  Tabs,
 } from '@mui/material';
+import { Refresh as RefreshIcon } from '@mui/icons-material';
 import api from '../services/api';
-import ClinicalLoadingState from '../components/clinical/shared/ClinicalLoadingState';
+import BarList from '../components/common/BarList';
+import ColumnBars from '../components/common/ColumnBars';
+import PageHeader from '../components/common/PageHeader';
+import PopulationPyramid from '../components/common/PopulationPyramid';
+import StatTile from '../components/common/StatTile';
+import ClinicalEmptyState from '../components/clinical/shared/ClinicalEmptyState';
+import {
+  describeAgeStructure,
+  describeCohort,
+  describeCohortBySex,
+  describeConditions,
+  describeMedicationBurden,
+} from '../utils/populationSummaries';
 
-function TabPanel({ children, value, index, ...other }) {
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`analytics-tabpanel-${index}`}
-      aria-labelledby={`analytics-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
-    </div>
-  );
-}
+const percent = (value) => `${Math.round(value)}%`;
+const countAndShare = (count, total) => (total > 0 ? `${count} (${Math.round((count / total) * 100)}%)` : String(count));
 
-// "57 (39%)": the count, and its share of the population when known.
-const formatShare = (count, total) =>
-  (total > 0 ? `${count} (${Math.round((count / total) * 100)}%)` : String(count));
+/** A titled block: heading, one sentence saying what the data shows, content. */
+const Section = ({ id, title, summary, children }) => (
+  <Box component="section" aria-labelledby={`${id}-heading`} sx={{ mb: 4 }}>
+    <Typography id={`${id}-heading`} component="h2" variant="h6" sx={{ fontWeight: 600 }}>
+      {title}
+    </Typography>
+    {summary && (
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, mb: 2, maxWidth: 760 }}>
+        {summary}
+      </Typography>
+    )}
+    {children}
+  </Box>
+);
+
+const Panel = ({ title, note, children, sx }) => (
+  <Paper variant="outlined" sx={{ p: 2, height: '100%', ...sx }}>
+    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{title}</Typography>
+    {note && <Typography variant="caption" color="text.secondary" component="div">{note}</Typography>}
+    <Box sx={{ mt: 1.5 }}>{children}</Box>
+  </Paper>
+);
 
 function Analytics() {
-
-  const [tabValue, setTabValue] = useState(0);
-  const [demographics, setDemographics] = useState(null);
-  const [diseasePrevalence, setDiseasePrevalence] = useState(null);
-  const [medicationPatterns, setMedicationPatterns] = useState(null);
+  const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [conditionKind, setConditionKind] = useState('diagnosis');
+  const [selectedCode, setSelectedCode] = useState(null);
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, []);
-
-  const fetchAnalytics = async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      
-      // Try to fetch real data, fallback to mock data
-      try {
-        const [demoResponse, diseaseResponse, medResponse] = await Promise.all([
-          api.get('/api/analytics/demographics'),
-          api.get('/api/analytics/disease-prevalence'),
-          api.get('/api/analytics/medication-patterns'),
-        ]);
-        
-        // Normalize backend response to match rendering field names
-        const demoData = demoResponse.data;
-        if (demoData.age_groups && !demoData.age_distribution) {
-          demoData.age_distribution = {};
-          demoData.age_groups.forEach(g => {
-            demoData.age_distribution[g.age_group] = { count: g.count, percentage: g.percentage };
-          });
-        }
-        setDemographics(demoData);
-
-        const diseaseData = diseaseResponse.data;
-        if (diseaseData.top_conditions && !diseaseData.conditions) {
-          diseaseData.conditions = diseaseData.top_conditions.map(c => ({
-            condition: c.condition_name,
-            count: c.patient_count,
-            prevalence_rate: c.percentage
-          }));
-        }
-        setDiseasePrevalence(diseaseData);
-        setMedicationPatterns(medResponse.data);
-      } catch (apiError) {
-        
-        
-        // Set error to show mock data warning
-        setError('DISPLAYING MOCK DATA - API endpoints not available');
-        
-        // Provide mock data with proper structure
-        setDemographics({
-          gender_distribution: [
-            { gender: 'Male', count: 425, percentage: 48.5 },
-            { gender: 'Female', count: 451, percentage: 51.5 },
-          ],
-          age_distribution: {
-            '0-18': { count: 156, percentage: 17.8 },
-            '19-35': { count: 234, percentage: 26.7 },
-            '36-50': { count: 198, percentage: 22.6 },
-            '51-65': { count: 187, percentage: 21.4 },
-            '65+': { count: 101, percentage: 11.5 },
-          },
-          race_distribution: [
-            { race: 'White', count: 425, percentage: 48.5 },
-            { race: 'Hispanic', count: 234, percentage: 26.7 },
-            { race: 'Black', count: 123, percentage: 14.0 },
-            { race: 'Asian', count: 87, percentage: 9.9 },
-            { race: 'Other', count: 7, percentage: 0.8 },
-          ]
-        });
-        
-        setDiseasePrevalence({
-          conditions: [
-            { condition: 'Hypertension', count: 156, prevalence_rate: 17.8 },
-            { condition: 'Diabetes', count: 98, prevalence_rate: 11.2 },
-            { condition: 'Asthma', count: 87, prevalence_rate: 9.9 },
-            { condition: 'Depression', count: 76, prevalence_rate: 8.7 },
-            { condition: 'Anxiety', count: 65, prevalence_rate: 7.4 },
-            { condition: 'COPD', count: 54, prevalence_rate: 6.2 },
-          ]
-        });
-        
-        setMedicationPatterns({
-          therapeutic_classes: [
-            { class: 'Cardiovascular', count: 245, percentage: 28.0 },
-            { class: 'Endocrine', count: 189, percentage: 21.6 },
-            { class: 'Respiratory', count: 134, percentage: 15.3 },
-            { class: 'Neurological', count: 112, percentage: 12.8 },
-            { class: 'Gastrointestinal', count: 98, percentage: 11.2 },
-            { class: 'Other', count: 98, percentage: 11.1 },
-          ],
-          top_medications: [
-            { medication: 'Lisinopril', prescription_count: 145 },
-            { medication: 'Metformin', prescription_count: 123 },
-            { medication: 'Atorvastatin', prescription_count: 98 },
-            { medication: 'Amlodipine', prescription_count: 87 },
-            { medication: 'Levothyroxine', prescription_count: 76 },
-            { medication: 'Albuterol', prescription_count: 65 },
-          ],
-          polypharmacy: {
-            polypharmacy_rate: 23.4,
-            patients_with_5plus_meds: 204,
-            total_patients_with_meds: 872
-          }
-        });
-      }
+      const response = await api.get('/api/analytics/population');
+      setSnapshot(response.data);
     } catch (err) {
-      
-      setError('Failed to load analytics data');
+      setError(err?.response?.data?.detail || err?.message || 'The population data could not be loaded');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const patients = snapshot?.patients;
+  const conditions = snapshot?.conditions;
+  const medications = snapshot?.medications;
+  const total = patients?.total || 0;
+
+  const listedConditions = useMemo(
+    () => (conditions?.items || []).filter((item) => item.kind === conditionKind),
+    [conditions, conditionKind],
+  );
+  const selected = listedConditions.find((item) => item.code === selectedCode) || listedConditions[0] || null;
+  const topDiagnosis = (conditions?.items || []).find((item) => item.kind === 'diagnosis');
+  const bandTotals = useMemo(
+    () => Object.fromEntries((medications?.polypharmacy_by_band || []).map((row) => [row.band, row.of])),
+    [medications],
+  );
 
   if (loading) {
     return (
-      <Box sx={{ minHeight: 400, p: 3 }}>
-        <ClinicalLoadingState.Page />
+      <Box>
+        <PageHeader title="Population Analytics" />
+        <Grid container spacing={2}>
+          {[0, 1, 2, 3].map((i) => (
+            <Grid item xs={6} md={3} key={i}><Skeleton variant="rounded" height={96} /></Grid>
+          ))}
+          <Grid item xs={12} md={7}><Skeleton variant="rounded" height={320} /></Grid>
+          <Grid item xs={12} md={5}><Skeleton variant="rounded" height={320} /></Grid>
+        </Grid>
       </Box>
     );
   }
 
-  const isMockData = error && error.includes('MOCK DATA');
+  if (error || !snapshot) {
+    return (
+      <Box>
+        <PageHeader title="Population Analytics" />
+        <ClinicalEmptyState
+          title="Unable to load population analytics"
+          message={error || 'No data was returned.'}
+          severity="error"
+          actions={[{ label: 'Retry', icon: <RefreshIcon />, onClick: load }]}
+        />
+      </Box>
+    );
+  }
+
+  if (total === 0) {
+    return (
+      <Box>
+        <PageHeader title="Population Analytics" />
+        <ClinicalEmptyState
+          title="No patients to analyse"
+          message="Load patient data into the FHIR server, then refresh."
+          actions={[{ label: 'Refresh', icon: <RefreshIcon />, onClick: load }]}
+        />
+      </Box>
+    );
+  }
+
+  const excluded = patients.deceased_excluded;
 
   return (
     <Box>
-      <PageHeader title="Population Analytics" subtitle="Health trends and metrics across the patient population" />
-      
-      {isMockData && (
-        <Alert 
-          severity="warning" 
-          sx={{ 
-            mb: 3, 
-            backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(251, 146, 60, 0.1)' : '#fff3cd',
-            border: (theme) => theme.palette.mode === 'dark' ? '2px solid rgba(251, 146, 60, 0.3)' : '2px solid #ffcc02',
-            '& .MuiAlert-message': { fontWeight: 'bold' }
-          }}
-        >
-          ⚠️ MOCK DATA DISPLAYED - This is sample data for demonstration purposes, not real Synthea patient data
-        </Alert>
-      )}
-      
+      <PageHeader
+        title="Population Analytics"
+        subtitle={`${total} living patients${excluded ? ` · ${excluded} deceased not counted` : ''} · synthetic data`}
+        actions={<Button variant="outlined" size="small" startIcon={<RefreshIcon />} onClick={load}>Refresh</Button>}
+      />
 
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
-          <Tab label="Demographics" />
-          <Tab label="Disease Prevalence" />
-          <Tab label="Medication Analytics" />
-        </Tabs>
-      </Box>
+      <Grid container spacing={2} sx={{ mb: 4 }}>
+        <Grid item xs={6} md={3}>
+          <StatTile label="Patients" value={total} caption={patients.by_gender.map((row) => `${row.patients} ${row.gender}`).join(' · ')} />
+        </Grid>
+        <Grid item xs={6} md={3}>
+          <StatTile
+            label="Median age"
+            value={patients.median_age}
+            unit="years"
+            caption={patients.oldest !== null ? `Oldest ${patients.oldest}` : undefined}
+          />
+        </Grid>
+        <Grid item xs={6} md={3}>
+          <StatTile
+            label="Most common diagnosis"
+            value={topDiagnosis ? percent(topDiagnosis.share) : null}
+            caption={topDiagnosis ? `${topDiagnosis.name} · ${topDiagnosis.patients} patients` : 'No active diagnoses'}
+          />
+        </Grid>
+        <Grid item xs={6} md={3}>
+          <StatTile
+            label={`On ${medications.threshold} or more medications`}
+            value={percent(medications.polypharmacy.share)}
+            caption={`${medications.polypharmacy.patients} patients`}
+            tone={medications.polypharmacy.patients > 0 ? 'attention' : 'neutral'}
+          />
+        </Grid>
+      </Grid>
 
-      <TabPanel value={tabValue} index={0}>
-        {demographics && (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Gender
-                </Typography>
-                {demographics.gender_distribution && demographics.gender_distribution.length > 0 ? (
-                  <BarList
-                    items={demographics.gender_distribution.map((entry) => ({
-                      label: entry.gender,
-                      value: entry.count,
-                      hint: `${entry.gender}: ${entry.count} patients (${entry.percentage}%)`,
-                    }))}
-                    max={demographics.total_patients || undefined}
-                    formatValue={(value) => formatShare(value, demographics.total_patients)}
-                  />
-                ) : (
-                  <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>No gender distribution data available</Typography>
-                )}
-              </Paper>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Age
-                </Typography>
-                {demographics.age_distribution ? (
-                  <BarList
-                    sort="none"
-                    items={Object.entries(demographics.age_distribution).map(([group, data]) => ({
-                      label: group.replace(/_/g, ' '),
-                      value: data?.count ?? 0,
-                    }))}
-                    max={demographics.total_patients || undefined}
-                    formatValue={(value) => formatShare(value, demographics.total_patients)}
-                  />
-                ) : (
-                  <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>No age distribution data available</Typography>
-                )}
-              </Paper>
-            </Grid>
-
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Race and ethnicity
-                </Typography>
-                {demographics.race_distribution && demographics.race_distribution.length > 0 ? (
-                  <BarList
-                    items={demographics.race_distribution.map((entry) => ({ label: entry.race, value: entry.count }))}
-                    max={demographics.total_patients || undefined}
-                    formatValue={(value) => formatShare(value, demographics.total_patients)}
-                    labelWidth="30%"
-                  />
-                ) : (
-                  <Typography variant="body1" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-                    No race/ethnicity data available. This data needs to be imported from patient records.
-                  </Typography>
-                )}
-              </Paper>
-            </Grid>
+      <Section id="patients" title="Who they are" summary={describeAgeStructure(patients)}>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={7}>
+            <Panel title="Age and sex" note="Patients in each ten-year age band">
+              <PopulationPyramid
+                rows={patients.pyramid.map((row) => ({ band: row.band, left: row.female, right: row.male }))}
+              />
+            </Panel>
           </Grid>
-        )}
-      </TabPanel>
-
-      <TabPanel value={tabValue} index={1}>
-        {diseasePrevalence && diseasePrevalence.conditions && diseasePrevalence.conditions.length > 0 ? (
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Chronic disease prevalence
-                </Typography>
+          <Grid item xs={12} md={5}>
+            <Stack spacing={2} sx={{ height: '100%' }}>
+              <Panel title="Race" sx={{ height: 'auto', flexGrow: 1 }}>
                 <BarList
-                  items={diseasePrevalence.conditions
-                    .filter((c) => c.count > 0)
-                    .map((c) => ({
-                      label: c.condition,
-                      value: c.prevalence_rate,
-                      hint: `${c.condition}: ${c.count} patients (${c.prevalence_rate}%)`,
-                    }))}
-                  formatValue={(value) => `${value}%`}
-                  labelWidth="30%"
+                  items={patients.race.map((row) => ({ label: row.label, value: row.patients }))}
+                  max={total}
+                  formatValue={(value) => countAndShare(value, total)}
+                  labelWidth="46%"
                 />
-              </Paper>
-            </Grid>
-
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Disease Prevalence Summary
-                </Typography>
-                <Grid container spacing={2}>
-                  {diseasePrevalence.conditions.filter(c => c.count > 0).map((condition, index) => (
-                    <Grid item xs={12} sm={6} md={4} key={index}>
-                      <Card>
-                        <CardContent>
-                          <Typography variant="h6" gutterBottom>
-                            {condition.condition}
-                          </Typography>
-                          <Typography variant="h4" color="primary">
-                            {condition.prevalence_rate}%
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {condition.count} patients
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
-              </Paper>
-            </Grid>
-          </Grid>
-        ) : (
-          <Alert severity="info">
-            No disease prevalence data available. The system tracks chronic conditions like diabetes, hypertension, and heart disease to analyze population health trends.
-          </Alert>
-        )}
-      </TabPanel>
-
-      <TabPanel value={tabValue} index={2}>
-        {medicationPatterns && (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={8}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Most prescribed medications
-                </Typography>
+              </Panel>
+              <Panel title="Ethnicity" sx={{ height: 'auto' }}>
                 <BarList
-                  items={(medicationPatterns.top_medications || []).map((m) => ({
-                    label: m.medication,
-                    value: m.prescription_count ?? m.count ?? 0,
+                  items={patients.ethnicity.map((row) => ({ label: row.label, value: row.patients }))}
+                  max={total}
+                  formatValue={(value) => countAndShare(value, total)}
+                  labelWidth="46%"
+                />
+              </Panel>
+            </Stack>
+          </Grid>
+        </Grid>
+      </Section>
+
+      <Section id="conditions" title="What they have" summary={describeConditions(conditions, total)}>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={5}>
+            <Panel
+              title="Active conditions"
+              note="Share of all patients. Select one to see who has it."
+            >
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={conditionKind}
+                onChange={(event, value) => { if (value) { setConditionKind(value); setSelectedCode(null); } }}
+                aria-label="Kind of condition"
+                sx={{ mb: 1.5 }}
+              >
+                <ToggleButton value="diagnosis">Diagnoses</ToggleButton>
+                <ToggleButton value="context">Social and other findings</ToggleButton>
+              </ToggleButtonGroup>
+              <Box sx={{ maxHeight: 520, overflowY: 'auto', pr: 1 }}>
+                <BarList
+                  items={listedConditions.map((item) => ({
+                    label: item.name,
+                    value: item.patients,
+                    code: item.code,
+                    hint: `${item.name}: ${item.patients} of ${total} patients`,
                   }))}
-                  labelWidth="45%"
+                  max={total}
+                  formatValue={(value) => countAndShare(value, total)}
+                  labelWidth="50%"
+                  selected={selected?.name}
+                  onSelect={(row) => setSelectedCode(row.code)}
+                  emptyText="None recorded."
                 />
-              </Paper>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Polypharmacy Analysis
-                </Typography>
-                <Card sx={{ mt: 2 }}>
-                  <CardContent>
-                    <Typography variant="h4" color="warning.main">
-                      {medicationPatterns.polypharmacy?.polypharmacy_rate ?? 'N/A'}%
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Patients on 5+ medications
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 1 }}>
-                      {medicationPatterns.polypharmacy?.patients_with_5plus_meds ?? 0} of {medicationPatterns.polypharmacy?.total_patients_with_meds ?? 0} patients
-                    </Typography>
-                  </CardContent>
-                </Card>
-                
-                <Alert severity="warning" sx={{ mt: 2 }}>
-                  Polypharmacy (5+ medications) increases risk of drug interactions and adverse effects.
-                </Alert>
-              </Paper>
-            </Grid>
+              </Box>
+            </Panel>
           </Grid>
-        )}
-      </TabPanel>
+
+          <Grid item xs={12} md={7}>
+            {selected ? (
+              <Paper variant="outlined" sx={{ p: 2, height: '100%' }} aria-live="polite">
+                <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                  Patients with
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.3 }}>{selected.name}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                  {describeCohort(selected)}
+                </Typography>
+
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mt: 2.5 }}>How common it is at each age</Typography>
+                <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 1 }}>
+                  Share of the patients in each age band who have it
+                  {describeCohortBySex(selected) ? ` · ${describeCohortBySex(selected)}` : ''}
+                </Typography>
+                <ColumnBars
+                  items={selected.by_band.map((row) => ({
+                    label: row.band,
+                    value: row.share_of_band,
+                    caption: `${row.patients} of ${bandTotals[row.band] ?? 0}`,
+                    hint: `Age ${row.band}: ${row.patients} of ${bandTotals[row.band] ?? 0} patients`,
+                  }))}
+                  max={100}
+                  formatValue={percent}
+                  height={110}
+                />
+
+                <Grid container spacing={3} sx={{ mt: 0.5 }}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Often seen with</Typography>
+                    <BarList
+                      items={selected.seen_with.map((row) => ({
+                        label: row.label,
+                        value: row.share,
+                        hint: `${row.label}: ${row.patients} of these ${selected.patients} patients`,
+                      }))}
+                      max={100}
+                      formatValue={percent}
+                      labelWidth="56%"
+                      emptyText="No other active diagnoses in this group."
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Most prescribed in this group</Typography>
+                    <BarList
+                      items={selected.medications.map((row) => ({
+                        label: row.label,
+                        value: row.share,
+                        hint: `${row.label}: ${row.patients} of these ${selected.patients} patients`,
+                      }))}
+                      max={100}
+                      formatValue={percent}
+                      labelWidth="56%"
+                      emptyText="No active medications in this group."
+                    />
+                  </Grid>
+                </Grid>
+
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  {selected.on_polypharmacy} of these {selected.patients} patients take {medications.threshold} or more medications.
+                </Typography>
+              </Paper>
+            ) : (
+              <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+                <Typography variant="body2" color="text.secondary">No conditions of this kind are recorded.</Typography>
+              </Paper>
+            )}
+          </Grid>
+        </Grid>
+      </Section>
+
+      <Section id="medications" title="What they take" summary={describeMedicationBurden(medications)}>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={5}>
+            <Panel title="Active medications per patient" note={`Number of patients. ${medications.threshold} or more is polypharmacy.`}>
+              <ColumnBars
+                items={medications.burden.map((row) => ({
+                  label: row.bucket,
+                  value: row.patients,
+                  caption: percent(row.share),
+                  tone: parseInt(row.bucket, 10) >= medications.threshold ? 'attention' : undefined,
+                  hint: `${row.patients} patients take ${row.bucket} medications`,
+                }))}
+                height={150}
+              />
+            </Panel>
+          </Grid>
+          <Grid item xs={12} md={7}>
+            <Panel title={`On ${medications.threshold} or more medications, by age`} note="Share of the patients in each age band">
+              <ColumnBars
+                items={medications.polypharmacy_by_band.map((row) => ({
+                  label: row.band,
+                  value: row.share,
+                  caption: `${row.patients} of ${row.of}`,
+                  tone: 'attention',
+                  hint: `Age ${row.band}: ${row.patients} of ${row.of} patients`,
+                }))}
+                max={100}
+                formatValue={percent}
+                height={150}
+              />
+            </Panel>
+          </Grid>
+          <Grid item xs={12}>
+            <Panel title="Most prescribed" note={`Patients with an active order · ${medications.active_orders} active orders in all`}>
+              <BarList
+                items={medications.top.map((row) => ({ label: row.label, value: row.patients }))}
+                max={total}
+                formatValue={(value) => countAndShare(value, total)}
+                labelWidth="42%"
+                emptyText="No active medication orders."
+              />
+            </Panel>
+          </Grid>
+        </Grid>
+      </Section>
     </Box>
   );
 }
