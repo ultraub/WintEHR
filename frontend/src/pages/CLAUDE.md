@@ -70,7 +70,7 @@ box is the scroll container. Pages do not render `LayoutV3` themselves.
 | `/quality` | `QualityMeasuresPage.js` | |
 | `/care-gaps` | `CareGapsPage.js` | |
 | `/schedule` | `Schedule.js` | |
-| `/audit-trail` | `AuditTrailPage.js` | Event-trail viewer (synthetic data — not HIPAA auditing). |
+| `/audit-trail` | (redirect) | Removed page; redirects to `/command-center`, whose Audit tab is the audit trail. |
 | `/settings` | `Settings.js` | |
 | `/performance-test` | `PerformanceTestPage.js` | Dev/diagnostic page. |
 | `/smart-callback` | `SMARTCallbackPage.js` | SMART-on-FHIR OAuth2 redirect target. |
@@ -96,7 +96,7 @@ Pages reach the backend two ways, and the choice is not arbitrary:
 - **Non-FHIR backend APIs** (analytics, audit, quality, auth config, SMART
   token) → the axios instance `src/services/api.js` (`import api from
   '../services/api'`). It attaches the auth token and uses a relative base URL.
-  Used by `Analytics`, `AuditTrailPage`, `Settings`, `Login`.
+  Used by `Analytics`, `Settings`, `Login`.
 
 Do not hit FHIR through `services/api.js` raw `fetch`, and do not invent a third
 client. The only deliberate raw `fetch` calls left are in the SMART pages —

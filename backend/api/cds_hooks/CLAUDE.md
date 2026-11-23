@@ -184,10 +184,13 @@ Actions with neither title nor description are skipped (structural grouping).
 - `orchestrator/service_orchestrator.py` — parallel execution + `execute_hook()`.
 - `cql_bridge.py` + `backend/scripts/cql_bridge_poc.py` — the CQL path end-to-end.
 
-Sub-routers mounted under this module's router (registered at `/api`):
-`actions/router.py` (`/actions/*` — action execution) and `audit/router.py`
-(`/audit/*` — CDS audit trail). `feedback/`, `hooks/`, and `prefetch/` are
-support libraries, not independently-registered routers.
+Sub-router mounted under this module's router (registered at `/api`):
+`actions/router.py` (`/actions/*` — action execution). `feedback/`, `hooks/`,
+and `prefetch/` are support libraries, not independently-registered routers.
+(The `audit/` sub-router and its `/api/audit/*` endpoints were removed with
+the Audit Trail page: nothing wrote the events it searched for, and its
+history search failed against HAPI. The audit trail is the Command Center's
+Audit tab, `api/command_center/audit.py`.)
 
 ---
 

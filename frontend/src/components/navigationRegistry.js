@@ -75,7 +75,6 @@ const CORE_NAV_SECTIONS = {
     title: 'Administration',
     icon: <SecurityIcon />,
     items: [
-      { id: 'audit-trail', order: 10, text: 'Audit Trail', icon: <SecurityIcon />, path: '/audit-trail', description: 'Security & compliance', iconColor: categoricalAccents.audit },
       { id: 'settings', order: 20, text: 'System Settings', icon: <SettingsIcon />, path: '/settings', description: 'Configuration', iconColor: categoricalAccents.settings },
     ],
   },

@@ -23,7 +23,6 @@ const MedicationReconciliationPage = lazy(() => import('../pages/MedicationRecon
 const CDSStudioPage = lazy(() => import('../modules/cds-studio').then(m => ({ default: m.CDSStudioPage })));
 const CDSPresentationModeTester = lazy(() => import('../components/clinical/cds/CDSPresentationModeTester'));
 const EncountersPage = lazy(() => import('../pages/EncountersPage'));
-const AuditTrailPage = lazy(() => import('../pages/AuditTrailPage'));
 const PharmacyPage = lazy(() => import('../pages/PharmacyPage'));
 const InventoryManagementPage = lazy(() => import('../pages/InventoryManagementPage'));
 const PatientTimelinePage = lazy(() => import('../pages/PatientTimelinePage'));
@@ -152,8 +151,10 @@ export const router = createBrowserRouter([
     element: page(<CDSPresentationModeTester />)
   },
   {
+    // The Audit Trail page was removed; the audit trail is the Command
+    // Center's Audit tab. Old links land there (administrators only).
     path: '/audit-trail',
-    element: page(<AuditTrailPage />)
+    element: <Navigate to="/command-center" replace />
   },
   {
     path: '/settings',

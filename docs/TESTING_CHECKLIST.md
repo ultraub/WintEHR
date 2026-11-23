@@ -448,17 +448,15 @@ HAPI FHIR: http://localhost:8888/fhir
 
 ## 8. Administrative Functions
 
-### 8.1 Audit Trail (`/audit-trail`)
-- [ ] **Access audit trail** - Navigate to Audit Trail
-  - Expected: Audit log displayed
-- [ ] **Filter by user** - Filter events by user
-  - Expected: Filtered results shown
-- [ ] **Filter by action** - Filter by action type
-  - Expected: Filtered results shown
-- [ ] **Filter by date** - Set date range
-  - Expected: Results within range shown
-- [ ] **View event details** - Click on event
-  - Expected: Full event details displayed
+### 8.1 Audit trail (Command Center → Audit tab, administrator only)
+- [ ] **Open the audit trail** - Log in as the administrator, open the Command Center, choose Audit
+  - Expected: Events listed newest first
+- [ ] **Filter by time window, event type, user or text**
+  - Expected: Matching events shown
+- [ ] **Expand an event** - Click a row
+  - Expected: The event's details shown
+- [ ] **Old link** - Open `/audit-trail`
+  - Expected: Redirects to the Command Center (to the dashboard for a non-administrator)
 
 ### 8.2 Settings (`/settings`)
 - [ ] **Access settings** - Navigate to Settings
