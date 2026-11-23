@@ -25,10 +25,8 @@ router = APIRouter(prefix="/api", tags=["CDS Hooks"])
 
 # Sub-routers mounted onto the CDS surface (unchanged by the #5 split)
 from .actions import router as action_router
-from .audit import router as audit_router
 
 router.include_router(action_router, prefix="", tags=["CDS Actions"])
-router.include_router(audit_router, prefix="", tags=["CDS Audit"])
 
 
 # CDS Hooks Discovery Endpoint

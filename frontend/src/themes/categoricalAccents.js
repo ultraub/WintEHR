@@ -44,7 +44,6 @@ export const categoricalAccents = {
   inpatient: '#F43F5E', // rose
   fhirExplorer: '#3B82F6', // blue
   cdsStudio: '#A855F7', // purple
-  audit: '#EF4444', // red
   settings: '#9CA3AF', // gray
   commandCenter: '#0369A1', // deep sky
 

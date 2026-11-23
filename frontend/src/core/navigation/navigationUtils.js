@@ -59,16 +59,6 @@ export const getEncounterDetailUrl = (patientId, encounterId) => {
 };
 
 /**
- * Build an audit trail URL with proper ID encoding
- */
-export const getAuditTrailUrl = (resourceType, resourceId) => {
-  if (resourceType === 'Patient') {
-    return `/audit-trail/patient/${encodeFhirId(resourceId)}`;
-  }
-  return `/audit-trail/${encodeURIComponent(resourceType)}/${encodeFhirId(resourceId)}`;
-};
-
-/**
  * Extract and decode a FHIR ID from route params
  */
 export const getFhirIdFromParams = (params, paramName = 'id') => {
