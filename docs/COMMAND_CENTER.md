@@ -64,6 +64,7 @@ reads it; `live` means the consumer calls `get_setting()` at use time.
 | 16 | User management | Users tab over the `auth.users` setting (json, live): custom logins (name, role, department, email, bcrypt password hash; permissions default to the role's) and disabled built-ins. `admin` can never be disabled or deleted; nobody can disable or delete themselves. Login (`api/auth/service.resolve_login_user`) and every request (`get_current_user` → `user_disabled`) read it live, so disabling takes effect on the next request; the login page's picker lists enabled users with their names. The setting's value is redacted from the audit trail (`audit_value=False`); `system.user.created / updated / deleted` name the user, never the hash. `GET / POST /api/command-center/users`, `PUT / DELETE /users/{username}`. **Shipped.** | 2, 8a |
 | 17 | Health history | Every status report is recorded in `system.status_history` (when, overall, each component's state, source) and a sampler takes one every `COMMAND_CENTER_SAMPLE_SECONDS` (300; 0 disables), elected per tick across workers through a Redis lock, pruned after `COMMAND_CENTER_HISTORY_DAYS` (7). `GET /api/command-center/status/history?hours=` returns the samples, uptime per component and incidents (runs of degraded / down, ongoing flagged). Status tab → History card: strip of samples with tooltips, legend, uptime table, incident list, 6 h to 7 d window (`status_history.py`, `HistoryCard.jsx`). **Shipped.** | 1 |
 | 18 | Workflow contexts | The policy's third layer gets its UI: the Tabs tab adds / removes context columns (`contexts.<name>`, same shape as a role layer, narrows on top of the role) with previews, and the chart tab strip shows a **Context** picker whenever the policy defines any (`WorkflowContextPicker`); the choice is remembered per browser (`tabPolicyStore.setWorkflowContext`, localStorage) and `useEffectiveTabs` / `useEffectiveSections` apply it unless a caller passes its own `context`. A context the policy no longer defines silently stops applying. **Shipped.** | 7 |
+| 19 | Navigation policy | The same document governs the app shell's **primary navigation** (Dashboard, Patients, Encounters, Pharmacy, Population Health pages, developer and admin pages, module pages) by nav item id: `nav.hidden` per layer (org / role / context), validated in `tab_policy.py`; `patients` (landing page) and `command-center` (the way back) are stripped from every hidden list. Every nav item carries a stable `id` (`navigationRegistry.js`; module pages their page id), `resolveEffectiveNav()` is the pure resolver and `useEffectiveNavigation()` what LayoutV3 renders: sidebar, icon rail and command palette drop hidden pages, and a hidden page's URL redirects to the Dashboard (or Patients when that is hidden too) once the policy is known. Tabs tab gains a Primary navigation matrix with the same columns and a navigation line in every preview. **Shipped.** | 7, 18 |
 
 Definition of done per slice: backend tests in `backend/tests/api/command_center/`,
 frontend tests beside the components, the module `CLAUDE.md` current, and a
@@ -87,7 +88,10 @@ layered policy where each layer can only narrow or reorder the one above it:
 
 Rules: unknown tab ids are ignored with a warning; Summary can never be
 removed; a deep link to a hidden tab falls back to the default tab with a
-notice; module tabs are governed by tab id like any other.
+notice; module tabs are governed by tab id like any other. The same layers
+carry a `nav` spec for the app shell's primary navigation (slice 19):
+hidden nav item ids per layer, Patients and the Command Center never
+hidden, a hidden page's URL redirected to the landing page.
 
 Implementation (shipped): the policy is ONE json setting, `ui.tabs.policy`
 (`backend/api/command_center/tab_policy.py` validates shape only — tab ids
@@ -96,7 +100,9 @@ the pure resolver, `tabPolicyStore.js` the per-page cache of
 `GET /api/command-center/ui-policy` (no auth: it only says what is hidden),
 `useEffectiveTabs.js` the hook. The registry stays the catalog of what
 exists; the hook is what is shown. The chosen workflow context lives in
-the store too (`setWorkflowContext`, per browser) and feeds both hooks.
+the store too (`setWorkflowContext`, per browser) and feeds every hook,
+including `src/components/useEffectiveNavigation.js`, which applies the
+`nav` spec to `navigationRegistry.js`'s config for LayoutV3.
 
 ---
 

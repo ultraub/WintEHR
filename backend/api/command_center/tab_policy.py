@@ -22,6 +22,12 @@ warning, the same way `insertAfter` tolerates a bad anchor.
 
 `summary` can never be hidden: it is stripped from every layer's hidden
 list here, and the resolver refuses it again on the client.
+
+`nav` (slice 19) governs the app shell's PRIMARY navigation — Dashboard,
+Patients, Population Health, the developer and admin pages — by nav item
+id, with the same layering: `{"nav": {"hidden": [...nav ids]}}` per layer.
+`patients` (the landing page) and `command-center` (the only way to undo
+a policy) can never be hidden and are stripped here too.
 """
 
 from __future__ import annotations
@@ -31,8 +37,10 @@ from typing import Any, Dict, List, Optional
 from .settings_registry import SettingValueError
 
 ALWAYS_VISIBLE = ("summary",)
-LAYER_FIELDS = ("hidden", "order", "default", "sections")
+ALWAYS_VISIBLE_NAV = ("patients", "command-center")
+LAYER_FIELDS = ("hidden", "order", "default", "sections", "nav")
 SECTION_FIELDS = ("hidden", "order", "added")
+NAV_FIELDS = ("hidden",)
 
 
 def _id_list(value: Any, where: str) -> List[str]:
@@ -68,7 +76,21 @@ def _layer(value: Any, where: str) -> Dict[str, Any]:
         "order": order,
         "default": default.strip() if default else None,
         "sections": _sections(value.get("sections"), f"{where}.sections"),
+        "nav": _nav(value.get("nav"), f"{where}.nav"),
     }
+
+
+def _nav(value: Any, where: str) -> Dict[str, List[str]]:
+    """Primary-navigation spec for one layer: {hidden: [nav item ids]} (slice 19)."""
+    if value is None:
+        return {"hidden": []}
+    if not isinstance(value, dict):
+        raise SettingValueError(f"{where} must be an object with hidden")
+    unknown = set(value) - set(NAV_FIELDS)
+    if unknown:
+        raise SettingValueError(f"{where}: unknown field(s) {sorted(unknown)}")
+    hidden = [n for n in _id_list(value.get("hidden"), f"{where}.hidden") if n not in ALWAYS_VISIBLE_NAV]
+    return {"hidden": hidden}
 
 
 def _sections(value: Any, where: str) -> Dict[str, Dict[str, List[str]]]:
