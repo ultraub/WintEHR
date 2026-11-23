@@ -137,8 +137,28 @@ export default [
       import: importPlugin,
     },
     languageOptions: sharedLanguageOptions,
-    settings: { react: { version: 'detect' } },
-    rules: sharedRules,
+    settings: {
+      react: { version: 'detect' },
+      // So import/named also reads the exports of .jsx, .ts and .tsx targets:
+      // the resolver gets the same extensions as resolve.extensions in
+      // vite.config.js (keep the two in sync), import/extensions lists the
+      // file extensions whose exports are read, and import/parsers reads .ts
+      // and .tsx with the TS parser.
+      'import/resolver': { node: { extensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.mjs'] } },
+      'import/extensions': ['.js', '.jsx', '.mjs', '.ts', '.tsx'],
+      'import/parsers': { '@typescript-eslint/parser': ['.ts', '.tsx'] },
+    },
+    rules: {
+      ...sharedRules,
+      // Not in react-app. Under the Vite dev server, a named import of a name
+      // the target module does not export is a SyntaxError when the module
+      // graph links, so the whole screen fails to load even if the name is
+      // never used. vitest just leaves the name undefined, so the tests only
+      // fail if the code calls it. Not caught: CJS-only packages, a value
+      // import of a type-only TypeScript export, and imports from .json files
+      // or from the TS-annotated .js files in the TypeScript block below.
+      'import/named': 'error',
+    },
   },
 
   // TypeScript source — plus the historically Flow/TS-annotated .js files
