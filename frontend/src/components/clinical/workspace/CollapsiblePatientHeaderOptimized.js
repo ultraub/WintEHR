@@ -59,7 +59,7 @@ import websocketService from '../../../services/websocket';
 import { useDataQualityLogger } from '../../../core/fhir/utils/dataQualityLogger';
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import SlotOutlet from '../../SlotOutlet';
-import { formatMrn, formatPersonName } from '../../../utils/clinicalDisplay';
+import { ageInYears, formatMrn, formatPersonName } from '../../../utils/clinicalDisplay';
 import { avatarColorFor } from '../../../utils/avatarColor';
 import { avatarInk } from '../../../themes/auroraPalette';
 
@@ -369,7 +369,8 @@ const CollapsiblePatientHeaderOptimized = ({
       });
       return 'Unknown';
     }
-    return differenceInYears(new Date(), date);
+    // to the date of death for a deceased patient, not to today
+    return ageInYears(currentPatient) ?? differenceInYears(new Date(), date);
   };
 
   const formatDate = (date) => {

@@ -3,7 +3,7 @@
  * Beautiful, modern patient summary with clinical workspace integration
  */
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatPersonName } from '../../../utils/clinicalDisplay';
+import { ageInYears, formatPersonName } from '../../../utils/clinicalDisplay';
 import StatusChip from '../shared/display/StatusChip';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -34,7 +34,7 @@ import {
   Timeline as TimelineIcon,
   EventNote as EncounterIcon
 } from '@mui/icons-material';
-import { format, parseISO, differenceInYears } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { useFHIRResource } from '../../../contexts/FHIRResourceContext';
 import { useInitializationGuard } from '../../../hooks/ui/useStableReferences';
 import { getClinicalContext } from '../../../themes/clinicalThemeUtils';
@@ -230,7 +230,7 @@ const PatientSummaryV4 = ({ patientId, department = 'general' }) => {
     const patient = currentPatient;
     const name = patient.name?.[0];
     const fullName = name ? formatPersonName(patient) : 'Unknown Patient';
-    const age = patient.birthDate ? differenceInYears(new Date(), new Date(patient.birthDate)) : null;
+    const age = ageInYears(patient);
     // A third of MIMIC demo patients are deceased; the record says so and
     // the UI must too — showing a deceased patient as indistinguishable
     // from a living one misstates the record.

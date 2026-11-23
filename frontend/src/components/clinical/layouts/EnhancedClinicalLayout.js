@@ -127,7 +127,13 @@ const EnhancedClinicalLayout = ({
             <Box sx={{ position: 'relative', overflow: 'hidden' }}>
               {/* above the header's own solid background; it ignores the
                   pointer and keeps to the empty trailing side */}
-              <PhaseSceneStrip surface={theme.palette.background.paper} sx={{ zIndex: 2, width: 'min(38%, 460px)' }} />
+              {/* Pinned to the top row at that row's height, so it is the
+                  same picture whether the header is compact, normal or
+                  expanded, and the expanded details keep the full width. */}
+              <PhaseSceneStrip
+                surface={theme.palette.background.paper}
+                sx={{ zIndex: 2, width: 'min(38%, 460px)', top: 0, bottom: 'auto', height: '100%', maxHeight: 120 }}
+              />
               <Box sx={{ position: 'relative', zIndex: 1 }}>
                 <CollapsiblePatientHeaderOptimized
                   patientId={patient?.id || patientId}

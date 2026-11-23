@@ -1,4 +1,4 @@
-import { orderConditionsForChart, splitConditionName } from '../clinicalDisplay';
+import { ageInYears, orderConditionsForChart, splitConditionName } from '../clinicalDisplay';
 
 const condition = (display) => ({ code: { coding: [{ display }] } });
 
@@ -27,5 +27,23 @@ describe('orderConditionsForChart', () => {
 
   it('reports -1 when there are no findings', () => {
     expect(orderConditionsForChart([condition('Anemia (disorder)')]).firstContextIndex).toBe(-1);
+  });
+});
+
+describe('ageInYears', () => {
+  const now = new Date('2026-11-23T12:00:00Z');
+
+  it('counts to today for a living patient', () => {
+    expect(ageInYears({ birthDate: '1993-11-21' }, now)).toBe(33);
+    expect(ageInYears({ birthDate: '1993-11-24' }, now)).toBe(32);
+  });
+
+  it('stops at the date of death', () => {
+    expect(ageInYears({ birthDate: '1966-03-21', deceasedDateTime: '1997-06-09T10:00:00Z' }, now)).toBe(31);
+  });
+
+  it('returns null without a usable birth date', () => {
+    expect(ageInYears({}, now)).toBeNull();
+    expect(ageInYears({ birthDate: 'not-a-date' }, now)).toBeNull();
   });
 });
