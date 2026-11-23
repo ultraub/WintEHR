@@ -34,6 +34,10 @@ export const pathUnder = (pathname, path) => pathname === path || pathname.start
 export function useEffectiveNavigation() {
   const { user } = useAuth();
   const role = user?.role || null;
+  // The Command Center is the administrator's. This is not a policy choice
+  // an organization can change, so it sits outside `ui.tabs.policy`; the
+  // backend enforces the same rule on every Command Center endpoint.
+  const isAdmin = Array.isArray(user?.permissions) && user.permissions.includes('admin');
   const snapshot = useSyncExternalStore(subscribeTabPolicy, getTabPolicySnapshot, getTabPolicySnapshot);
 
   useEffect(() => {
@@ -51,19 +55,21 @@ export function useEffectiveNavigation() {
         console.warn(`[nav policy] ${warning}`);
       }
     }
-    const config = filterNavigationConfig(fullConfig, resolved.hiddenIds);
-    const hiddenPaths = catalog.filter((i) => resolved.hiddenIds.includes(i.id)).map((i) => i.path);
+    const adminOnly = isAdmin ? [] : catalog.filter((i) => i.path === '/command-center').map((i) => i.id);
+    const hiddenIds = [...new Set([...resolved.hiddenIds, ...adminOnly])];
+    const config = filterNavigationConfig(fullConfig, hiddenIds);
+    const hiddenPaths = catalog.filter((i) => hiddenIds.includes(i.id)).map((i) => i.path);
     return {
       config,
-      hiddenIds: resolved.hiddenIds,
+      hiddenIds,
       hiddenPaths,
-      landingPath: resolved.hiddenIds.includes('dashboard') ? '/patients' : '/dashboard',
+      landingPath: hiddenIds.includes('dashboard') ? '/patients' : '/dashboard',
       isHiddenPath: (pathname) => hiddenPaths.some((p) => pathUnder(pathname, p)),
       ready: snapshot.loaded,
       role,
       context,
     };
-  }, [snapshot, role, context]);
+  }, [snapshot, role, context, isAdmin]);
 }
 
 /** Test helper: rebuild the catalog (after mocking modules) and forget printed warnings. */

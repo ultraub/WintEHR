@@ -56,7 +56,8 @@ it('shows the whole menu until the policy loads, then hides pages for the role a
   expect(screen.getByTestId('landing').textContent).toBe('/dashboard');
 
   await waitFor(() => expect(screen.getByTestId('ready').textContent).toBe('true'));
-  expect(screen.getByTestId('hidden').textContent).toBe('dashboard,fhir-explorer,cds-studio');
+  // a nurse is not an administrator, so the Command Center is hidden too
+  expect(screen.getByTestId('hidden').textContent).toBe('dashboard,fhir-explorer,cds-studio,command-center');
   expect(screen.getByTestId('items').textContent).not.toContain('dashboard');
   // Developer Tools lost both pages, so the section is gone.
   expect(screen.getByTestId('sections').textContent.split(',')).not.toContain('tools');
@@ -72,10 +73,24 @@ it('the chosen workflow context narrows the menu on top of the role', async () =
     contexts: ['clinic'],
   });
   const { rerender } = render(<Probe />);
-  expect(screen.getByTestId('hidden').textContent).toBe('');
+  expect(screen.getByTestId('hidden').textContent).toBe('command-center');
   setWorkflowContext('clinic');
   rerender(<Probe />);
-  await waitFor(() => expect(screen.getByTestId('hidden').textContent).toBe('encounters'));
+  await waitFor(() => expect(screen.getByTestId('hidden').textContent).toBe('encounters,command-center'));
+});
+
+it('the Command Center is in the menu for an administrator and for nobody else', () => {
+  __setTabPolicyForTests({ policy: { org: {}, roles: {}, contexts: {} }, contexts: [] });
+  useAuth.mockReturnValue({ user: { role: 'admin', permissions: ['read', 'admin', 'system'] } });
+  const { unmount } = render(<Probe />);
+  expect(screen.getByTestId('hidden').textContent).toBe('');
+  expect(screen.getByTestId('items').textContent).toContain('command-center');
+  unmount();
+
+  useAuth.mockReturnValue({ user: { role: 'physician', permissions: ['read', 'write', 'prescribe'] } });
+  render(<Probe />);
+  expect(screen.getByTestId('hidden').textContent).toBe('command-center');
+  expect(screen.getByTestId('items').textContent).not.toContain('command-center');
 });
 
 it('pathUnder matches a page and its sub-pages only', () => {

@@ -26,7 +26,7 @@ examples referencing `secure_auth_service.py`, they are stale.
 
 | Service | File | When active | What it actually does |
 |---|---|---|---|
-| `AuthService` | `service.py` | Always, for `/api/auth/*` | `resolve_login_user`: built-in `TRAINING_USERS` take the literal `"password"`; custom users from the Command Center's `auth.users` setting (`api/command_center/users.py`) take their bcrypt hash; disabled users never log in and `get_current_user` refuses them on their next request (`user_disabled`, read live). Session tokens in the shared `SessionStore` (or a JWT when `JWT_ENABLED=true`). |
+| `AuthService` | `service.py` | Always, for `/api/auth/*` | `resolve_login_user`: built-in `TRAINING_USERS` take the literal `"password"` unless given their own (see "Passwords" below); custom users from the Command Center's `auth.users` setting (`api/command_center/users.py`) take their bcrypt hash; disabled users never log in and `get_current_user` refuses them on their next request (`user_disabled`, read live). Session tokens in the shared `SessionStore` (or a JWT when `JWT_ENABLED=true`). |
 | `PractitionerAuthService` | `practitioner_auth_service.py` | Always, for `/practitioners/*` routes only | Logs in as a real FHIR `Practitioner` from HAPI; **no password check at all**; sessions in the shared `SessionStore` |
 
 ### Sessions are shared across uvicorn workers (`session_store.py`)
@@ -68,6 +68,37 @@ Related dependencies in `service.py`:
 - `get_optional_current_user` — returns `None` instead of raising 401.
 - `get_current_user_or_demo` — falls back to a synthetic `demo` user.
 
+### Passwords (optional, off by default)
+
+Three levels, each independent of the next (`service.resolve_login_user`,
+`builtin_password_rule`):
+
+1. **The administrator.** `WINTEHR_ADMIN_PASSWORD` (env, `config.ADMIN_PASSWORD`)
+   set → `admin` never accepts the training password; it takes that value, or
+   a password set for it on the Users tab. The env value keeps working beside
+   a stored one: it is the recovery path, and the only lock that does not
+   depend on the settings store being readable.
+2. **Any one user.** The `auth.users` setting may carry a `password_hash` for
+   a built-in user (Users tab → Set password). That login then needs it and
+   the login page shows a password field for it (`password_required` in
+   `GET /api/auth/config`). Removing it returns the user to the training
+   password.
+3. **Everyone.** `auth.require_passwords` (Settings tab). The login page gets
+   no user list and asks for username + password; a built-in user with no
+   password cannot log in; `POST /api/auth/practitioners/login` (which takes
+   no password) returns 403. It cannot be turned on while `admin` has no
+   password, and admin's stored password cannot be removed while it is on
+   and the env var is unset (lockout guards in `SettingsService.set` and
+   `UsersService.update`).
+
+The Command Center is the administrator's: `require_admin` gates it, and only
+the `admin` role carries the `admin` permission (the demo physician used to,
+which let anyone into most of it). The frontend hides its nav item from
+everyone else (`useEffectiveNavigation`).
+
+None of this makes the platform secure: the FHIR proxy still accepts
+anonymous requests, and a deployment on plain HTTP sends passwords in clear.
+
 ### Permissions
 
 Role permission lists can be overridden at runtime: the Command Center's
@@ -92,8 +123,8 @@ router itself carries `prefix="/api/auth"`, so paths resolve verbatim.
 
 | Method + path | Handler | Notes |
 |---|---|---|
-| `POST /api/auth/login` | `AuthService.login` | Training: any `TRAINING_USERS` name + `"password"` |
-| `GET  /api/auth/config` | — | Returns mode + `available_users` (training only) |
+| `POST /api/auth/login` | `AuthService.login` | Training: a `TRAINING_USERS` name + `"password"`, or that user's own password if it has one |
+| `GET  /api/auth/config` | — | Returns mode, `require_passwords`, and (unless passwords are required) `users` with `password_required` each |
 | `GET  /api/auth/me` | `get_current_user` | |
 | `POST /api/auth/logout` | — | Training mode: drops every session of that user from the shared store. JWT mode: client-side only (no server revocation) |
 | `GET  /api/auth/users` | — | `"admin"` permission required |
@@ -110,9 +141,10 @@ router itself carries `prefix="/api/auth"`, so paths resolve verbatim.
 | `JWT_ENABLED` | `false` | `true` → login returns a JWT instead of an in-memory session token (same demo credentials either way) |
 | `JWT_SECRET_KEY` | `training-secret-key-change-in-production` | HS256 signing key. Canonical name since PR #215; `JWT_SECRET` is read as a fallback here and compose maps either into the container (`JWT_SECRET_KEY=${JWT_SECRET_KEY:-${JWT_SECRET:-…}}`). |
 | `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` (24h) | Token lifetime |
+| `WINTEHR_ADMIN_PASSWORD` | unset | The administrator's own password; see "Passwords" |
 
 `TRAINING_USERS` (`config.py:22`) hard-codes four users — `demo`, `nurse`,
-`pharmacist`, `admin` — all with password `"password"`. Their `id` values
+`pharmacist`, `admin` — all with password `"password"` by default. Their `id` values
 (`demo-physician`, `demo-nurse`, …) are deliberately the IDs of `Practitioner`
 resources in HAPI created by `create_demo_practitioners.py`; keep them in sync
 if you add a training user.

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import List
 
 from database import get_db_session
-from .service import AuthService, enabled_usernames, get_auth_service, get_current_user, user_record_live
+from .service import AuthService, enabled_usernames, get_auth_service, get_current_user, login_options, passwords_required, user_record_live
 from .practitioner_auth_service import PractitionerAuthService, get_practitioner_auth_service
 from .models import LoginRequest, User, AuthConfig
 from .config import JWT_ENABLED, TRAINING_USERS
@@ -25,14 +25,14 @@ async def get_auth_config():
     )
     
     if not JWT_ENABLED:
-        # In training mode, show the logins that exist and are enabled (built-in plus
-        # the Command Center's custom users), with display names for the picker.
-        config.available_users = await enabled_usernames()
-        config.users = []
-        for username in config.available_users:
-            record = await user_record_live(username)
-            if record:
-                config.users.append({"username": username, "name": record["name"], "role": record["role"]})
+        # In training mode the login page shows the enabled logins (built-in plus
+        # the Command Center's custom users) and which of them need a password
+        # typed. With `auth.require_passwords` on, it is told nothing about who
+        # exists: the page asks for a username and a password.
+        options = await login_options()
+        config.require_passwords = options["require_passwords"]
+        config.users = options["users"]
+        config.available_users = [u["username"] for u in options["users"]]
 
     return config
 
@@ -166,6 +166,12 @@ async def practitioner_login(
 
     Returns authentication token and user information.
     """
+    # This login takes no password at all, so it is closed whenever passwords
+    # are required for the environment.
+    if await passwords_required():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Practitioner login is disabled while passwords are required")
+
     return await practitioner_service.login(
         identifier=login_request.username,
         password=login_request.password,

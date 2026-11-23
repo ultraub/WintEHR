@@ -9,6 +9,7 @@ import {
   Typography,
   FormControl,
   InputLabel,
+  TextField,
   Select,
   MenuItem,
   Button,
@@ -59,6 +60,12 @@ const Login = () => {
   const navigate = useNavigate();
   const [providers, setProviders] = useState([]);
   const [selectedProvider, setSelectedProvider] = useState('');
+  // Passwords: off by default (the demo logins are one click). A user can be
+  // given a password of their own, and an environment can require one for
+  // every login, in which case no user list is shown at all.
+  const [requirePasswords, setRequirePasswords] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -91,9 +98,11 @@ const Login = () => {
       const formattedProviders = availableUsers.map(username => ({
         id: username,
         username: username,
-        display_name: byUsername[username]?.name || userDisplayNames[username] || username
+        display_name: byUsername[username]?.name || userDisplayNames[username] || username,
+        passwordRequired: Boolean(byUsername[username]?.password_required)
       }));
 
+      setRequirePasswords(Boolean(response.data.require_passwords));
       setProviders(formattedProviders);
     } catch (error) {
       console.error('Failed to load auth config:', error);
@@ -101,9 +110,18 @@ const Login = () => {
     }
   };
 
+  const selected = providers.find(p => p.id === selectedProvider) || null;
+  const needsPassword = requirePasswords || Boolean(selected?.passwordRequired);
+  const loginName = requirePasswords ? username.trim() : selected?.username;
+  const canSubmit = Boolean(loginName) && (!needsPassword || password.length > 0);
+
   const handleLogin = async () => {
-    if (!selectedProvider) {
-      setError('Please select a provider');
+    if (!loginName) {
+      setError(requirePasswords ? 'Enter your username' : 'Please select a provider');
+      return;
+    }
+    if (needsPassword && !password) {
+      setError('Enter your password');
       return;
     }
 
@@ -111,16 +129,12 @@ const Login = () => {
     setError('');
 
     try {
-      const provider = providers.find(p => p.id === selectedProvider);
-      if (!provider) {
-        setError('Invalid provider selection');
-        return;
-      }
-
-      await login(provider.username);
+      // a login on the shared training password sends nothing typed
+      await (needsPassword ? login(loginName, password) : login(loginName));
       navigate('/patients');
     } catch (error) {
       console.error('Login error:', error);
+      setPassword('');
       setError(error.response?.data?.detail || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
@@ -128,7 +142,7 @@ const Login = () => {
   };
 
   const handleKeyPress = (event) => {
-    if (event.key === 'Enter' && selectedProvider && !loading) {
+    if (event.key === 'Enter' && canSubmit && !loading) {
       handleLogin();
     }
   };
@@ -281,14 +295,27 @@ const Login = () => {
 
         {/* Provider select */}
         <Box component="form" onSubmit={(e) => e.preventDefault()}>
-          <FormControl fullWidth sx={{ mb: 3 }}>
+          {requirePasswords && (
+            <TextField
+              fullWidth
+              label="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={loading}
+              autoComplete="username"
+              autoFocus
+              sx={{ mb: 2 }}
+            />
+          )}
+          <FormControl fullWidth sx={{ mb: needsPassword ? 2 : 3, display: requirePasswords ? 'none' : undefined }}>
             <InputLabel id="provider-select-label">Select Provider</InputLabel>
             <Select
               labelId="provider-select-label"
               id="provider-select"
               value={selectedProvider}
               label="Select Provider"
-              onChange={(e) => setSelectedProvider(e.target.value)}
+              onChange={(e) => { setSelectedProvider(e.target.value); setPassword(''); setError(''); }}
               onKeyPress={handleKeyPress}
               disabled={loading}
             >
@@ -307,6 +334,20 @@ const Login = () => {
               )) : null}
             </Select>
           </FormControl>
+
+          {needsPassword && (
+            <TextField
+              fullWidth
+              type="password"
+              label="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={loading}
+              autoComplete="current-password"
+              sx={{ mb: 3 }}
+            />
+          )}
 
           {/* Role description info box */}
           {selectedProvider && roleDescriptions[selectedProvider] && (
@@ -341,7 +382,7 @@ const Login = () => {
             variant="contained"
             size="large"
             onClick={handleLogin}
-            disabled={!selectedProvider || loading}
+            disabled={!canSubmit || loading}
             startIcon={
               loading
                 ? <CircularProgress size={20} color="inherit" />

@@ -152,3 +152,101 @@ async def test_a_disabled_user_is_refused_on_their_next_request(svc, monkeypatch
     assert exc.value.status_code == 401 and "disabled" in exc.value.detail
     await users.update("nurse", UserUpdate(disabled=False), "demo-admin")
     assert (await get_current_user(credentials=None, authorization="Bearer training-session-x")).username == "nurse"
+
+
+# --- passwords: the administrator's own, per-user, and required for everyone --------------------
+
+@pytest.fixture
+def admin_password(monkeypatch):
+    from api.auth import config
+
+    monkeypatch.setattr(config, "ADMIN_PASSWORD", "from-the-server")
+    yield "from-the-server"
+
+
+async def _set(svc_pair, key, value):
+    users, _audit = svc_pair
+    await users.settings.set(key, value, "tester")
+
+
+@pytest.mark.asyncio
+async def test_admin_stops_taking_the_training_password_once_the_server_sets_one(svc, admin_password):
+    assert await resolve_login_user("admin", "password") is None
+    assert (await resolve_login_user("admin", admin_password)).username == "admin"
+    # the other demo logins are untouched
+    assert (await resolve_login_user("demo", "password")).username == "demo"
+
+
+@pytest.mark.asyncio
+async def test_a_builtin_user_given_a_password_takes_only_that_and_keeps_it_when_disabled_and_re_enabled(svc):
+    users, audit = svc
+    view = await users.update("nurse", UserUpdate(password="night-shift"), "admin-1")
+    assert view.credential == "own"
+    assert await resolve_login_user("nurse", "password") is None
+    assert (await resolve_login_user("nurse", "night-shift")).username == "nurse"
+
+    await users.update("nurse", UserUpdate(disabled=True), "admin-1")
+    assert await resolve_login_user("nurse", "night-shift") is None
+    await users.update("nurse", UserUpdate(disabled=False), "admin-1")
+    assert (await resolve_login_user("nurse", "night-shift")).username == "nurse"
+
+    view = await users.update("nurse", UserUpdate(remove_password=True), "admin-1")
+    assert view.credential == "training"
+    assert (await resolve_login_user("nurse", "password")).username == "nurse"
+    assert USERS_SETTING and "nurse" not in await users.doc()   # back to the code's defaults: nothing stored
+    assert all("night-shift" not in json.dumps(e, default=str) for e in audit.events)
+
+
+@pytest.mark.asyncio
+async def test_admin_accepts_its_stored_password_and_the_server_one_as_recovery(svc, admin_password):
+    users, _ = svc
+    await users.update("admin", UserUpdate(password="chosen-in-the-ui"), "admin-1")
+    assert (await resolve_login_user("admin", "chosen-in-the-ui")).username == "admin"
+    assert (await resolve_login_user("admin", admin_password)).username == "admin"
+    assert await resolve_login_user("admin", "password") is None
+
+
+@pytest.mark.asyncio
+async def test_requiring_passwords_closes_every_login_without_one_and_hides_the_user_list(svc):
+    from api.auth.service import login_options
+
+    users, _ = svc
+    options = await login_options()
+    assert options["require_passwords"] is False
+    by_name = {u["username"]: u for u in options["users"]}
+    assert by_name["demo"]["password_required"] is False
+
+    await users.update("demo", UserUpdate(password="clinic-pass"), "admin-1")
+    by_name = {u["username"]: u for u in (await login_options())["users"]}
+    assert by_name["demo"]["password_required"] is True and by_name["nurse"]["password_required"] is False
+
+    await users.update("admin", UserUpdate(password="admin-pass"), "admin-1")   # required before the switch
+    await _set(svc, "auth.require_passwords", True)
+    assert await login_options() == {"require_passwords": True, "users": []}
+    assert await resolve_login_user("nurse", "password") is None          # no password of its own
+    assert (await resolve_login_user("demo", "clinic-pass")).username == "demo"
+    assert await resolve_login_user("admin", "password") is None
+
+
+def test_validator_accepts_a_builtin_password_hash_and_nothing_else():
+    out = normalize_users({"admin": {"password_hash": HASH}, "nurse": {"disabled": True, "password_hash": HASH}})
+    assert out == {"admin": {"password_hash": HASH}, "nurse": {"disabled": True, "password_hash": HASH}}
+    with pytest.raises(SettingValueError):
+        normalize_users({"admin": {"password_hash": "plain"}})
+    with pytest.raises(SettingValueError):
+        normalize_users({"nurse": {"name": "Renamed"}})
+
+
+@pytest.mark.asyncio
+async def test_passwords_cannot_be_required_or_the_admin_password_removed_into_a_lockout(svc):
+    users, _ = svc
+    with pytest.raises(SettingsError) as refused:
+        await users.settings.set("auth.require_passwords", True, "tester")
+    assert refused.value.status_code == 409
+
+    await users.update("admin", UserUpdate(password="chosen-in-the-ui"), "admin-1")
+    await users.settings.set("auth.require_passwords", True, "tester")
+    with pytest.raises(SettingsError) as locked:
+        await users.update("admin", UserUpdate(remove_password=True), "admin-1")
+    assert locked.value.status_code == 409
+    assert (await resolve_login_user("admin", "chosen-in-the-ui")).username == "admin"

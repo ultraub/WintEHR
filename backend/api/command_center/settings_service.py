@@ -132,6 +132,19 @@ class SettingsService:
         except SettingValueError as exc:
             raise SettingsError(400, str(exc)) from None
 
+        # Lockout guard: passwords cannot become required while the
+        # administrator has none, or nobody could turn the setting back off.
+        if key == "auth.require_passwords" and value is True:
+            from api.auth import config as auth_config
+
+            admin_spec = (await self.get("auth.users") or {}).get("admin") or {}
+            if not auth_config.ADMIN_PASSWORD and not admin_spec.get("password_hash"):
+                raise SettingsError(
+                    409,
+                    "Set a password for the admin login first (Users tab, or WINTEHR_ADMIN_PASSWORD in the "
+                    "server's .env); otherwise requiring passwords would lock the administrator out.",
+                )
+
         if definition.is_secret:
             if not self.secret_box.available:
                 raise SettingsError(

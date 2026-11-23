@@ -150,7 +150,8 @@ async def test_training_login_on_one_worker_resolves_on_another(monkeypatch):
     worker_b = AuthService(db=None)
     user = await worker_b.get_current_user_from_token(token)
     assert user is not None and user.username == "demo"
-    assert "admin" in user.permissions
+    # the demo physician is a clinician, not an administrator
+    assert "prescribe" in user.permissions and "admin" not in user.permissions
 
     # Logout from worker B drops the session for worker A too.
     await AuthService.training_sessions.delete_where(lambda s: s["user"]["id"] == user.id)

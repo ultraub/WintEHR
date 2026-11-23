@@ -187,6 +187,18 @@ DEFINITIONS: Dict[str, SettingDefinition] = {
             audit_value=False,
         ),
         SettingDefinition(
+            key="auth.require_passwords",
+            type="bool",
+            default=False,
+            tier="live",
+            label="Require a password for every login",
+            description="Off (the default): the demo logins are one click on the login page and share the training password. "
+                        "On: the login page asks for a username and password and lists no users; a built-in user with no password "
+                        "of its own cannot log in (set one on the Users tab first), and the passwordless practitioner login is closed. "
+                        "The administrator can always log in with WINTEHR_ADMIN_PASSWORD from the server's .env.",
+            used_by="api/auth/service.resolve_login_user, GET /api/auth/config and POST /api/auth/practitioners/login",
+        ),
+        SettingDefinition(
             key="auth.roles",
             type="json",
             default={},

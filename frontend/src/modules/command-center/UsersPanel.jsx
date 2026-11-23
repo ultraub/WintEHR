@@ -46,13 +46,32 @@ const UserDialog = ({ open, editing, roles, onClose, onSaved, onError }) => {
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
   const passwordMismatch = form.password !== form.confirm;
-  const valid = form.name.trim() && form.role.trim() && (editing ? !form.password || !passwordMismatch : form.username.trim() && form.password.length >= 4 && !passwordMismatch);
+  // A built-in user's name and role live in code; here it can only be given
+  // a password of its own (or go back to the shared training password).
+  const builtin = editing?.source === 'builtin';
+  const valid = builtin
+    ? form.password.length >= 4 && !passwordMismatch
+    : form.name.trim() && form.role.trim() && (editing ? !form.password || !passwordMismatch : form.username.trim() && form.password.length >= 4 && !passwordMismatch);
+
+  const removePassword = async () => {
+    setBusy(true);
+    try {
+      const response = await api.put(`/api/command-center/users/${encodeURIComponent(editing.username)}`, { remove_password: true });
+      onSaved(response.data, 'updated');
+    } catch (err) {
+      onError(detailOf(err, 'Could not remove the password'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const save = async () => {
     setBusy(true);
     try {
       let response;
-      if (editing) {
+      if (builtin) {
+        response = await api.put(`/api/command-center/users/${encodeURIComponent(editing.username)}`, { password: form.password });
+      } else if (editing) {
         const body = { name: form.name.trim(), role: form.role.trim(), department: form.department.trim() || null, email: form.email.trim() || null };
         if (form.password) body.password = form.password;
         response = await api.put(`/api/command-center/users/${encodeURIComponent(editing.username)}`, body);
@@ -74,8 +93,23 @@ const UserDialog = ({ open, editing, roles, onClose, onSaved, onError }) => {
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{editing ? `Edit ${editing.username}` : 'Add user'}</DialogTitle>
+      <DialogTitle>{builtin ? `Password for ${editing.username}` : editing ? `Edit ${editing.username}` : 'Add user'}</DialogTitle>
       <DialogContent dividers>
+        {builtin ? (
+          <Stack spacing={1.5} sx={{ mt: 0.5 }}>
+            <Typography variant="body2" color="text.secondary">
+              {editing.credential === 'own'
+                ? `${editing.username} has its own password. Set a new one, or remove it to go back to the shared training password.`
+                : editing.credential === 'server'
+                  ? `${editing.username} logs in with the password set on the server (WINTEHR_ADMIN_PASSWORD). A password set here works as well.`
+                  : `${editing.username} uses the shared training password and logs in with one click. Giving it a password makes the login page ask for it.`}
+            </Typography>
+            <TextField size="small" type="password" label="New password" value={form.password} onChange={set('password')}
+              inputProps={{ 'aria-label': 'Password', autoComplete: 'new-password' }} helperText="At least 4 characters; stored as a bcrypt hash" />
+            <TextField size="small" type="password" label="Confirm password" value={form.confirm} onChange={set('confirm')} error={Boolean(form.password) && passwordMismatch}
+              inputProps={{ 'aria-label': 'Confirm password', autoComplete: 'new-password' }} />
+          </Stack>
+        ) : (
         <Stack spacing={1.5} sx={{ mt: 0.5 }}>
           <TextField size="small" label="Username" value={form.username} onChange={set('username')} disabled={Boolean(editing)}
             helperText={editing ? undefined : 'Lowercase letters, digits, . _ -'} inputProps={{ 'aria-label': 'Username' }} />
@@ -91,10 +125,14 @@ const UserDialog = ({ open, editing, roles, onClose, onSaved, onError }) => {
           <TextField size="small" type="password" label="Confirm password" value={form.confirm} onChange={set('confirm')} error={Boolean(form.password) && passwordMismatch}
             inputProps={{ 'aria-label': 'Confirm password', autoComplete: 'new-password' }} />
         </Stack>
+        )}
       </DialogContent>
       <DialogActions>
+        {builtin && editing.credential === 'own' && (
+          <Button color="error" onClick={removePassword} disabled={busy} sx={{ mr: 'auto' }}>Remove password</Button>
+        )}
         <Button onClick={onClose} disabled={busy}>Cancel</Button>
-        <Button variant="contained" onClick={save} disabled={!valid || busy}>{editing ? 'Save' : 'Create'}</Button>
+        <Button variant="contained" onClick={save} disabled={!valid || busy}>{builtin ? 'Set password' : editing ? 'Save' : 'Create'}</Button>
       </DialogActions>
     </Dialog>
   );
@@ -159,7 +197,7 @@ const UsersPanel = () => {
       {notice && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setNotice(null)}>{notice}</Alert>}
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
         <Typography variant="body2" color="text.secondary">
-          Built-in users take the training password; custom users have their own. Disabling ends access on the next request.
+          Built-in users share the training password until given one of their own; custom users always have their own. Disabling ends access on the next request. To require a password for every login, see Settings.
         </Typography>
         {canEdit && <Button size="small" variant="contained" onClick={() => setDialog({ editing: null })}>Add user</Button>}
       </Stack>
@@ -172,6 +210,7 @@ const UsersPanel = () => {
               <TableCell>Department</TableCell>
               <TableCell>Permissions</TableCell>
               <TableCell>Source</TableCell>
+              <TableCell>Password</TableCell>
               <TableCell>Enabled</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
@@ -192,6 +231,11 @@ const UsersPanel = () => {
                 </TableCell>
                 <TableCell><Typography variant="caption">{u.source}</Typography></TableCell>
                 <TableCell>
+                  <Typography variant="caption" color={u.credential === 'training' ? 'text.secondary' : 'text.primary'}>
+                    {{ own: 'Its own', server: 'Set on the server', training: 'Shared training password' }[u.credential] || 'Its own'}
+                  </Typography>
+                </TableCell>
+                <TableCell>
                   <FormControlLabel sx={{ m: 0 }} label="" control={
                     <Switch size="small" checked={!u.disabled} disabled={!canEdit || u.protected || u.username === user?.username}
                       onChange={() => toggleDisabled(u)} inputProps={{ 'aria-label': `${u.username} enabled` }} />
@@ -204,7 +248,11 @@ const UsersPanel = () => {
                       <Button size="small" color="error" disabled={!canEdit || u.username === user?.username} onClick={() => setPendingDelete(u)} aria-label={`Delete ${u.username}`}>Delete</Button>
                     </>
                   )}
-                  {u.source === 'builtin' && <Typography variant="caption" color="text.disabled">{u.protected ? 'always enabled' : 'defined in code'}</Typography>}
+                  {u.source === 'builtin' && (
+                    <Button size="small" disabled={!canEdit} onClick={() => setDialog({ editing: u })} aria-label={`Set password for ${u.username}`}>
+                      {u.credential === 'own' ? 'Change password' : 'Set password'}
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

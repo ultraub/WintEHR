@@ -26,7 +26,7 @@ TRAINING_USERS = {
         "name": "Dr. Demo Physician",
         "email": "demo@wintehr.example.com",
         "role": "physician",
-        "permissions": ["read", "write", "prescribe", "order:medication", "order:lab", "order:imaging", "admin"],
+        "permissions": ["read", "write", "prescribe", "order:medication", "order:lab", "order:imaging"],
         "department": "General Practice"
     },
     "nurse": {
@@ -60,3 +60,10 @@ TRAINING_USERS = {
 
 # Training mode password (same for all users)
 TRAINING_PASSWORD = "password"
+
+# The administrator's own password. When set, the `admin` login never accepts
+# the shared training password: it takes this value, or a password set for it
+# on the Command Center's Users tab. It is also the recovery path if that
+# stored password is lost (set it in the server's .env and restart the
+# backend). Unset (the default), `admin` behaves like the other demo logins.
+ADMIN_PASSWORD = os.getenv("WINTEHR_ADMIN_PASSWORD") or None
