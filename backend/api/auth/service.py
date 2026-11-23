@@ -2,6 +2,7 @@
 Authentication service layer
 """
 
+import hmac
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 import secrets
@@ -199,13 +200,58 @@ async def user_record_live(username: str) -> Optional[Dict[str, Any]]:
     return user_record(username, await users_doc())
 
 
+async def passwords_required() -> bool:
+    """The `auth.require_passwords` setting: every login needs its own password.
+    False when the settings store cannot be read (see ADMIN_PASSWORD for the
+    lock that does not depend on the store)."""
+    try:
+        from api.command_center.settings_service import get_setting
+
+        return bool(await get_setting("auth.require_passwords"))
+    except Exception:  # noqa: BLE001 — identity must never depend on the settings store
+        return False
+
+
+def builtin_password_rule(username: str, spec: Dict[str, Any], required: bool) -> str:
+    """How a built-in user's password is checked:
+    'own'      a password set on the Users tab (bcrypt hash in the setting)
+    'server'   the administrator's WINTEHR_ADMIN_PASSWORD
+    'none'     passwords are required and this user has none: cannot log in
+    'training' the shared training password
+    """
+    from . import config
+
+    if (spec or {}).get("password_hash"):
+        return "own"
+    if username == "admin" and config.ADMIN_PASSWORD:
+        return "server"
+    if required:
+        return "none"
+    return "training"
+
+
 async def resolve_login_user(username: str, password: str) -> Optional[User]:
-    """Built-in users take the training password; custom users their bcrypt hash."""
+    """Built-in users: their own password if one is set, else the training
+    password (unless passwords are required). The administrator also accepts
+    WINTEHR_ADMIN_PASSWORD, and never the training password once that is set.
+    Custom users: their bcrypt hash."""
+    from . import config
+
     doc = await users_doc()
     if username in TRAINING_USERS:
-        if (doc.get(username) or {}).get("disabled"):
+        spec = doc.get(username) or {}
+        if spec.get("disabled"):
             return None
-        return User(**TRAINING_USERS[username]) if password == TRAINING_PASSWORD else None
+        rule = builtin_password_rule(username, spec, await passwords_required())
+        ok = False
+        if rule == "own":
+            ok = verify_password(password, spec["password_hash"])
+        elif rule == "training":
+            ok = hmac.compare_digest(password or "", TRAINING_PASSWORD)
+        # the server's admin password works alongside a stored one: it is the recovery path
+        if not ok and username == "admin" and config.ADMIN_PASSWORD:
+            ok = hmac.compare_digest(password or "", config.ADMIN_PASSWORD)
+        return User(**TRAINING_USERS[username]) if ok else None
     from api.command_center.users import user_record
 
     record = user_record(username, doc)
@@ -220,6 +266,27 @@ async def user_disabled(username: str) -> bool:
     """Checked on every authenticated request so disabling a user ends their session now."""
     doc = await users_doc()
     return bool((doc.get(username) or {}).get("disabled"))
+
+
+async def login_options() -> Dict[str, Any]:
+    """What the login page may show. With passwords required it gets no user
+    list at all; otherwise each enabled user and whether it needs a password
+    typed (a user on the shared training password does not)."""
+    required = await passwords_required()
+    if required:
+        return {"require_passwords": True, "users": []}
+    doc = await users_doc()
+    users = []
+    for username in await enabled_usernames():
+        record = await user_record_live(username)
+        if not record:
+            continue
+        if username in TRAINING_USERS:
+            needs = builtin_password_rule(username, doc.get(username) or {}, False) != "training"
+        else:
+            needs = True
+        users.append({"username": username, "name": record["name"], "role": record["role"], "password_required": needs})
+    return {"require_passwords": False, "users": users}
 
 
 async def enabled_usernames() -> List[str]:

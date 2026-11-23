@@ -5,7 +5,8 @@ The `auth.users` setting (json, live tier) adds to and adjusts that map
 without a redeploy:
 
     {
-      "nurse":  {"disabled": true},                       # a built-in: only `disabled`
+      "nurse":  {"disabled": true},                       # a built-in: `disabled` and/or
+      "admin":  {"password_hash": "$2b$12$..."},          #   its own `password_hash`
       "jsmith": {"name": "Jane Smith", "role": "nurse",   # a custom user: full record
                  "email": "jsmith@example.com", "department": "ICU",
                  "permissions": ["read", "write"],        # optional; default = the role's
@@ -69,11 +70,19 @@ def normalize_users(doc: Any) -> Dict[str, Dict[str, Any]]:
         if username in PROTECTED and disabled:
             raise SettingValueError(f"users.{username} cannot be disabled (it is the only login that can undo a change)")
         if username in builtin:
-            extra = set(spec) - {"disabled"}
+            extra = set(spec) - {"disabled", "password_hash"}
             if extra:
-                raise SettingValueError(f"users.{username} is built in; only 'disabled' can be set (got {sorted(extra)})")
+                raise SettingValueError(f"users.{username} is built in; only 'disabled' and 'password_hash' can be set (got {sorted(extra)})")
+            entry_builtin: Dict[str, Any] = {}
             if disabled:
-                out[username] = {"disabled": True}
+                entry_builtin["disabled"] = True
+            builtin_hash = spec.get("password_hash")
+            if builtin_hash is not None:
+                if not isinstance(builtin_hash, str) or not builtin_hash.startswith("$2"):
+                    raise SettingValueError(f"users.{username}.password_hash must be a bcrypt hash")
+                entry_builtin["password_hash"] = builtin_hash
+            if entry_builtin:
+                out[username] = entry_builtin
             continue
         unknown = set(spec) - set(CUSTOM_FIELDS)
         if unknown:
@@ -130,6 +139,16 @@ def user_record(username: str, doc: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
+def _password_kind(username: str, spec: Dict[str, Any], source: str) -> str:
+    """'own' (set here), 'server' (admin, from WINTEHR_ADMIN_PASSWORD) or 'training' (the shared one)."""
+    if source == "custom":
+        return "own"
+    from api.auth.service import builtin_password_rule
+
+    rule = builtin_password_rule(username, spec, False)
+    return rule if rule in ("own", "server") else "training"
+
+
 def user_views(doc: Dict[str, Any]) -> List[UserView]:
     views = []
     for username in list(builtin_users()) + sorted(u for u in doc if u not in builtin_users()):
@@ -141,6 +160,7 @@ def user_views(doc: Dict[str, Any]) -> List[UserView]:
             username=username, id=rec["id"], name=rec["name"], email=rec["email"], role=rec["role"],
             department=rec.get("department"), permissions=list(rec["permissions"]), source=source,
             disabled=rec["disabled"], protected=username in PROTECTED,
+            credential=_password_kind(username, doc.get(username) or {}, source),
             permissions_explicit=source == "custom" and "permissions" in (doc.get(username) or {}),
         ))
     return views
@@ -189,17 +209,32 @@ class UsersService:
             if body.disabled and username == acting_username:
                 raise SettingsError(409, "you cannot disable your own login")
             if builtin:
+                entry_builtin = dict(doc.get(username) or {})
                 if body.disabled:
-                    doc[username] = {"disabled": True}
+                    entry_builtin["disabled"] = True
                 else:
-                    doc.pop(username, None)
+                    entry_builtin.pop("disabled", None)
+                self._put_builtin(doc, username, entry_builtin)
             else:
                 doc[username]["disabled"] = body.disabled
             changed.append("disabled" if body.disabled else "enabled")
         if builtin:
-            other = [f for f in ("name", "role", "password", "email", "department", "permissions") if getattr(body, f) is not None]
+            other = [f for f in ("name", "role", "email", "department", "permissions") if getattr(body, f) is not None]
             if other:
-                raise SettingsError(409, f"'{username}' is built in; only disabled can change here (edit api/auth/config.py for {other})")
+                raise SettingsError(409, f"'{username}' is built in; only its password and disabled can change here (edit api/auth/config.py for {other})")
+            # A built-in user can be given its own password, which replaces the
+            # shared training password for that login; removing it goes back.
+            entry_builtin = dict(doc.get(username) or {})
+            if body.password is not None:
+                entry_builtin["password_hash"] = get_password_hash(body.password)
+                changed.append("password")
+            elif body.remove_password and "password_hash" in entry_builtin:
+                if username in PROTECTED and await self._admin_would_be_locked_out():
+                    raise SettingsError(409, "passwords are required and the server sets no admin password; "
+                                             "removing this one would lock the administrator out")
+                entry_builtin.pop("password_hash")
+                changed.append("password removed")
+            self._put_builtin(doc, username, entry_builtin)
         else:
             entry = doc[username]
             for field in ("name", "role", "email", "department"):
@@ -228,6 +263,20 @@ class UsersService:
             raise SettingsError(409, "you cannot delete your own login")
         doc.pop(username)
         await self._save(doc, by, "system.user.deleted", {"username": username, "action": "delete"})
+
+    async def _admin_would_be_locked_out(self) -> bool:
+        """True when passwords are required and only the stored hash lets admin in."""
+        from api.auth import config as auth_config
+
+        return bool(await self.settings.get("auth.require_passwords")) and not auth_config.ADMIN_PASSWORD
+
+    @staticmethod
+    def _put_builtin(doc: Dict[str, Any], username: str, entry: Dict[str, Any]) -> None:
+        """A built-in user is stored only while it differs from the code's defaults."""
+        if entry:
+            doc[username] = entry
+        else:
+            doc.pop(username, None)
 
     async def _save(self, doc: Dict[str, Any], by: Optional[str], event_type: str, details: Dict[str, Any]) -> None:
         await self.settings.set(USERS_SETTING, doc, by)

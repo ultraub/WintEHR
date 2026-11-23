@@ -335,6 +335,9 @@ class UserView(BaseModel):
     source: Literal["builtin", "custom"]
     disabled: bool = False
     protected: bool = False              # admin: cannot be disabled or deleted
+    # How the login's password is checked: 'own' (set on the Users tab),
+    # 'server' (admin, from WINTEHR_ADMIN_PASSWORD) or 'training' (the shared one).
+    credential: Literal["own", "server", "training"] = "own"
 
 
 class UserCreate(BaseModel):
@@ -355,6 +358,7 @@ class UserUpdate(BaseModel):
     department: Optional[str] = None
     permissions: Optional[List[str]] = None
     disabled: Optional[bool] = None
+    remove_password: Optional[bool] = None   # built-in users: go back to the shared training password
 
 
 # --- health history (slice 17) --------------------------------------------------------------------
