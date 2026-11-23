@@ -18,6 +18,29 @@ import { Box, Button, Paper, Stack, Typography, alpha, useTheme } from '@mui/mat
 import { ChevronRight as ChevronRightIcon } from '@mui/icons-material';
 import { useAuroraPalette } from '../../themes/auroraPalette';
 
+/** The small tinted tile that carries a section's icon. */
+export const SectionIconTile = ({ children, size = 36 }) => {
+  const theme = useTheme();
+  return (
+    <Box
+      aria-hidden
+      sx={{
+        flex: `0 0 ${size}px`,
+        height: size,
+        borderRadius: 1.5,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'primary.main',
+        backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.2 : 0.1),
+        '& svg': { fontSize: Math.round(size * 0.55) },
+      }}
+    >
+      {children}
+    </Box>
+  );
+};
+
 const SectionCard = ({ title, icon, note, action, footer, lead = false, children, sx }) => {
   const theme = useTheme();
   const aurora = useAuroraPalette();
@@ -48,24 +71,7 @@ const SectionCard = ({ title, icon, note, action, footer, lead = false, children
         spacing={1.5}
         sx={{ px: 3, pt: 2.5, pb: 2 }}
       >
-        {icon && (
-          <Box
-            aria-hidden
-            sx={{
-              flex: '0 0 36px',
-              height: 36,
-              borderRadius: 1.5,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'primary.main',
-              backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.2 : 0.1),
-              '& svg': { fontSize: 20 },
-            }}
-          >
-            {icon}
-          </Box>
-        )}
+        {icon && <SectionIconTile>{icon}</SectionIconTile>}
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography id={id} component="h2" sx={{ fontWeight: 700, fontSize: '1.125rem', letterSpacing: '-0.01em', lineHeight: 1.3 }}>
             {title}

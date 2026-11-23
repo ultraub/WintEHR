@@ -60,6 +60,8 @@ import { useDataQualityLogger } from '../../../core/fhir/utils/dataQualityLogger
 import { fhirClient } from '../../../core/fhir/services/fhirClient';
 import SlotOutlet from '../../SlotOutlet';
 import { formatMrn, formatPersonName } from '../../../utils/clinicalDisplay';
+import { avatarColorFor } from '../../../utils/avatarColor';
+import { avatarInk } from '../../../themes/auroraPalette';
 
 // Collapse states for progressive compression
 const COLLAPSE_STATES = {
@@ -576,7 +578,8 @@ const CollapsiblePatientHeaderOptimized = ({
         sx={{
           width: 28,
           height: 28,
-          bgcolor: 'primary.main',
+          bgcolor: avatarColorFor(patientName),
+          color: avatarInk,
           fontSize: '0.875rem'
         }}
       >
@@ -643,7 +646,8 @@ const CollapsiblePatientHeaderOptimized = ({
           sx={{
             width: 40,
             height: 40,
-            bgcolor: 'primary.main',
+            bgcolor: avatarColorFor(patientName),
+          color: avatarInk,
             fontSize: '1.125rem'
           }}
         >
@@ -737,7 +741,8 @@ const CollapsiblePatientHeaderOptimized = ({
               sx={{
                 width: 56,
                 height: 56,
-                bgcolor: 'primary.main',
+                bgcolor: avatarColorFor(patientName),
+          color: avatarInk,
                 fontSize: '1.5rem'
               }}
             >

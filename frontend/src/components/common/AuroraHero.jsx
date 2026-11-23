@@ -150,6 +150,51 @@ const Scene = ({ palette, visible }) => {
   );
 };
 
+/**
+ * The current phase's ridgeline as a slim strip, for a header that should
+ * belong to the same landscape without spending height on it (the patient
+ * header). Sits against the trailing edge, fades into the surface on its
+ * leading side, and is purely decorative.
+ */
+export const PhaseSceneStrip = ({ surface, sx }) => {
+  const palette = useAuroraPalette();
+  const { scene } = palette;
+  return (
+    <Box
+      aria-hidden
+      component="svg"
+      viewBox="150 96 470 174"
+      preserveAspectRatio="xMaxYMax slice"
+      sx={{
+        position: 'absolute',
+        right: 0,
+        bottom: 0,
+        height: '100%',
+        width: 'min(46%, 520px)',
+        pointerEvents: 'none',
+        display: { xs: 'none', md: 'block' },
+        ...sx,
+      }}
+    >
+      <defs>
+        <linearGradient id="phase-strip-fade" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor={surface} />
+          <stop offset="1" stopColor={surface} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <circle cx={scene.body.cx} cy={Math.max(scene.body.cy, 150)} r={scene.body.r * 0.8} fill={scene.body.fill} opacity="0.9" />
+      <path d={RANGE} fill={scene.range} />
+      {scene.snow && SNOW.map((cap) => <path key={cap} d={cap} fill={scene.snow} />)}
+      <path d={RIDGE} fill={scene.ridge} />
+      {scene.pines && PINES.map(([x, y, height]) => (
+        <path key={x} d={`M${x - height * 0.36} ${y + 3} L${x} ${y - height} L${x + height * 0.36} ${y + 3} Z`} fill={scene.pines} />
+      ))}
+      <path d={NEAR} fill={scene.near} />
+      <rect x="150" y="96" width="300" height="174" fill="url(#phase-strip-fade)" />
+    </Box>
+  );
+};
+
 const AuroraHero = ({ eyebrow, title, highlight, summary, actions, sx }) => {
   const palette = useAuroraPalette();
   return (

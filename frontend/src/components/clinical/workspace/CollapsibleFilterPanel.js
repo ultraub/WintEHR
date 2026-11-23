@@ -118,7 +118,9 @@ const CollapsibleFilterPanel = ({
         return;
       }
       
-      setIsCollapsed(scrollTop > collapseThreshold);
+      // One row is the default at every scroll position; the full panel
+      // opens only when the user asks for it.
+      if (scrollTop > collapseThreshold) setIsCollapsed(true);
     };
 
     const container = scrollContainerRef?.current || window;
@@ -158,12 +160,13 @@ const CollapsibleFilterPanel = ({
   // Render collapsed state - single line with key filters visible
   const renderCollapsedPanel = () => (
     <Paper
-      elevation={1}
+      elevation={0}
       sx={{
         p: 1,
-        borderRadius: 1,
-        backgroundColor: alpha(theme.palette.background.paper, 0.9),
-        backdropFilter: 'blur(8px)'
+        borderRadius: 1.5,
+        border: '1px solid',
+        borderColor: 'divider',
+        backgroundColor: 'background.paper'
       }}
     >
       <Stack direction="row" spacing={1} alignItems="center">
@@ -453,8 +456,8 @@ const CollapsibleFilterPanel = ({
         transition: theme.transitions.create(['all'], {
           duration: theme.transitions.duration.short,
         }),
-        mb: 2,
-        backgroundColor: theme.palette.background.default // Ensure background to prevent see-through
+        mb: 0.5,
+        backgroundColor: 'transparent'
       }}
     >
       <Collapse in={!isCollapsed} collapsedSize={0}>

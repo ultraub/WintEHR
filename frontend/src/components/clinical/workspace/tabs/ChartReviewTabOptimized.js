@@ -8,8 +8,8 @@
  * - Clinical alerts and recommendations
  */
 import React, { useState, useMemo, useCallback } from 'react';
-import { cleanNamePart } from '../../../../utils/clinicalDisplay';
-import StatTile from '../../../common/StatTile';
+import { cleanNamePart, orderConditionsForChart, splitConditionName } from '../../../../utils/clinicalDisplay';
+import { SectionIconTile } from '../../../common/SectionCard';
 import StatusChip from '../../shared/display/StatusChip';
 import {
   Box,
@@ -75,7 +75,9 @@ import {
   PictureAsPdf as PictureAsPdfIcon,
   Image as ImageIcon,
   Close as CloseIcon,
-  LocalPharmacy as PharmacyIcon
+  LocalPharmacy as PharmacyIcon,
+  MonitorHeart as MonitorHeartIcon,
+  EventNote as EventNoteIcon
 } from '@mui/icons-material';
 import { format, formatDistanceToNow, subDays, isWithinInterval } from 'date-fns';
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
@@ -543,14 +545,18 @@ const ChartReviewTabOptimized = ({
   // Chart Review's own panels, keyed by section id (workspace/sectionRegistry.js).
   // Which of them render, in what order, and which hosted sections join them
   // is decided by the tab policy (useEffectiveSections) — see below.
+  // Diagnoses lead the problem list; employment, education and other social
+  // findings (which Synthea records as Conditions) follow under their own label.
+  const conditionRows = orderConditionsForChart(showInactive
+    ? [...processedData.activeConditions, ...processedData.inactiveConditions]
+    : processedData.activeConditions);
+
   const panels = {
     'conditions': (
                 <Grid item xs={12} lg={6}>
                   <Card sx={{
                     border: '1px solid',
                     borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.error.main,
                     backgroundColor: theme.palette.background.paper,
                     boxShadow: 'none',
                     transition: 'box-shadow 0.2s ease'
@@ -558,7 +564,8 @@ const ChartReviewTabOptimized = ({
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Conditions</Typography>
+                          <SectionIconTile size={32}><MonitorHeartIcon /></SectionIconTile>
+                          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.0625rem', letterSpacing: '-0.01em' }}>Conditions</Typography>
                           {stats.conditions.active > 0 && (
                             <StatusChip status="active" label={`${stats.conditions.active} active`} showDot={false} />
                           )}
@@ -612,16 +619,24 @@ const ChartReviewTabOptimized = ({
                           },
                         }}>
                           <ClinicalLoadingState.StaggeredFadeIn staggerDelay={30}>
-                            {(showInactive 
-                              ? [...processedData.activeConditions, ...processedData.inactiveConditions]
-                              : processedData.activeConditions
-                            ).slice(0, visibleItems.conditions).map((condition, index) => (
-                              <EnhancedConditionCard
-                                key={condition.id}
-                                condition={condition}
-                                onEdit={() => handleOpenDialog('condition', condition)}
-                                isAlternate={index % 2 === 1}  // For alternating rows
-                              />
+                            {conditionRows.ordered.slice(0, visibleItems.conditions).map((condition, index) => (
+                              <React.Fragment key={condition.id}>
+                                {index === conditionRows.firstContextIndex && (
+                                  <Typography
+                                    variant="overline"
+                                    color="text.secondary"
+                                    component="div"
+                                    sx={{ mt: index === 0 ? 0 : 1.5, mb: 0.25, lineHeight: 1.8 }}
+                                  >
+                                    Social and other findings
+                                  </Typography>
+                                )}
+                                <EnhancedConditionCard
+                                  condition={condition}
+                                  onEdit={() => handleOpenDialog('condition', condition)}
+                                  isAlternate={index % 2 === 1}  // For alternating rows
+                                />
+                              </React.Fragment>
                             ))}
                           </ClinicalLoadingState.StaggeredFadeIn>
                           {(showInactive 
@@ -652,8 +667,6 @@ const ChartReviewTabOptimized = ({
                   <Card sx={{
                     border: '1px solid',
                     borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.primary.main,
                     backgroundColor: theme.palette.background.paper,
                     boxShadow: 'none',
                     transition: 'box-shadow 0.2s ease'
@@ -661,7 +674,8 @@ const ChartReviewTabOptimized = ({
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Medications</Typography>
+                          <SectionIconTile size={32}><MedicationIcon /></SectionIconTile>
+                          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.0625rem', letterSpacing: '-0.01em' }}>Medications</Typography>
                           <StatusChip status="active" label={`${processedData.activeMedications.length} active`} showDot={false} />
                         </Stack>
                         <InteractiveButton
@@ -749,8 +763,6 @@ const ChartReviewTabOptimized = ({
                   <Card sx={{
                     border: '1px solid',
                     borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.warning.main,
                     backgroundColor: theme.palette.background.paper,
                     boxShadow: 'none',
                     transition: 'box-shadow 0.2s ease'
@@ -758,7 +770,8 @@ const ChartReviewTabOptimized = ({
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Allergies</Typography>
+                          <SectionIconTile size={32}><WarningIcon /></SectionIconTile>
+                          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.0625rem', letterSpacing: '-0.01em' }}>Allergies</Typography>
                           {processedData.criticalAllergies.length > 0 && (
                             <Chip 
                               icon={<WarningIcon />}
@@ -845,8 +858,6 @@ const ChartReviewTabOptimized = ({
                   <Card sx={{
                     border: '1px solid',
                     borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.success.main,
                     backgroundColor: theme.palette.background.paper,
                     boxShadow: 'none',
                     transition: 'box-shadow 0.2s ease'
@@ -854,7 +865,8 @@ const ChartReviewTabOptimized = ({
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Immunizations</Typography>
+                          <SectionIconTile size={32}><VaccinesIcon /></SectionIconTile>
+                          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.0625rem', letterSpacing: '-0.01em' }}>Immunizations</Typography>
                           <Chip 
                             label={`${processedData.immunizations.length}`} 
                             size="small"
@@ -933,8 +945,6 @@ const ChartReviewTabOptimized = ({
                   <Card sx={{
                     border: '1px solid',
                     borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.secondary.main,
                     backgroundColor: theme.palette.background.paper,
                     boxShadow: 'none',
                     transition: 'box-shadow 0.2s ease'
@@ -942,7 +952,8 @@ const ChartReviewTabOptimized = ({
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Procedures</Typography>
+                          <SectionIconTile size={32}><HealingIcon /></SectionIconTile>
+                          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.0625rem', letterSpacing: '-0.01em' }}>Procedures</Typography>
                           <Chip 
                             label={`${processedData.procedures.length}`} 
                             size="small"
@@ -1021,8 +1032,6 @@ const ChartReviewTabOptimized = ({
                   <Card sx={{
                     border: '1px solid',
                     borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.indigo?.[500] || theme.palette.primary.dark,
                     backgroundColor: theme.palette.background.paper,
                     boxShadow: 'none',
                     transition: 'box-shadow 0.2s ease'
@@ -1030,7 +1039,8 @@ const ChartReviewTabOptimized = ({
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Care Plans</Typography>
+                          <SectionIconTile size={32}><AssignmentIcon /></SectionIconTile>
+                          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.0625rem', letterSpacing: '-0.01em' }}>Care Plans</Typography>
                           <Chip 
                             label={`${processedData.carePlans.length}`} 
                             size="small"
@@ -1109,8 +1119,6 @@ const ChartReviewTabOptimized = ({
                   <Card sx={{
                     border: '1px solid',
                     borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.grey[600],
                     backgroundColor: theme.palette.background.paper,
                     boxShadow: 'none',
                     transition: 'box-shadow 0.2s ease'
@@ -1118,7 +1126,8 @@ const ChartReviewTabOptimized = ({
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                         <Stack direction="row" alignItems="center" spacing={1}>
-                          <Typography variant="h6" sx={{ fontWeight: 600 }}>Clinical Documents</Typography>
+                          <SectionIconTile size={32}><DescriptionIcon /></SectionIconTile>
+                          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.0625rem', letterSpacing: '-0.01em' }}>Clinical Documents</Typography>
                           <Chip 
                             label={`${processedData.documentReferences.length}`} 
                             size="small"
@@ -1197,15 +1206,14 @@ const ChartReviewTabOptimized = ({
                   <Card sx={{
                     border: '1px solid',
                     borderColor: 'divider',
-                    borderLeft: '4px solid',
-                    borderLeftColor: theme.palette.info.main,
                     backgroundColor: theme.palette.background.paper,
                     boxShadow: 'none',
                     transition: 'box-shadow 0.2s ease'
                   }}>
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Typography variant="h6" sx={{ fontWeight: 600 }}>Recent Encounters</Typography>
+                        <SectionIconTile size={32}><EventNoteIcon /></SectionIconTile>
+                          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.0625rem', letterSpacing: '-0.01em' }}>Recent Encounters</Typography>
                         <Chip 
                           label={`${processedData.recentEncounters.length}`} 
                           size="small"
@@ -1248,8 +1256,6 @@ const ChartReviewTabOptimized = ({
                                   p: 2, 
                                                 border: '1px solid',
                                   borderColor: 'divider',
-                                  borderLeft: '4px solid',
-                                  borderLeftColor: theme.palette.info.main,
                                   backgroundColor: index % 2 === 1 ? alpha(theme.palette.action.hover, 0.04) : theme.palette.background.paper,
                                   '&:hover': {
                                     backgroundColor: alpha(theme.palette.action.hover, 0.08),
@@ -1369,49 +1375,6 @@ const ChartReviewTabOptimized = ({
         {viewMode === 'dashboard' && (
           <ClinicalLoadingState.FadeIn>
             <Box>
-              {/* Summary tiles. Counts are facts, so they stay neutral; only
-                  a critical allergy earns colour. */}
-              <Grid container spacing={1} sx={{ mb: 2 }}>
-                <Grid item xs={6} md={3}>
-                  <StatTile
-                    label={showInactive ? 'All conditions' : 'Active conditions'}
-                    value={showInactive ? processedData.filteredConditions.length : processedData.activeConditions.length}
-                    chips={[
-                      ...(stats.conditions.active > 0 ? [{ label: 'active', count: stats.conditions.active }] : []),
-                      ...(stats.conditions.resolved > 0 ? [{ label: 'resolved', count: stats.conditions.resolved }] : []),
-                    ]}
-                  />
-                </Grid>
-                <Grid item xs={6} md={3}>
-                  <StatTile
-                    label={showInactive ? 'All medications' : 'Active medications'}
-                    value={showInactive ? processedData.filteredMedications.length : processedData.activeMedications.length}
-                    chips={processedData.medicationsByIntent.order?.length > 0
-                      ? [{ label: 'orders', count: processedData.medicationsByIntent.order.length }]
-                      : []}
-                  />
-                </Grid>
-                <Grid item xs={6} md={3}>
-                  <StatTile
-                    label="Allergies"
-                    value={processedData.filteredAllergies.length}
-                    tone={processedData.criticalAllergies.length > 0 ? 'critical' : 'neutral'}
-                    chips={processedData.criticalAllergies.length > 0
-                      ? [{ label: 'critical', count: processedData.criticalAllergies.length, tone: 'critical' }]
-                      : []}
-                  />
-                </Grid>
-                <Grid item xs={6} md={3}>
-                  <StatTile
-                    label="Recent vitals"
-                    value={processedData.recentVitals.length}
-                    caption={processedData.recentVitals[0]
-                      ? `Last: ${formatClinicalDate(processedData.recentVitals[0].effectiveDateTime || processedData.recentVitals[0].issued, 'monthDay')}`
-                      : undefined}
-                  />
-                </Grid>
-              </Grid>
-
               {/* Main Content Grid */}
               <Grid container spacing={3}>
                 {chartSections.map((section) => (
@@ -1558,7 +1521,7 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
   
   const cardStyles = getClinicalCardStyles(severityLevel, 1, true);
   
-  const conditionName = condition.code?.text || condition.code?.coding?.[0]?.display || 'Unknown condition';
+  const conditionName = splitConditionName(condition.code?.text || condition.code?.coding?.[0]?.display).name;
 
   const statusLabel = clinicalStatus === 'active' ? 'Active' :
                       clinicalStatus === 'resolved' ? 'Resolved' :
@@ -1577,22 +1540,21 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
     clinicalCode
   );
 
-  // Build subtitle line: code · onset · recorded
+  // One line of detail: when it started (and ended), then what qualifies
+  // it. The code, the recorded date and the category live in the tooltip on
+  // the name and in the edit dialog; "confirmed" is the norm, so only an
+  // unconfirmed status is called out.
   const subtitleParts = [
-    codeLabel,
-    onsetDisplay && `Onset: ${onsetDisplay}`,
-    abatementDate && `Resolved: ${typeof abatementDate === 'string' ? formatClinicalDate(abatementDate) : `Age ${abatementDate}`}`,
-    recordedDate && `Recorded: ${formatClinicalDate(recordedDate)}`,
-  ].filter(Boolean);
-
-  // Build tertiary line: verification · category · severity · stage · body site
-  const tertiaryParts = [
-    verification === 'confirmed' && 'Confirmed',
-    category,
+    onsetDisplay && `Since ${onsetDisplay}`,
+    abatementDate && `Resolved ${typeof abatementDate === 'string' ? formatClinicalDate(abatementDate) : `at age ${abatementDate}`}`,
     severity,
     stage,
     bodySite,
+    verification && verification !== 'confirmed' && verification.charAt(0).toUpperCase() + verification.slice(1),
   ].filter(Boolean);
+  const nameTooltip = [codeLabel, category, recordedDate && `Recorded ${formatClinicalDate(recordedDate)}`]
+    .filter(Boolean).join(' \u00B7 ');
+  const tertiaryParts = [];
 
   // Build context line: asserter · recorder · evidence · notes
   const contextParts = [
@@ -1605,9 +1567,12 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
     <Paper
       elevation={0}
       sx={{
-        p: 2.5,
-        border: '1px solid',
+        px: 1,
+        py: 1.25,
+        border: 'none',
+        borderBottom: '1px solid',
         borderColor: 'divider',
+        borderRadius: 0,
         backgroundColor: 'background.paper',
         transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
@@ -1620,9 +1585,11 @@ const EnhancedConditionCard = ({ condition, onEdit, isAlternate = false }) => {
           {/* Title line: condition name + status chip */}
           <Stack direction="row" alignItems="center" spacing={1}>
             <Typography
-              variant="body1"
+              variant="body2"
               fontWeight={600}
+              title={nameTooltip || undefined}
               sx={{
+                fontSize: '0.9375rem',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -1717,7 +1684,6 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNav
 
   // Build subtitle line: code · dosage · route
   const subtitleParts = [
-    medCodeLabel,
     dosageText,
     routeText,
   ].filter(Boolean);
@@ -1741,9 +1707,12 @@ const EnhancedMedicationCard = ({ medication, onEdit, isAlternate = false, onNav
     <Paper
       elevation={0}
       sx={{
-        p: 2.5,
-        border: '1px solid',
+        px: 1,
+        py: 1.25,
+        border: 'none',
+        borderBottom: '1px solid',
         borderColor: 'divider',
+        borderRadius: 0,
         backgroundColor: 'background.paper',
         transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
@@ -1918,9 +1887,12 @@ const EnhancedAllergyCard = ({ allergy, onEdit, isAlternate = false }) => {
     <Paper
       elevation={0}
       sx={{
-        p: 2.5,
-        border: '1px solid',
+        px: 1,
+        py: 1.25,
+        border: 'none',
+        borderBottom: '1px solid',
         borderColor: 'divider',
+        borderRadius: 0,
         backgroundColor: 'background.paper',
         transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
@@ -2021,9 +1993,12 @@ const EnhancedImmunizationCard = ({ immunization, onEdit, isAlternate = false })
     <Paper
       elevation={0}
       sx={{
-        p: 2.5,
-        border: '1px solid',
+        px: 1,
+        py: 1.25,
+        border: 'none',
+        borderBottom: '1px solid',
         borderColor: 'divider',
+        borderRadius: 0,
         backgroundColor: 'background.paper',
         transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
@@ -2115,9 +2090,12 @@ const EnhancedProcedureCard = ({ procedure, onEdit, isAlternate = false }) => {
     <Paper
       elevation={0}
       sx={{
-        p: 2.5,
-        border: '1px solid',
+        px: 1,
+        py: 1.25,
+        border: 'none',
+        borderBottom: '1px solid',
         borderColor: 'divider',
+        borderRadius: 0,
         backgroundColor: 'background.paper',
         transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
@@ -2204,9 +2182,12 @@ const EnhancedCarePlanCard = ({ carePlan, onEdit, isAlternate = false }) => {
     <Paper
       elevation={0}
       sx={{
-        p: 2.5,
-        border: '1px solid',
+        px: 1,
+        py: 1.25,
+        border: 'none',
+        borderBottom: '1px solid',
         borderColor: 'divider',
+        borderRadius: 0,
         backgroundColor: 'background.paper',
         transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
@@ -2295,9 +2276,12 @@ const EnhancedDocumentCard = ({ document, onEdit, isAlternate = false }) => {
     <Paper
       elevation={0}
       sx={{
-        p: 2.5,
-        border: '1px solid',
+        px: 1,
+        py: 1.25,
+        border: 'none',
+        borderBottom: '1px solid',
         borderColor: 'divider',
+        borderRadius: 0,
         backgroundColor: 'background.paper',
         transition: 'background-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         '&:hover': {
