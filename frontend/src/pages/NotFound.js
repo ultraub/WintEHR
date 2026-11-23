@@ -25,7 +25,7 @@ const NotFound = () => {
           elevation={3}
           sx={{ 
             p: 6,
-            background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
+            background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.action.hover} 100%)`,
             borderRadius: 3
           }}
         >

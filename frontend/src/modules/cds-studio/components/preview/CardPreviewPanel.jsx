@@ -146,7 +146,7 @@ const CardPreviewPanel = ({
         sx={{
           p: 3,
           minHeight: 400,
-          bgcolor: 'grey.50',
+          bgcolor: 'action.hover',
           position: 'relative'
         }}
       >

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import DialogFrame from '../components/common/DialogFrame';
 import PageHeader from '../components/common/PageHeader';
+import StatTile from '../components/common/StatTile';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -502,47 +503,19 @@ const SummaryStats = ({ encounters, total, loading }) => {
     }
   }).length;
 
-  const stats = [
-    {
-      label: 'Total Encounters',
-      value: total,
-      color: '#4F46E5',
-      bgColor: '#EEF2FF',
-      icon: <AssignmentIcon sx={{ fontSize: 24, color: '#4F46E5', opacity: 0.5 }} />
-    },
-    {
-      label: 'In Progress',
-      value: inProgressCount,
-      color: '#D97706',
-      bgColor: '#FFFBEB',
-      icon: <HourglassEmptyIcon sx={{ fontSize: 24, color: '#D97706', opacity: 0.5 }} />
-    },
-    {
-      label: 'Completed Today',
-      value: completedTodayCount,
-      color: '#059669',
-      bgColor: '#F0FDF4',
-      icon: <FinishedIcon sx={{ fontSize: 24, color: '#059669', opacity: 0.5 }} />
-    }
-  ];
-
+  // StatTile, like every other headline number: it takes the phase's card
+  // colours. In progress is toned only when there is something in progress.
   return (
     <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-      {stats.map((stat) => (
-        <Card key={stat.label} sx={{ flex: 1, borderRadius: 2, bgcolor: stat.bgColor, position: 'relative', overflow: 'visible' }}>
-          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-            <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
-              {stat.icon}
-            </Box>
-            <Typography variant="caption" color="text.secondary">
-              {stat.label}
-            </Typography>
-            <Typography variant="h5" sx={{ color: stat.color, fontWeight: 600 }}>
-              {stat.value}
-            </Typography>
-          </CardContent>
-        </Card>
-      ))}
+      <Box sx={{ flex: 1 }}>
+        <StatTile label="Total encounters" value={total} icon={<AssignmentIcon />} />
+      </Box>
+      <Box sx={{ flex: 1 }}>
+        <StatTile label="In progress" value={inProgressCount} tone="info" icon={<HourglassEmptyIcon />} />
+      </Box>
+      <Box sx={{ flex: 1 }}>
+        <StatTile label="Completed today" value={completedTodayCount} icon={<FinishedIcon />} />
+      </Box>
     </Stack>
   );
 };

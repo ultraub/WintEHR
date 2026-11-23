@@ -7,6 +7,7 @@ import React from 'react';
 import {
   Box,
   useTheme,
+  alpha,
   CssBaseline
 } from '@mui/material';
 import { useParams } from 'react-router-dom';
@@ -103,12 +104,7 @@ const EnhancedClinicalLayout = ({
         component="main"
         ref={mainRef}
         sx={{
-          backgroundColor: theme.palette.mode === 'dark'
-            ? theme.palette.background.default
-            : theme.palette.grey[50],
-          backgroundImage: theme.palette.mode === 'dark'
-            ? 'linear-gradient(180deg, rgba(99,102,241,0.14) 0%, rgba(99,102,241,0.05) 200px, transparent 500px)'
-            : 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.03) 200px, transparent 500px)',
+          // transparent: the shell's phase ground shows through
           minHeight: '100%',
         }}
       >
@@ -120,9 +116,8 @@ const EnhancedClinicalLayout = ({
             // sticks to its top edge.
             top: 0,
             zIndex: Z_INDEX.appBar - 1,
-            backgroundColor: theme.palette.mode === 'dark'
-              ? 'rgba(30, 41, 59, 0.88)'
-              : 'rgba(255, 255, 255, 0.82)',
+            // the phase's card colour, slightly see-through over the ground
+            backgroundColor: alpha(theme.palette.background.paper, 0.92),
             backdropFilter: 'saturate(180%) blur(20px)',
             WebkitBackdropFilter: 'saturate(180%) blur(20px)',
           }}>

@@ -168,7 +168,7 @@ class ErrorBoundary extends React.Component {
                 <Collapse in={showDetails}>
                   <Box
                     sx={{
-                      bgcolor: 'grey.100',
+                      bgcolor: 'action.selected',
                       p: 2,
                       borderRadius: 1,
                       textAlign: 'left',

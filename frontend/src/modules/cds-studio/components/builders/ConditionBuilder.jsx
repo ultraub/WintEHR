@@ -422,11 +422,11 @@ const ConditionBlock = ({
         border: '2px solid',
         borderColor: isComplete ? operatorColor : 'divider',
         borderLeft: `6px solid ${operatorColor}`,
-        backgroundColor: level > 0 ? 'grey.50' : 'background.paper',
+        backgroundColor: level > 0 ? 'action.hover' : 'background.paper',
         transition: 'all 0.2s ease-in-out',
         '&:hover': {
           boxShadow: 2,
-          backgroundColor: isComplete ? `${operatorColor}10` : 'grey.100'
+          backgroundColor: isComplete ? `${operatorColor}10` : 'action.selected'
         }
       }}
     >
@@ -941,7 +941,7 @@ const ConditionBuilder = ({
 
       {/* Summary */}
       {rootGroup.conditions.length === 0 && (
-        <Paper elevation={0} sx={{ p: 3, mt: 2, textAlign: 'center', backgroundColor: 'grey.50' }}>
+        <Paper elevation={0} sx={{ p: 3, mt: 2, textAlign: 'center', backgroundColor: 'action.hover' }}>
           <Typography variant="body2" color="text.secondary">
             No conditions defined. Click "Add Condition" to start building your logic.
           </Typography>

@@ -14,6 +14,17 @@ the theme code.
 | `chartColors.js` | Colour sets for the recharts-based charts. |
 | `clinicalTheme.js`, `clinicalThemeUtils.js` | Older token and helper sets still imported by some components. |
 
+## The aurora ground
+
+`auroraPalette.js` holds the deep page ground, the colours for text set
+directly on it, the hero illustration's colours and the avatar fills, for
+four phases of the day: sunrise, daytime, sunset and night. Each phase also
+carries the overrides it applies to the Standard theme (`theme` key). Read
+it through `useAuroraPalette()`; `createMedicalTheme(name, mode, phase)`
+applies the overrides. It is decoration built on `shellPalette.js`; it never
+carries status. See "The
+deep ground" in `frontend/CLAUDE.md` for when a page may use it.
+
 ## Themes offered
 
 Two, each in light and dark mode: **Standard** (`professional`) and

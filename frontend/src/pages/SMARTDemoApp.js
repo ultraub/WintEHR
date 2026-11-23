@@ -537,7 +537,7 @@ const SMARTDemoApp = () => {
           <Box
             component="pre"
             sx={{
-              bgcolor: 'grey.100',
+              bgcolor: 'action.selected',
               p: 2,
               overflow: 'auto',
               maxHeight: 400,

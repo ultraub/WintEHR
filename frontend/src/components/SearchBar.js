@@ -166,18 +166,21 @@ const SearchBar = ({ compact = false }) => {
             p: '2px 4px',
             display: 'flex',
             alignItems: 'center',
-            backgroundColor: 'background.paper',
+            // A light, translucent field: it sits in the app bar, which is
+            // dark in every mode, and should not be the darkest thing in it.
+            backgroundColor: alpha(theme.palette.common.white, 0.1),
+            backgroundImage: 'none',
+            boxShadow: 'none',
             border: 1,
-            borderColor: 'divider',
+            borderColor: alpha(theme.palette.common.white, 0.16),
             transition: 'all 0.2s ease',
             '&:hover': {
-              backgroundColor: alpha(theme.palette.primary.main, 0.08),
-              borderColor: theme.palette.primary.main,
+              backgroundColor: alpha(theme.palette.common.white, 0.14),
+              borderColor: alpha(theme.palette.common.white, 0.3),
             },
             '&:focus-within': {
-              backgroundColor: alpha(theme.palette.primary.main, 0.12),
+              backgroundColor: alpha(theme.palette.common.white, 0.16),
               borderColor: theme.palette.primary.main,
-              boxShadow: 1,
             }
           }}
         >

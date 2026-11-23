@@ -61,7 +61,7 @@ class RelationshipMapperErrorBoundary extends React.Component {
               <Box sx={{ 
                 mt: 2, 
                 p: 2, 
-                bgcolor: 'grey.100', 
+                bgcolor: 'action.selected', 
                 borderRadius: 1,
                 width: '100%',
                 maxWidth: 600,

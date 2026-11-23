@@ -79,7 +79,7 @@ const ClinicalTabs = ({
         position: 'relative'
       }}>
         {showIcons && !isSmall && (
-          <item.icon sx={{ fontSize: dense ? 18 : 20, color: item.color || 'inherit', opacity: activeTab === item.id ? 1 : 0.7 }} />
+          <item.icon sx={{ fontSize: dense ? 18 : 20, color: 'inherit', opacity: activeTab === item.id ? 1 : 0.7 }} />
         )}
         {hasBadge ? (
           <Badge

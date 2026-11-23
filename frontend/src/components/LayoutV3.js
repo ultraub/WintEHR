@@ -2,7 +2,7 @@
  * LayoutV3 Component
  * Modern application layout with improved navigation, search, and workflow support
  */
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation, Link as RouterLink, Navigate } from 'react-router-dom';
 import {
   AppBar,
@@ -46,7 +46,11 @@ import {
   Assignment as EncountersIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { shellPalette, shellGradient } from '../themes/shellPalette';
+import { shellPalette } from '../themes/shellPalette';
+import { auroraFor, useAuroraPalette, avatarInk } from '../themes/auroraPalette';
+import { createMedicalTheme } from '../themes/medicalTheme';
+import { ThemeProvider, alpha } from '@mui/material/styles';
+import { keyframes } from '@mui/system';
 import { useEffectiveNavigation } from './useEffectiveNavigation';
 import { MedicalThemeContext } from '../App';
 import QuickThemeToggle from './theme/QuickThemeToggle';
@@ -59,6 +63,19 @@ import TransitionWrapper from './transitions/TransitionWrapper';
 const drawerWidth = 280;
 const railWidth = 64;
 
+const groundDrift = keyframes`
+  from { background-position: 0 0; }
+  to { background-position: 1200px 0; }
+`;
+
+// Two faint wave bands, tiled down the deep ground.
+const groundWaves = (stroke) => `url("data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='440' viewBox='0 0 1200 440' fill='none' stroke='${stroke}' stroke-width='54'>`
+  + "<path d='M-60 150 C 180 30, 420 270, 600 150 S 1020 30, 1260 150'/>"
+  + "<path d='M-60 370 C 180 250, 420 490, 600 370 S 1020 250, 1260 370'/>"
+  + '</svg>'
+)}")`;
+
 // Navigation structure derives from navigationRegistry: core seed + pages
 // contributed by enabled modules (docs/MODULES.md), minus what the Command
 // Center's navigation policy hides for this user (useEffectiveNavigation).
@@ -66,6 +83,8 @@ const railWidth = 64;
 // ONE manifest entry.
 
 const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath, onNavigate }) => {
+  // the phase's accent marks the current page
+  const { navAccent } = useAuroraPalette();
   return (
     <Box>
       <ListSubheader
@@ -85,7 +104,7 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
           sx={{
             borderRadius: 1,
             color: shellPalette.textMuted,
-            '&:hover': { bgcolor: shellPalette.hoverBg },
+            '&:hover': { bgcolor: alpha(navAccent, 0.12) },
             '& .MuiListItemIcon-root': { color: shellPalette.textMuted },
           }}
         >
@@ -119,21 +138,21 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
                     borderRadius: '6px',
                     mb: 0.5,
                     color: shellPalette.textBright,
-                    borderLeft: isActive ? `3px solid ${shellPalette.accent}` : '3px solid transparent',
+                    borderLeft: isActive ? `3px solid ${navAccent}` : '3px solid transparent',
                     '& .MuiListItemIcon-root': { color: item.iconColor || shellPalette.iconMuted },
                     transition: 'all 0.15s ease',
                     '&:hover': {
-                      bgcolor: shellPalette.hoverBg,
+                      bgcolor: alpha(navAccent, 0.12),
                       color: shellPalette.textBright,
                       '& .MuiListItemIcon-root': { color: item.iconColor || shellPalette.textBright },
                     },
                     '&.Mui-selected': {
-                      bgcolor: 'rgba(99, 102, 241, 0.14)',
+                      bgcolor: alpha(navAccent, 0.16),
                       color: '#B4BEFD',
-                      boxShadow: 'inset 0 0 20px rgba(99, 102, 241, 0.08), 0 0 12px rgba(99, 102, 241, 0.06)',
+                      boxShadow: `inset 0 0 20px ${alpha(navAccent, 0.08)}`,
                       '& .MuiListItemIcon-root': { color: item.iconColor || '#B4BEFD' },
                       '&:hover': {
-                        bgcolor: 'rgba(99, 102, 241, 0.20)',
+                        bgcolor: alpha(navAccent, 0.22),
                       },
                     },
                   }}
@@ -143,15 +162,13 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
                   </ListItemIcon>
                   <ListItemText
                     primary={item.text}
-                    secondary={item.description}
                     primaryTypographyProps={{ fontSize: '0.875rem', color: 'inherit' }}
-                    secondaryTypographyProps={{ fontSize: '0.75rem', color: shellPalette.textMuted }}
                   />
                   {item.badge && (
                     <Chip
                       label={item.badge}
                       size="small"
-                      sx={{ ml: 1, height: 20, bgcolor: shellPalette.accent, color: shellPalette.textPrimary }}
+                      sx={{ ml: 1, height: 20, bgcolor: navAccent, color: avatarInk }}
                     />
                   )}
                 </ListItemButton>
@@ -165,11 +182,12 @@ const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath
 };
 
 const UserProfile = ({ user, onLogout, onProfileClick }) => {
+  const { navAccent } = useAuroraPalette();
   return (
     <Card sx={{ m: 2, mt: 'auto', bgcolor: 'rgba(0, 0, 0, 0.15)', backgroundImage: 'none', boxShadow: 'none', borderRadius: 2, border: 'none' }}>
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
         <Stack direction="row" spacing={2} alignItems="center">
-          <Avatar sx={{ bgcolor: shellPalette.accent, border: `2px solid ${shellPalette.accent}` }}>
+          <Avatar sx={{ bgcolor: navAccent, border: `2px solid ${navAccent}` }}>
             {user?.name?.[0] || 'U'}
           </Avatar>
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
@@ -180,7 +198,7 @@ const UserProfile = ({ user, onLogout, onProfileClick }) => {
               {user?.role || 'Clinician'}
             </Typography>
           </Box>
-          <IconButton size="small" onClick={onLogout} sx={{ color: shellPalette.textMuted, '&:hover': { color: shellPalette.textBright, bgcolor: shellPalette.hoverBg } }}>
+          <IconButton size="small" onClick={onLogout} sx={{ color: shellPalette.textMuted, '&:hover': { color: shellPalette.textBright, bgcolor: alpha(navAccent, 0.12) } }}>
             <LogoutIcon fontSize="small" />
           </IconButton>
         </Stack>
@@ -209,7 +227,11 @@ const BreadcrumbNavigation = ({ location }) => {
       {pathSegments.map((segment, index) => {
         const isLast = index === pathSegments.length - 1;
         const href = '/' + pathSegments.slice(0, index + 1).join('/');
-        const title = segment.charAt(0).toUpperCase() + segment.slice(1).replace('-', ' ');
+        // a record id in the path is not a name anyone can read
+        const looksLikeId = /^[0-9a-f]{8}[0-9a-f-]{12,}$/i.test(decodeURIComponent(segment).replace(/\s/g, '-'));
+        const title = looksLikeId
+          ? 'Record'
+          : segment.charAt(0).toUpperCase() + segment.slice(1).replace('-', ' ');
         
         return isLast ? (
           <Typography color="text.primary" key={segment}>
@@ -239,8 +261,15 @@ const BreadcrumbNavigation = ({ location }) => {
  *           navigation, search and account menu.
  *   flush — the page owns its own padding and header; the shell adds neither
  *           padding nor its breadcrumb.
+ *   ground — 'deep' is for a page that opens with its own hero
+ *           (AuroraHero): the shell leaves out its breadcrumb. Every page
+ *           sits on the phase's ground either way.
+ *
+ * The app bar always wears the shell's dark colours, so the navigation and
+ * the bar frame every page the same way. Its contents render under a dark
+ * theme (see `barTheme`) rather than being restyled one by one.
  */
-function LayoutV3({ children, rail = false, flush = false }) {
+function LayoutV3({ children, rail = false, flush = false, ground = 'default' }) {
   const navWidth = rail ? railWidth : drawerWidth;
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -256,8 +285,16 @@ function LayoutV3({ children, rail = false, flush = false }) {
     tools: false,
     admin: false
   });
-  // MedicalThemeContext available via useContext if needed
-  useContext(MedicalThemeContext);
+  const themeContext = useContext(MedicalThemeContext);
+  // The app bar is dark in every theme and mode; rendering its contents
+  // under the dark palette gives the search field, toggles and menus the
+  // right colours without touching each of them.
+  const barThemeName = themeContext?.currentTheme;
+  const barTheme = useMemo(() => createMedicalTheme(barThemeName, 'dark'), [barThemeName]);
+  const deepGround = ground === 'deep';
+  // sunrise, day, sunset or night: the bar, the navigation and a deep
+  // page's ground all shift together
+  const auroraPalette = auroraFor(theme.phase || (theme.palette.mode === 'dark' ? 'night' : 'day'));
 
   // Cmd/Ctrl+K opens the command palette from anywhere in the shell.
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -308,7 +345,7 @@ function LayoutV3({ children, rail = false, flush = false }) {
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: shellGradient,
+      background: auroraPalette.navGradient,
       '& .MuiList-root': { bgcolor: 'transparent' },
       '& .MuiListSubheader-root': { bgcolor: 'transparent' },
       /* Scrollbar styling */
@@ -362,7 +399,7 @@ function LayoutV3({ children, rail = false, flush = false }) {
   );
 
   const railDrawer = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', background: shellGradient }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', background: auroraPalette.navGradient }}>
       <Tooltip title="Home" placement="right">
         <IconButton onClick={() => handleNavigation(landingPath)} aria-label="WintEHR home" sx={{ my: 1.25 }}>
           <Box
@@ -399,9 +436,9 @@ function LayoutV3({ children, rail = false, flush = false }) {
                       height: 44,
                       borderRadius: 1.5,
                       color: isActive ? shellPalette.textPrimary : (item.iconColor || shellPalette.iconMuted),
-                      backgroundColor: isActive ? shellPalette.hoverBg : 'transparent',
-                      boxShadow: isActive ? `inset 3px 0 0 ${shellPalette.accent}` : 'none',
-                      '&:hover': { backgroundColor: shellPalette.hoverBg, color: shellPalette.textBright },
+                      backgroundColor: isActive ? alpha(auroraPalette.navAccent, 0.16) : 'transparent',
+                      boxShadow: isActive ? `inset 3px 0 0 ${auroraPalette.navAccent}` : 'none',
+                      '&:hover': { backgroundColor: alpha(auroraPalette.navAccent, 0.12), color: shellPalette.textBright },
                       '& svg': { fontSize: 24 },
                     }}
                   >
@@ -425,20 +462,22 @@ function LayoutV3({ children, rail = false, flush = false }) {
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>
       {/* App Bar */}
+      <ThemeProvider theme={barTheme}>
       <AppBar
         position="fixed"
         sx={{
           width: { md: `calc(100% - ${navWidth}px)` },
           ml: { md: `${navWidth}px` },
-          bgcolor: theme.palette.mode === 'dark'
-            ? 'rgba(30, 41, 59, 0.78)'
-            : 'rgba(255, 255, 255, 0.72)',
-          color: 'text.primary',
+          // the phase's bar colour: always dark, and a step apart from the
+          // navigation beside it
+          bgcolor: auroraPalette.bar,
+          backgroundImage: 'none',
+          // square: rounded corners let the page background show through
+          borderRadius: 0,
+          color: shellPalette.textBright,
           boxShadow: 'none',
-          backdropFilter: 'saturate(180%) blur(20px)',
-          WebkitBackdropFilter: 'saturate(180%) blur(20px)',
-          borderBottom: '0.5px solid',
-          borderColor: 'divider'
+          borderBottom: '1px solid',
+          borderColor: 'transparent'
         }}
       >
         <Toolbar>
@@ -502,6 +541,7 @@ function LayoutV3({ children, rail = false, flush = false }) {
           </Stack>
         </Toolbar>
       </AppBar>
+      </ThemeProvider>
 
       {/* Profile Menu */}
       <Menu
@@ -533,6 +573,7 @@ function LayoutV3({ children, rail = false, flush = false }) {
       >
         <Drawer
           variant="temporary"
+          elevation={0}
           open={mobileOpen}
           onClose={handleDrawerToggle}
           ModalProps={{ keepMounted: true }}
@@ -541,8 +582,11 @@ function LayoutV3({ children, rail = false, flush = false }) {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              background: shellGradient,
-              borderRight: '1px solid rgba(99, 102, 241, 0.15)',
+              background: auroraPalette.navGradient,
+              // square: the drawer meets the window edge and the app bar,
+              // and rounded corners there show the page behind them
+              borderRadius: 0,
+              borderRight: `1px solid ${alpha(auroraPalette.navAccent, 0.18)}`,
             }
           }}
         >
@@ -555,8 +599,11 @@ function LayoutV3({ children, rail = false, flush = false }) {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: navWidth,
-              background: shellGradient,
-              borderRight: '1px solid rgba(99, 102, 241, 0.15)',
+              background: auroraPalette.navGradient,
+              // square: the drawer meets the window edge and the app bar,
+              // and rounded corners there show the page behind them
+              borderRadius: 0,
+              borderRight: `1px solid ${alpha(auroraPalette.navAccent, 0.18)}`,
             }
           }}
           open
@@ -582,11 +629,20 @@ function LayoutV3({ children, rail = false, flush = false }) {
           flexGrow: 1,
           overflow: 'auto',
           p: flush ? 0 : { xs: 2, sm: 2.5, md: 3 },
-          backgroundImage: theme.palette.mode === 'dark'
-            ? 'linear-gradient(180deg, rgba(99,102,241,0.14) 0%, rgba(99,102,241,0.05) 200px, transparent 500px)'
-            : 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(99,102,241,0.03) 200px, transparent 500px)',
+          // Every page sits on the phase's ground. Each phase's text
+          // colours are chosen to read on it, so a page needs no special
+          // handling; `ground="deep"` only drops the breadcrumb for a page
+          // that opens with its own hero.
+          backgroundColor: auroraPalette.ground,
+          backgroundImage: groundWaves(auroraPalette.wave),
+          backgroundSize: '1200px 440px',
+          // a daytime breeze: the bands drift slowly across the ground
+          ...(auroraPalette.breeze && {
+            animation: `${groundDrift} 120s linear infinite`,
+            '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+          }),
         }}>
-          {!flush && <BreadcrumbNavigation location={location} />}
+          {!flush && !deepGround && <BreadcrumbNavigation location={location} />}
           <TransitionWrapper transition="fade" duration={150}>
             {children}
           </TransitionWrapper>

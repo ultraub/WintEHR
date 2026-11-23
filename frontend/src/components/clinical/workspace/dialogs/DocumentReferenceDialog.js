@@ -169,7 +169,7 @@ const DocumentReferenceDialog = ({ open, onClose, document, patientId, onSaved }
                   elevation={0}
                   sx={{
                     p: 2,
-                    backgroundColor: 'grey.50',
+                    backgroundColor: 'action.hover',
                     borderRadius: 0,
                     border: '1px solid',
                     borderColor: 'divider'

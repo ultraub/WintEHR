@@ -5,6 +5,7 @@
 
 import { fhirClient } from '../../core/fhir/services/fhirClient';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { formatPersonName } from '../../utils/clinicalDisplay';
 
 class DashboardDataService {
   constructor() {
@@ -701,6 +702,61 @@ class DashboardDataService {
     } catch (error) {
       console.error('Error fetching medication safety stats:', error);
       return { highRiskCategories: [], polypharmacy: { count: 0 }, error: true };
+    }
+  }
+
+  /**
+   * Encounters in the last `days`, newest first, each with its patient's
+   * name. Patients are read one by one (fhirClient caches them): a recent
+   * window touches only a handful.
+   */
+  async getRecentEncounters(days = 30) {
+    const cacheKey = `recent-encounters-${days}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const result = await fhirClient.search('Encounter', {
+        date: `ge${subDays(new Date(), days).toISOString()}`,
+        _sort: '-date',
+        _count: 100
+      });
+      const encounters = (result.resources || []).filter((enc) => enc.resourceType === 'Encounter');
+      const patientIds = [...new Set(
+        encounters.map((enc) => enc.subject?.reference?.replace('urn:uuid:', '').split('/').pop()).filter(Boolean)
+      )];
+      const patients = {};
+      await Promise.all(patientIds.map(async (id) => {
+        try {
+          patients[id] = await fhirClient.read('Patient', id);
+        } catch (readError) {
+          patients[id] = null;
+        }
+      }));
+
+      const data = {
+        days,
+        encounters: encounters.map((enc) => {
+          const patientId = enc.subject?.reference?.replace('urn:uuid:', '').split('/').pop() || null;
+          const typeText = enc.type?.[0]?.text || enc.type?.[0]?.coding?.[0]?.display || 'Encounter';
+          return {
+            id: enc.id,
+            patientId,
+            patientName: patients[patientId] ? formatPersonName(patients[patientId]) : 'Unknown patient',
+            date: enc.period?.start || null,
+            classCode: enc.class?.code || null,
+            // SNOMED displays end with a tag such as "(procedure)"
+            type: typeText.replace(/\s*\([a-z ]+\)\s*$/, ''),
+            reason: enc.reasonCode?.[0]?.text || enc.reasonCode?.[0]?.coding?.[0]?.display || null,
+          };
+        }),
+        timestamp: new Date().toISOString()
+      };
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching recent encounters:', error);
+      return { days, encounters: [], error: true };
     }
   }
 

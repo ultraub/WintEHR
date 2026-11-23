@@ -1623,7 +1623,7 @@ const EnhancedOrdersTab = ({
                   <Box 
                     component="pre" 
                     sx={{ 
-                      bgcolor: 'grey.50', 
+                      bgcolor: 'action.hover', 
                       p: 2, 
                       borderRadius: 0,
                       overflow: 'auto',

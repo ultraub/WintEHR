@@ -1764,7 +1764,7 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
 
       {/* FHR-1: Validation Results Display */}
       {validationResult && (validationResult.errors.length > 0 || validationResult.warnings.length > 0) && (
-        <Box sx={{ px: 2, py: 1, bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50' }}>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'action.hover' }}>
           <Stack spacing={1}>
             {validationResult.errors.length > 0 && (
               <Alert severity="error" sx={{ py: 0.5 }}>
@@ -1983,7 +1983,7 @@ function QueryStudioEnhanced({ onNavigate, useFHIRData, onClose }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50'
+              bgcolor: 'action.hover'
             }}>
               <Button
                 size="small"

@@ -276,7 +276,7 @@ const PreviewCanvas = () => {
         sx={{ 
           p: 4, 
           textAlign: 'center',
-          bgcolor: 'grey.50',
+          bgcolor: 'action.hover',
           minHeight: 400,
           display: 'flex',
           alignItems: 'center',
@@ -288,7 +288,7 @@ const PreviewCanvas = () => {
             sx={{
               width: 80,
               height: 80,
-              bgcolor: 'grey.200',
+              bgcolor: 'action.selected',
               borderRadius: 2,
               display: 'flex',
               alignItems: 'center',

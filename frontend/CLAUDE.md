@@ -209,6 +209,40 @@ never be hidden. Never import `buildNavigationConfig` from a component.
   snapshot, `GET /api/analytics/population` (`backend/api/analytics/service.py`),
   so they agree. Do not add a second population aggregate computed another
   way; extend the snapshot.
+- **The deep ground.** A route can opt in to the aurora ground with
+  `page(el, { ground: 'deep' })` (`router/router.js` → `LayoutV3`): the
+  shell's navy with faint waves, cards on top. `/dashboard` is the first.
+  On such a page, anything set directly on the ground (tabs, loose text,
+  icon buttons) takes its colour from `useAuroraPalette()`
+  (`themes/auroraPalette.js`, `onGround*`), never from `text.primary`,
+  which is chosen for cards. Open the page with
+  `components/common/AuroraHero` and frame each section with
+  `components/common/SectionCard`. Converting another page means checking
+  every element that is not inside a card.
+- **The day has four phases.** Sunrise, daytime, sunset and night
+  (`themes/auroraPalette.js`). `App.js` picks one from the clock (5-8, 8-17,
+  17-20, then night) or the user pins one from the theme menu; the header
+  button steps through auto, daytime and night. Daytime is the only light
+  phase, so `theme.palette.mode` still answers "light or dark", and
+  `theme.phase` names the phase. Every shell surface takes part: ground,
+  app bar, navigation gradient, hero scene, card outline or shadow, and (on
+  the Standard theme) paper, divider and, in daytime, the primary colour.
+  A new shell-level surface must define all four, or a phase falls back to
+  another's look (`themes/__tests__/auroraPalette.test.js` checks the keys).
+  A phase change cross-fades via the `theme-switching` class.
+- **The app bar is always dark.** `LayoutV3` renders it under a dark theme
+  (`barTheme`), so anything placed in it gets light-on-dark colours for
+  free. Do not hand-colour app bar controls. It wears the aurora ground
+  colour, a step lighter than the navigation, so the two read as separate
+  surfaces. The bar's own theme has no phase, so inside it
+  `useAuroraPalette()` returns night; take the palette from `LayoutV3`.
+- **Small details that are decided once.** Numerals for counts and clinical
+  values use `theme.typography.fontFamilyMonospace` (StatTile and
+  ProgressRing already do). Initials avatars take their fill from
+  `utils/avatarColor.js` so a person keeps one colour. A handful of measures
+  against one target is `components/common/ProgressRing`. Selection, caret
+  and focus-ring colours are set in the theme's `MuiCssBaseline`. The
+  display face (Bricolage Grotesque) is for a page's opening line only.
 - **Themes.** Two are offered (`themePresets` in `themes/medicalTheme.js`):
   Standard and High contrast, each in light and dark. Do not add a theme to
   the picker without committing to keep every screen checked in it.

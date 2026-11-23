@@ -11,7 +11,7 @@
  *   value      number or short string; null/undefined renders an em dash
  *   unit       small text after the value
  *   caption    one line under the value (string or node)
- *   icon       optional, drawn small and muted at the top right
+ *   icon       optional, in a small tinted tile at the top right
  *   tone       'neutral' (default) | 'positive' | 'info' | 'attention' | 'critical'
  *   toneWhenZero  set true for the rare tile where 0 is itself the problem
  *   chips      [{ label, count?, tone? }] small secondary facts
@@ -20,7 +20,7 @@
  *   onClick    makes the whole tile a button
  */
 import React from 'react';
-import { Box, ButtonBase, LinearProgress, Skeleton, Stack, Typography, useTheme } from '@mui/material';
+import { Box, ButtonBase, LinearProgress, Skeleton, Stack, Typography, alpha, useTheme } from '@mui/material';
 import { getToneColors } from '../../utils/statusDisplay';
 
 const isZeroValue = (value) => value === 0 || value === '0' || value === null || value === undefined || value === '';
@@ -46,6 +46,9 @@ const StatTile = ({
   const colors = getToneColors(theme, activeTone);
   const toned = activeTone !== 'neutral';
   const hasValue = value !== null && value !== undefined && value !== '';
+  // The numeral face is for figures. A value with words in it ("1 of 4")
+  // stays in the text face, where its spacing is right.
+  const numeric = typeof value === 'number' || /^[\d.,%\s/+×–-]+$/.test(String(value ?? ''));
 
   const body = (
     <Box
@@ -70,7 +73,20 @@ const StatTile = ({
           {label}
         </Typography>
         {icon && (
-          <Box aria-hidden sx={{ display: 'flex', color: 'text.disabled', '& svg': { fontSize: 18 } }}>
+          <Box
+            aria-hidden
+            sx={{
+              flex: '0 0 28px',
+              height: 28,
+              borderRadius: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'primary.main',
+              backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.2 : 0.1),
+              '& svg': { fontSize: 16 },
+            }}
+          >
             {icon}
           </Box>
         )}
@@ -83,9 +99,11 @@ const StatTile = ({
           <Typography
             component="span"
             sx={{
+              fontFamily: numeric ? theme.typography.fontFamilyMonospace : undefined,
               fontSize: '1.75rem',
-              fontWeight: 600,
+              fontWeight: 700,
               lineHeight: 1.2,
+              letterSpacing: numeric ? '-0.04em' : '-0.02em',
               fontVariantNumeric: 'tabular-nums',
               color: toned ? colors.fg : 'text.primary',
             }}

@@ -103,7 +103,7 @@ const OverrideReasonEditor = ({ reasons, onChange }) => {
       </List>
 
       {/* Add Custom Reason */}
-      <Paper elevation={0} sx={{ p: 2, mt: 2, backgroundColor: 'grey.50' }}>
+      <Paper elevation={0} sx={{ p: 2, mt: 2, backgroundColor: 'action.hover' }}>
         <Typography variant="caption" color="text.secondary" gutterBottom>
           Add Custom Override Reason
         </Typography>
@@ -240,7 +240,7 @@ const PresentationModePreview = ({ mode }) => {
   if (!modeConfig) return null;
 
   return (
-    <Paper elevation={0} sx={{ p: 2, backgroundColor: 'grey.50' }}>
+    <Paper elevation={0} sx={{ p: 2, backgroundColor: 'action.hover' }}>
       <Stack direction="row" spacing={2} alignItems="center" mb={1}>
         <Typography variant="h6">{modeConfig.icon}</Typography>
         <Typography variant="subtitle1">{modeConfig.label}</Typography>

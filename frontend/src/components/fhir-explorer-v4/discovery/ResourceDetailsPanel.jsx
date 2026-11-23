@@ -532,7 +532,7 @@ function ResourceDetailsPanel({
     return (
       <Box 
         sx={{ 
-          bgcolor: 'grey.50',
+          bgcolor: 'action.hover',
           p: 2,
           borderRadius: 1,
           overflow: 'auto',

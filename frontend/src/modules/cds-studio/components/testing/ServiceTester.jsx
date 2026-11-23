@@ -397,7 +397,7 @@ const ServiceTester = ({ serviceId, serviceName, serviceConfig }) => {
                 component="pre"
                 sx={{
                   p: 2,
-                  bgcolor: 'grey.100',
+                  bgcolor: 'action.selected',
                   borderRadius: 1,
                   overflow: 'auto',
                   fontSize: '0.875rem'

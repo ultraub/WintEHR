@@ -267,7 +267,7 @@ const ActionRow = ({ action, onChange, onDelete }) => {
   };
 
   return (
-    <Paper elevation={0} sx={{ p: 2, mb: 1.5, backgroundColor: 'grey.50' }}>
+    <Paper elevation={0} sx={{ p: 2, mb: 1.5, backgroundColor: 'action.hover' }}>
       <Stack spacing={1.5}>
         <Stack direction="row" spacing={1} alignItems="center">
           <FormControl size="small" sx={{ minWidth: 180 }}>

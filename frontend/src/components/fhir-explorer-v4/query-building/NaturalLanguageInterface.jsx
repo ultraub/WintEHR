@@ -418,7 +418,7 @@ function NaturalLanguageInterface({ onNavigate, onExecuteQuery, useFHIRData, use
                         sx={{ 
                           p: 2, 
                           maxWidth: '80%',
-                          bgcolor: message.type === 'user' ? 'primary.main' : 'grey.100',
+                          bgcolor: message.type === 'user' ? 'primary.main' : 'action.selected',
                           color: message.type === 'user' ? 'white' : 'text.primary'
                         }}
                       >
@@ -629,7 +629,7 @@ function NaturalLanguageInterface({ onNavigate, onExecuteQuery, useFHIRData, use
               <Typography variant="body1" sx={{ mb: 2 }}>{currentQuery.description}</Typography>
               
               <Typography variant="h6" gutterBottom>FHIR Query URL</Typography>
-              <Paper sx={{ p: 2, bgcolor: 'grey.100', fontFamily: 'monospace', mb: 2 }}>
+              <Paper sx={{ p: 2, bgcolor: 'action.selected', fontFamily: 'monospace', mb: 2 }}>
                 <Typography variant="body2">{currentQuery.query}</Typography>
               </Paper>
               

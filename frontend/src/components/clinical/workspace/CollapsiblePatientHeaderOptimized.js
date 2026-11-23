@@ -810,7 +810,7 @@ const CollapsiblePatientHeaderOptimized = ({
                     size="small"
                     icon={<AssignmentIcon sx={{ fontSize: 16 }} />}
                     label={`${activeConditions.length} Conditions`}
-                    color={activeConditions.length > 0 ? 'warning' : 'default'}
+                    color="default"
                     onClick={() => onNavigateToTab?.('chart-review')}
                     sx={{ cursor: 'pointer' }}
                   />
@@ -820,7 +820,7 @@ const CollapsiblePatientHeaderOptimized = ({
                     size="small"
                     icon={<MedicationIcon sx={{ fontSize: 16 }} />}
                     label={`${activeMedications.length} Medications`}
-                    color={activeMedications.length >= 5 ? 'warning' : activeMedications.length > 0 ? 'info' : 'default'}
+                    color={activeMedications.length >= 5 ? 'warning' : 'default'}
                     onClick={() => onNavigateToTab?.('chart-review')}
                     sx={{ cursor: 'pointer' }}
                   />

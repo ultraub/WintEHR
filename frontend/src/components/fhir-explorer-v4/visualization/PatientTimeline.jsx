@@ -500,7 +500,7 @@ const EventDetailsPanel = ({ event, onClose, RESOURCE_TRACKS }) => {
               component="pre"
               sx={{
                 fontSize: '0.75rem',
-                backgroundColor: 'grey.100',
+                backgroundColor: 'action.selected',
                 p: 1,
                 borderRadius: 1,
                 overflow: 'auto',
