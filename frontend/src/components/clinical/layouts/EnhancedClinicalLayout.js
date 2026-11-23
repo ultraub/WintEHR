@@ -7,11 +7,11 @@ import React from 'react';
 import {
   Box,
   useTheme,
-  alpha,
   CssBaseline
 } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import ClinicalTabs from '../navigation/ClinicalTabs';
+import { PhaseSceneStrip } from '../../common/AuroraHero';
 import CollapsiblePatientHeaderOptimized from '../workspace/CollapsiblePatientHeaderOptimized';
 import { useClinicalWorkflow } from '../../../contexts/ClinicalWorkflowContext';
 import { usePatientData } from '../../../hooks/usePatientData';
@@ -116,18 +116,28 @@ const EnhancedClinicalLayout = ({
             // sticks to its top edge.
             top: 0,
             zIndex: Z_INDEX.appBar - 1,
-            // the phase's card colour, slightly see-through over the ground
-            backgroundColor: alpha(theme.palette.background.paper, 0.92),
+            // the phase's card colour, solid: the scene strip fades into it
+            backgroundColor: 'background.paper',
             backdropFilter: 'saturate(180%) blur(20px)',
             WebkitBackdropFilter: 'saturate(180%) blur(20px)',
           }}>
-            <CollapsiblePatientHeaderOptimized
-              patientId={patient?.id || patientId}
-              onPrint={() => window.print()}
-              onNavigateToTab={handleModuleChange}
-              dataLoading={loading}
-              scrollContainerRef={scrollContainerRef}
-            />
+            {/* The phase's ridgeline behind the patient header ties the
+                chart to the dashboard's landscape, and stays off the tab
+                strip. */}
+            <Box sx={{ position: 'relative', overflow: 'hidden' }}>
+              {/* above the header's own solid background; it ignores the
+                  pointer and keeps to the empty trailing side */}
+              <PhaseSceneStrip surface={theme.palette.background.paper} sx={{ zIndex: 2, width: 'min(38%, 460px)' }} />
+              <Box sx={{ position: 'relative', zIndex: 1 }}>
+                <CollapsiblePatientHeaderOptimized
+                  patientId={patient?.id || patientId}
+                  onPrint={() => window.print()}
+                  onNavigateToTab={handleModuleChange}
+                  dataLoading={loading}
+                  scrollContainerRef={scrollContainerRef}
+                />
+              </Box>
+            </Box>
             <ClinicalTabs
               activeTab={activeModule}
               onTabChange={handleModuleChange}

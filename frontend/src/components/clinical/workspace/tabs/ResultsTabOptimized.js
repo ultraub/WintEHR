@@ -85,6 +85,8 @@ import {
   Refresh as RefreshIcon,
   Assignment as OrderIcon
 } from '@mui/icons-material';
+import RangeBar from '../../../common/RangeBar';
+import { getToneColors } from '../../../../utils/statusDisplay';
 import { parseISO, isWithinInterval, subDays, subMonths, formatDistanceToNow } from 'date-fns';
 import { formatClinicalDate } from '../../../../core/fhir/utils/dateFormatUtils';
 import { useFHIRResource } from '../../../../contexts/FHIRResourceContext';
@@ -934,13 +936,21 @@ const ResultsTabOptimized = ({
                 '—';
 
               const date = item.effectiveDateTime || item.issued;
-              
+
+              // An out-of-range result is tinted across its whole row, so
+              // it is found by scanning down the table; the word in the
+              // Status column still says which way it is out.
+              const flagged = !isReport && isFlaggedStatus(status);
+              const flagTone = status.color === 'error' ? 'critical' : 'attention';
+              const flagColors = flagged ? getToneColors(theme, flagTone) : null;
+              const numericValue = typeof item.valueQuantity?.value === 'number' ? item.valueQuantity.value : NaN;
+
               return (
                 <TableRow 
                   key={item.id} 
                   hover
                   sx={{ 
-                    bgcolor: index % 2 === 1 ? 
+                    bgcolor: flagged ? flagColors.bg : index % 2 === 1 ? 
                       (theme.palette.mode === 'dark' ? alpha(theme.palette.action.hover, 0.5) : 'action.hover') : 
                       'background.paper',
                     '&:hover': {
@@ -962,14 +972,29 @@ const ResultsTabOptimized = ({
                     </Stack>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={!isReport && isFlaggedStatus(status) ? 'bold' : 'normal'}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontFamily: isReport ? undefined : theme.typography.fontFamilyMonospace,
+                        fontWeight: flagged ? 700 : 500,
+                        color: flagged ? flagColors.fg : 'text.primary',
+                      }}
+                    >
                       {value}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="caption" color="text.secondary">
-                      {reference}
-                    </Typography>
+                    <Stack direction="row" spacing={1.25} alignItems="center">
+                      <RangeBar
+                        value={numericValue}
+                        low={refRange?.low?.value}
+                        high={refRange?.high?.value}
+                        tone={flagged ? flagTone : 'neutral'}
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        {reference}
+                      </Typography>
+                    </Stack>
                   </TableCell>
                   <TableCell>
                     {status.label && status.label !== '—' && (

@@ -154,3 +154,35 @@ export const formatLabName = (display) => {
     : `${analyte}, ${specimen.toLowerCase()}`;
   return name.replace(/\s{2,}/g, ' ').trim() || text;
 };
+
+/* ------------------------------------------------------------ Conditions */
+
+// SNOMED display names end with a semantic tag: "Stress (finding)".
+const SEMANTIC_TAG = /\s*\(([a-z /]+)\)\s*$/;
+// Tags that describe circumstances rather than a diagnosis. Synthea records
+// employment, education and housing as Conditions.
+const CONTEXT_TAGS = new Set(['finding', 'situation', 'person', 'social concept', 'event', 'observable entity']);
+
+/**
+ * "Essential hypertension (disorder)" -> { name: "Essential hypertension", kind: "diagnosis" }
+ * "Full-time employment (finding)"    -> { name: "Full-time employment", kind: "context" }
+ * Mirrors backend/api/analytics/service.py `split_condition_name`.
+ */
+export const splitConditionName = (display) => {
+  const text = (display || '').trim();
+  const match = SEMANTIC_TAG.exec(text);
+  if (!match) return { name: text || 'Unknown condition', kind: 'diagnosis' };
+  const name = text.slice(0, match.index).trim() || text;
+  return { name, kind: CONTEXT_TAGS.has(match[1]) ? 'context' : 'diagnosis' };
+};
+
+/** Diagnoses first, then social and other findings; order is otherwise kept. */
+export const orderConditionsForChart = (conditions = []) => {
+  const displayOf = (c) => c?.code?.text || c?.code?.coding?.[0]?.display;
+  const diagnoses = [];
+  const context = [];
+  conditions.forEach((condition) => {
+    (splitConditionName(displayOf(condition)).kind === 'context' ? context : diagnoses).push(condition);
+  });
+  return { ordered: [...diagnoses, ...context], firstContextIndex: context.length ? diagnoses.length : -1 };
+};

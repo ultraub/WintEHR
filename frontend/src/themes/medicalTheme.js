@@ -809,6 +809,18 @@ const getComponentOverrides = (palette) => ({
       }
     }
   },
+  // A table is always read on a solid card. Pages sit on the phase's
+  // patterned ground, and striped or hovered rows use translucent washes,
+  // so a table placed straight on the ground let the pattern show through
+  // its rows.
+  MuiTableContainer: {
+    styleOverrides: {
+      root: {
+        backgroundColor: palette.background.paper,
+        borderRadius: 8
+      }
+    }
+  },
   MuiDataGrid: {
     styleOverrides: {
       root: {
