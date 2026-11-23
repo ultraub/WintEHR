@@ -186,3 +186,22 @@ export const orderConditionsForChart = (conditions = []) => {
   });
   return { ordered: [...diagnoses, ...context], firstContextIndex: context.length ? diagnoses.length : -1 };
 };
+
+/* ------------------------------------------------------------------- Age */
+
+/**
+ * A patient's age in whole years: to today for the living, to the date of
+ * death for the deceased (a patient who died at 31 is not 60).
+ * Returns null when the birth date is missing or unreadable.
+ */
+export const ageInYears = (patient, now = new Date()) => {
+  const birth = patient?.birthDate ? new Date(patient.birthDate) : null;
+  if (!birth || Number.isNaN(birth.getTime())) return null;
+  const died = patient?.deceasedDateTime ? new Date(patient.deceasedDateTime) : null;
+  const until = died && !Number.isNaN(died.getTime()) ? died : now;
+  let years = until.getUTCFullYear() - birth.getUTCFullYear();
+  const beforeBirthday = until.getUTCMonth() < birth.getUTCMonth()
+    || (until.getUTCMonth() === birth.getUTCMonth() && until.getUTCDate() < birth.getUTCDate());
+  if (beforeBirthday) years -= 1;
+  return Math.max(0, years);
+};
