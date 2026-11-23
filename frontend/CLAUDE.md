@@ -252,8 +252,12 @@ never be hidden. Never import `buildNavigationConfig` from a component.
 - **Numbers on screen are never animated.** `AnimatedCounter`
   renders the true value immediately; a count-up showed false counts.
 - **Unconfigured CDS cards**: only `critical` opens a dialog; `warning` is a
-  banner, `info` a self-clearing toast (`defaultModeForIndicator` in
-  `contexts/CDSHooksContext.js`).
+  banner, `info` a toast (`defaultModeForIndicator` in
+  `contexts/CDSHooksContext.js`). A toast shows the summary and opens in
+  place to the whole card (detail, source, suggestions, links, acknowledge,
+  snooze); after the hide delay the stack minimizes to a "Decision support"
+  button. Auto-hide must never dismiss a card: that discarded content the
+  service sent.
 - **A 401 does not log the user out by itself.** `services/api.js` confirms
   with `/api/auth/me` first, then fires `AUTH_UNAUTHORIZED_EVENT`
   (`constants/authEvents.js`); `AuthContext` clears the user and the router
