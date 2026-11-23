@@ -1,4 +1,4 @@
-# WintEHR 🩺
+# WintEHR 🩺 
 
 **A complete, hackable EHR for learning healthcare IT — FHIR-native, CDS-enabled, and built to be extended.**
 
