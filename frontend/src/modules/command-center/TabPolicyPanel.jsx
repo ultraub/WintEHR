@@ -1,6 +1,7 @@
 /**
- * TabPolicyPanel — which chart tabs each role sees, and which sections each
- * tab contains (slices 7 and 7b).
+ * TabPolicyPanel — which chart tabs each role sees, which sections each
+ * tab contains (slices 7 and 7b), and which PRIMARY navigation pages the
+ * app shell offers (slice 19).
  *
  * A matrix of tabs × (Organization, each role, each workflow context): a
  * ticked cell means the tab is visible; the Organization column applies to
@@ -12,10 +13,16 @@
  * hostable section from another tab or module on it (Flowsheet inside
  * Chart Review for nurses).
  *
- * The preview under the matrix is the exact result of the resolvers the
- * workspace uses. Saves the whole `ui.tabs.policy` setting (live tier) and
- * refreshes the policy in this browser so an open chart updates without a
- * reload.
+ * A second matrix, Primary navigation, does the same for the app shell's
+ * menu (Dashboard, Patients, Population Health, developer and admin pages,
+ * module pages) by nav item id: an unticked page leaves the sidebar, the
+ * icon rail and the command palette, and its URL lands on the first
+ * visible page. Patients and the Command Center can never be hidden.
+ *
+ * The preview under the matrices is the exact result of the resolvers the
+ * workspace and the shell use. Saves the whole `ui.tabs.policy` setting
+ * (live tier) and refreshes the policy in this browser so an open chart
+ * and the menu update without a reload.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -43,12 +50,15 @@ import {
 } from '@mui/material';
 import { ExpandMore as ExpandMoreIcon, ChevronRight as ChevronRightIcon, Close as CloseIcon } from '@mui/icons-material';
 import {
+  ALWAYS_VISIBLE_NAV,
   ALWAYS_VISIBLE_TABS,
   EMPTY_TAB_POLICY,
   api,
   loadClinicalSectionCatalog,
   loadClinicalTabCatalog,
+  loadNavigationCatalog,
   refreshTabPolicy,
+  resolveEffectiveNav,
   resolveEffectiveSections,
   resolveEffectiveTabs,
   useAuth,
@@ -59,10 +69,15 @@ const ORG = '__org__';
 
 const detailOf = (err, fallback) => err?.response?.data?.detail || err?.message || fallback;
 
-const emptyLayer = () => ({ hidden: [], order: [], default: null, sections: {} });
+const emptyLayer = () => ({ hidden: [], order: [], default: null, sections: {}, nav: { hidden: [] } });
 const emptySpec = () => ({ hidden: [], order: [], added: [] });
 
-const normalizeLayer = (l) => ({ ...emptyLayer(), ...(l || {}), sections: { ...(l?.sections || {}) } });
+const normalizeLayer = (l) => ({
+  ...emptyLayer(),
+  ...(l || {}),
+  sections: { ...(l?.sections || {}) },
+  nav: { hidden: [...(l?.nav?.hidden || [])] },
+});
 const normalize = (policy) => ({
   org: normalizeLayer(policy?.org),
   roles: Object.fromEntries(Object.entries(policy?.roles || {}).map(([r, l]) => [r, normalizeLayer(l)])),
@@ -71,13 +86,14 @@ const normalize = (policy) => ({
 
 const CONTEXT_ID = /^[a-z0-9][a-z0-9-]{1,31}$/;
 
-/** Drop empty section specs so the saved document stays small. */
+/** Drop empty section specs and an empty nav spec so the saved document stays small. */
 const compact = (policy) => {
   const clean = (layer) => {
     const sections = Object.fromEntries(
       Object.entries(layer.sections || {}).filter(([, s]) => s.hidden?.length || s.order?.length || s.added?.length),
     );
-    return { ...layer, sections };
+    const { nav, ...rest } = layer;
+    return nav?.hidden?.length ? { ...rest, sections, nav: { hidden: nav.hidden } } : { ...rest, sections };
   };
   return {
     org: clean(policy.org),
@@ -92,6 +108,7 @@ const TabPolicyPanel = () => {
 
   const [catalog, setCatalog] = useState(null);
   const [sections, setSections] = useState([]);
+  const [navItems, setNavItems] = useState([]);
   const [roles, setRoles] = useState([]);
   const [saved, setSaved] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -105,14 +122,16 @@ const TabPolicyPanel = () => {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [tabs, sectionCatalog, policyRes] = await Promise.all([
+      const [tabs, sectionCatalog, navCatalog, policyRes] = await Promise.all([
         loadClinicalTabCatalog(),
         loadClinicalSectionCatalog(),
+        loadNavigationCatalog(),
         api.get('/api/command-center/ui-policy'),
       ]);
       const policy = normalize(policyRes.data?.policy || EMPTY_TAB_POLICY);
       setCatalog(tabs);
       setSections(sectionCatalog);
+      setNavItems(navCatalog);
       setRoles(policyRes.data?.roles || []);
       setSaved(policy);
       setDraft(policy);
@@ -180,6 +199,12 @@ const TabPolicyPanel = () => {
 
   const setDefault = (key, tabId) => setLayer(key, (layer) => ({ ...layer, default: tabId || null }));
 
+  const toggleNav = (key, navId) =>
+    setLayer(key, (layer) => {
+      const hidden = layer.nav.hidden.includes(navId) ? layer.nav.hidden.filter((id) => id !== navId) : [...layer.nav.hidden, navId];
+      return { ...layer, nav: { hidden } };
+    });
+
   const toggleSection = (key, tabId, sectionId) =>
     setSectionSpec(key, tabId, (spec) => ({
       ...spec,
@@ -205,7 +230,7 @@ const TabPolicyPanel = () => {
       setDraft(policy);
       setMeta({ source: response.data.source, updated_by: response.data.updated_by, updated_at: response.data.updated_at });
       await refreshTabPolicy();
-      setNotice('Saved. Open charts pick up the new tabs on their next render.');
+      setNotice('Saved. Open charts and the navigation pick up the change on their next render.');
     } catch (err) {
       setError(detailOf(err, 'Could not save the tab policy'));
     } finally {
@@ -223,7 +248,7 @@ const TabPolicyPanel = () => {
       setDraft(policy);
       setMeta({ source: response.data.source });
       await refreshTabPolicy();
-      setNotice('Policy reset: every tab and section is visible for everyone.');
+      setNotice('Policy reset: every tab, section and navigation page is visible for everyone.');
     } catch (err) {
       setError(detailOf(err, 'Could not reset the tab policy'));
     } finally {
@@ -237,6 +262,9 @@ const TabPolicyPanel = () => {
   }
 
   const sectionsById = Object.fromEntries(sections.map((s) => [s.id, s]));
+  const navSections = Object.entries(
+    navItems.reduce((acc, item) => ({ ...acc, [item.section]: [...(acc[item.section] || []), item] }), {}),
+  );
   const ownSections = (tabId) => sections.filter((s) => s.host === tabId);
   const hostableFor = (tabId) => sections.filter((s) => s.hostable && s.host !== tabId);
   const hasSections = (tabId) => ownSections(tabId).length > 0 || hostableFor(tabId).length > 0;
@@ -337,6 +365,7 @@ const TabPolicyPanel = () => {
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
       {notice && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setNotice(null)}>{notice}</Alert>}
 
+      <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Chart tabs</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         Tick a cell to show that tab. The Organization column applies to everyone; a role column can only hide
         more. <strong>Summary</strong> is always visible. Expand a tab to choose the sections inside it, or to add a
@@ -434,6 +463,66 @@ const TabPolicyPanel = () => {
         </Table>
       </Paper>
 
+      <Typography variant="subtitle2" sx={{ mt: 3, mb: 0.5 }}>Primary navigation</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        The pages in the app's menu, icon rail and command palette. An unticked page leaves the menu and its address
+        lands on the first visible page. <strong>Patients</strong> is the landing page and the{' '}
+        <strong>Command Center</strong> is how you undo this, so neither can be hidden.
+      </Typography>
+
+      <Paper variant="outlined" sx={{ borderRadius: 1, overflowX: 'auto' }}>
+        <Table size="small" aria-label="Primary navigation">
+          <TableHead>
+            <TableRow>
+              <TableCell>Page</TableCell>
+              {columns.map((c) => (
+                <TableCell key={c.key} align="center" sx={{ textTransform: c.role ? 'capitalize' : 'none' }}>{c.label}</TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {navSections.map(([section, items]) => (
+              <React.Fragment key={section}>
+                <TableRow>
+                  <TableCell colSpan={columns.length + 1} sx={{ bgcolor: 'action.hover', py: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      {items[0].sectionTitle}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+                {items.map((item) => (
+                  <TableRow key={item.id} hover>
+                    <TableCell>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ pl: 1 }}>
+                        <span>{item.label}</span>
+                        <Typography variant="caption" color="text.disabled">{item.path}</Typography>
+                      </Stack>
+                    </TableCell>
+                    {columns.map((c) => {
+                      const layer = layerFor(draft, c.key);
+                      const locked = ALWAYS_VISIBLE_NAV.includes(item.id);
+                      const hiddenAbove = c.key !== ORG && draft.org.nav.hidden.includes(item.id);
+                      const checked = locked || (!hiddenAbove && !layer.nav.hidden.includes(item.id));
+                      return (
+                        <TableCell key={c.key} align="center">
+                          <Tooltip title={locked ? `${item.label} is always in the navigation` : hiddenAbove ? 'Hidden for the whole organization' : ''}>
+                            <span>
+                              <Checkbox size="small" checked={checked} disabled={!canEdit || locked || hiddenAbove || busy}
+                                onChange={() => toggleNav(c.key, item.id)}
+                                inputProps={{ 'aria-label': `${item.label} page visible for ${c.label}` }} />
+                            </span>
+                          </Tooltip>
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))}
+              </React.Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 2 }} useFlexGap flexWrap="wrap">
         <Typography variant="subtitle2">Workflow contexts</Typography>
         <Typography variant="caption" color="text.secondary">
@@ -465,6 +554,13 @@ const TabPolicyPanel = () => {
                 {preview.tabs.map((t) => (
                   <Chip key={t.id} size="small" label={t.label} variant={t.id === preview.defaultTab ? 'filled' : 'outlined'}
                     color={t.id === preview.defaultTab ? 'primary' : 'default'} sx={{ borderRadius: 1 }} />
+                ))}
+              </Stack>
+              <Stack direction="row" spacing={0.5} alignItems="center" useFlexGap flexWrap="wrap" sx={{ pl: 14, mt: 0.5 }}
+                data-testid={`preview-${c.key}-nav`}>
+                <Typography variant="caption" color="text.secondary">Navigation:</Typography>
+                {resolveEffectiveNav(navItems, draft, { role: c.role, context: c.context }).items.map((i) => (
+                  <Chip key={i.id} size="small" label={i.label} variant="outlined" sx={{ borderRadius: 1, height: 20, fontSize: 11 }} />
                 ))}
               </Stack>
               {preview.tabs.filter((t) => expanded[t.id] && hasSections(t.id)).map((t) => {

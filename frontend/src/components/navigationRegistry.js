@@ -15,6 +15,12 @@
  * items can slot between). A section with no items is dropped from the nav
  * entirely — "Population Health" only exists while the quality-analytics
  * module is enabled.
+ *
+ * Every item carries a stable `id` (core items here, module pages their
+ * page id): the Command Center's navigation policy (`ui.tabs.policy` →
+ * `nav.hidden`, docs/COMMAND_CENTER.md slice 19) hides items by that id.
+ * This file is the catalog of what EXISTS; `useEffectiveNavigation()` is
+ * what a user SEES.
  */
 
 import React from 'react';
@@ -46,10 +52,10 @@ const CORE_NAV_SECTIONS = {
     title: 'Clinical Workflows',
     icon: <MedicalIcon />,
     items: [
-      { order: 10, text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions', iconColor: categoricalAccents.summary },
-      { order: 30, text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management', iconColor: categoricalAccents.patients },
-      { order: 40, text: 'Encounters', icon: <EncountersIcon />, path: '/encounters', description: 'Visit management', iconColor: categoricalAccents.encounters },
-      { order: 50, text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing', iconColor: categoricalAccents.pharmacy },
+      { id: 'dashboard', order: 10, text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', description: 'Overview & quick actions', iconColor: categoricalAccents.summary },
+      { id: 'patients', order: 30, text: 'Patients', icon: <PeopleIcon />, path: '/patients', description: 'Patient management', iconColor: categoricalAccents.patients },
+      { id: 'encounters', order: 40, text: 'Encounters', icon: <EncountersIcon />, path: '/encounters', description: 'Visit management', iconColor: categoricalAccents.encounters },
+      { id: 'pharmacy', order: 50, text: 'Pharmacy', icon: <PharmacyIcon />, path: '/pharmacy', description: 'Pharmacy workflow & dispensing', iconColor: categoricalAccents.pharmacy },
     ],
   },
   analytics: {
@@ -61,16 +67,16 @@ const CORE_NAV_SECTIONS = {
     title: 'Developer Tools',
     icon: <ApiIcon />,
     items: [
-      { order: 10, text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'FHIR resource exploration & queries', iconColor: categoricalAccents.fhirExplorer },
-      { order: 20, text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', iconColor: categoricalAccents.cdsStudio },
+      { id: 'fhir-explorer', order: 10, text: 'FHIR Explorer', icon: <ApiIcon />, path: '/fhir-explorer', description: 'FHIR resource exploration & queries', iconColor: categoricalAccents.fhirExplorer },
+      { id: 'cds-studio', order: 20, text: 'CDS Studio', icon: <WebhookIcon />, path: '/cds-studio', description: 'Clinical decision support studio', iconColor: categoricalAccents.cdsStudio },
     ],
   },
   admin: {
     title: 'Administration',
     icon: <SecurityIcon />,
     items: [
-      { order: 10, text: 'Audit Trail', icon: <SecurityIcon />, path: '/audit-trail', description: 'Security & compliance', iconColor: categoricalAccents.audit },
-      { order: 20, text: 'System Settings', icon: <SettingsIcon />, path: '/settings', description: 'Configuration', iconColor: categoricalAccents.settings },
+      { id: 'audit-trail', order: 10, text: 'Audit Trail', icon: <SecurityIcon />, path: '/audit-trail', description: 'Security & compliance', iconColor: categoricalAccents.audit },
+      { id: 'settings', order: 20, text: 'System Settings', icon: <SettingsIcon />, path: '/settings', description: 'Configuration', iconColor: categoricalAccents.settings },
     ],
   },
 };
@@ -103,6 +109,7 @@ export function buildNavigationConfig() {
     }
     const Icon = pageEntry.icon;
     section.items.push({
+      id: pageEntry.id,
       order: nav.order ?? 1000,
       text: pageEntry.label,
       icon: <Icon />,
@@ -119,4 +126,26 @@ export function buildNavigationConfig() {
     config[key] = section;
   }
   return config;
+}
+
+/**
+ * Flat catalog of every nav item in this build, for the Command Center's
+ * navigation matrix: { id, label, path, section, sectionTitle }.
+ */
+export function navigationCatalog() {
+  return Object.entries(buildNavigationConfig()).flatMap(([section, s]) =>
+    s.items.map((item) => ({ id: item.id, label: item.text, path: item.path, section, sectionTitle: s.title })),
+  );
+}
+
+/** The config without the given item ids; sections left empty disappear. */
+export function filterNavigationConfig(config, hiddenIds) {
+  if (!hiddenIds?.length) return config;
+  const hidden = new Set(hiddenIds);
+  const out = {};
+  for (const [key, section] of Object.entries(config)) {
+    const items = section.items.filter((item) => !hidden.has(item.id));
+    if (items.length) out[key] = { ...section, items };
+  }
+  return out;
 }

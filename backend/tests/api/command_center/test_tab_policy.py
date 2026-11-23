@@ -18,8 +18,8 @@ from api.command_center.tab_policy import EMPTY_POLICY, known_roles, normalize_t
 def test_normalize_fills_every_layer_and_dedupes():
     doc = {"org": {"hidden": ["inbox", "inbox", "pharmacy"]}, "roles": {"nurse": {"default": "administration", "order": ["summary", "administration"]}}}
     out = normalize_tab_policy(doc)
-    assert out["org"] == {"hidden": ["inbox", "pharmacy"], "order": [], "default": None, "sections": {}}
-    assert out["roles"]["nurse"] == {"hidden": [], "order": ["summary", "administration"], "default": "administration", "sections": {}}
+    assert out["org"] == {"hidden": ["inbox", "pharmacy"], "order": [], "default": None, "sections": {}, "nav": {"hidden": []}}
+    assert out["roles"]["nurse"] == {"hidden": [], "order": ["summary", "administration"], "default": "administration", "sections": {}, "nav": {"hidden": []}}
     assert out["contexts"] == {}
     assert normalize_tab_policy(None) == EMPTY_POLICY
 
@@ -39,6 +39,9 @@ def test_summary_can_never_be_hidden():
     {"org": {"hidden": ["inbox"], "default": "inbox"}},
     {"roles": []},
     {"roles": {"": {}}},
+    {"org": {"nav": []}},
+    {"org": {"nav": {"hidden": "dashboard"}}},
+    {"org": {"nav": {"order": ["dashboard"]}}},
 ])
 def test_bad_shapes_are_rejected(doc):
     with pytest.raises(SettingValueError):
@@ -94,3 +97,22 @@ def test_sections_per_tab_are_validated_and_empty_specs_dropped():
 
 def test_known_roles_covers_training_users():
     assert set(known_roles()) >= {"physician", "nurse", "pharmacist", "admin"}
+
+
+def test_nav_layer_hides_primary_navigation_but_never_patients_or_the_command_center():
+    out = normalize_tab_policy({
+        "org": {"nav": {"hidden": ["dashboard", "patients", "dashboard"]}},
+        "roles": {"nurse": {"nav": {"hidden": ["command-center", "analytics"]}}},
+        "contexts": {"clinic": {}},
+    })
+    assert out["org"]["nav"] == {"hidden": ["dashboard"]}
+    assert out["roles"]["nurse"]["nav"] == {"hidden": ["analytics"]}
+    assert out["contexts"]["clinic"]["nav"] == {"hidden": []}
+    assert EMPTY_POLICY["org"]["nav"] == {"hidden": []}
+
+
+@pytest.mark.asyncio
+async def test_ui_policy_names_the_locked_nav_items():
+    svc = SettingsService(MemorySettingsRepository(), secret_box=SecretBox(None), env={})
+    out = await get_ui_policy(settings=svc)
+    assert out.always_visible_nav == ["patients", "command-center"]

@@ -3,7 +3,7 @@
  * Modern application layout with improved navigation, search, and workflow support
  */
 import React, { useState, useContext, useEffect } from 'react';
-import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, useLocation, Link as RouterLink, Navigate } from 'react-router-dom';
 import {
   AppBar,
   Box,
@@ -47,7 +47,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { shellPalette, shellGradient } from '../themes/shellPalette';
-import { buildNavigationConfig } from './navigationRegistry';
+import { useEffectiveNavigation } from './useEffectiveNavigation';
 import { MedicalThemeContext } from '../App';
 import QuickThemeToggle from './theme/QuickThemeToggle';
 import SearchBar from './SearchBar';
@@ -60,9 +60,10 @@ const drawerWidth = 280;
 const railWidth = 64;
 
 // Navigation structure derives from navigationRegistry: core seed + pages
-// contributed by enabled modules (docs/MODULES.md). Do not hardcode nav
-// items here — module items and their routes come from ONE manifest entry.
-const navigationConfig = buildNavigationConfig();
+// contributed by enabled modules (docs/MODULES.md), minus what the Command
+// Center's navigation policy hides for this user (useEffectiveNavigation).
+// Do not hardcode nav items here — module items and their routes come from
+// ONE manifest entry.
 
 const NavigationSection = ({ section, sectionKey, isOpen, onToggle, selectedPath, onNavigate }) => {
   return (
@@ -246,6 +247,7 @@ function LayoutV3({ children, rail = false, flush = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { config: navigationConfig, ready: navReady, isHiddenPath, landingPath } = useEffectiveNavigation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [openSections, setOpenSections] = useState({
@@ -361,8 +363,8 @@ function LayoutV3({ children, rail = false, flush = false }) {
 
   const railDrawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', background: shellGradient }}>
-      <Tooltip title="Dashboard" placement="right">
-        <IconButton onClick={() => handleNavigation('/dashboard')} aria-label="WintEHR dashboard" sx={{ my: 1.25 }}>
+      <Tooltip title="Home" placement="right">
+        <IconButton onClick={() => handleNavigation(landingPath)} aria-label="WintEHR home" sx={{ my: 1.25 }}>
           <Box
             component="img"
             src="/wintehr-logo-icon.png"
@@ -413,6 +415,12 @@ function LayoutV3({ children, rail = false, flush = false }) {
       </Box>
     </Box>
   );
+
+  // A page the navigation policy hides for this user is not reachable by
+  // URL either: once the policy is known, land on the first visible page.
+  if (navReady && isHiddenPath(location.pathname)) {
+    return <Navigate to={landingPath} replace />;
+  }
 
   return (
     <Box sx={{ display: 'flex', height: '100vh' }}>

@@ -2,7 +2,7 @@
  * resolveEffectiveTabs — the layered policy rules, pure.
  */
 
-import { ALWAYS_VISIBLE, EMPTY_TAB_POLICY, resolveEffectiveTabs } from '../tabPolicy';
+import { ALWAYS_VISIBLE, EMPTY_TAB_POLICY, resolveEffectiveTabs, resolveEffectiveNav } from '../tabPolicy';
 
 const TABS = ['summary', 'chart-review', 'results', 'orders', 'administration', 'pharmacy', 'inbox'].map((id) => ({
   id,
@@ -123,4 +123,32 @@ it('a role can hide a section the organization added, and non-hostable sections 
 it('sections on other tabs are untouched by a tab\'s spec', () => {
   const policy = { org: { sections: { 'chart-review': { hidden: ['conditions'] } } } };
   expect(sids(resolveEffectiveSections('imaging', SECTIONS, policy, {}))).toEqual(['imaging-studies']);
+});
+
+const NAV = [
+  { id: 'dashboard', path: '/dashboard' },
+  { id: 'patients', path: '/patients' },
+  { id: 'analytics', path: '/analytics' },
+  { id: 'command-center', path: '/command-center' },
+];
+const nids = (r) => r.items.map((i) => i.id);
+
+it('nav: layers union their hidden pages; patients and the command center never hide; unknown ids warn', () => {
+  const policy = {
+    org: { nav: { hidden: ['dashboard', 'patients', 'nope'] } },
+    roles: { nurse: { nav: { hidden: ['analytics', 'command-center'] } } },
+    contexts: { clinic: { nav: { hidden: ['analytics'] } } },
+  };
+  expect(nids(resolveEffectiveNav(NAV, policy, {}))).toEqual(['patients', 'analytics', 'command-center']);
+  const nurse = resolveEffectiveNav(NAV, policy, { role: 'nurse' });
+  expect(nids(nurse)).toEqual(['patients', 'command-center']);
+  expect(nurse.hiddenIds).toEqual(['dashboard', 'analytics']);
+  expect(nurse.warnings).toEqual(expect.arrayContaining([
+    'unknown nav id in hidden: nope',
+    'patients cannot be hidden from the navigation; ignored',
+    'command-center cannot be hidden from the navigation; ignored',
+  ]));
+  expect(nids(resolveEffectiveNav(NAV, policy, { role: 'physician', context: 'clinic' }))).toEqual(['patients', 'command-center']);
+  expect(nids(resolveEffectiveNav(NAV, undefined, { role: 'nurse' }))).toHaveLength(4);
+  expect(nids(resolveEffectiveNav(NAV, { org: { hidden: ['inbox'] } }, {}))).toHaveLength(4);
 });

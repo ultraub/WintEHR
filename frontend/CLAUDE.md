@@ -155,6 +155,15 @@ contributions). Disable per build with `REACT_APP_DISABLED_MODULES`
 (keys match the backend's `WINTEHR_DISABLED_MODULES`); disabling removes
 tabs, routes, and nav items together.
 
+The shell's **primary navigation** has the same split: `navigationRegistry`
+is what exists (every item has a stable `id`; module pages use their page
+id), `useEffectiveNavigation()` (`components/useEffectiveNavigation.js`) is
+what this user sees after the Command Center's policy (`nav.hidden` per
+organization / role / context layer in `ui.tabs.policy`). LayoutV3 renders
+sidebar, icon rail and command palette from its `config` and redirects a
+hidden page's URL to `landingPath`. Patients and the Command Center can
+never be hidden. Never import `buildNavigationConfig` from a component.
+
 ---
 
 ## Conventions for new clinical components
