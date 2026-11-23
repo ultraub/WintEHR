@@ -2,7 +2,7 @@
  * CDS Presentation Component
  * Handles different presentation modes for CDS cards according to CDS Hooks spec
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -133,6 +133,12 @@ const CDSPresentation = ({
     if (onClose) onClose();
   };
   const [selectedAlert, setSelectedAlert] = useState(null);
+  // Toast mode: a card can be opened in place to show everything it
+  // carries; after the hide delay the stack tucks into a small button
+  // rather than being dismissed, so nothing a service sent is lost.
+  const [expandedToasts, setExpandedToasts] = useState(() => new Set());
+  const [toastsMinimized, setToastsMinimized] = useState(false);
+  const [toastsPinned, setToastsPinned] = useState(false);
   const [dismissedAlerts, setDismissedAlerts] = useState(() => {
     // Use persistent storage for dismissed alerts
     if (!patientId) return new Set();
@@ -214,36 +220,15 @@ const CDSPresentation = ({
   // Track icon load errors per alert
   const [iconErrors, setIconErrors] = useState(new Set());
 
-  // Auto-hide timer for toast mode
-  const autoHideTimersRef = useRef(new Map());
+  // Toast auto-hide. It used to mark each card dismissed (and persist that
+  // for the session), which threw away the card's detail, suggestions and
+  // links eight seconds after showing only its one-line summary. Now the
+  // stack minimizes to a button; opening a card or the button pins it.
   useEffect(() => {
-    if (!autoHide || mode !== PRESENTATION_MODES.TOAST) return;
-
-    const timers = autoHideTimersRef.current;
-    alerts.forEach(alert => {
-      const alertKey = `${alert.serviceId}-${alert.summary}`;
-      if (!dismissedAlerts.has(alertKey) && !timers.has(alertKey)) {
-        const timer = setTimeout(() => {
-          setDismissedAlerts(prev => {
-            const newSet = new Set([...prev, alertKey]);
-            if (patientId) {
-              try {
-                sessionStorage.setItem(`cds-dismissed-alerts-${patientId}`, JSON.stringify([...newSet]));
-              } catch (e) { /* ignore */ }
-            }
-            return newSet;
-          });
-          timers.delete(alertKey);
-        }, hideDelay);
-        timers.set(alertKey, timer);
-      }
-    });
-
-    return () => {
-      timers.forEach(timer => clearTimeout(timer));
-      timers.clear();
-    };
-  }, [autoHide, hideDelay, mode, alerts, dismissedAlerts, patientId]);
+    if (!autoHide || mode !== PRESENTATION_MODES.TOAST || toastsPinned || toastsMinimized) return undefined;
+    const timer = setTimeout(() => setToastsMinimized(true), hideDelay);
+    return () => clearTimeout(timer);
+  }, [autoHide, hideDelay, mode, toastsPinned, toastsMinimized, alerts.length]);
 
   // Handle alert dismissal — use stable key (serviceId+summary) not transient uuid.
   // Pass `suppressFeedback: true` when the caller has already sent its own
@@ -938,20 +923,52 @@ const CDSPresentation = ({
     );
   }
 
-  // Toast mode - Auto-hiding notifications
+  // Toast mode: unobtrusive cards at the bottom corner. Each shows its
+  // summary and opens in place to the full card (detail, source, suggestion
+  // and link buttons, acknowledge / snooze). The stack minimizes to a
+  // button after the hide delay instead of disappearing.
   if (mode === PRESENTATION_MODES.TOAST) {
-    // Stack toasts vertically with proper spacing
+    const corner = { position: 'fixed', bottom: 16, right: 16, zIndex: 1400 };
+
+    if (toastsMinimized) {
+      return (
+        <>
+          <Box sx={corner}>
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<InfoIcon />}
+              onClick={() => { setToastsMinimized(false); setToastsPinned(true); }}
+              aria-label={`Show ${visibleAlerts.length} decision support card${visibleAlerts.length === 1 ? '' : 's'}`}
+            >
+              Decision support · {visibleAlerts.length}
+            </Button>
+          </Box>
+          {renderInteractionDialogs()}
+        </>
+      );
+    }
+
+    const openToast = (alertKey) => {
+      setExpandedToasts((prev) => new Set([...prev, alertKey]));
+      setToastsPinned(true);
+    };
+    const closeToast = (alertKey) => setExpandedToasts((prev) => {
+      const next = new Set(prev);
+      next.delete(alertKey);
+      return next;
+    });
+
     return (
       <>
       <Box sx={{
-        position: 'fixed',
-        bottom: 16,
-        right: 16,
-        zIndex: 1400,
+        ...corner,
         display: 'flex',
         flexDirection: 'column-reverse',
         gap: 1,
-        maxWidth: 400
+        width: 'min(420px, calc(100vw - 32px))',
+        maxHeight: 'calc(100vh - 120px)',
+        overflowY: 'auto',
       }}>
         {visibleAlerts.map((alert, index) => {
           const alertKey = `${alert.serviceId}-${alert.summary}`;
@@ -959,7 +976,12 @@ const CDSPresentation = ({
 
           if (!isVisible) return null;
 
-          const { content } = renderAlert(alert, true);
+          const expanded = expandedToasts.has(alertKey);
+          const { content, actions } = renderAlert(alert, !expanded);
+          const extras = [
+            alert.suggestions?.length && `${alert.suggestions.length} suggestion${alert.suggestions.length === 1 ? '' : 's'}`,
+            alert.links?.length && `${alert.links.length} link${alert.links.length === 1 ? '' : 's'}`,
+          ].filter(Boolean).join(' · ');
           return (
             <Slide
               key={`toast-${alert.summary}-${index}`}
@@ -970,14 +992,40 @@ const CDSPresentation = ({
               <Alert
                 severity={getSeverityColor(alert.indicator)}
                 onClose={() => handleAlertAction(alert, 'dismiss')}
+                // the whole card opens on click; the Details button is the
+                // same action for the keyboard
+                onClick={expanded ? undefined : () => openToast(alertKey)}
                 sx={{
                   boxShadow: 3,
+                  // solid: a toast sits over page content and must not let
+                  // it show through
+                  backgroundColor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  cursor: expanded ? 'default' : 'pointer',
+                  '& .MuiAlert-message': { flexGrow: 1, minWidth: 0 },
                   '& .MuiAlert-action': {
                     alignItems: 'flex-start'
                   }
                 }}
               >
                 {content}
+                {expanded ? (
+                  <>
+                    {actions}
+                    <Button size="small" onClick={() => closeToast(alertKey)} sx={{ mt: 0.5, ml: -0.5 }}>
+                      Show less
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="small"
+                    onClick={(event) => { event.stopPropagation(); openToast(alertKey); }}
+                    sx={{ display: 'block', mt: 0.25, ml: -0.5, textAlign: 'left' }}
+                  >
+                    Details{extras ? ` · ${extras}` : ''}
+                  </Button>
+                )}
               </Alert>
             </Slide>
           );
