@@ -20,12 +20,19 @@
  *  - unknown ids are ignored and reported in `warnings`, never thrown: a
  *    typo in a policy must not blank the workspace (same stance as
  *    `insertAfter` in the registry)
+ *
+ * The same document carries `nav` per layer (slice 19): which PRIMARY
+ * navigation items (Dashboard, Patients, Population Health, …) the app
+ * shell shows, by nav item id. `patients` and `command-center` can never
+ * be hidden (ALWAYS_VISIBLE_NAV): the first is the landing page, the second
+ * the only way to undo the policy.
  */
 
 export const ALWAYS_VISIBLE = ['summary'];
+export const ALWAYS_VISIBLE_NAV = ['patients', 'command-center'];
 
 export const EMPTY_TAB_POLICY = Object.freeze({
-  org: { hidden: [], order: [], default: null },
+  org: { hidden: [], order: [], default: null, nav: { hidden: [] } },
   roles: {},
   contexts: {},
 });
@@ -35,6 +42,7 @@ const layerOf = (value) => ({
   order: Array.isArray(value?.order) ? value.order : [],
   default: typeof value?.default === 'string' && value.default ? value.default : null,
   sections: value?.sections && typeof value.sections === 'object' ? value.sections : {},
+  nav: { hidden: Array.isArray(value?.nav?.hidden) ? value.nav.hidden : [] },
 });
 
 /** The layers that apply to {role, context}, least to most specific. */
@@ -134,4 +142,25 @@ export function resolveEffectiveSections(tabId, catalog, policy, { role, context
     ...visible.filter((s) => !order.includes(s.id)),
   ];
   return { sections: ordered, hiddenIds: [...hidden], addedIds: added, warnings };
+}
+
+/**
+ * The primary navigation items {role, context} sees: the catalog minus the
+ * union of every applicable layer's `nav.hidden`. `items` need { id }; the
+ * app shell passes `navigationCatalog()` entries. Unknown ids and the
+ * always-visible ones are reported in `warnings` and otherwise ignored.
+ */
+export function resolveEffectiveNav(items, policy, { role, context } = {}) {
+  const catalog = Array.isArray(items) ? items : [];
+  const known = new Set(catalog.map((i) => i.id));
+  const warnings = [];
+  const hidden = new Set();
+  for (const layer of applicableLayers(policy, { role, context })) {
+    for (const id of layer.nav.hidden) {
+      if (!known.has(id)) warnings.push(`unknown nav id in hidden: ${id}`);
+      else if (ALWAYS_VISIBLE_NAV.includes(id)) warnings.push(`${id} cannot be hidden from the navigation; ignored`);
+      else hidden.add(id);
+    }
+  }
+  return { items: catalog.filter((i) => !hidden.has(i.id)), hiddenIds: [...hidden], warnings };
 }

@@ -166,12 +166,12 @@ DEFINITIONS: Dict[str, SettingDefinition] = {
         SettingDefinition(
             key="ui.tabs.policy",
             type="json",
-            default={"org": {"hidden": [], "order": [], "default": None, "sections": {}}, "roles": {}, "contexts": {}},
+            default={"org": {"hidden": [], "order": [], "default": None, "sections": {}, "nav": {"hidden": []}}, "roles": {}, "contexts": {}},
             tier="live",
             label="Chart workspace tabs",
-            description="Which chart tabs are shown, in what order, and which opens first — for the whole "
+            description="Which chart tabs and primary navigation pages are shown, in what order, and which tab opens first — for the whole "
                         "organization and per role. Edited on the Command Center's Tabs tab.",
-            used_by="frontend useEffectiveTabs() (tab strip, keyboard shortcuts, hidden-tab fallback)",
+            used_by="frontend useEffectiveTabs() (tab strip, keyboard shortcuts, hidden-tab fallback) and useEffectiveNavigation() (app shell menu, rail, command palette)",
             validator=lambda doc: _normalize_tab_policy(doc),
         ),
         SettingDefinition(

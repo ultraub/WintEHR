@@ -51,7 +51,9 @@ export { buildUrl } from '../config/apiConfig';
 export {
   resolveEffectiveTabs,
   resolveEffectiveSections,
+  resolveEffectiveNav,
   ALWAYS_VISIBLE as ALWAYS_VISIBLE_TABS,
+  ALWAYS_VISIBLE_NAV,
   EMPTY_TAB_POLICY,
 } from '../components/clinical/workspace/tabPolicy';
 export { refreshTabPolicy } from '../components/clinical/workspace/tabPolicyStore';
@@ -62,6 +64,10 @@ export const loadClinicalTabCatalog = () =>
 export const loadModuleSummaries = () => import('./index').then((m) => m.getModuleSummaries());
 export const loadClinicalSectionCatalog = () =>
   import('../components/clinical/workspace/sectionRegistry').then((m) => m.sectionCatalog());
+// The primary navigation catalog (app-shell menu items by id), same lazy
+// pattern: navigationRegistry imports the module index.
+export const loadNavigationCatalog = () =>
+  import('../components/navigationRegistry').then((m) => m.navigationCatalog());
 
 // --- Theming ------------------------------------------------------------
 // One hue per clinical domain; module accents are registered here too.

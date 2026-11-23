@@ -133,6 +133,7 @@ class TabPolicyResponse(BaseModel):
     roles: List[str]
     contexts: List[str] = Field(default_factory=list)
     always_visible: List[str] = Field(default_factory=list)
+    always_visible_nav: List[str] = Field(default_factory=list)
     source: SettingSource = "default"
     updated_at: Optional[datetime] = None
     updated_by: Optional[str] = None

@@ -14,6 +14,13 @@ const CATALOG = [
   { id: 'inbox', label: 'Inbox', color: '#444' },
 ];
 
+const NAV = [
+  { id: 'dashboard', label: 'Dashboard', path: '/dashboard', section: 'clinical', sectionTitle: 'Clinical Workflows' },
+  { id: 'patients', label: 'Patients', path: '/patients', section: 'clinical', sectionTitle: 'Clinical Workflows' },
+  { id: 'analytics', label: 'Analytics', path: '/analytics', section: 'analytics', sectionTitle: 'Population Health' },
+  { id: 'command-center', label: 'Command Center', path: '/command-center', section: 'admin', sectionTitle: 'Administration' },
+];
+
 const SECTIONS = [
   { id: 'order-history', label: 'Order history', host: 'orders', builtin: true, hostable: false },
   { id: 'order-sets', label: 'Order sets', host: 'orders', builtin: true, hostable: false },
@@ -27,10 +34,13 @@ vi.mock('../../sdk', async () => {
     useAuth: vi.fn(),
     loadClinicalTabCatalog: vi.fn(() => Promise.resolve(CATALOG)),
     loadClinicalSectionCatalog: vi.fn(() => Promise.resolve(SECTIONS)),
+    loadNavigationCatalog: vi.fn(() => Promise.resolve(NAV)),
     refreshTabPolicy: vi.fn(() => Promise.resolve()),
     resolveEffectiveTabs: policy.resolveEffectiveTabs,
     resolveEffectiveSections: policy.resolveEffectiveSections,
+    resolveEffectiveNav: policy.resolveEffectiveNav,
     ALWAYS_VISIBLE_TABS: policy.ALWAYS_VISIBLE,
+    ALWAYS_VISIBLE_NAV: policy.ALWAYS_VISIBLE_NAV,
     EMPTY_TAB_POLICY: policy.EMPTY_TAB_POLICY,
   };
 });
@@ -167,4 +177,31 @@ it('adds a workflow context column, narrows a tab in it, previews it, and remove
   fireEvent.click(screen.getByLabelText('Remove context surgical'));
   expect(screen.queryByTestId('preview-ctx:surgical')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+});
+
+it('hides a primary navigation page per role or for everyone, with Patients and the Command Center locked', async () => {
+  useAuth.mockReturnValue({ user: { permissions: ['admin', 'system'] } });
+  api.get.mockResolvedValue(policyResponse({ roles: { nurse: { nav: { hidden: ['analytics'] } } } }));
+  api.put.mockImplementation((_url, body) => Promise.resolve({ data: { value: body.value, source: 'database', updated_by: 'demo-admin' } }));
+
+  render(<TabPolicyPanel />);
+  await screen.findByLabelText('Dashboard page visible for nurse');
+
+  expect(screen.getByLabelText('Patients page visible for Organization')).toBeDisabled();
+  expect(screen.getByLabelText('Command Center page visible for nurse')).toBeDisabled();
+  expect(screen.getByLabelText('Analytics page visible for nurse')).not.toBeChecked();
+  expect(within(screen.getByTestId('preview-nurse-nav')).queryByText('Analytics')).not.toBeInTheDocument();
+  expect(within(screen.getByTestId('preview-physician-nav')).getByText('Analytics')).toBeInTheDocument();
+
+  // Hiding Dashboard for the organization locks the role cells under it.
+  fireEvent.click(screen.getByLabelText('Dashboard page visible for Organization'));
+  expect(screen.getByLabelText('Dashboard page visible for nurse')).toBeDisabled();
+  expect(within(screen.getByTestId('preview-physician-nav')).queryByText('Dashboard')).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1));
+  const body = api.put.mock.calls[0][1];
+  expect(body.value.org.nav).toEqual({ hidden: ['dashboard'] });
+  expect(body.value.roles.nurse.nav).toEqual({ hidden: ['analytics'] });
+  expect(body.value.roles.physician).toBeUndefined();
 });

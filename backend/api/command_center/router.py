@@ -55,7 +55,7 @@ from .status_history import StatusHistoryService, default_status_history
 from .users import UsersService
 from .settings_service import SettingsError, SettingsService, default_settings_service
 from .roles import KNOWN_PERMISSIONS, LOCKED, default_roles, effective_permissions
-from .tab_policy import ALWAYS_VISIBLE, EMPTY_POLICY, known_roles
+from .tab_policy import ALWAYS_VISIBLE, ALWAYS_VISIBLE_NAV, EMPTY_POLICY, known_roles
 
 TAB_POLICY_SETTING = "ui.tabs.policy"
 ROLES_SETTING = "auth.roles"
@@ -221,6 +221,7 @@ async def get_ui_policy(settings: SettingsService = Depends(get_settings_service
         roles=known_roles(),
         contexts=sorted(policy.get("contexts", {}).keys()),
         always_visible=list(ALWAYS_VISIBLE),
+        always_visible_nav=list(ALWAYS_VISIBLE_NAV),
         source=view.source if view else "default",
         updated_at=view.updated_at if view else None,
         updated_by=view.updated_by if view else None,
