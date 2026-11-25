@@ -77,8 +77,7 @@ import { exportClinicalData } from '../../../../core/export/exportUtils';
 import { 
   getEncounterClass, 
   getCodeableConceptDisplay, 
-  getEncounterStatus,
-  getResourceReference 
+  getEncounterStatus
 } from '../../../../core/fhir/utils/fhirFieldUtils';
 import { getMedicationDosageDisplay, getMedicationRoute } from '../../../../core/fhir/utils/medicationDisplayUtils';
 import { documentReferenceConverter } from '../../../../core/fhir/converters/DocumentReferenceConverter';

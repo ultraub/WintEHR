@@ -54,9 +54,9 @@ import { fhirClient } from '../../../core/fhir/services/fhirClient';
 // Utils
 import {
   getMedicationName,
-  getMedicationDosageDisplay,
-  getMedicationStatus
+  getMedicationDosageDisplay
 } from '../../../core/fhir/utils/medicationDisplayUtils';
+import { getMedicationStatus } from '../../../core/fhir/utils/fhirFieldUtils';
 
 // Tab configuration
 const LIST_TABS = [
