@@ -149,6 +149,8 @@ const DICOMViewer = ({ study, onClose }) => {
       // Load study metadata (backend DICOM router is at /api/dicom — the
       // standard convention; the old bare /dicom needed per-nginx rewrites)
       const metadataResponse = await apiClient.get(`/api/dicom/studies/${studyDir}/metadata`, {
+        // SR and SEG objects share the study; they are not slices to draw.
+        params: { images_only: true },
         headers: {
           'X-DICOM-QIDO-URL': dicomEndpoints.qido,
           'X-DICOM-WADO-URL': dicomEndpoints.wado

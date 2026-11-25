@@ -48,6 +48,37 @@ except ImportError:
     DICOM_AVAILABLE = False
 
 
+AXIAL_ORIENTATION = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+
+
+def slice_geometry(config, slice_idx):
+    """Position, orientation, spacing and thickness for one synthetic axial slice.
+
+    config is a modality config: size (rows, cols), pixel_spacing (row, column
+    spacing in mm) and slice_thickness (mm). The pixel centres are centred on
+    x and y (ImagePositionPatient is the centre of the first pixel); slice 0
+    sits at z = 0 and each next slice is one slice thickness higher.
+    """
+    rows, cols = config['size']
+    row_spacing, col_spacing = config['pixel_spacing']
+    thickness = config['slice_thickness']
+    z = round(slice_idx * thickness, 4)
+    # Position values are rounded so float noise (x is -47.900000000000006
+    # unrounded for 480 columns of 0.2 mm) never exceeds the 16 character
+    # limit of a DS value.
+    return {
+        'ImagePositionPatient': [
+            round(-((cols - 1) * col_spacing) / 2.0, 4),
+            round(-((rows - 1) * row_spacing) / 2.0, 4),
+            z,
+        ],
+        'ImageOrientationPatient': list(AXIAL_ORIENTATION),
+        'PixelSpacing': [row_spacing, col_spacing],
+        'SliceThickness': thickness,
+        'SliceLocation': z,
+    }
+
+
 class HAPIFHIRDicomGenerator:
     """Generate DICOM files from HAPI FHIR ImagingStudy resources"""
 
@@ -58,15 +89,26 @@ class HAPIFHIRDicomGenerator:
 
         self.client = httpx.Client(base_url=self.hapi_url, timeout=30.0)
 
-        # Modality configurations
+        # Modality configurations. pixel_spacing (row, column) and
+        # slice_thickness are in mm: teaching values, not from any real
+        # protocol. With them every series has one Frame of Reference and its
+        # slices stack along z, so derived objects (a DICOM SEG, overlays) can
+        # be placed on the images.
         self.modality_configs = {
-            'CT': {'slices': 30, 'size': (512, 512), 'window': (400, 40)},
-            'MR': {'slices': 25, 'size': (256, 256), 'window': (2000, 1000)},
-            'XR': {'slices': 1, 'size': (2048, 2048), 'window': (2000, 1000)},
-            'CR': {'slices': 1, 'size': (2048, 2048), 'window': (2000, 1000)},
-            'DX': {'slices': 1, 'size': (2048, 2048), 'window': (2000, 1000)},
-            'US': {'slices': 1, 'size': (640, 480), 'window': (256, 128)},
-            'MG': {'slices': 1, 'size': (3328, 4096), 'window': (2000, 1000)},
+            'CT': {'slices': 30, 'size': (512, 512), 'window': (400, 40),
+                   'pixel_spacing': (0.7, 0.7), 'slice_thickness': 5.0},
+            'MR': {'slices': 25, 'size': (256, 256), 'window': (2000, 1000),
+                   'pixel_spacing': (0.9, 0.9), 'slice_thickness': 5.0},
+            'XR': {'slices': 1, 'size': (2048, 2048), 'window': (2000, 1000),
+                   'pixel_spacing': (0.2, 0.2), 'slice_thickness': 1.0},
+            'CR': {'slices': 1, 'size': (2048, 2048), 'window': (2000, 1000),
+                   'pixel_spacing': (0.2, 0.2), 'slice_thickness': 1.0},
+            'DX': {'slices': 1, 'size': (2048, 2048), 'window': (2000, 1000),
+                   'pixel_spacing': (0.2, 0.2), 'slice_thickness': 1.0},
+            'US': {'slices': 1, 'size': (640, 480), 'window': (256, 128),
+                   'pixel_spacing': (0.2, 0.2), 'slice_thickness': 1.0},
+            'MG': {'slices': 1, 'size': (3328, 4096), 'window': (2000, 1000),
+                   'pixel_spacing': (0.07, 0.07), 'slice_thickness': 1.0},
         }
 
     def fetch_imaging_studies(self, max_count=None, patient_id=None):
@@ -211,6 +253,10 @@ class HAPIFHIRDicomGenerator:
             # Create series directory
             series_dir = study_dir / f"series_{series_idx + 1:03d}_{modality}"
             series_dir.mkdir(exist_ok=True)
+            # One Frame of Reference per series: its slices share one patient
+            # coordinate system. Derived from the series UID, so generating
+            # the same FHIR series again gives the same one.
+            frame_of_reference_uid = generate_uid(entropy_srcs=[series_uid, 'frame-of-reference'])
 
             # Generate slices
             for slice_idx in range(num_slices):
@@ -228,7 +274,8 @@ class HAPIFHIRDicomGenerator:
                         series_number=series_idx + 1,
                         series_desc=series_desc,
                         modality=modality,
-                        config=config
+                        config=config,
+                        frame_of_reference_uid=frame_of_reference_uid,
                     )
                     total_files += 1
                 except Exception as e:
@@ -239,7 +286,8 @@ class HAPIFHIRDicomGenerator:
 
     def _create_dicom_file(self, series_dir, slice_idx, patient_id, patient_name,
                           study_uid, study_date, study_time, study_desc,
-                          series_uid, series_number, series_desc, modality, config):
+                          series_uid, series_number, series_desc, modality, config,
+                          frame_of_reference_uid):
         """Create a single DICOM file"""
 
         # Create file dataset
@@ -286,6 +334,13 @@ class HAPIFHIRDicomGenerator:
         ds.BitsStored = 16
         ds.HighBit = 15
         ds.PixelRepresentation = 0
+
+        # Geometry: without a Frame of Reference and slice positions, derived
+        # objects such as a segmentation cannot be placed on these images.
+        ds.FrameOfReferenceUID = frame_of_reference_uid
+        ds.PositionReferenceIndicator = ''
+        for key, value in slice_geometry(config, slice_idx).items():
+            setattr(ds, key, value)
 
         # Window center/width for display
         window_width, window_center = config['window']

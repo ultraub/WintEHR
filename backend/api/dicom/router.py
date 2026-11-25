@@ -26,6 +26,7 @@ from api.dicom.service import (
     parse_multipart_related,
     validate_uid,
 )
+from api.dicom.sop_classes import is_image_instance
 
 logger = logging.getLogger(__name__)
 
@@ -101,10 +102,16 @@ async def list_dicom_studies(
         raise HTTPException(status_code=503, detail=f"Failed to query DICOM server: {e}")
 
 
+# Other routes below call this as a plain function. They pass every argument:
+# an unpassed Query() default is a truthy object there, not None or False.
 @router.get("/studies/{study_uid}/metadata")
 async def get_study_metadata(
     study_uid: str,
-    series_uid: Optional[str] = Query(None, description="Filter by SeriesInstanceUID")
+    series_uid: Optional[str] = Query(None, description="Filter by SeriesInstanceUID"),
+    images_only: bool = Query(
+        False,
+        description="Skip SR, SEG and other non-image instances (the built-in viewer sets this)",
+    ),
 ):
     """
     Get metadata for instances in a study via WADO-RS.
@@ -134,12 +141,21 @@ async def get_study_metadata(
         study_data = response.json() if response.content else {}
 
         instances = []
+        skipped_non_image = 0
 
         for instance in study_data:
             series_uid_value = DICOMService._get_dicom_json_value(instance, "0020000E", "SeriesInstanceUID", "")
 
             # Skip if filtering by series UID and this isn't it
             if series_uid and series_uid_value != series_uid:
+                continue
+            # SR, SEG and other non-image objects live in the same study as
+            # the images; the viewer would draw them as broken slices.
+            if images_only and not is_image_instance(
+                DICOMService._get_dicom_json_value(instance, "00080016", "SOPClassUID", ""),
+                DICOMService._get_dicom_json_value(instance, "00080060", "Modality", ""),
+            ):
+                skipped_non_image += 1
                 continue
             try:
                 number_of_frames = int(
@@ -159,8 +175,9 @@ async def get_study_metadata(
             }
             instances.append(metadata)
 
-        logger.info(f"Found {len(instances)} instances for study {study_uid}")
-        return {"instances": instances, "studyInstanceUID": study_uid}
+        skipped_note = f" ({skipped_non_image} non-image skipped)" if images_only else ""
+        logger.info(f"Found {len(instances)} instances for study {study_uid}{skipped_note}")
+        return {"instances": instances, "studyInstanceUID": study_uid, "skippedNonImage": skipped_non_image}
 
     except HTTPException:
         raise
@@ -390,7 +407,7 @@ async def get_viewer_config(
         logger.info(f"Generating viewer config for study {study_uid}")
 
         # Get metadata which includes instance UIDs
-        metadata_response = await get_study_metadata(study_uid, series_uid)
+        metadata_response = await get_study_metadata(study_uid, series_uid=series_uid, images_only=False)
         instances = metadata_response.get("instances", [])
 
         if not instances:
@@ -464,7 +481,7 @@ async def get_study_as_fhir_imaging_study(
         logger.info(f"Converting study {study_uid} to FHIR ImagingStudy for patient {patient_id}")
 
         # Fetch metadata for the study
-        metadata_response = await get_study_metadata(study_uid)
+        metadata_response = await get_study_metadata(study_uid, series_uid=None, images_only=False)
         instances = metadata_response.get("instances", [])
 
         if not instances:
@@ -545,7 +562,7 @@ async def validate_study_for_fhir(study_uid: str):
         logger.info(f"Validating study {study_uid} for FHIR compatibility")
 
         # Fetch metadata for all instances
-        metadata_response = await get_study_metadata(study_uid)
+        metadata_response = await get_study_metadata(study_uid, series_uid=None, images_only=False)
         instances = metadata_response.get("instances", [])
 
         if not instances:
