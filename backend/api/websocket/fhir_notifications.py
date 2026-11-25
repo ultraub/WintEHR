@@ -61,7 +61,7 @@ class FHIRNotificationService:
             resource_data=resource_data,
             patient_id=patient_id
         )
-        logger.info(f"Notified clients about new {resource_type}/{resource_id}")
+        logger.debug("Notified clients about a new %s", resource_type)
         
     async def notify_resource_updated(
         self,
@@ -81,7 +81,7 @@ class FHIRNotificationService:
             resource_data=resource_data,
             patient_id=patient_id
         )
-        logger.info(f"Notified clients about updated {resource_type}/{resource_id}")
+        logger.debug("Notified clients about an updated %s", resource_type)
         
     async def notify_resource_deleted(
         self,
@@ -104,7 +104,7 @@ class FHIRNotificationService:
             resource_data={"resourceType": resource_type, "id": resource_id},
             patient_id=patient_id
         )
-        logger.info(f"Notified clients about deleted {resource_type}/{resource_id}")
+        logger.debug("Notified clients about a deleted %s", resource_type)
 
     def schedule_write(
         self,
