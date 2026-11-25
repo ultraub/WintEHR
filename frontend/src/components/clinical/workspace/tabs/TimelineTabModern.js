@@ -244,6 +244,7 @@ import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/Clini
 import { getTabForResourceType } from '../../utils/navigationHelper';
 import { resourceBelongsToPatient } from '../../../../utils/fhir';
 import websocketService from '../../../../services/websocket';
+import { RESOURCE_EVENTS } from '../../../../utils/resourceEvents';
 import { categoricalAccents, resourceTypeAccents } from '../../../../themes/categoricalAccents';
 
 // Import shared clinical components
@@ -773,7 +774,7 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   
   // WebSocket subscription
   useEffect(() => {
-    if (!patientId || !websocketService.isConnected) return;
+    if (!patientId) return;
 
     let subscriptionId = null;
 
@@ -1189,8 +1190,10 @@ const TimelineTabModern = ({ patientId, patient, onNavigateToTab }) => {
   
   // Subscribe to real-time updates
   useEffect(() => {
-    const unsubscribe = subscribe(CLINICAL_EVENTS.RESOURCE_UPDATED, handleResourceUpdate);
-    return () => unsubscribe();
+    // Created and deleted matter as much as updated: a timeline that only
+    // heard updates never showed another session's new entry
+    const unsubscribers = RESOURCE_EVENTS.map(eventType => subscribe(eventType, handleResourceUpdate));
+    return () => unsubscribers.forEach(unsubscribe => unsubscribe());
   }, [subscribe, handleResourceUpdate]);
   
   // Process timeline data

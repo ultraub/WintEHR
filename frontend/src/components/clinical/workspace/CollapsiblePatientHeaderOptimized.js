@@ -234,7 +234,7 @@ const CollapsiblePatientHeaderOptimized = ({
 
   // WebSocket patient room subscription for multi-user sync
   useEffect(() => {
-    if (!patientId || !websocketService.isConnected) return;
+    if (!patientId) return;
 
     let subscriptionId = null;
 

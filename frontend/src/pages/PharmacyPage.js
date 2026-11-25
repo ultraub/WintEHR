@@ -412,8 +412,6 @@ const PharmacyPage = () => {
 
   // WebSocket pharmacy room subscription
   useEffect(() => {
-    if (!websocketService.isConnected) return;
-
     console.log('[PharmacyPage] Setting up WebSocket pharmacy room subscription');
 
     let subscriptionId = null;

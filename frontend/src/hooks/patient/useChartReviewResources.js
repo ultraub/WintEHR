@@ -739,6 +739,26 @@ const useChartReviewResources = (patientId, options = {}) => {
       return;
     }
     
+    // A delete made in any session: drop that one item, whatever its type
+    if (eventType === CLINICAL_EVENTS.RESOURCE_DELETED) {
+      const removeFrom = {
+        Condition: setConditions,
+        MedicationRequest: setMedications,
+        AllergyIntolerance: setAllergies,
+        Immunization: setImmunizations,
+        Observation: setObservations,
+        Procedure: setProcedures,
+        Encounter: setEncounters,
+        CarePlan: setCarePlans,
+        DocumentReference: setDocumentReferences
+      }[resource.resourceType];
+      if (removeFrom) {
+        removeFrom(prev => prev.filter(item => item.id !== resource.id));
+        setLastUpdated(new Date());
+      }
+      return;
+    }
+
     // Update the appropriate state based on resource type and event
     switch (resource.resourceType) {
       case 'Condition':
@@ -933,7 +953,7 @@ const useChartReviewResources = (patientId, options = {}) => {
 
   // WebSocket patient room subscription for multi-user synchronization
   useEffect(() => {
-    if (!realTimeUpdates || !patientId || !websocketService.isConnected) return;
+    if (!realTimeUpdates || !patientId) return;
 
 
     // Track subscription ID to clean up later

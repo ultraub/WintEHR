@@ -64,10 +64,10 @@ module's deltas are here.
   `MemorySettingsRepository`, a `SecretBox("passphrase")`, and a fake audit.
   `settings_service.use_settings_service(svc)` swaps the process-wide
   service that `get_setting()` reads.
-- **Jobs are polled, not pushed.** The websocket manager is per worker, so a
-  broadcast from the worker running a job reaches a quarter of the clients
-  on a 4-worker box. The UI polls `GET /jobs/{id}` and `/log?offset=`;
-  both read the shared row and the shared log file.
+- **Jobs are polled, not pushed.** The UI polls `GET /jobs/{id}` and
+  `/log?offset=`; both read the shared row and the shared log file.
+  (WebSocket broadcasts do cross workers now — `api/websocket/relay.py` —
+  but only when Redis is configured, and polling needs neither.)
 - **A job kind is an allow-list.** Params are validated into typed values
   and placed into an argv list; nothing from the request reaches a shell.
   Adding a kind means adding a `JobKind` with its own validator and parser.

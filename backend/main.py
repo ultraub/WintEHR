@@ -119,6 +119,14 @@ from api.websocket.connection_pool import connection_pool
 async def startup_event():
     await init_db()
     connection_pool.start_background_tasks()
+    # Relay live-update broadcasts between uvicorn workers (api/websocket/relay.py).
+    # Off without REDIS_URL — single-worker dev needs nothing shared.
+    try:
+        from api.websocket.connection_manager import manager as ws_manager
+
+        await ws_manager.start_relay()
+    except Exception as exc:  # noqa: BLE001 — live updates must not stop the app
+        logging.getLogger("main").warning("WebSocket relay not started: %s", exc)
     # Command Center health history: one sampler loop per worker, elected per tick
     # (api/command_center/status_history.py). COMMAND_CENTER_SAMPLE_SECONDS=0 disables.
     try:
@@ -131,6 +139,12 @@ async def startup_event():
 # Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():
+    try:
+        from api.websocket.connection_manager import manager as ws_manager
+
+        await ws_manager.stop_relay()
+    except Exception:  # noqa: BLE001
+        pass
     await close_db()
 
 if __name__ == "__main__":

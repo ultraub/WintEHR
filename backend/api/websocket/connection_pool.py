@@ -205,8 +205,10 @@ class ConnectionPool:
         message_str = json.dumps(message)
         message_size = len(message_str.encode())
         
-        # Check rate limits
-        if not self.rate_limiter.check_rate_limit(client_id, message_size):
+        # Check rate limits. Heartbeats are exempt: a dropped ping is read as
+        # a dead connection, so a burst of updates must never crowd one out.
+        is_heartbeat = message.get("type") in ("ping", "pong")
+        if not is_heartbeat and not self.rate_limiter.check_rate_limit(client_id, message_size):
             logger.warning(f"Rate limit exceeded for client {client_id}")
             return False
         

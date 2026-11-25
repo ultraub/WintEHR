@@ -111,6 +111,17 @@ results, etc.) — read the file, do not assume a short list. Publish/subscribe
 via `useClinicalWorkflow()`; the context bridges events onto the WebSocket
 (`src/services/websocket.js`, default export `websocketService`).
 
+**Live updates from other sessions.** The server broadcasts every FHIR write
+as `resource.created` / `resource.updated` / `resource.deleted`
+(`{ patientId, resourceType, resourceId, resource }`; a delete carries a
+`{resourceType, id}` stub). The bridge applies each one to
+`FHIRResourceContext` (`applyRemoteChange`) before forwarding it, so views
+that read from the store update in place with no refetch. A view holding its
+own fetched list listens for `RESOURCE_EVENTS` and filters with
+`isRelevantEvent` (`src/utils/resourceEvents.js`). `subscribeToPatient` /
+`subscribeToRoom` may be called before the socket is open — do not guard
+them with `websocketService.isConnected`.
+
 ---
 
 ## Workspace tabs — one registry
