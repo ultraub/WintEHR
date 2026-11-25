@@ -11,7 +11,6 @@ for R4 compliance.
 
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import StreamingResponse
-import asyncio
 import httpx
 
 from services.hapi_fhir_client import HAPI_FHIR_TIMEOUT
@@ -20,46 +19,71 @@ import os
 import json
 from typing import Optional, List, Dict, Any
 
-from api.websocket.fhir_notifications import notification_service
+from api.websocket.fhir_notifications import notification_service, patient_id_of
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-def _extract_patient_id(resource: Dict[str, Any]) -> Optional[str]:
-    """Best-effort patient id from a FHIR resource (subject/patient reference)."""
-    if resource.get("resourceType") == "Patient":
-        return resource.get("id")
-    for field in ("subject", "patient"):
-        ref = (resource.get(field) or {}).get("reference", "")
-        if ref.startswith("Patient/"):
-            return ref.split("/", 1)[1]
+def _write_target(method: str, path: str) -> Optional[tuple]:
+    """(resource_type, resource_id) for a plain `{Type}` / `{Type}/{id}` write, else None.
+
+    Searches, operations ($...), history and Bundle posts are not single-
+    resource writes and are not broadcast.
+    """
+    segments = [s for s in path.split("/") if s]
+    if not segments or len(segments) > 2 or "$" in path:
+        return None
+    resource_type = segments[0]
+    if not resource_type[:1].isupper() or resource_type == "Bundle":
+        return None
+    return resource_type, (segments[1] if len(segments) == 2 else None)
+
+
+async def _patient_before_delete(client: httpx.AsyncClient, path: str) -> Optional[str]:
+    """The patient a resource belongs to, read just before it is deleted.
+
+    A DELETE response has no body, so afterwards there is nothing left to say
+    whose chart changed. Best-effort: any failure just means the delete is
+    broadcast without a patient.
+    """
+    target = _write_target("DELETE", path)
+    if not target or not target[1]:
+        return None
+    try:
+        existing = await client.get(
+            f"{HAPI_FHIR_BASE_URL}/fhir/{target[0]}/{target[1]}",
+            headers={"Accept": "application/fhir+json"},
+        )
+        if existing.status_code == 200:
+            return patient_id_of(existing.json())
+    except Exception as exc:  # noqa: BLE001 — never block the delete itself
+        logger.debug(f"Pre-delete read failed for {path}: {exc}")
     return None
 
 
-def _notify_fhir_write(method: str, path: str, response: httpx.Response) -> None:
+def _notify_fhir_write(
+    method: str,
+    path: str,
+    response: httpx.Response,
+    patient_id: Optional[str] = None,
+) -> None:
     """Schedule a WebSocket broadcast for a successful write through the proxy.
 
     This is the single funnel for frontend-originated FHIR writes (order
     signing, dialog saves, ...), so hooking it here gives connected clients
-    live resource updates without per-caller wiring. Only plain `{Type}` /
-    `{Type}/{id}` paths broadcast — searches, operations ($...), history and
-    Bundle posts are skipped. Fire-and-forget: never blocks or fails the
-    proxied response.
+    live resource updates without per-caller wiring. Fire-and-forget: never
+    blocks or fails the proxied response. `patient_id` is supplied for
+    deletes, whose response carries no resource to read it from.
     """
     try:
-        segments = [s for s in path.split("/") if s]
-        if not segments or len(segments) > 2 or "$" in path:
+        target = _write_target(method, path)
+        if not target:
             return
-        resource_type = segments[0]
-        if not resource_type[:1].isupper() or resource_type == "Bundle":
-            return
-
+        resource_type, resource_id = target
         action = {"POST": "created", "PUT": "updated", "PATCH": "updated", "DELETE": "deleted"}[method]
-        resource_id = segments[1] if len(segments) == 2 else None
         resource_data: Dict[str, Any] = {}
-        patient_id = None
 
         if action != "deleted":
             try:
@@ -69,21 +93,9 @@ def _notify_fhir_write(method: str, path: str, response: httpx.Response) -> None
             if isinstance(parsed, dict) and parsed.get("resourceType") == resource_type:
                 resource_data = parsed
                 resource_id = parsed.get("id") or resource_id
-                patient_id = _extract_patient_id(parsed)
+                patient_id = patient_id_of(parsed)
 
-        if not resource_id:
-            return
-
-        if action == "created":
-            coro = notification_service.notify_resource_created(
-                resource_type, resource_id, resource_data, patient_id=patient_id)
-        elif action == "updated":
-            coro = notification_service.notify_resource_updated(
-                resource_type, resource_id, resource_data, patient_id=patient_id)
-        else:
-            coro = notification_service.notify_resource_deleted(
-                resource_type, resource_id, patient_id=patient_id)
-        asyncio.create_task(coro)
+        notification_service.schedule_write(action, resource_type, resource_id, resource_data, patient_id)
     except Exception as exc:  # noqa: BLE001 — broadcasting must never break the proxy
         logger.warning(f"FHIR write broadcast skipped: {exc}")
 
@@ -214,6 +226,12 @@ async def proxy_to_hapi_fhir(path: str, request: Request):
 
     try:
         async with httpx.AsyncClient(timeout=HAPI_FHIR_TIMEOUT) as client:
+            # A delete leaves nothing behind to say whose chart changed —
+            # look that up first so the broadcast can carry the patient.
+            deleted_patient_id = None
+            if request.method == "DELETE":
+                deleted_patient_id = await _patient_before_delete(client, path)
+
             # Forward request to HAPI FHIR
             response = await client.request(
                 method=request.method,
@@ -225,7 +243,7 @@ async def proxy_to_hapi_fhir(path: str, request: Request):
             # Broadcast successful writes so connected clients see live
             # updates (fire-and-forget; see _notify_fhir_write)
             if request.method in ("POST", "PUT", "PATCH", "DELETE") and response.status_code < 300:
-                _notify_fhir_write(request.method, path, response)
+                _notify_fhir_write(request.method, path, response, patient_id=deleted_patient_id)
 
             # Prepare response headers — strip hop-by-hop and encoding headers
             # that conflict when nginx proxies to us (causes "Content-Length and

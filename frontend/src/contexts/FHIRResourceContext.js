@@ -559,6 +559,33 @@ export function FHIRResourceProvider({ children }) {
     }
   });
 
+  // A change another session made, delivered over the WebSocket. Applied
+  // straight to the store so every view reading a patient's resources shows
+  // it in place — no refetch, no loading state. Only for a patient whose
+  // chart this session has loaded; anything else is not ours to hold.
+  const applyRemoteChange = useStableCallback((action, resource, patientId) => {
+    if (!resource?.resourceType || !resource.id) return false;
+    if (!patientId || !state.relationships[patientId]) return false;
+
+    if (action === 'deleted') {
+      dispatch({
+        type: FHIR_ACTIONS.REMOVE_RESOURCE,
+        payload: { resourceType: resource.resourceType, resourceId: resource.id }
+      });
+      return true;
+    }
+
+    dispatch({
+      type: FHIR_ACTIONS.ADD_RESOURCE,
+      payload: { resourceType: resource.resourceType, resource }
+    });
+    dispatch({
+      type: FHIR_ACTIONS.ADD_RELATIONSHIP,
+      payload: { patientId, resourceType: resource.resourceType, resourceId: resource.id }
+    });
+    return true;
+  });
+
   const updateResource = useCallback((resourceType, resourceId, updates) => {
     dispatch({
       type: FHIR_ACTIONS.UPDATE_RESOURCE,
@@ -1960,6 +1987,7 @@ export function FHIRResourceProvider({ children }) {
     addResource,
     updateResource,
     removeResource,
+    applyRemoteChange,
     getResource,
     getResourcesByType,
     getPatientResources,
@@ -1998,6 +2026,7 @@ export function FHIRResourceProvider({ children }) {
     addResource,
     updateResource,
     removeResource,
+    applyRemoteChange,
     getResource,
     getResourcesByType,
     getPatientResources,

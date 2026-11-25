@@ -9,6 +9,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from .connection_pool import connection_pool, ConnectionState
+from .relay import BroadcastRelay
 
 logger = logging.getLogger(__name__)
 
@@ -28,15 +29,17 @@ class Subscription(BaseModel):
         }
     
     def matches(self, resource_type: str, patient_id: Optional[str] = None) -> bool:
-        """Check if this subscription matches the given criteria."""
-        # Check resource type match
-        if self.resource_types and resource_type not in self.resource_types:
-            return False
-        
-        # Check patient ID match if specified
-        if patient_id and self.patient_ids and patient_id not in self.patient_ids:
-            return False
-            
+        """Whether an update for this resource type / patient belongs to this subscription.
+
+        - Patient-scoped (the chart): everything about those patients, of any
+          type. An update with no patient, or for another patient, never matches.
+        - Type-scoped only: every update of those types.
+        - Neither (a bare room such as ``pharmacy:queue``): everything.
+        """
+        if self.patient_ids:
+            return patient_id in self.patient_ids
+        if self.resource_types:
+            return resource_type in self.resource_types
         return True
 
 
@@ -59,9 +62,30 @@ class ConnectionManager:
     def __init__(self):
         self.subscriptions: Dict[str, List[Subscription]] = {}
         self.pool = connection_pool  # Use the global connection pool
-        
+        # Carries broadcasts to the other uvicorn workers (see relay.py)
+        self.relay = BroadcastRelay()
+
         # Legacy compatibility - redirect to pool
         self._active_connections_redirect = True
+
+    async def start_relay(self) -> bool:
+        """Start relaying broadcasts across workers (no-op without Redis)."""
+        return await self.relay.start(self._handle_relayed)
+
+    async def stop_relay(self) -> None:
+        await self.relay.stop()
+
+    async def _handle_relayed(self, envelope: Dict[str, Any]) -> None:
+        """Deliver a broadcast another worker raised to this worker's clients."""
+        kind = envelope.get("kind")
+        if kind == "resource":
+            await self._deliver_resource_update(
+                envelope.get("message") or {},
+                envelope.get("resource_type"),
+                envelope.get("patient_id"),
+            )
+        elif kind == "event":
+            await self._deliver_event(envelope.get("message") or {}, envelope.get("sender"))
         
     @property
     def active_connections(self):
@@ -84,8 +108,11 @@ class ConnectionManager:
         """Handle WebSocket disconnection."""
         # Use async task to handle disconnection
         asyncio.create_task(self.pool.remove_connection(client_id))
-        
-        # Keep subscriptions for reconnection
+
+        # Every connection gets a fresh client id and the browser re-sends its
+        # subscriptions on reconnect, so a closed client's entries are dead
+        # weight — and would otherwise accumulate for the life of the worker.
+        self.subscriptions.pop(client_id, None)
         logger.info(f"Client {client_id} disconnected")
             
     async def subscribe(
@@ -194,28 +221,30 @@ class ConnectionManager:
             "timestamp": datetime.utcnow().isoformat()
         }
         
-        # Create room keys for efficient broadcasting
-        rooms_to_broadcast = set()
-        
-        # Add resource type room
-        rooms_to_broadcast.add(f"resource:{resource_type}")
-        
-        # Add patient-specific room if applicable
-        if patient_id:
-            rooms_to_broadcast.add(f"patient:{patient_id}")
-            rooms_to_broadcast.add(f"patient:{patient_id}:resource:{resource_type}")
-        
-        # Broadcast to each room
-        for room in rooms_to_broadcast:
-            await self.pool.broadcast_to_room(room, message_data)
-        
-        # Also handle legacy subscriptions
-        for client_id, client_subscriptions in self.subscriptions.items():
-            for subscription in client_subscriptions:
-                if subscription.matches(resource_type, patient_id):
-                    await self.pool.send_to_client(client_id, message_data)
-                    break
-                    
+        await self._deliver_resource_update(message_data, resource_type, patient_id)
+        await self.relay.publish({
+            "kind": "resource",
+            "message": message_data,
+            "resource_type": resource_type,
+            "patient_id": patient_id,
+        })
+
+    async def _deliver_resource_update(
+        self,
+        message_data: Dict[str, Any],
+        resource_type: Optional[str],
+        patient_id: Optional[str],
+    ) -> int:
+        """Send an update once to each of this worker's clients it belongs to."""
+        recipients = [
+            client_id
+            for client_id, client_subscriptions in list(self.subscriptions.items())
+            if any(s.matches(resource_type, patient_id) for s in client_subscriptions)
+        ]
+        for client_id in recipients:
+            await self.pool.send_to_client(client_id, message_data)
+        return len(recipients)
+
     async def _send_message(self, client_id: str, message: WebSocketMessage):
         """Send a message to a specific client using the connection pool."""
         message_dict = json.loads(message.json())  # Convert to dict with datetime serialization
@@ -274,10 +303,14 @@ class ConnectionManager:
 
     async def broadcast_event_to_others(self, sender_id: str, message: dict):
         """Rebroadcast a client-published clinical event to all other clients."""
+        await self._deliver_event(message, sender_id)
+        await self.relay.publish({"kind": "event", "message": message, "sender": sender_id})
+
+    async def _deliver_event(self, message: dict, sender_id: Optional[str]) -> None:
         for other_id in list(self.pool.connections.keys()):
             if other_id != sender_id:
                 await self.pool.send_to_client(other_id, message)
-            
+
 
 # Global connection manager instance
 manager = ConnectionManager()

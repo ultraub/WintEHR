@@ -93,6 +93,14 @@ breaks every non-localhost deployment (root `CLAUDE.md` rule).
 `fhir_notifications.py` (`FHIRNotificationService`) broadcasts
 resource-created / updated / deleted / clinical-event messages.
 
+| Fact | Where |
+|---|---|
+| Every single-resource write is broadcast | `notification_service.schedule_write` — called by the FHIR proxy (browser writes) and by `HAPIFHIRClient.create/update/delete` (backend-service writes). Do not add per-caller `notify_resource_*` calls. `AuditEvent` / `Provenance` are skipped. |
+| Broadcasts cross uvicorn workers | `relay.py` (`BroadcastRelay`): Redis pub/sub when `REDIS_URL` is set, in-process otherwise. Each worker delivers to its own clients directly and relays to the rest; same fallback pattern as `auth/session_store.py`. |
+| Who receives an update | `Subscription.matches`: a patient-scoped subscription gets everything about its patients (any type) and nothing else; type-only gets those types; a bare room (`pharmacy:queue`) gets everything. Each client is sent a message once. |
+| Deletes | The patient is read *before* the delete (the response has no body); the message carries a `{resourceType, id}` stub so clients can drop the item. |
+| Tests | `tests/api/websocket/test_relay.py` — two managers on one fake pub/sub hub model two workers. |
+
 ---
 
 ## Cross-cutting services

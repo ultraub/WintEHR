@@ -99,10 +99,13 @@ extend `drug_interactions.py` (the comprehensive one), not the inline dict.
 
 ## What this module does NOT do (corrections to prior doc)
 
-- **No event bus / WebSocket broadcasting here.** `orders`, `pharmacy`, and
-  `administration` routers do not publish clinical events or broadcast over
-  WebSocket. There is no `CLINICAL_EVENTS` dict and no `publish_event()` in
-  this module. Real-time event plumbing lives in `api/websocket/`.
+- **No event bus here.** There is no `CLINICAL_EVENTS` dict and no
+  `publish_event()` in this module; real-time plumbing lives in
+  `api/websocket/`. Resource writes made through `HAPIFHIRClient` are
+  broadcast automatically (see `api/CLAUDE.md` § WebSocket) — add nothing per
+  router. The only explicit calls are the two domain events the UI keys on:
+  `medication.dispensed` (`pharmacy/service.py`) and
+  `medication.administered` (`administration/router.py`).
 - Notifications go through `api/services/notification_service.py` directly
   (the `notifications_helper.py` wrapper had zero importers and was deleted
   in the dead-code purge). Critical-value thresholds live in

@@ -44,6 +44,28 @@ class FHIRClientError(Exception):
         self.status_code = status_code
 
 
+def _announce_write(
+    action: str,
+    resource_type: str,
+    resource_id: Optional[str],
+    resource: Optional[Dict[str, Any]] = None,
+    patient_id: Optional[str] = None,
+) -> None:
+    """Tell connected browsers a backend service just wrote a resource.
+
+    Browser writes are announced by the FHIR proxy; this covers services that
+    write through this client, so their changes show up live too. Imported
+    lazily and failure-proof: a notification problem never fails a write, and
+    scripts that use this client outside the app simply have nobody to tell.
+    """
+    try:
+        from api.websocket.fhir_notifications import notification_service
+
+        notification_service.schedule_write(action, resource_type, resource_id, resource, patient_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(f"Write announcement skipped: {exc}")
+
+
 class HAPIFHIRClient:
     """
     Async client for HAPI FHIR JPA Server operations.
@@ -183,7 +205,9 @@ class HAPIFHIRClient:
                     headers={"Content-Type": "application/fhir+json"}
                 )
                 response.raise_for_status()
-                return response.json()
+                created = response.json()
+                _announce_write("created", resource_type, created.get("id"), created)
+                return created
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HAPI FHIR create error for {resource_type}: {e.response.status_code} - {e.response.text}")
@@ -230,7 +254,9 @@ class HAPIFHIRClient:
                     headers={"Content-Type": "application/fhir+json"}
                 )
                 response.raise_for_status()
-                return response.json()
+                updated = response.json()
+                _announce_write("updated", resource_type, updated.get("id") or resource_id, updated)
+                return updated
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HAPI FHIR update error for {resource_type}/{resource_id}: {e.response.status_code} - {e.response.text}")
@@ -257,8 +283,21 @@ class HAPIFHIRClient:
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
+                # Nothing is left after a delete to say whose chart changed,
+                # so note the patient first (best-effort).
+                patient_id = None
+                try:
+                    existing = await client.get(url, headers={"Accept": "application/fhir+json"})
+                    if existing.status_code == 200:
+                        from api.websocket.fhir_notifications import patient_id_of
+
+                        patient_id = patient_id_of(existing.json())
+                except Exception:  # noqa: BLE001 — never block the delete itself
+                    pass
+
                 response = await client.delete(url)
                 response.raise_for_status()
+                _announce_write("deleted", resource_type, resource_id, patient_id=patient_id)
                 return True
 
         except httpx.HTTPStatusError as e:

@@ -33,6 +33,7 @@ class WebSocketService {
     this.tokenRefreshCallback = null;
     this.authFailureCount = 0;
     this.maxAuthRetries = 3;
+    this.subscriptionSeq = 0;
 
     // Use centralized configuration for WebSocket URL
     this.baseUrl = getWebSocketUrl();
@@ -211,12 +212,11 @@ class WebSocketService {
    * @param {Array<string>} resourceTypes - Optional resource types to filter
    */
   async subscribeToPatient(patientId, resourceTypes = []) {
-    if (!this.isConnected) {
-      // Cannot subscribe - not connected
-      return;
-    }
-    
-    const subscriptionId = `patient-${patientId}-${Date.now()}`;
+    // Not connected yet is fine: the subscription is recorded below and
+    // resubscribeAll() sends it the moment the socket opens. Returning
+    // nothing here used to leave a chart opened during connect (or a
+    // reconnect) permanently without live updates.
+    const subscriptionId = `patient-${patientId}-${Date.now()}-${++this.subscriptionSeq}`;
     const message = {
       // NB: the server's message type is 'subscribe' — 'subscription' lands
       // in its unknown-type branch and silently registers nothing
@@ -228,12 +228,10 @@ class WebSocketService {
       }
     };
     
-    // Subscribing to patient
-    this.send(message);
-    
-    // Store subscription info for reconnection
+    // Record first, then send if we can — see the note above
     if (!this.activeSubscriptions) this.activeSubscriptions = new Map();
     this.activeSubscriptions.set(subscriptionId, { patientId, resourceTypes });
+    this.send(message);
     
     return subscriptionId;
   }
@@ -243,6 +241,11 @@ class WebSocketService {
    * @param {string} subscriptionId - Subscription ID to cancel
    */
   async unsubscribeFromPatient(subscriptionId) {
+    // Forget it even while disconnected, or the next reconnect would
+    // resubscribe a view that has already gone away
+    if (this.activeSubscriptions) {
+      this.activeSubscriptions.delete(subscriptionId);
+    }
     if (!this.isConnected) {
       return;
     }
@@ -269,12 +272,8 @@ class WebSocketService {
    * @returns {string} Subscription ID
    */
   async subscribeToRoom(roomName) {
-    if (!this.isConnected) {
-      // Cannot subscribe to room - not connected
-      return;
-    }
-    
-    const subscriptionId = `room-${roomName}-${Date.now()}`;
+    // As with subscribeToPatient: recorded now, sent when the socket opens
+    const subscriptionId = `room-${roomName}-${Date.now()}-${++this.subscriptionSeq}`;
     const message = {
       type: 'subscribe',
       data: {
@@ -283,12 +282,9 @@ class WebSocketService {
       }
     };
     
-    // Subscribing to room
-    this.send(message);
-    
-    // Store subscription info for reconnection
     if (!this.activeSubscriptions) this.activeSubscriptions = new Map();
     this.activeSubscriptions.set(subscriptionId, { room: roomName });
+    this.send(message);
     
     return subscriptionId;
   }
@@ -298,6 +294,11 @@ class WebSocketService {
    * @param {string} subscriptionId - Subscription ID to cancel
    */
   async unsubscribeFromRoom(subscriptionId) {
+    // Forget it even while disconnected, or the next reconnect would
+    // resubscribe a view that has already gone away
+    if (this.activeSubscriptions) {
+      this.activeSubscriptions.delete(subscriptionId);
+    }
     if (!this.isConnected) {
       return;
     }

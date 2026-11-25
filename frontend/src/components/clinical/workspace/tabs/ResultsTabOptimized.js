@@ -122,6 +122,9 @@ import {
   ClinicalSummaryCard
 } from '../../shared';
 import { extractBundleResources } from '../../../../core/fhir/utils/bundleUtils';
+import { RESOURCE_EVENTS, isRelevantEvent, isResourceEvent, applyResourceEvent } from '../../../../utils/resourceEvents';
+
+const RESULT_RESOURCE_TYPES = ['Observation', 'DiagnosticReport'];
 
 // Reference ranges for common lab tests (based on LOINC codes)
 const REFERENCE_RANGES = {
@@ -458,7 +461,9 @@ const ResultsTabOptimized = ({
       CLINICAL_EVENTS.CRITICAL_VALUE_ALERT,
       CLINICAL_EVENTS.RESULT_ACKNOWLEDGED,
       CLINICAL_EVENTS.OBSERVATION_RECORDED,
-      CLINICAL_EVENTS.VITAL_SIGNS_RECORDED
+      CLINICAL_EVENTS.VITAL_SIGNS_RECORDED,
+      // Any session's write to a result, sent by the server
+      ...RESOURCE_EVENTS
     ];
 
     resultEvents.forEach(eventType => {
@@ -466,7 +471,7 @@ const ResultsTabOptimized = ({
         // Result event received
         
         // Handle update if the event is for the current patient
-        if (event.patientId === patientId) {
+        if (isRelevantEvent(eventType, event, patientId, RESULT_RESOURCE_TYPES)) {
           // Updating results for event
           handleResultUpdate(eventType, event);
         }
@@ -485,7 +490,7 @@ const ResultsTabOptimized = ({
 
   // WebSocket patient room subscription for multi-user sync
   useEffect(() => {
-    if (!patientId || !websocketService.isConnected) return;
+    if (!patientId) return;
 
     // Setting up WebSocket patient room subscription
 
@@ -529,6 +534,18 @@ const ResultsTabOptimized = ({
       return;
     }
 
+    // A deleted result carries only its type and id — its category is
+    // unknown, so drop it from whichever list holds it
+    if (eventType === CLINICAL_EVENTS.RESOURCE_DELETED) {
+      setAllData(prev => ({
+        ...prev,
+        labObservations: applyResourceEvent(prev.labObservations, eventType, result),
+        vitalObservations: applyResourceEvent(prev.vitalObservations, eventType, result),
+        diagnosticReports: applyResourceEvent(prev.diagnosticReports, eventType, result)
+      }));
+      return;
+    }
+
     // Determine resource type and update appropriate state
     if (result.resourceType === 'Observation') {
       const category = getObservationCategory(result);
@@ -562,6 +579,11 @@ const ResultsTabOptimized = ({
 
   // Helper function to update results list
   const updateResultsList = (list, newResult, eventType) => {
+    // Server-sent writes: add if new, replace if known
+    if (isResourceEvent(eventType)) {
+      return applyResourceEvent(list, eventType, newResult, enhanceObservationWithReferenceRange);
+    }
+
     // For new results, add to beginning
     if (eventType === CLINICAL_EVENTS.RESULT_AVAILABLE || 
         eventType === CLINICAL_EVENTS.OBSERVATION_RECORDED ||

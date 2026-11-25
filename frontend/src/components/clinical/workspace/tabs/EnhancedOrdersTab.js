@@ -69,6 +69,7 @@ import { useOrderSelectHook } from '../../../../hooks/cds/useCDSHooks';
 import CDSCard from '../../cds/CDSCard';
 import { getStatusColor, getSeverityColor } from '../../../../themes/clinicalThemeUtils';
 import websocketService from '../../../../services/websocket';
+import { RESOURCE_EVENTS, isRelevantEvent } from '../../../../utils/resourceEvents';
 
 // Enhanced UX components
 import {
@@ -693,13 +694,15 @@ const EnhancedOrdersTab = ({
       CLINICAL_EVENTS.ORDER_CANCELLED,
       CLINICAL_EVENTS.ORDER_COMPLETED,
       CLINICAL_EVENTS.ORDER_SIGNED,
-      CLINICAL_EVENTS.MEDICATION_PRESCRIBED
+      CLINICAL_EVENTS.MEDICATION_PRESCRIBED,
+      // Any session's write to an order, sent by the server
+      ...RESOURCE_EVENTS
     ];
 
     orderEvents.forEach(eventType => {
       const unsubscribe = subscribe(eventType, (event) => {
         // Handle update if the event is for the current patient
-        if (event.patientId === patientId) {
+        if (isRelevantEvent(eventType, event, patientId, ['ServiceRequest', 'MedicationRequest'])) {
           handleOrderUpdate(eventType, event);
         }
       });
@@ -713,7 +716,7 @@ const EnhancedOrdersTab = ({
 
   // WebSocket patient room subscription for multi-user sync
   useEffect(() => {
-    if (!patientId || !websocketService.isConnected) return;
+    if (!patientId) return;
 
     let subscriptionId = null;
 

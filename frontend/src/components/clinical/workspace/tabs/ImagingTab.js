@@ -80,6 +80,7 @@ import { EXTENSION_URLS } from '../../../../constants/fhirExtensions';
 import { useClinicalWorkflow, CLINICAL_EVENTS } from '../../../../contexts/ClinicalWorkflowContext';
 import { navigateToTab, TAB_IDS } from '../../utils/navigationHelper';
 import websocketService from '../../../../services/websocket';
+import { RESOURCE_EVENTS, isRelevantEvent } from '../../../../utils/resourceEvents';
 import { getDicomQidoUrl, getDicomWadoUrl } from '../../../../config/apiConfig';
 import api from '../../../../services/api';
 import {
@@ -670,13 +671,15 @@ const ImagingTab = ({
       CLINICAL_EVENTS.IMAGING_STUDY_UPDATED,
       CLINICAL_EVENTS.IMAGING_REPORT_READY,
       CLINICAL_EVENTS.ORDER_PLACED,
-      CLINICAL_EVENTS.RESULT_RECEIVED
+      CLINICAL_EVENTS.RESULT_RECEIVED,
+      // Any session's write to a study or report, sent by the server
+      ...RESOURCE_EVENTS
     ];
 
     imagingEvents.forEach(eventType => {
       const unsubscribe = subscribe(eventType, (event) => {
         // Handle update if the event is for the current patient
-        if (event.patientId === patientId) {
+        if (isRelevantEvent(eventType, event, patientId, ['ImagingStudy', 'DiagnosticReport'])) {
           handleImagingUpdate(eventType, event);
         }
       });
@@ -690,7 +693,7 @@ const ImagingTab = ({
 
   // WebSocket patient room subscription for multi-user sync
   useEffect(() => {
-    if (!patientId || !websocketService.isConnected) return;
+    if (!patientId) return;
 
     let subscriptionId = null;
 

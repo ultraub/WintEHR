@@ -7,6 +7,7 @@ import { useFHIRResource } from './FHIRResourceContext';
 import { useAuth } from './AuthContext';
 import websocketService from '../services/websocket';
 import { CLINICAL_EVENTS } from '../constants/clinicalEvents';
+import { isResourceEvent } from '../utils/resourceEvents';
 
 const ClinicalWorkflowContext = createContext();
 
@@ -27,7 +28,11 @@ export const WORKFLOW_TYPES = {
 };
 
 export const ClinicalWorkflowProvider = ({ children }) => {
-  const { currentPatient, getPatientResources } = useFHIRResource();
+  const { currentPatient, getPatientResources, applyRemoteChange } = useFHIRResource();
+  // The WebSocket effect below only re-runs on login, so it reaches the
+  // store through a ref rather than a stale closure.
+  const applyRemoteChangeRef = useRef(applyRemoteChange);
+  applyRemoteChangeRef.current = applyRemoteChange;
   const { user: currentUser } = useAuth();
   
   // Clinical context state
@@ -523,6 +528,17 @@ export const ClinicalWorkflowProvider = ({ children }) => {
     
     eventTypes.forEach(eventType => {
       const unsubscribe = websocketService.subscribe(eventType, (data) => {
+        // A write from any session: put it in the shared store first, so
+        // views that read from the store are already current when the
+        // listeners below run.
+        if (data?.fromWebSocket && isResourceEvent(eventType)) {
+          applyRemoteChangeRef.current?.(
+            eventType === CLINICAL_EVENTS.RESOURCE_DELETED ? 'deleted' : 'upserted',
+            data.resource,
+            data.patientId
+          );
+        }
+
         // Forward WebSocket events to local event listeners using ref to avoid stale closures
         const listeners = eventListenersRef.current.get(eventType) || [];
         listeners.forEach(listener => {
